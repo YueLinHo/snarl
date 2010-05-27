@@ -16,7 +16,7 @@ Option Explicit
 Const EM_TITLE_TEXT = 0
 Const EM_MARGIN = 10
 
-Public Style As TStyle
+Dim mStyle As TStyle
 
 Dim mInfo As notification_info
 Dim mIconSize As Long
@@ -33,6 +33,7 @@ Dim mTextRect As BRect
 Dim mSettings As T_METER_STYLE_SETTINGS
 
 Implements IStyleInstance
+Implements IMeterStyle
 
 Private Sub Class_Initialize()
 
@@ -42,6 +43,12 @@ Private Sub Class_Initialize()
         .TextMode = MFX_TEXT_ANTIALIAS
 
     End With
+
+End Sub
+
+Private Sub IMeterStyle_SetStyle(Style As TStyle)
+
+    Set mStyle = Style
 
 End Sub
 
@@ -107,7 +114,7 @@ Dim pi As MImage
     ' /* pre-configuration */
 
     mIconOnly = ((mInfo.Title = "") And (mInfo.Text = "")) 'Or (InStr(mInfo.Scheme, "icon only") > 0))
-    mIsNumeric = (g_IsNumeric(mInfo.Text) And (Val(Style.ReadSetting("show_graphically"))))
+    mIsNumeric = (g_IsNumeric(mInfo.Text) And (Val(mStyle.ReadSetting("show_graphically"))))
 
     ' /* calculate notifcation size and internal measurements */
 
@@ -247,7 +254,7 @@ Dim pr As BRect
 
         ' /* measure title */
         If mInfo.Title <> "" Then
-            .SetFont Style.ReadSetting("title_font"), Style.ReadSetting("title_size"), True
+            .SetFont mStyle.ReadSetting("title_font"), mStyle.ReadSetting("title_size"), True
             Set prTemp = pr.Duplicate
             prTemp.Bottom = 16384
             .MeasureString mInfo.Title, prTemp, prTemp
@@ -257,7 +264,7 @@ Dim pr As BRect
 
         ' /* measure text */
         If (mInfo.Text <> "") And (Not mIsNumeric) Then
-            .SetFont Style.ReadSetting("text_font"), Style.ReadSetting("text_size"), True
+            .SetFont mStyle.ReadSetting("text_font"), mStyle.ReadSetting("text_size"), True
             Set prTemp = pr.Duplicate
             prTemp.Bottom = 16384
             .MeasureString mInfo.Text, prTemp, prTemp
@@ -325,7 +332,7 @@ Dim pr As BRect
 
             End If
 
-            .SetFont Style.ReadSetting("title_font"), Val(Style.ReadSetting("title_size")), True
+            .SetFont mStyle.ReadSetting("title_font"), Val(mStyle.ReadSetting("title_size")), True
             .SetHighColour rgba(0, 0, 0, 102)
             .DrawString mInfo.Title, pr.OffsetByCopy(2, 2)                  '// shadow text
             .SetHighColour rgba(255, 255, 255)
@@ -351,7 +358,7 @@ Dim pr As BRect
 
             End If
 
-            .SetFont Style.ReadSetting("text_font"), Val(Style.ReadSetting("text_size"))
+            .SetFont mStyle.ReadSetting("text_font"), Val(mStyle.ReadSetting("text_size"))
             .SetHighColour rgba(0, 0, 0, 102)
             .DrawString mInfo.Text, pr.OffsetByCopy(2, 2)                   '// shadow text
             .SetHighColour rgba(255, 255, 255)

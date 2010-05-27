@@ -53,7 +53,7 @@ Dim ps As ConfigSection
         .Major = Major
         .Minor = Minor
         .Name = StyleName
-        .Path = g_MakePath(App.Path) & StyleName
+        .Path = g_MakePath(App.Path) & IIf(g_IsIDE(), "bin\", "") & StyleName
 
         .Schemes = Schemes
 
@@ -237,3 +237,23 @@ Public Function Spectrums() As String
     Spectrums = mSpectrums
 
 End Function
+
+Public Function GetSchemeSetting(ByVal Scheme As String, ByVal Setting As String, Optional ByVal DefaultValue As String) As String
+
+    On Error Resume Next
+
+    ' /* pre-set with default in case we can't find the required scheme */
+
+    GetSchemeSetting = DefaultValue
+
+    If (mSchemes Is Nothing) Then _
+        Exit Function
+
+Dim i As Long
+
+    i = mSchemes.FindSection(Scheme)
+    If i Then _
+        GetSchemeSetting = mSchemes.SectionAt(i).GetValueWithDefault(Setting, DefaultValue)
+
+End Function
+

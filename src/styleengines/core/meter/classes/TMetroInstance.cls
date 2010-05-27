@@ -29,7 +29,7 @@ Const EM_TITLE_TEXT = 8
 Const EM_MARGIN = 16
 Const RX = 32
 
-Public Style As TStyle
+Dim mStyle As TStyle
 
 Dim mInfo As notification_info
 Dim mIconSize As Long
@@ -46,6 +46,13 @@ Dim mTitleRect As BRect
 Dim mTextRect As BRect
 
 Implements IStyleInstance
+Implements IMeterStyle
+
+Private Sub IMeterStyle_SetStyle(Style As TStyle)
+
+    Set mStyle = Style
+
+End Sub
 
 Private Sub IStyleInstance_AdjustPosition(X As Long, Y As Long, Alpha As Integer, Done As Boolean)
 End Sub
@@ -91,7 +98,7 @@ Dim pi As MImage
     ' /* pre-configuration */
 
     mIconOnly = ((mInfo.Title = "") And (mInfo.Text = "")) 'Or (InStr(mInfo.Scheme, "icon only") > 0))
-    mIsNumeric = (g_IsNumeric(mInfo.Text) And (Val(Style.ReadSetting("show_graphically"))))
+    mIsNumeric = (g_IsNumeric(mInfo.Text) And (Val(mStyle.ReadSetting("show_graphically"))))
 
     uCalcSize
     
@@ -122,14 +129,14 @@ Private Sub uDraw()
 
 '        End If
 
-        mBackground = Val(Style.ReadSetting("background"))
-        mForeground = Val(Style.ReadSetting("foreground"))
-        mBorder = Val(Style.ReadSetting("border"))
+        mBackground = Val(mStyle.ReadSetting("background"))
+        mForeground = Val(mStyle.ReadSetting("foreground"))
+        mBorder = Val(mStyle.ReadSetting("border"))
 
         If mInfo.Scheme <> "custom" Then
-            mBackground = Style.GetSchemeColour(mInfo.Scheme, "background")
-            mForeground = Style.GetSchemeColour(mInfo.Scheme, "foreground")
-            mBorder = Style.GetSchemeColour(mInfo.Scheme, "border")
+            mBackground = mStyle.GetSchemeColour(mInfo.Scheme, "background")
+            mForeground = mStyle.GetSchemeColour(mInfo.Scheme, "foreground")
+            mBorder = mStyle.GetSchemeColour(mInfo.Scheme, "border")
 
         End If
 
@@ -182,7 +189,7 @@ Dim pr As BRect
         ' /* measure title */
 
         If mInfo.Title <> "" Then
-            .SetFont Style.ReadSetting("title_font"), Style.ReadSetting("title_size"), True
+            .SetFont mStyle.ReadSetting("title_font"), mStyle.ReadSetting("title_size"), True
             Set prTemp = pr.Duplicate
             prTemp.Bottom = 16384
             .MeasureString mInfo.Title, prTemp, prTemp
@@ -193,7 +200,7 @@ Dim pr As BRect
         ' /* measure text */
 
         If (mInfo.Text <> "") And (Not mIsNumeric) Then
-            .SetFont Style.ReadSetting("text_font"), Style.ReadSetting("text_size"), True
+            .SetFont mStyle.ReadSetting("text_font"), mStyle.ReadSetting("text_size"), True
             Set prTemp = pr.Duplicate
             prTemp.Bottom = 16384
             .MeasureString mInfo.Text, prTemp, prTemp
@@ -249,7 +256,7 @@ Const OFFS = 4
             .StrokeLine new_BRect(3, pr.Top - OFFS, .Width - 3 - 1, pr.Top - OFFS)
             .StrokeLine new_BRect(3, pr.Bottom + OFFS, .Width - 3 - 1, pr.Bottom + OFFS)
 
-            .SetFont Style.ReadSetting("title_font"), Val(Style.ReadSetting("title_size")), True
+            .SetFont mStyle.ReadSetting("title_font"), Val(mStyle.ReadSetting("title_size")), True
             .SetHighColour mForeground
             .DrawString mInfo.Title, pr
 
@@ -276,7 +283,7 @@ Const OFFS = 4
 
             End If
 
-            If Val(Style.ReadSetting("show_percent")) Then
+            If Val(mStyle.ReadSetting("show_percent")) Then
                 .SetHighColour mForeground
                 .SetFont "Arial", 9, True
                 .DrawString CStr(dw) & "%", prLabel, MFX_ALIGN_H_CENTER Or MFX_ALIGN_V_CENTER
@@ -296,7 +303,7 @@ Const OFFS = 4
 
             End If
 
-            .SetFont Style.ReadSetting("text_font"), Style.ReadSetting("text_size"), True
+            .SetFont mStyle.ReadSetting("text_font"), mStyle.ReadSetting("text_size"), True
             .SetHighColour mForeground
             .DrawString mInfo.Text, pr
 

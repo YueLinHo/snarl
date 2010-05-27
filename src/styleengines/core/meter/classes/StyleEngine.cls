@@ -47,48 +47,37 @@ Private Function IStyleEngine_CountStyles() As Long
 End Function
 
 Private Function IStyleEngine_CreateInstance(ByVal StyleName As String) As libSnarlStyles.IStyleInstance
-Dim pMin As TMinimalInstance
-Dim pSny As TSonyInstance
-Dim pSmt As TSmoothInstance
-Dim pMto As TMetroInstance
-Dim pPho As TiPhoneyInstance
-Dim pBlk As TJustBlackInstance
+Dim pStyle As IMeterStyle
 
     Select Case StyleName
     Case STYLE_NAME_JUST_BLACK
-        Set pBlk = New TJustBlackInstance
-        Set pBlk.Style = mStyle(uIndexOf(StyleName))
-        Set IStyleEngine_CreateInstance = pBlk
+        Set pStyle = New TJustBlackInstance
 
     Case STYLE_NAME_IPHONEY
-        Set pPho = New TiPhoneyInstance
-        Set pPho.Style = mStyle(uIndexOf(StyleName))
-        Set IStyleEngine_CreateInstance = pPho
+        Set pStyle = New TiPhoneyInstance
 
     Case STYLE_NAME_MINIMAL
-        Set pMin = New TMinimalInstance
-        Set pMin.Style = mStyle(uIndexOf(StyleName))
-        Set IStyleEngine_CreateInstance = pMin
+        Set pStyle = New TMinimalInstance
 
     Case STYLE_NAME_SONY
-        Set pSny = New TSonyInstance
-        Set pSny.Style = mStyle(uIndexOf(StyleName))
-        Set IStyleEngine_CreateInstance = pSny
+        Set pStyle = New TSonyInstance
 
     Case STYLE_NAME_SMOOTH
-        Set pSmt = New TSmoothInstance
-        Set pSmt.Style = mStyle(uIndexOf(StyleName))
-        Set IStyleEngine_CreateInstance = pSmt
+        Set pStyle = New TSmoothInstance
 
     Case STYLE_NAME_METRO
-        Set pMto = New TMetroInstance
-        Set pMto.Style = mStyle(uIndexOf(StyleName))
-        Set IStyleEngine_CreateInstance = pMto
+        Set pStyle = New TMetroInstance
 
     Case STYLE_NAME_CLOCK
-        Set IStyleEngine_CreateInstance = New TClockInstance
+        Set pStyle = New TClockInstance
 
     End Select
+
+    If Not (pStyle Is Nothing) Then
+        pStyle.SetStyle mStyle(uIndexOf(StyleName))
+        Set IStyleEngine_CreateInstance = pStyle
+
+    End If
 
 End Function
 
@@ -201,8 +190,8 @@ Private Function IStyleEngine_Initialize() As melon.M_RESULT
          E_METER_STYLE_CAN_CHANGE_FONT Or E_METER_STYLE_CAN_CHANGE_BKGND Or E_METER_STYLE_CAN_CHANGE_BORDER Or E_METER_STYLE_CAN_CHANGE_FGND Or E_METER_STYLE_HAS_CUSTOM_SCHEME Or E_METER_STYLE_LOAD_SCHEMES_FROM_FILE
 
     uAdd STYLE_NAME_CLOCK, _
-         "Displays specially formatted text as a time", S_STYLE_IS_CONFIGURABLE Or S_STYLE_MULTI_INSTANCE, _
-         "Analogue|Digital", 0, 1, uCreatePackedStr(""), 0
+         "Displays notification text formatted as 'YYYYMMDDHHMMSS' as a time", S_STYLE_IS_CONFIGURABLE Or S_STYLE_MULTI_INSTANCE, _
+         "", 0, 1, uCreatePackedStr(""), E_METER_STYLE_LOAD_SCHEMES_FROM_FILE
 
 
 Dim pPacked As BPackedData

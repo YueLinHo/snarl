@@ -29,7 +29,7 @@ Dim mInfo As notification_info
 Dim mIcon As mfxBitmap
 Dim mView As mfxView
 
-Const T As Double = 57.29577951
+Const t As Double = 57.29577951
 
 Private Type T_TIME
     Hour As Integer
@@ -42,8 +42,16 @@ Private Type T_TIME
 End Type
 
 Dim mTime As T_TIME
+Dim mStyle As TStyle
 
+Implements IMeterStyle
 Implements IStyleInstance
+
+Private Sub IMeterStyle_SetStyle(Style As TStyle)
+
+    Set mStyle = Style
+
+End Sub
 
 Private Sub IStyleInstance_AdjustPosition(X As Long, Y As Long, Alpha As Integer, Done As Boolean)
 End Sub
@@ -129,7 +137,7 @@ Static i As Integer
 Static n As Double
 Dim pr As BRect
 
-    Set pi = load_image_obj(g_MakePath(App.Path) & IIf(g_IsIDE(), "bin\", "") & "clock\back2.png")
+    Set pi = load_image_obj(g_MakePath(App.Path) & IIf(g_IsIDE(), "bin\", "") & "clock\back.png")
     If is_valid_image(pi) Then
         With mView
             .SizeTo pi.Width, pi.Height
@@ -158,7 +166,7 @@ Dim pr As BRect
                 If n < 0 Then _
                     n = n + 360
     
-                n = n / T
+                n = n / t
     
                 Set pr = new_BRect(Fix(.Bounds.Width / 2) + (Fix(.Bounds.Width / 2) * 0.97 * Cos(n)), _
                                    Fix(.Bounds.Height / 2) + (Fix(.Bounds.Height / 2) * 0.97 * Sin(n)), _
@@ -189,13 +197,21 @@ Dim pr As BRect
 
     End If
 
+Dim cx As Long
+
+    If is_valid_image(mIcon) Then
+        cx = MIN(mIcon.Width, 48)
+        mView.DrawScaledImage mIcon, new_BPoint(0, mView.Height - cx), new_BPoint(cx, cx)
+
+    End If
+
 Dim hi As Long, mi As Long, si As Long
 Dim Hd As Double, Md As Double, Sd As Double
 Dim hr As Double, Mr As Double, Sr As Double
  
-    hi = Hour(time)
-    mi = Minute(time)
-    si = Second(time)
+    hi = mTime.Hour
+    mi = mTime.Minute
+    si = mTime.Second
 
     If hi >= 12 Then _
         hi = hi - 12
@@ -218,34 +234,47 @@ Dim hr As Double, Mr As Double, Sr As Double
     If Sd < 0 Then _
         Sd = Sd + 360
 
-    hr = Hd / T
-    Mr = Md / T
-    Sr = Sd / T
+    hr = Hd / t
+    Mr = Md / t
+    Sr = Sd / t
 
     With mView
+
+
+'MsgBox mStyle.GetSchemeSetting(mInfo.Scheme, "hour_ratio")
 
         .SetHighColour rgba(0, 0, 0)
         .StrokeLine new_BRect(Fix(.Bounds.Width / 2), _
                               Fix(.Bounds.Height / 2), _
-                              Fix(.Bounds.Width / 2) + (Fix(.Bounds.Width / 2) * 0.7 * Cos(hr)), _
-                              Fix(.Bounds.Height / 2) + (Fix(.Bounds.Height / 2) * 0.7 * Sin(hr))), _
+                              Fix(.Bounds.Width / 2) + (Fix(.Bounds.Width / 2) * Val(mStyle.GetSchemeSetting(mInfo.Scheme, "hour_ratio")) * Cos(hr)), _
+                              Fix(.Bounds.Height / 2) + (Fix(.Bounds.Height / 2) * Val(mStyle.GetSchemeSetting(mInfo.Scheme, "hour_ratio")) * Sin(hr))), _
                               2
 
         .StrokeLine new_BRect(Fix(.Bounds.Width / 2), _
                               Fix(.Bounds.Height / 2), _
-                              Fix(.Bounds.Width / 2) + (Fix(.Bounds.Width / 2) * 0.9 * Cos(Mr)), _
-                              Fix(.Bounds.Height / 2) + (Fix(.Bounds.Height / 2) * 0.9 * Sin(Mr))), _
+                              Fix(.Bounds.Width / 2) + (Fix(.Bounds.Width / 2) * Val(mStyle.GetSchemeSetting(mInfo.Scheme, "minute_ratio")) * Cos(Mr)), _
+                              Fix(.Bounds.Height / 2) + (Fix(.Bounds.Height / 2) * Val(mStyle.GetSchemeSetting(mInfo.Scheme, "minute_ratio")) * Sin(Mr))), _
                               2
 
         .SetHighColour rgba(255, 0, 0)
         .StrokeLine new_BRect(Fix(.Bounds.Width / 2), _
                               Fix(.Bounds.Height / 2), _
-                              Fix(.Bounds.Width / 2) + (Fix(.Bounds.Width / 2) * 0.9 * Cos(Sr)), _
-                              Fix(.Bounds.Height / 2) + (Fix(.Bounds.Height / 2) * 0.9 * Sin(Sr)))
+                              Fix(.Bounds.Width / 2) + (Fix(.Bounds.Width / 2) * Val(mStyle.GetSchemeSetting(mInfo.Scheme, "second_ratio")) * Cos(Sr)), _
+                              Fix(.Bounds.Height / 2) + (Fix(.Bounds.Height / 2) * Val(mStyle.GetSchemeSetting(mInfo.Scheme, "second_ratio")) * Sin(Sr)))
 
-        .SetHighColour rgba(0, 0, 0)
-        .FillEllipse .Bounds.InsetByCopy(.Bounds.Width / 2 - 6, .Bounds.Height / 2 - 6)
+        ' /* draw centre point if no background */
 
+        If Not is_valid_image(pi) Then
+            .SetHighColour rgba(0, 0, 0)
+            .FillEllipse .Bounds.InsetByCopy(.Bounds.Width / 2 - 6, .Bounds.Height / 2 - 6)
+
+        End If
+
+        .SetFont "Calibri", 8, True
+        .TextMode = MFX_TEXT_CLEARTYPE
+        .SetHighColour rgba(255, 255, 255)
+        .SetLowColour rgba(0, 0, 0)
+        .DrawString mInfo.Title, .Bounds.InsetByCopy(8, 8), MFX_ALIGN_H_CENTER Or MFX_ALIGN_BOTTOM Or MFX_SIMPLE_OUTLINE
 
 '        .SetHighColour rgba(255, 255, 255, 128)
 '        .SetLowColour rgba(255, 255, 255, 200)

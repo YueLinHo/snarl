@@ -17,7 +17,7 @@ Const EM_TITLE_TEXT = 0
 Const EM_MARGIN = 8
 Const EM_METER = EM_MARGIN / 2
 
-Public Style As TStyle
+Dim mStyle As TStyle
 
 Dim mInfo As notification_info
 Dim mIcon As MImage
@@ -32,6 +32,7 @@ Dim mIconOnly As Boolean
 Dim mIsNumeric As Boolean
 
 Implements IStyleInstance
+Implements IMeterStyle
 
 Private Sub Class_Initialize()
 
@@ -42,6 +43,12 @@ Private Sub Class_Initialize()
         .TextMode = MFX_TEXT_ANTIALIAS
 
     End With
+
+End Sub
+
+Private Sub IMeterStyle_SetStyle(Style As TStyle)
+
+    Set mStyle = Style
 
 End Sub
 
@@ -104,7 +111,7 @@ Private Sub IStyleInstance_UpdateContent(NotificationInfo As libSnarlStyles.noti
     ' /* pre-configuration */
 
     mIconOnly = ((mInfo.Title = "") And (mInfo.Text = ""))
-    mIsNumeric = ((g_IsNumeric(mInfo.Text)) And (Val(Style.ReadSetting("show_graphically")) <> 0))
+    mIsNumeric = ((g_IsNumeric(mInfo.Text)) And (Val(mStyle.ReadSetting("show_graphically")) <> 0))
 
     ' /* calculate notifcation size and internal measurements */
 
@@ -154,7 +161,7 @@ Dim cy As Long
         ' /* measure title */
 
         If mInfo.Title <> "" Then
-            .SetFont Style.ReadSetting("title_font"), Style.ReadSetting("title_size"), True
+            .SetFont mStyle.ReadSetting("title_font"), mStyle.ReadSetting("title_size"), True
             Set prTemp = pr.Duplicate
             prTemp.Bottom = 16384
             .MeasureString mInfo.Title, prTemp, prTemp
@@ -165,7 +172,7 @@ Dim cy As Long
         ' /* measure text */
 
         If (mInfo.Text <> "") And (Not mIsNumeric) Then
-            .SetFont Style.ReadSetting("text_font"), Style.ReadSetting("text_size")
+            .SetFont mStyle.ReadSetting("text_font"), mStyle.ReadSetting("text_size")
             Set prTemp = pr.Duplicate
             prTemp.Bottom = 16384
             .MeasureString mInfo.Text, prTemp, prTemp
@@ -212,7 +219,7 @@ Const RX = 20
 
             Case Else
                 ' /* assume "custom" */
-                .SetHighColour Val(Style.ReadSetting("background"))
+                .SetHighColour Val(mStyle.ReadSetting("background"))
 
             End Select
 
@@ -298,11 +305,11 @@ Dim dw As Long
 
             End If
 
-            .SetFont Style.ReadSetting("title_font"), Val(Style.ReadSetting("title_size")), True
+            .SetFont mStyle.ReadSetting("title_font"), Val(mStyle.ReadSetting("title_size")), True
             .SetHighColour rgba(255, 255, 255)
 '            .SetLowColour rgba(0, 0, 0)
             
-            dw = Val(Style.ReadSetting("fg_alpha"))
+            dw = Val(mStyle.ReadSetting("fg_alpha"))
             .SetHighColour rgba(255, 255, 255, Fix((dw / 100) * 255))
             
             .DrawString mInfo.Title, pr ', MFX_SIMPLE_OUTLINE
@@ -353,9 +360,9 @@ Dim prLabel As BRect
 
             ' /* display value? */
 
-            If Val(Style.ReadSetting("show_percent")) Then
-                .SetFont Style.ReadSetting("text_font"), Style.ReadSetting("text_size")
-                .SetHighColour rgba(255, 255, 255, Fix((Val(Style.ReadSetting("fg_alpha")) / 100) * 255))
+            If Val(mStyle.ReadSetting("show_percent")) Then
+                .SetFont mStyle.ReadSetting("text_font"), mStyle.ReadSetting("text_size")
+                .SetHighColour rgba(255, 255, 255, Fix((Val(mStyle.ReadSetting("fg_alpha")) / 100) * 255))
 
                 prLabel.OffsetBy 0, prLabel.Height
                 prLabel.Bottom = prLabel.Top + .StringHeight("A")
@@ -376,8 +383,8 @@ Dim prLabel As BRect
 
             End If
 
-            .SetFont Style.ReadSetting("text_font"), Style.ReadSetting("text_size")
-            dw = Val(Style.ReadSetting("fg_alpha"))
+            .SetFont mStyle.ReadSetting("text_font"), mStyle.ReadSetting("text_size")
+            dw = Val(mStyle.ReadSetting("fg_alpha"))
             .SetHighColour rgba(255, 255, 255, Fix((dw / 100) * 255))
             .DrawString mInfo.Text, pr
 

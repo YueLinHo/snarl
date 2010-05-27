@@ -38,9 +38,11 @@ Dim mIconOnly As Boolean
 Dim mTitleRect As BRect
 Dim mTextRect As BRect
 
-Public Style As TStyle
+Dim mStyle As TStyle
 
 Implements IStyleInstance
+Implements IMeterStyle
+
 
 Private Sub Class_Initialize()
 
@@ -50,6 +52,12 @@ Private Sub Class_Initialize()
         .TextMode = MFX_TEXT_ANTIALIAS
 
     End With
+
+End Sub
+
+Private Sub IMeterStyle_SetStyle(Style As TStyle)
+
+    Set mStyle = Style
 
 End Sub
 
@@ -554,26 +562,26 @@ Dim pr As BRect
 
         ' /* measure title */
         If mInfo.Title <> "" Then
-            .SetFont Style.ReadSetting("title_font"), Val(Style.ReadSetting("title_size"))
+            .SetFont mStyle.ReadSetting("title_font"), Val(mStyle.ReadSetting("title_size"))
             Set prTemp = pr.Duplicate
             prTemp.Bottom = 16384
             .MeasureString mInfo.Title, prTemp, prTemp
             Set mTitleRect = new_BRect(0, 0, prTemp.Width + 2, prTemp.Height + 2)
 
-            If Val(Style.ReadSetting("icon_align")) = 0 Then _
+            If Val(mStyle.ReadSetting("icon_align")) = 0 Then _
                 mTitleRect.OffsetBy mIconSize + EM_MARGIN, 0
 
         End If
 
         ' /* measure text */
         If (mInfo.Text <> "") And (Not mDrawBar) Then
-            .SetFont Style.ReadSetting("text_font"), Val(Style.ReadSetting("text_size"))
+            .SetFont mStyle.ReadSetting("text_font"), Val(mStyle.ReadSetting("text_size"))
             Set prTemp = pr.Duplicate
             prTemp.Bottom = 16384
             .MeasureString mInfo.Text, prTemp, prTemp
             Set mTextRect = new_BRect(0, 0, prTemp.Width + 2, prTemp.Height + 2)
 
-            If Val(Style.ReadSetting("icon_align")) = 0 Then _
+            If Val(mStyle.ReadSetting("icon_align")) = 0 Then _
                 mTextRect.OffsetBy mIconSize + EM_MARGIN, 0
 
         End If
@@ -614,7 +622,7 @@ Dim pi As MImage
 
     ' /* cache icon */
 
-    If Val(Style.ReadSetting("show_icon")) Then
+    If Val(mStyle.ReadSetting("show_icon")) Then
         Set pi = load_image_obj(NotificationInfo.Icon)
         If is_valid_image(pi) Then
         Set mIcon = style_MakeSquareImage(pi)
@@ -624,7 +632,7 @@ Dim pi As MImage
 
     End If
 
-    mDrawBar = (g_IsNumeric(NotificationInfo.Text)) And (Val(Style.ReadSetting("show_graphically")) <> 0)
+    mDrawBar = (g_IsNumeric(NotificationInfo.Text)) And (Val(mStyle.ReadSetting("show_graphically")) <> 0)
 
     ' /* pre-configuration */
 
@@ -637,7 +645,7 @@ Const RX = 3
     With mView
         .EnableSmoothing True
         .SetHighColour uGetSchemeBackground(NotificationInfo.Scheme)
-        'Val(Style.ReadSetting("background"))
+        'Val(mstyle.ReadSetting("background"))
         .FillRoundRect .Bounds, RX, RX
 
     End With
@@ -667,7 +675,7 @@ End Sub
 
 Private Sub uDrawIcon()
 
-    If (mIconSize < 1) Or (Val(Style.ReadSetting("show_icon")) = 0) Then _
+    If (mIconSize < 1) Or (Val(mStyle.ReadSetting("show_icon")) = 0) Then _
         Exit Sub
 
 Dim pt As BPoint
@@ -680,7 +688,7 @@ Dim lCol As Long
             Set pt = new_BPoint(Fix((.Width - mIconSize) / 2), Fix((.Height - mIconSize) / 2))
 
         Else
-            If Val(Style.ReadSetting("icon_align")) = 0 Then
+            If Val(mStyle.ReadSetting("icon_align")) = 0 Then
                 ' /* top-left corner */
                 Set pt = new_BPoint(EM_MARGIN, EM_MARGIN)
 
@@ -701,7 +709,7 @@ Dim lCol As Long
 
         .DrawScaledImage pb, pt, new_BPoint(mIconSize, mIconSize), 128
 
-'        lCol = Val(Style.ReadSetting("background"))
+'        lCol = Val(mstyle.ReadSetting("background"))
         lCol = uGetSchemeBackground(mInfo.Scheme)
         .SetHighColour rgba(get_red(lCol), get_green(lCol), get_blue(lCol), 128)
         .SetLowColour lCol
@@ -719,11 +727,11 @@ Dim lCol As Long
 
     With mView
         
-'        lCol = Val(Style.ReadSetting("foreground"))
+'        lCol = Val(mstyle.ReadSetting("foreground"))
         lCol = rgba(255, 255, 255)
 
-        .SetHighColour rgba(get_red(lCol), get_green(lCol), get_blue(lCol), (Val(Style.ReadSetting("fg_alpha")) / 100) * 255)
-        .SetLowColour rgba(102, 102, 102, (Val(Style.ReadSetting("fg_alpha")) / 100) * 160)
+        .SetHighColour rgba(get_red(lCol), get_green(lCol), get_blue(lCol), (Val(mStyle.ReadSetting("fg_alpha")) / 100) * 255)
+        .SetLowColour rgba(102, 102, 102, (Val(mStyle.ReadSetting("fg_alpha")) / 100) * 160)
 
         ' /* title */
 
@@ -737,7 +745,7 @@ Dim lCol As Long
 
             End If
 
-            .SetFont Style.ReadSetting("title_font"), Val(Style.ReadSetting("title_size"))
+            .SetFont mStyle.ReadSetting("title_font"), Val(mStyle.ReadSetting("title_size"))
             .DrawString mInfo.Title, mTitleRect, MFX_SIMPLE_OUTLINE
 
         End If
@@ -759,7 +767,7 @@ Dim dw As Single
 
             If mIconSize > 0 Then
                 ' /* compensate for icon */
-                If Val(Style.ReadSetting("icon_align")) Then
+                If Val(mStyle.ReadSetting("icon_align")) Then
                     pr.Right = pr.Right - (mIconSize + EM_MARGIN)
 
                 Else
@@ -786,11 +794,11 @@ Dim dw As Single
 
             ' /* draw the actual value (not the passed text) below */
 
-            If Val(Style.ReadSetting("show_percent")) Then
-                .SetHighColour rgba(get_red(lCol), get_green(lCol), get_blue(lCol), (Val(Style.ReadSetting("fg_alpha")) / 100) * 255)
-                .SetLowColour rgba(102, 102, 102, (Val(Style.ReadSetting("fg_alpha")) / 100) * 160)
+            If Val(mStyle.ReadSetting("show_percent")) Then
+                .SetHighColour rgba(get_red(lCol), get_green(lCol), get_blue(lCol), (Val(mStyle.ReadSetting("fg_alpha")) / 100) * 255)
+                .SetLowColour rgba(102, 102, 102, (Val(mStyle.ReadSetting("fg_alpha")) / 100) * 160)
 
-                .SetFont Style.ReadSetting("text_font"), Val(Style.ReadSetting("text_size"))
+                .SetFont mStyle.ReadSetting("text_font"), Val(mStyle.ReadSetting("text_size"))
 
                 prLabel.OffsetBy 0, prLabel.Height
                 prLabel.ExpandBy 0, .StringHeight("A")
@@ -811,7 +819,7 @@ Dim dw As Single
 
             End If
 
-            .SetFont Style.ReadSetting("text_font"), Val(Style.ReadSetting("text_size"))
+            .SetFont mStyle.ReadSetting("text_font"), Val(mStyle.ReadSetting("text_size"))
             .DrawString mInfo.Text, mTextRect, MFX_SIMPLE_OUTLINE
 
         End If

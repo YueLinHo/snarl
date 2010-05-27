@@ -30,7 +30,7 @@ Const EM_MARGIN = 8
 Const EM_METER = EM_MARGIN / 2
 Const RX = 20
 
-Public Style As TStyle
+Dim mStyle As TStyle
 
 Dim mInfo As notification_info
 Dim mIconSize As Long
@@ -57,6 +57,13 @@ Dim mTextRect As BRect
 
 
 Implements IStyleInstance
+Implements IMeterStyle
+
+Private Sub IMeterStyle_SetStyle(Style As TStyle)
+
+    Set mStyle = Style
+
+End Sub
 
 Private Sub IStyleInstance_AdjustPosition(X As Long, Y As Long, Alpha As Integer, Done As Boolean)
 End Sub
@@ -104,9 +111,9 @@ Dim pi As MImage
 Dim szMeterType As String
 
     mIconOnly = ((mInfo.Title = "") And (mInfo.Text = "")) 'Or (InStr(mInfo.Scheme, "icon only") > 0))
-    mIsNumeric = (g_IsNumeric(mInfo.Text) And (Val(Style.ReadSetting("show_graphically"))))
+    mIsNumeric = (g_IsNumeric(mInfo.Text) And (Val(mStyle.ReadSetting("show_graphically"))))
 
-    szMeterType = LCase$(Style.MeterType(Val(Style.ReadSetting("meter_type"))))
+    szMeterType = LCase$(mStyle.MeterType(Val(mStyle.ReadSetting("meter_type"))))
     mIsBar = CBool(InStr(szMeterType, "bar"))
 
     If InStr(szMeterType, "coloured") Then
@@ -141,7 +148,7 @@ Private Sub uDraw()
 
         ' /* background */
 
-        .SetHighColour Val(Style.ReadSetting("background"))
+        .SetHighColour Val(mStyle.ReadSetting("background"))
         .FillRoundRect .Bounds, RX, RX
 
         ' /* priority notifications always get a red background */
@@ -199,7 +206,7 @@ Dim cy As Long
         ' /* measure title */
 
         If mInfo.Title <> "" Then
-            .SetFont Style.ReadSetting("title_font"), Style.ReadSetting("title_size"), True
+            .SetFont mStyle.ReadSetting("title_font"), mStyle.ReadSetting("title_size"), True
             Set prTemp = pr.Duplicate
             prTemp.Bottom = 16384
             .MeasureString mInfo.Title, prTemp, prTemp
@@ -210,7 +217,7 @@ Dim cy As Long
         ' /* measure text */
 
         If (mInfo.Text <> "") And (Not mIsNumeric) Then
-            .SetFont Style.ReadSetting("text_font"), Style.ReadSetting("text_size")
+            .SetFont mStyle.ReadSetting("text_font"), mStyle.ReadSetting("text_size")
             Set prTemp = pr.Duplicate
             prTemp.Bottom = 16384
             .MeasureString mInfo.Text, prTemp, prTemp
@@ -278,7 +285,7 @@ Dim xOff As Long
 
             End If
 
-            .SetFont Style.ReadSetting("title_font"), Val(Style.ReadSetting("title_size")), True
+            .SetFont mStyle.ReadSetting("title_font"), Val(mStyle.ReadSetting("title_size")), True
             .SetHighColour rgba(255, 255, 255)
             .DrawString mInfo.Title, pr
 
@@ -316,7 +323,7 @@ Dim xOff As Long
                 If dw > 4 Then
                     If mColType = E_COLOUR Then
                         ' /* solid colour */
-                        .SetHighColour Val(Style.ReadSetting("bar_colour"))
+                        .SetHighColour Val(mStyle.ReadSetting("bar_colour"))
 
                     ElseIf mColType = E_SPECTRUM Then
 
@@ -368,9 +375,9 @@ Dim xOff As Long
                 .SetPixel prLabel.BottomLeft
                 .SetPixel prLabel.BottomRight
 
-                If Val(Style.ReadSetting("show_percent")) Then
+                If Val(mStyle.ReadSetting("show_percent")) Then
                     .SetHighColour rgba(255, 255, 255)
-                    .SetFont Style.ReadSetting("text_font"), Val(Style.ReadSetting("text_size")) - 1, True
+                    .SetFont mStyle.ReadSetting("text_font"), Val(mStyle.ReadSetting("text_size")) - 1, True
                     prLabel.OffsetBy 0, prLabel.Height + 1
                     prLabel.Bottom = prLabel.Top + .StringHeight("A")
                     .DrawString CStr(dw) & "%", prLabel, MFX_ALIGN_H_CENTER Or MFX_ALIGN_V_CENTER
@@ -395,7 +402,7 @@ Dim xOff As Long
 
             End If
 
-            .SetFont Style.ReadSetting("text_font"), Style.ReadSetting("text_size")
+            .SetFont mStyle.ReadSetting("text_font"), mStyle.ReadSetting("text_size")
             .SetHighColour rgba(255, 255, 255)
             .DrawString mInfo.Text, pr
 
@@ -403,7 +410,7 @@ Dim xOff As Long
 
 '                .SetHighColour rgba(255, 255, 255)
 '                .SetFont "Arial", 9, True
-'                .DrawString Style.MeterType(Val(Style.ReadSetting("meter_type")))
+'                .DrawString mstyle.MeterType(Val(mstyle.ReadSetting("meter_type")))
 
     End With
 
@@ -422,7 +429,7 @@ Const BAR_GAP = 4
 
     With mView
 
-        If Val(Style.ReadSetting("show_percent")) Then
+        If Val(mStyle.ReadSetting("show_percent")) Then
            Set pr = .Bounds
             pr.InsetBy EM_MARGIN, EM_MARGIN
             If mTitleRect.Bottom > 1 Then _
@@ -430,7 +437,7 @@ Const BAR_GAP = 4
 
             .SetHighColour rgba(255, 255, 255)
             pr.OffsetBy 48 + EM_MARGIN, 0
-            .SetFont Style.ReadSetting("text_font"), Style.ReadSetting("text_size")
+            .SetFont mStyle.ReadSetting("text_font"), mStyle.ReadSetting("text_size")
             .DrawString CStr(Value) & "%", pr
 
         End If
@@ -476,7 +483,7 @@ Const BAR_GAP = 4
             ' /* bar background */
             If i <= Value Then
                 If mColType = E_COLOUR Then
-                    .SetHighColour Val(Style.ReadSetting("bar_colour"))
+                    .SetHighColour Val(mStyle.ReadSetting("bar_colour"))
 
                 ElseIf mColType = E_SPECTRUM Then
                     .SetHighColour uGetSpectrumColour(i)
@@ -516,7 +523,7 @@ End Sub
 
 Private Function uGetSpectrumColour(ByVal Index As Long)
 
-    Select Case Val(Style.ReadSetting("spectrum_type"))
+    Select Case Val(mStyle.ReadSetting("spectrum_type"))
     Case 2
         Select Case Index
         Case Is >= 9:       uGetSpectrumColour = rgba(255, 0, 255)
