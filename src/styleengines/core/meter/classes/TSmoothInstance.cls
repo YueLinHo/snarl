@@ -252,7 +252,7 @@ Dim xOffs As Long
             .FillRoundRect pr, 4, 4
             Set prLabel = pr.Duplicate
 
-            dw = Val(mInfo.Text)
+            dw = g_SafeLong(mInfo.Text)
             dw = MAX(MIN(dw, 100), 0)
             If dw > 4 Then
                 .SetHighColour rgba(255, 255, 255, 202)

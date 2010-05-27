@@ -404,7 +404,7 @@ Dim pr As BRect
 '                dw = 50
 '
 '            Else
-'                dw = Val(mInfo.Text)
+'                dw = g_safelong(minfo.text)
 '
 '            End If
 '

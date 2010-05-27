@@ -101,7 +101,7 @@ End Sub
 '        ' /* should be a percentage */
 '
 '        If g_IsNumeric(mInfo.Text) Then
-'            n = Val(mInfo.Text)
+'            n = g_safelong(minfo.text)
 '            If n > 100 Then
 '                n = 100
 '
@@ -286,7 +286,7 @@ End Sub
 ''        ' /* meter bar */
 ''
 ''        If g_IsNumeric(mInfo.Text) Then
-''            n = Val(mInfo.Text)
+''            n = g_safelong(minfo.text)
 ''            If n > 100 Then
 ''                g_Debug "StyleInstance.uDrawGraph(): value '" & mInfo.Text & "' constrained to 100", LEMON_LEVEL_WARNING
 ''                n = 100
@@ -783,7 +783,7 @@ Dim dw As Single
 
             ' /* get the value */
 
-            dw = MAX(MIN(Val(mInfo.Text), 100), 0)
+            dw = MAX(MIN(g_SafeLong(mInfo.Text), 100), 0)
             Set prLabel = pr.Duplicate
 
             ' /* figure out how big the meter should be and draw it */

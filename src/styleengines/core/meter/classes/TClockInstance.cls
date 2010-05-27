@@ -270,15 +270,29 @@ Dim hr As Double, Mr As Double, Sr As Double
 
         End If
 
-        .SetFont "Calibri", 8, True
-        .TextMode = MFX_TEXT_CLEARTYPE
-        .SetHighColour rgba(255, 255, 255)
-        .SetLowColour rgba(0, 0, 0)
-        .DrawString mInfo.Title, .Bounds.InsetByCopy(8, 8), MFX_ALIGN_H_CENTER Or MFX_ALIGN_BOTTOM Or MFX_SIMPLE_OUTLINE
+        ' /* date */
 
-'        .SetHighColour rgba(255, 255, 255, 128)
-'        .SetLowColour rgba(255, 255, 255, 200)
-'        .FillEllipse new_BRect(0, 0, .Bounds.Right, Fix(.Bounds.Height / 2) - 1), MFX_VERT_GRADIENT
+        .SetFont "Arial", 9, True
+        .TextMode = MFX_TEXT_ANTIALIAS
+        Set pr = new_BRect(0, 0, 17, 13)
+        pr.OffsetBy .Width - (pr.Width + 19), Fix(.Height / 2) - Fix(pr.Height / 2)
+'        .SetHighColour rgba(255, 0, 0)
+'        .StrokeRect pr
+
+        .SetHighColour rgba(0, 0, 0, 220)
+        .DrawString CStr(mTime.Date), pr, MFX_ALIGN_RIGHT Or MFX_ALIGN_V_CENTER
+
+        ' /* title */
+
+        If mInfo.Title <> "" Then
+            .SetFont "Calibri", 8, True
+            .TextMode = MFX_TEXT_CLEARTYPE
+            .SetHighColour rgba(255, 255, 255)
+            .SetLowColour IIf((mInfo.Flags And S_NOTIFICATION_IS_PRIORITY), rgba(255, 0, 0), rgba(0, 0, 0))
+            .DrawString mInfo.Title, .Bounds.InsetByCopy(8, 8), MFX_ALIGN_H_CENTER Or MFX_ALIGN_BOTTOM Or MFX_SIMPLE_OUTLINE
+
+        End If
+
 
     End With
 

@@ -344,7 +344,7 @@ Dim prLabel As BRect
 
             ' /* value part */
 
-            dw = Val(mInfo.Text)
+            dw = g_SafeLong(mInfo.Text)
             If dw > 0 Then
                 Set prLabel = pr.Duplicate
                 dw = Fix((dw / 100) * pr.Width)
@@ -366,7 +366,7 @@ Dim prLabel As BRect
 
                 prLabel.OffsetBy 0, prLabel.Height
                 prLabel.Bottom = prLabel.Top + .StringHeight("A")
-                .DrawString CStr(CInt(Val(mInfo.Text))) & "%", prLabel, MFX_ALIGN_RIGHT Or MFX_ALIGN_V_CENTER
+                .DrawString CStr(CInt(g_SafeLong(mInfo.Text))) & "%", prLabel, MFX_ALIGN_RIGHT Or MFX_ALIGN_V_CENTER
 
             End If
 

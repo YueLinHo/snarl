@@ -295,7 +295,7 @@ Dim xOff As Long
 
         If mIsNumeric Then
 
-            dw = Val(mInfo.Text)
+            dw = g_SafeLong(mInfo.Text)
             dw = MAX(MIN(dw, 100), 0)
 
             ' /* bar or graph? */
