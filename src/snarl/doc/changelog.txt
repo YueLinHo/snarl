@@ -1,0 +1,792 @@
+
+
+	To Do
+
+	- V41 API
+
+		- sn41AddClass() should return unique token				DONE
+
+		- sn41Notify() should use class token or zero to create
+		  an anonymous notification						DONE
+
+		- KeyLock extension
+
+		- Dead Man's Handle extension
+
+		- Clock 2.5
+
+		- netvold
+
+		- apptd
+
+
+
+	- Meter Styles
+
+					Settings	Factory	
+					Panel		Settings	Schemes		Meter
+				-----------------------------------------------------------------
+		- Just Black
+		- iPhoney		OK		OK		OK		OK
+		- Minimal		OK		OK		OK		OK
+		- Sony
+			- Icon pos not implemented, icon show not implemented
+			- PS3 black gradient needs improving
+
+		- Metro			OK		OK		OK		OK
+		- Smooth		OK		OK		OK		OK
+
+		- (1) - doesn't restore text colour correctly
+		- (2) - doesn't display meter percent
+
+	- Extensions - V40 extensions don't display name correctly
+
+
+	Snarl Change Log
+
+	- Added "IP forwarder" default style.  (40.49)
+
+	- Fixed auto update check (same bug as for the remote icon download
+	  code).  (40.49)
+
+	- Released as 2.1A2.  (40.48)
+
+	- Fixed two major bugs in the remote icon / delayed notification
+	  handling code which in some cases caused Snarl to get stuck in
+	  an infinate loop downloading the same icon.  Thanks - as
+	  always - to Sven to both spotting and debugging the problem.
+	  (40.48)
+
+	- Fixed bug that meant Snarl would create JSON and SNP listeners
+	  even if the appropriate setting was disabled.  Spotted by
+	  Patrick Von Reth.  (40.48)
+
+	- Notification menu now displays the creating app's name in
+	  the "Close all from this app" item.  (40.46)
+
+	- Removed the new "Snarl Apps" menu item and replaced it with
+	  a new toolbar in the Apps Page.  The toolbar has two options -
+	  "Details" and "Settings..." which send the registered application
+	  a SNARL_SHOW_ABOUT and SNARL_SHOW_PREFS message respectively.
+	  The buttons are ghosted based on the flags and application
+	  specifies during registration.  Aside from neatening up access to
+	  applications, this now means that applications with GUIs can
+	  still be configured from Snarl as they used to be.  (40.42)
+
+	- Fixed bug in App Roster which meant some applications weren't
+	  registering correctly.  (40.42)
+
+	- APP_SUB_VER changed to 3.  (40.42)
+
+	- Only priority notifications are now forceably made sticky if
+	  away mode is enabled.  (40.42)
+
+	- Changed "Enabled" toolbar button on Extensions page to "Details"
+	  which generates a notification showing more information about
+	  the selected extension.  (40.41)
+
+	- Fixed (again) the way extensions are loaded up and initialised.
+	  new TExtension.SetTo() function is called one time only for
+	  each potential extension and succeeds if the extension appears
+	  to be valid and retrieves information from the extension.
+	  TExtension.SetEnabled() can now assume the extension is valid.
+	  (40.41) 
+
+	- Lemon3 logging is now only enabled if debug mode is enabled.
+	  (40.41)
+
+	- Released as R2.3 Alpha 1.  (40.
+
+	- Applications can now specify a timeout of -1 (unclear if this
+	  was previously documented) which indicates that the Snarl global
+	  default timeout should be used.  (40.25)
+
+	- Applications using the V41 API can now specify a priority for
+	  a notification.  This can be -1 (low), 0 (normal) or 1 (high).
+	  At this time Snarl does not differ in how it handles low or
+	  normal notifications, although this will change in the future.
+	  The class settings panel has been changed to allow the user to
+	  over-ride the priority setting for any class.  (40.25)
+
+	- Many improvements to the underlying application, class and
+	  notification handling code - provides a much more structured
+	  approach.  (40.25)
+
+	- Class configuration mini-panel re-designed to have two - Basic
+	  and Advanced - pages.  (40.25)
+
+	- Global and per class settings completely re-written from scratch.
+	  Each app now has it's own configuration file which contains the
+	  registered classes.  (40.25)
+
+	- Increased V41 API support.  (40.25)
+
+	- Added new "Copy content to Clipboard" option to notification
+	  menu.  [FR2935816/dragonmage]  (40.24)
+
+	- IStyleInstance::Pulse() is now called while the notification
+	  is fading out.  (40.20)
+
+	- Style/Scheme preview image is now automatically refreshed when
+	  the style's configuration window is closed.  (40.24)
+
+	- Bumped to R2.3a1.  (40.20)
+
+	- Includes final misc.resource and revised Prefs Kit.  (40.19)
+
+	- If debug mode is enabled then all extensions are disabled
+	  irrespective of their inclusion within .exclude.  The 
+	  .exclude file is never written in debug mode.  (40.19)
+
+	- Improved extension handling.  Enabling/disabling an extension
+	  simply moves the extension out of/in to .exclude.  Disabled
+	  extensions have their icon greyed; enabled extensions which
+	  fail to start have their icon replaced with a warning one.
+	  (40.19)
+
+	- Debug mode can now be enabled by holding down either CTRL key.
+	  (40.19)
+
+	- Added full-screen app detection (code from now redundant
+	  DoNotDisturb extension).  (40.16)
+
+	- Added basics for away mode detection.  (40.16)
+
+	- \n's in the notification title or text elements are now
+	  translated into CR/LFs.  Note this happens after logging so
+	  the original \n's are preserved.  (40.16)
+
+	- MakeFuzzy() routine within CSnarlWindow now uses asynchronous
+	  fading (uSetTargetAlpha()) - improves responsiveness.  (40.16)
+
+	- Released as R2.21.  (40.15)
+
+	- Style Engines can now be loaded manually even if they're not
+	  already known to Snarl.  (40.12)
+
+	- Added 'icon' element to 'add_class' SNP action.  Specifying
+	  an icon here allows it to be used for subsequent notifications
+	  created with that class.  (40.11)
+
+	- SNP protocol now takes a single Chr(13) as the terminating
+	  value rather than a Chr(13)/Chr(10) pair.  (40.11)
+
+	- Cosmetic improvements to iPhoney bar look.  (40.11)
+
+	- Added 'icon' element to SNP1.1 'notification' action.  This
+	  supports local and remote icons in the same way the API
+	  does.  (40.10)
+
+	- Stopped error dialog box appearing when unloadable style
+	  detected.  (40.9)
+
+	- SNP1.1 now reports notification token in success response
+	  as SNP1.1/0/OK/nnn where 'nnn' is the token number in
+	  decimal.  SNP1.1 notifications (3xx) also report the token
+	  number in the same way.  (40.8)
+
+	- Fixed bug in SNP 'notification' action handling which
+	  would cause it to fail if a timeout value wasn't specified.
+	  (40.8)
+
+	- SNP bumped to 1.1.  Fully compatible with 1.0 requests,
+	  it just now supports forwarding notification events back
+	  to the remote application.  Notification values start at
+	  302 (effectively the API notification value plus 270).
+	  (40.8)
+
+	- The icon path for notifications can now reference an
+	  image located on a web server.  Currently only the http://
+	  and https:// protocols are supported.  (40.7)
+
+	- Excluded extensions were being ignored by the Extension
+	  Roster during startup - now fixed.  (40.7)
+
+	- Kill message from stop.exe wasn't properly killing the
+	  Snarl process - now fixed.  (40.6)
+
+	- Released as Snarl R2.2.  (40.5)
+
+	- We're no longer a Beta so panel is suppressed.  (40.4)
+
+	- Auto-update was indirectly using a SERVERXMLHTTP40 object
+	  to do its stuff.  Bizarrely, this isn't supported under
+	  Windows 7 (apparently being replaced with SERVERXMLHTTP60
+	  instead) so we now use a SERVERXMLHTTP30 instead.  (40.4)
+
+	- Added new S_STYLE_WANT_APP_NAME flag to Style type library.
+	  If a Style specifies this option, Snarl will prefix the
+	  sending application's name to the notification title.
+	  Styles can then extract this information and use it
+	  accordingly.  (40.2)
+
+	- Fixed a couple of nasty bugs to do with trying to preview
+	  windowless notifications.  (40.2)
+
+	- Auto-update feature now has on/off button in preferences.
+	  (40.2)
+
+	- Removed network sending stuff.  (40.1)
+
+	- Simplified auto update feature.  Now we simply check for
+	  an update on startup and, if one is available, we show a
+	  notification to that effect.  (40.1)
+
+	- Finally bumped to V40. (40.1)
+
+	- Dropshadow size is now configurable.  (39.86)
+
+	- Default style is now iPhoney/Standard.  (39.86)
+
+	- Tidied up the two "Display" sub pages.  (39.86)
+
+	- "Use the same settings for all classes" option now takes
+	  effect.  (39.86)
+
+	- Added "Beta Usage" pop-up panel.  This appears on each
+	  launch until the user acknowledges it.  This is only for
+	  use in Beta releases; it won't appear in dev or finals.
+	  (39.85)
+
+	- Added auto-scheme preview (suggested by XXXXXXX) such that
+	  if the appropriate <scheme>.preview image doesn't exist
+	  Snarl will dynamically create one.  The dynamic image is
+	  called <scheme>.prvw and is re-created each time (which
+	  might slightly affect performance).  (39.84)
+
+	- Can now unload and reload style engines.  The load ability
+	  only applies to 'known' engines (that is, engines which
+	  Snarl loaded up when it first launched).  (39.80)
+
+	- Change log lost
+	- ...
+	- Change log lost
+
+	- Renamed SNP return codes from SNB_xxx to SNP_xxx.  (39.39)
+
+	- Released as R2.1 Beta 3.  (39.38)
+
+	- 
+
+	- Toggling the "Use same settings for each class" swtich now
+	  selects the first class (<All> or <Other>) and then disables
+	  or enables the classes listbox.  (39.29)
+
+	- Style Config button renamed to 'Configure Style' and now
+	  calls the Style Engine's ConfigRequested() hook.  (39.28)
+
+	- New 'Show notification on first registration only' toggle
+	  button added to General page.  Not fully implemented yet.
+	  (39.26)
+
+	- New 'Advanced' page with App Manager and Reload Styles buttons
+	  moved into it as General page was starting to get full.  (39.26)
+
+	- Styles page now has 'Configure' button back in although this
+	  isn't implemented as yet.  (39.26)
+
+	- New Prefs Kit d0 fancytoolbar used in Styles and About pages
+	  to replace to multiple buttons.  (39.26)
+
+	- Various bits of hocus pocus and other related magik.  (39.26)
+
+	- Snarl now adds a "Local Anonymous Notifications" class which
+	  snShowMessage() notifications are now channeled through.  This
+	  makes it easier for the user to block them if required.  (39.22)
+
+	- Two new private functions added - snPrivateOpenStyleRoster()
+	  and snPrivateCloseStyleRoster() - which wrap the new E_MANAGE_
+	  STYLE_ROSTER command described below.  (39.20)
+
+	- Two new WM_SNARL_MANAGE commands added.  "E_MISC_CMDS" is just
+	  that; a placeholder for miscellaneous stuff.  Only one sub-
+	  command is currently defined - #1 - which enables the "sticky
+	  notifications" option.   "E_MANAGE_STYLE_ROSTER" allows for
+	  external control of the style roster with two sub-commands: #1
+	  opens the roster and #2 closes it.  Some cosmetic improvements
+	  have been made to the Styles page to cater for it being open
+	  when these commands are received.  (39.20)
+
+	- WM_SNARL_MANAGE constants are now named although are _still
+	  private for the moment_.  This is important as these most likely
+	  *will* change shortly.  (39.20)
+
+	- Added new SNARL_COUNT_NOTIFICATIONS private command.  This is
+	  due for documentation in the V40 release.  (39.12)
+
+	- Changed URL that opens when the "Snarl Forums" button is clicked.
+	  (39.11)
+
+	- Styles page: Schemes listbox item height changed to 24px and
+	  scheme icons now displayed.  (39.9)
+
+	- Added a fix to the EZ style image loading code which gets round
+	  the bug in graphics.library which locks an image file.  (39.8)
+
+	- Apps page: apps drop-down list is now refreshed if an application
+	  registers/unregisters while the panel is open.  (39.7)
+
+	- Apps page: checking/unchecking a class had no effect.  Now fixed.
+	  (39.7)
+
+	- Released as Beta 1.  (39.6)
+
+	- Apps page: added new 'Advanced' subpage with a single cycle
+	  button which can be used to override per-class notification
+	  suppression settings.  (39.6)
+
+	- Extensions page: Ticking/unticking an extension causes the list
+	  to be refreshed but doing so messed up the selected item.  Now
+	  fixed.  (39.6)
+
+	- Extensions page: Ticking/unticking an extension didn't update
+	  the apps list in the Apps page.  Now fixed.  (39.6)
+
+	- Schemes can now supply an icon that is displayed in any scheme-
+	  related drop-down boxes.  (39.6)
+
+	- Bumped to V39.  (39.1)
+
+	- Incorporated V39 api into standard include.  (38.156)
+
+	- Fixed hotkey bug - no longer registers CTRL on its own if
+	  option is turned off (spotted by Sven).  (38.152)
+
+	- Default style/scheme is now set in the 'Styles' page (Display
+	  tabs adjust accordingly).  (38.152)
+
+	- Fixed bug with default start positions if the relevant packed
+	  data entry doesn't exist.  (38.150)
+
+	- Added button to launch App Manager from General Page.  (38.150)
+
+	- Can now redefine hotkey!  Only the keycode can be specified;
+	  Snarl creates both hotkeys using the same keycode.  Of note
+	  is that the creation function only fails if the Prefs hotkey
+	  cannot be created.  (38.149)
+
+	- Snarl now sends a SNARL_NOTIFICATION_CLOSED to the reply
+	  window if the user clicks on a notification's close gadget.
+	  [Specially requested by Sven].  (38.148)
+
+	- 'About' page improved.  (38.147)
+
+	- Minor tweaks to Preferences Panel content.  Snarl now
+	  uses large icon (128x128px) when it registers itself.
+	  (38.146)
+
+	- Can now specify per-class notification position. :) Wasn't
+	  that hard to add after all... (38.145)
+
+	- Built-in styles reworked as 'Classic' style engine and
+	  significantly tidied up (reduced class count again).
+	  (38.144)
+
+	- Slight re-juggling of the 'Display' tab in the Preferences
+	  Panel.  Default notification position is now in the 'Class
+	  Defaults' sub-page although it currently *still* applies
+	  globally (but it does leave the door open for per-class
+	  postion setting).  (38.144)
+
+	- Toggle buttons on 'General' page were setting the correct
+	  switches but weren't writing the config file out - now
+	  fixed.  [Found by Sven].  (38.144)
+
+	- Significant rewrite of entire style management system.
+	  Style Packs are now known as Style Engines and Styles
+	  themselves (in a programming sense) are now known as
+	  Style Instances.  A new type library has been created
+	  which covers this and should be used in lieu of the now
+	  deprecated snarl.tlb.   In addition to a much cleaner
+	  code layout, a number of internal objects have been
+	  replaced with structs (UDTs) and the StyleRoster has had
+	  a full makeover which has added a bunch of useful helper
+	  functions (and removed all the useless ones).   Styles
+	  can now specify a preview image which gets displayed
+	  in the 'Styles' tab of the Preferences Panel.  The preview
+	  images must be in the Style's path and should be called
+	  either '<scheme>.preview' or 'style.preview' with the
+	  former being chosen over the latter if it exists.  This
+	  means styles can provide a preview image per-scheme or
+	  simply one for all schemes.  (38.143)
+
+	- T_ACTION_SHOW_NOTIFICATION icon uses a different icon if
+	  the specified application was registered with Snarl.
+	  (38.143)
+
+	- Network protocol firming up.  We now support application
+	  registrations and revocations, as well as (minimal) class
+	  additions.  (38.143)
+
+	- Some internal code-saving done with new TApp.Show() and
+	  TAlert.Show() functions.  TAlert.Show() decodes the passed
+	  parameters in relation to the class it represents (it also
+	  figures out duplication suppression).  TApp.Show() simply
+	  calls TAlert.Show() after figuring out whether it needs to
+	  provide it's hWndReply and uReplyMsg values.  (38.143)
+
+	- New V39 'friendly' class names now show up in Prefs Panel
+	  (38.140).
+
+	- Now processes new /etc/startup-script file (unless the
+	  user blocks it by holding down either CTRL key during
+	  startup).   This file is managed by the new Snarl App
+	  Manager using the -add and -remove command line options.
+	  (38.139)
+
+	- Changes to the way mouse button clicks are handled by a
+	  notification had screwed things up a bit in that mouse
+	  capture wasn't released until *after* a notification had
+	  disappeared.  Now fixed.  (38.138)
+
+	- New WM_MANAGE_SNARL token - SNARL_RELOAD_CONFIG (9) tells
+	  Snarl it's config file has been updated and should be
+	  reloaded.  Note that this is for future implementation and
+	  should not be used at the moment.  (38.137)
+
+	- Released as R2.1b1.  (38.136)
+
+	- Added new E_SNARL_CLASS_DELAY_DUPLICATES class flag (new
+	  API only).  If specified, Snarl will suppress duplicate
+	  notifications that happen within a specified quantum.  The
+	  quantum is configurable (although not via the GUI) and
+	  defaults to 2000ms with a minimum setting of 500ms.
+	  (38.135)
+
+	- 'About' page now loads up read-me.  (38.135)
+
+	- 'Styles' page no longer has a margin.  (38.135)
+
+	- 'Listen for incoming Snarl notifications' checkbox was
+	  permanently greyed out.  Now fixed.  (38.135)
+
+	- Removed all references/code relating to Brian's Vortex
+	  framework.  (38.135)
+
+	- Added new SNARL_NOTIFICATION_MIDDLE_BUTTON notification,
+	  sent (surprisingly) when the user clicks the middle mouse
+	  button on a notification.  Note that the notification is
+	  *not* removed after sending the message; it's down to the
+	  calling app to handle it appropriately.  (38.133)
+
+	- Added support for right-click menu on a notification.  To
+	  enable a menu, send Snarl a SNARL_CHANGE_ATTRIBUTES with
+	  SNARL_ATTRIBUTE menu as the menu to change and the Id of
+	  a previously created notifcation.  The value parameter
+	  defines the menu content in a <item>#?<id>|... format.
+	  Separators can be added by including a blank item (i.e. ||)
+	  in the value parameter.  To specify an item is greyed out
+	  use -1 as the <id> value.  Submenus are not currently
+	  supported.  All this is private and will be documented in
+	  V39.  (38.132)
+
+	- Notifications displayed using a class are now suppressed
+	  (not displayed) if the title and text are identical to the
+	  previously displayed notification for that class.  (38.132)
+
+	- New internal NotificationRoster object has meant a lot of
+	  global module code could be moved into a class.  Means nothing
+	  on the outside, but things are slightly neater internally.
+	  (38.132)
+
+	- Added JSON handling code.  Still rather rudimentary at the
+	  moment but incoming JSON packets sent to the local host (i.e.
+	  127.0.0.1) should now be recognised and displayed.  (38.132)
+
+	- Slight (but significant) interface change to notifications:
+	  now Snarl ignores a mouse button release if it's either over
+	  a different client area than when it was pressed or outside
+	  the notification altogether.  (38.131)
+
+	- Holding down CTRL while right-clicking a notification close
+	  gadget now adds an extra 'Capture Notification' option to
+	  the menu.  Selecting this will save a PNG capture of the
+	  notification (without the close gadget) to the desktop.
+	  (38.130)
+
+	- Added version info and copyright (as URL) to About page.
+	  (38.129)
+
+	- snPrivateAddClass() can now have an optional description.  If
+	  one is specified, this is used in the 'Registered Classes'
+	  list in Snarl Preferences.  (38.128)
+
+	- snPrivateShowNotification() and snPrivateSetClassDefault() now
+	  use the calling app's PID.  Also, snPrivateShowNotification()
+	  now no longer requires the Title and Text parameters.  (38.127)
+
+	- SNARL_UNREGISTER_APP now refreshes the app list if Snarl's
+	  preferences panel is open.  (38.125)
+
+	- Lots more work done to private functions. snPrivateRegisterApp()
+	  now has its own dedicated command - SNARL_REGISTER_APP - and,
+	  importantly, the order of the passed parameters has changed.  It
+	  must also pass the Pid of the registering app to Snarl - without
+	  this the call will fail.  snPrivateUnregisterApp() has also been
+	  changed: it too has it's own command - SNARL_UNREGISTER_APP - and
+	  now no longer needs any parameters, instead the api must pass
+	  the calling app's Pid which Snarl uses to find the app and
+	  unregister it.  This now means that *one application can only
+	  register once with Snarl* which makes a lot more sense really.
+	  (38.124)
+
+	- Made some other changes to private constants and functions.
+	  (38.119)
+
+	- snPrivateRegisterConfig2() renamed to snPrivateRegisterApp(),
+	  snSetAlertClassDefault() renamed to snPrivateSetClassDefault()
+	  and snPrivateRegisterAlert() replaced with snPrivateAddClass().
+	  Told you not you use them, nerrr.  Also added new
+	  snPrivateUnregisterApp() although this is simply a renaming of
+	  snRevokeConfigWindow() - it doesn't even qualify for a new
+	  command message. (38.118)
+
+	- We now take note of a class default timeout when displaying
+	  a notification.  (38.118)
+
+	- Fixed bug in EZ Style which was incrementally offsetting text
+	  to the right each time a notification was updated.  (38.118)
+
+	- Built-in styles version number changed to m.n (as opposed to
+	  v.r) to follow that of EZ Styles.  Author is now returned as
+	  'full phat products'.  (38.117)
+
+	- Fixed bug with built-in styles always returning Halon instead
+	  of the requested one.  (38.117)
+
+	- Released as R2.06.  (38.113)
+
+	- Added missing Glass Schemes and renamed Bubblegum schemes
+	  to match previous ones.  (38.113)
+
+	- EZ Style now trims title text to fit to a single line.  (38.113)
+
+	- Style preview text changed slightly.  (38.113)
+
+	- If the font specified in an EZ Style doesn't exist, we now
+	  default to using Tahoma.  The point size specified is still
+	  honoured however.  (38.112)
+
+	- Implemented 'EZ Styles' - text-based config files which allow
+	  for styles with multiple schemes.  Functionality is fairly
+	  good considering the basic limitations and the 'Glass' and
+	  'Bubble Gum' styles have been completely replaced with EZ
+	  Styles.  (38.111)
+
+	- 'Cancel' button on prefs panel is now 'Close' instead.  (38.111)
+
+	- Added two new private functions - SNARL_LOAD_EXTENSION and
+	  SNARL_UNLOAD_EXTENSION - which load and unload an individual
+	  extension respectively.  SNARL_LOAD_EXTENSION expects the full
+	  path to the extension's folder; SNARL_UNLOAD_EXTENSION expects
+	  the extnension's short name (i.e. the name of the extension's
+	  enclosing folder).  These functions  will be documented in the
+	  fullness of time but they are not considered to be for general
+	  use.  (38.110)
+
+	- Fixed bug in Extension Roster which would send a SNARL_EXT_QUIT
+	  to an extension even if it was disabled.  In most cases this bug
+	  went unnoticed but disabling the SnarlClock extension would cause
+	  Snarl to crash on exit.  (38.103)
+
+	- Released as R2.05.  (38.102)
+
+	- Fixed stupid bug which caused Snarl to crash when Save button in
+	  Preferences was clicked.  (38.102)
+
+	- Released as R2.04.  (38.101)
+
+	- Snarl was ignoring a WM_CLOSE sent to it.  Now fixed.  (Thanks to
+	  Toke Noer for spotting that one).  (38.100)
+
+	- Can now define an 'ACK string' which Snarl will attempt to execute
+	  when a notification is left-clicked (ACK'd).  This can be set on
+	  a per-alert class basis (using snSetAlertClassDefault()) or once
+	  a notification has been displayed using new snChangeMessage()
+	  [SNARL_UPDATE_ELEMENT] private function.  All of this is currently
+	  *private* and is due for documentation in V39.  If a notification has
+	  an ACK string assigned to it, Snarl will simply call the Windows
+	  ShellExecute() function with the contents of the string as the <File>
+	  parameter - this allows for non-files (e.g. URLs) to be used.  If
+	  a notification has a valid reply window and message this is still
+	  sent after the ACK string has been processed.  (38.94)
+
+	- Added new snSetAlertClassDefault() [SNARL_SET_ALERT_CLASS_DEFAULT]
+	  private function which allows the caller to set specific defaults
+	  for a previously registered alert class.  Currently supported
+	  defaults are the notification title, timeout, icon and sound.  These
+	  are used by both snShowMessageEx() and snShowMessageExByApp() if
+	  any of the corresponding values passed are blank.  The timeout
+	  default is not actually implemented as yet.  (38.84)
+
+	- If the Vortex framework is available we automatically (for now)
+	  start listening for notifications.  We support notification types
+	  (classes under Snarl) which are registered automatically.  Snarl
+	  uses two local icons - remote_app.png for the app's entry in
+	  the list and remote.png in the Snarl itself.  (38.83)
+
+	- Network tab now appears if Brian's Vortex framework is
+	  accessible.  (38.83)
+
+	- Right-clicking the close gadget of a notification now pops up
+	  a context menu which allows the user to close the specific
+	  notification, all notifications created by the same app, or
+	  all notfifications.  This replicates the CTRL/SHIFT-CLICK
+	  functionality already in place.  (38.82)
+
+	- Renamed "Applications" tab to "Apps".  (38.82)
+
+	- Added new "Display" preferences tab and moved parts of the
+	  "General" tab content into it.  Also added new font smoothing
+	  options which can be utilised by styles if required.  Options
+	  are (MelonType [0], None [1], Anti-aliasing [2], ClearType [3],
+	  or Windows Default [4]).  The MelonType setting can also
+	  utilise a 'Contrast' percentage value.  (38.82) 
+
+	- Added new "Themes" preferences tab and moved all the "Display
+	  Options" content into it.  (38.82)
+
+	- Added snShowMessageExByApp() which uses new SNARL_EX_SHOW_BY_APP
+	  command.  This is currently *private* and scheduled to be formally
+	  documented in V39.  This command allows applications to display
+	  extended notifications without having to provide a valid HWND,
+	  instead the application's name is used to identify the app.  This
+	  can be useful for languages or applications which do not provide
+	  easy access to an HWND but the obvious limitation is that Snarl
+	  cannot send left or right click notifications back to the app.
+	  (38.81)
+
+	- Released as R2.0.  (38.79)
+
+	- Default style/scheme is now "Glass/Smoke".  (38.70)
+
+	- Made some small but significant changes to Snarl's startup code -
+	  specifically around when it broadcasts its SNARL_LAUNCHED and
+	  SNARL_QUIT messages.  Hopefully this should now stop some special-
+	  case weirdness where notifications are displayed before the style
+	  roster (and, indeed, Snarl itself) are fully up and running.  (38.69)
+
+	- Fixed bug which meant that for both SNARL_REGISTER_CONFIG_WINDOW and
+	  SNARL_REGISTER_CONFIG_WINDOW_2 the applications list *wasn't* being
+	  updated if either of these calls succeeded (they return an M_RESULT
+	  not a BOOL).  (38.66)
+
+	- Moved (and renamed) the two Style interfaces into a separate tlb and
+	  removed the now redundant interfaces from within the app itself.
+	  The new type library will be installed and registered by the RC2
+	  installer.  (38.65)
+
+	- Built-in style pack now looks for %app_data%\Snarl\Styles\.bubblegum
+	  which, if found, is used to configure the "BubbleGum" style.  This
+	  configuration is on a per-style (as opposed to per-scheme) basis so
+	  changes apply no matter which scheme is selected.  Note that this
+	  is really only intended to demonstrate functionality; no .bubblegum
+	  is created if it doesn't exist (although you can use the melon
+	  Configuration File Creator tool to create one).  (38.64)
+
+	- Released as RC1 (38.63)
+
+	- Added snPrivateRegisterConfig2().  This extends snRegisterConfig2()
+	  by allowing a large icon (ideally 256x256 pixels) to be specified
+	  as well as the small icon for the registering app.  If a large icon
+	  is specified, Snarl will attempt to use this in the registration and
+	  unregistration alerts it displays.  Note that this function is
+	  currently private and is due for documentation in V39.  For now it
+	  should only be used under direct guidance from application developers.
+	  (38.62)
+
+	- Added compiler constant EXCL_PUBLIC which will exclude public
+	  features of mSnarlPrivate_i when both includes are referenced.
+	  As mSnarlPrivate_i and mSnarl_i are not really compatible the
+	  only time this really only applies to the Snarl code itself.  (38.61)
+
+	- Tidied up includes.  Moved commented-out Unicode support into new
+	  mSnarlUnicode_i.bas include file.  Created new mSnarlPrivate_i.bas
+	  include file which contains as yet unofficial functions.  (38.61)
+
+	- Added snPrivateRegisterAlert() which uses SNARLSTRUCT->LngData2 to
+	  specify additional flags for the alert.  The only flag currently
+	  defined is SNARL_ALERT_DISABLED which registers the alert as
+	  disabled.  Note that this function is currently private and is
+	  due for documentation in V39.  For now it should only be used
+	  under direct guidance from application developers.  (38.60)
+
+	- =====
+
+	- Removed references to "default_opacity" and "default_dye_colour" as
+	  these are no longer used.  (It's up to the style to determine how
+	  it looks now).  All Snarl's are displayed at maximum opacity (255)
+	  in order to make the fading rountines simpler.  Styles can still
+	  generate transulcent Snarls by simply drawing their content
+	  accordingly.  (38.18) 
+
+	- =====
+
+	- Version bumped to V38.  (38.1)
+
+	- Version, etc. changed to R1.6 final.  (37.85)
+
+	- Released as RC-2.  (37.84)
+
+	- SNARL_UPDATE and not specifying anything in IconPath would kill any
+	  existing icon.  Now fixed.  (37.84)
+
+	- SNARL_IS_VISIBLE now returns False once the notification starts fading
+	  out, not once it's finally disappeared.  Suggested by Sam Listopad (37.80)
+
+	- SNARL_UPDATE now resets the timeout value to what it was when the
+	  notification was first displayed.  Suggested by Sam Listopad. (37.80)
+
+	- New icons for the Preferences panel.  (37.78)
+
+	- We now return M_NOT_IMPLEMENTED for invalid standard command values.
+	  Oops.  (37.78)
+
+	- About box revised slightly.  (37.78)
+
+	- Application Registered/Unregistered notifications are no longer shown
+	  for Extensions.  (37.76)
+
+	- Snarl now registers itself and creates three alerts: Welcome Message,
+	  Application Registered and Application Unregistered.  Should be fairly
+	  self explanatory.  (37.74)
+
+	- More debug output added.  (37.70)
+
+	- Released as RC-1.  (37.61)
+
+	- VB version of include file reworked to resolve bugs with the new UTF8
+	  conversion functions  (basically, under VB, characters such as £ (UK
+	  Pound Sterling symbol) and € (Euro currency symbol) were being lost.
+	  (37.61)
+
+	- Sound notifications improved slightly.  Also, system sounds can now
+	  be played by prefixing the sound name (e.g. 'MailBeep') with a '+'
+	  symbol.  (37.61)
+
+	- Extension manager now sends HWND_SNARL in the hWnd parameter of the
+	  WndProc() hook so that extensions can distinguish between messages
+	  from the Extension manager and those from a window.  Note that
+	  HWND_SNARL is *not* a genuine window handle; extensions which require
+	  a handle to the Snarl Dispatcher should use snGetSnarlWindow().  (37.59)
+
+	- Alerts list improved slightly.  Now, when clicking a checkbox, only the
+	  icon is updated rather than the whole list content.  (37.59)
+
+	- Various snxxx() functions weren returning True/False instead of an error
+	  number.  Fixed.  (37.57)
+
+	- snIsVisible() handling was broken, now fixed.  (37.57)
+
+	- Added support for new snUpdateTimeout().  (37.57)
+
+	- g_UnloadExtensions() now frees up extension dlls correctly.  This means
+	  installers should be able to install over existing extensions.  (37.51)
+
+	- g_GetExtensions() now checks a new file called 'excluded' in the extensions
+	  folder.  Names of extensions that appear in this file are not loaded.  The
+	  file is a standard melon config file (except it has no extension) with a
+	  single [exclude] section.  (37.37)
+
+
+

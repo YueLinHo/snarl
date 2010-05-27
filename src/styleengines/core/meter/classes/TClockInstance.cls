@@ -1,0 +1,260 @@
+VERSION 1.0 CLASS
+BEGIN
+  MultiUse = -1  'True
+  Persistable = 0  'NotPersistable
+  DataBindingBehavior = 0  'vbNone
+  DataSourceBehavior  = 0  'vbNone
+  MTSTransactionMode  = 0  'NotAnMTSObject
+END
+Attribute VB_Name = "TClockInstance"
+Attribute VB_GlobalNameSpace = False
+Attribute VB_Creatable = False
+Attribute VB_PredeclaredId = False
+Attribute VB_Exposed = False
+Option Explicit
+
+'/*********************************************************************************************
+'/
+'/  File:           TMinimalInstance.cls
+'/
+'/  Description:    Represents a single instance of a Minimal style notification
+'/
+'/  © 2010 full phat products
+'/
+'/  This file may be used under the terms of the Simplified BSD Licence
+'/
+'*********************************************************************************************/
+
+Dim mInfo As notification_info
+Dim mIcon As mfxBitmap
+Dim mView As mfxView
+
+Const T As Double = 57.29577951
+
+Private Type T_TIME
+    Hour As Integer
+    Minute As Integer
+    Second As Integer
+    Date As Integer
+    Month As Integer
+    Year As Integer
+
+End Type
+
+Dim mTime As T_TIME
+
+Implements IStyleInstance
+
+Private Sub IStyleInstance_AdjustPosition(X As Long, Y As Long, Alpha As Integer, Done As Boolean)
+End Sub
+
+Private Function IStyleInstance_GetContent() As melon.MImage
+
+    Set IStyleInstance_GetContent = mView.ConvertToBitmap()
+
+End Function
+
+Private Function IStyleInstance_Pulse() As Boolean
+End Function
+
+Private Sub IStyleInstance_Show(ByVal Visible As Boolean)
+End Sub
+
+Private Sub IStyleInstance_UpdateContent(NotificationInfo As libSnarlStyles.notification_info)
+
+    If (mView Is Nothing) Then
+        Set mView = New mfxView
+        mView.TextMode = MFX_TEXT_ANTIALIAS
+
+    End If
+
+    LSet mInfo = NotificationInfo
+
+    ' /* clear cached icon */
+
+    Set mIcon = Nothing
+'    mIconSize = 0
+
+Dim pi As MImage
+
+    ' /* cache icon */
+
+    Set pi = load_image_obj(NotificationInfo.Icon)
+    If is_valid_image(pi) Then _
+        Set mIcon = create_bitmap_from_image(pi)
+
+    ' /* validate text field - it must be in the format "YYYYMMDDHHMMSS" */
+
+    If Len(mInfo.Text) <> 14 Then
+        g_Debug "TClockInstance.UpdateContent(): invalid time string '" & mInfo.Text & "'"
+        mInfo.Text = Format$(Now, "YYYYMMDDHHNNSS")
+        g_Debug "converted to now(): " & mInfo.Text
+
+    End If
+
+    With mTime
+        .Year = Val(Left$(mInfo.Text, 4))
+        .Month = Val(Mid$(mInfo.Text, 5, 2))
+        .Date = Val(Mid$(mInfo.Text, 7, 2))
+        .Hour = Val(Mid$(mInfo.Text, 9, 2))
+        .Minute = Val(Mid$(mInfo.Text, 11, 2))
+        .Second = Val(Mid$(mInfo.Text, 13, 2))
+
+        If .Hour > 12 Then
+            .Hour = .Hour - 12
+
+        ElseIf .Hour = 0 Then
+            .Hour = 12
+
+        End If
+
+    End With
+
+    uDraw
+
+End Sub
+
+Private Sub uDraw()
+Dim pi As mfxBitmap
+
+    If (mView Is Nothing) Then
+        g_Debug "TClockInstance.uCalcSize(): view not created", LEMON_LEVEL_CRITICAL
+        Exit Sub
+
+    End If
+
+    ' /* background */
+    
+Static i As Integer
+Static n As Double
+Dim pr As BRect
+
+    Set pi = load_image_obj(g_MakePath(App.Path) & IIf(g_IsIDE(), "bin\", "") & "clock\back2.png")
+    If is_valid_image(pi) Then
+        With mView
+            .SizeTo pi.Width, pi.Height
+            .Clear
+            .DrawScaledImage pi
+
+        End With
+
+    Else
+        With mView
+            .SizeTo 96, 96
+            .Clear
+            .EnableSmoothing True
+            .SetHighColour rgba(255, 255, 255)
+            .FillEllipse .Bounds
+            .SetHighColour rgba(0, 0, 0, 0)
+            .SetLowColour rgba(0, 0, 0, 32)
+            .FillEllipse .Bounds, MFX_VERT_GRADIENT
+            .SetHighColour rgba(0, 0, 0)
+            .StrokeEllipse .Bounds, 2
+
+            .SetHighColour rgba(0, 0, 0)
+    
+            For i = 0 To 59
+                n = (i * 6) - 90
+                If n < 0 Then _
+                    n = n + 360
+    
+                n = n / T
+    
+                Set pr = new_BRect(Fix(.Bounds.Width / 2) + (Fix(.Bounds.Width / 2) * 0.97 * Cos(n)), _
+                                   Fix(.Bounds.Height / 2) + (Fix(.Bounds.Height / 2) * 0.97 * Sin(n)), _
+                                   Fix(.Bounds.Width / 2) + (Fix(.Bounds.Width / 2) * 0.97 * Cos(n)), _
+                                   Fix(.Bounds.Height / 2) + (Fix(.Bounds.Height / 2) * 0.97 * Sin(n)))
+    
+                If (i Mod 5) = 0 Then
+                    ' /* draw hour ticks */
+                    If MIN(.Width, .Height) > 99 Then
+                        pr.InsetBy -2, -2
+    
+                    Else
+                        pr.InsetBy -1, -1
+    
+                    End If
+                    .FillEllipse pr
+    
+                ElseIf MIN(.Width, .Height) > 179 Then
+                    ' /* draw second ticks */
+                    pr.InsetBy -1, -1
+                    .FillEllipse pr
+    
+                End If
+    
+            Next i
+
+        End With
+
+    End If
+
+Dim hi As Long, mi As Long, si As Long
+Dim Hd As Double, Md As Double, Sd As Double
+Dim hr As Double, Mr As Double, Sr As Double
+ 
+    hi = Hour(time)
+    mi = Minute(time)
+    si = Second(time)
+
+    If hi >= 12 Then _
+        hi = hi - 12
+
+    Hd = hi * 30
+    Hd = Hd + mi / 2
+    Md = mi * 6
+    Sd = si * 6
+
+    Hd = Hd - 90
+    Md = Md - 90
+    Sd = Sd - 90
+
+    If Hd < 0 Then _
+        Hd = Hd + 360
+
+    If Md < 0 Then _
+        Md = Md + 360
+
+    If Sd < 0 Then _
+        Sd = Sd + 360
+
+    hr = Hd / T
+    Mr = Md / T
+    Sr = Sd / T
+
+    With mView
+
+        .SetHighColour rgba(0, 0, 0)
+        .StrokeLine new_BRect(Fix(.Bounds.Width / 2), _
+                              Fix(.Bounds.Height / 2), _
+                              Fix(.Bounds.Width / 2) + (Fix(.Bounds.Width / 2) * 0.7 * Cos(hr)), _
+                              Fix(.Bounds.Height / 2) + (Fix(.Bounds.Height / 2) * 0.7 * Sin(hr))), _
+                              2
+
+        .StrokeLine new_BRect(Fix(.Bounds.Width / 2), _
+                              Fix(.Bounds.Height / 2), _
+                              Fix(.Bounds.Width / 2) + (Fix(.Bounds.Width / 2) * 0.9 * Cos(Mr)), _
+                              Fix(.Bounds.Height / 2) + (Fix(.Bounds.Height / 2) * 0.9 * Sin(Mr))), _
+                              2
+
+        .SetHighColour rgba(255, 0, 0)
+        .StrokeLine new_BRect(Fix(.Bounds.Width / 2), _
+                              Fix(.Bounds.Height / 2), _
+                              Fix(.Bounds.Width / 2) + (Fix(.Bounds.Width / 2) * 0.9 * Cos(Sr)), _
+                              Fix(.Bounds.Height / 2) + (Fix(.Bounds.Height / 2) * 0.9 * Sin(Sr)))
+
+        .SetHighColour rgba(0, 0, 0)
+        .FillEllipse .Bounds.InsetByCopy(.Bounds.Width / 2 - 6, .Bounds.Height / 2 - 6)
+
+
+'        .SetHighColour rgba(255, 255, 255, 128)
+'        .SetLowColour rgba(255, 255, 255, 200)
+'        .FillEllipse new_BRect(0, 0, .Bounds.Right, Fix(.Bounds.Height / 2) - 1), MFX_VERT_GRADIENT
+
+    End With
+
+End Sub
+
+
+
+

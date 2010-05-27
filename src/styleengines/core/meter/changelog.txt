@@ -1,0 +1,11 @@
+
+
+	Meter Style Engine Change Log
+
+	- iPhoney style title is now drawn without a black outline and
+	  uses the foreground alpha setting.  (39.32)
+
+	- iPhoney style bumped to 0.3.  (39.23)
+
+	- Added (Bar) schemes to the iPhoney style.  (39.23)
+
