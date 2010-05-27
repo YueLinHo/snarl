@@ -691,7 +691,7 @@ Dim i As Long
 
         If mItems Then
             ' /* fade all notifications out together */
-            For n = 255 To 0 Step -(Val(g_ConfigGet("step_size")) * 4)
+            For n = 255 To 0 Step -(Val(g_ConfigGet("step_size")) * 8)
                 For i = 1 To mItems
                     mItem(i).Window.bSetAlpha n
 
@@ -724,7 +724,7 @@ Dim i As Long
 
         If mItems Then
             ' /* fade all related notifications out together */
-            For n = 255 To 0 Step -(Val(g_ConfigGet("step_size")) * 4)
+            For n = 255 To 0 Step -(Val(g_ConfigGet("step_size")) * 8)
                 For i = 1 To mItems
                     With mItem(i)
                         If .AppToken = AppToken Then _

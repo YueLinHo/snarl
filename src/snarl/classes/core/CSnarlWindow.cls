@@ -606,7 +606,7 @@ Public Sub uSetTargetAlpha(ByVal Alpha As Long)
 Debug.Print "SET TARGET ALPHA " & Alpha
 
     If Alpha < m_Current Then
-        m_step = -Val(g_ConfigGet("step_size")) * 4
+        m_step = -Val(g_ConfigGet("step_size")) * 8
 
     ElseIf Alpha > m_Current Then
         m_step = Val(g_ConfigGet("step_size")) * 4

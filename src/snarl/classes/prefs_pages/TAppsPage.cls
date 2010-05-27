@@ -155,17 +155,25 @@ Dim pa As TApp
 
 
     Case "cb>apps"
-        uUpdateClassList Value
-        Set mCurrent = g_AppRoster.AppAt(Val(Value))
 
+        Set mCurrent = g_AppRoster.AppAt(Val(Value))
         If Not (mCurrent Is Nothing) Then
-            Debug.Print mCurrent.Name & " -> " & g_HexStr(mCurrent.Flags)
+
+            Debug.Print "current selected app is " & mCurrent.Name & " (" & mCurrent.Signature & ") - updating classes..."
+            uUpdateClassList
 
             If mPage.Find("ftb>app", pc) Then
                 prefskit_SetItem pc, 1, "enabled", IIf((mCurrent.Flags And SNARL41_APP_HAS_ABOUT), 1&, 0&)
                 prefskit_SetItem pc, 2, "enabled", IIf((mCurrent.Flags And SNARL41_APP_HAS_PREFS), 1&, 0&)
 
+            Else
+                Debug.Print "TAppsPage.ControlChanged(): 'ftb>app' control not found"
+
             End If
+
+        Else
+            Debug.Print "TAppsPage.ControlChanged(): error setting current selected app"
+
         End If
 
 
@@ -173,12 +181,12 @@ Dim pa As TApp
         ' /* set the class information */
 
         If (mCurrent Is Nothing) Then
-            g_Debug "TAppsPage.ControlChanged(): current selected app is null", LEMON_LEVEL_CRITICAL
+            g_Debug "TAppsPage.ControlChanged(): no current selected app", LEMON_LEVEL_CRITICAL
             Exit Sub
 
         End If
 
-        Debug.Print ">> app is: " & mCurrent.Name
+        Debug.Print "TAppsPage.ControlChanged(): [lb>classes] app is: " & mCurrent.Name
 
         ' /* get the selected class from the listbox */
 
@@ -186,6 +194,7 @@ Dim pa As TApp
         If (gSelectedClass Is Nothing) Then _
             g_Debug "TAppPage.ControlChanged(): class #" & Value & " for '" & pa.Name & "' doesn't exist", LEMON_LEVEL_WARNING
 
+        ' /* if the class configuration panel is open, tell it to update */
 
         If Not (theClassPanel Is Nothing) Then _
             theClassPanel.ClassChanged
@@ -305,16 +314,16 @@ Private Sub KPrefsPage_PanelResized(ByVal Width As Long, ByVal Height As Long)
 
 End Sub
 
-Private Sub uUpdateClassList(ByVal Value As String)
+Private Sub uUpdateClassList()
 
-    If (mPage Is Nothing) Then _
+    If (mPage Is Nothing) Or (mCurrent Is Nothing) Then _
         Exit Sub
 
-Dim pa As TApp
-
-    Set pa = g_AppRoster.AppAt(Val(Value))
-    If (pa Is Nothing) Then _
-        Exit Sub
+'Dim pa As TApp
+'
+'    Set pa = g_AppRoster.AppAt(Val(Value))
+'    If (pa Is Nothing) Then _
+'        Exit Sub
 
 Dim pc As BControl
 
@@ -326,7 +335,7 @@ Dim pc As BControl
     If Not mPage.Find("ft>use_same", pc) Then _
         Exit Sub
 
-    pc.SetValue IIf(pa.UseSameSettingsForAllClasses, "1", "0")
+    pc.SetValue IIf(mCurrent.UseSameSettingsForAllClasses, "1", "0")
 
     If Not mPage.Find("lb>classes", pc) Then _
         Exit Sub
@@ -338,7 +347,7 @@ Dim i As Long
 Dim c As Long
 Dim pm As CTempMsg
 
-    With pa
+    With mCurrent
         If .CountAlerts() = 0 Then
             ' /* corrupt! */
             g_Debug "TAppsPage.uUpdateClassList(): '" & .Name & "' has no alerts", LEMON_LEVEL_CRITICAL
