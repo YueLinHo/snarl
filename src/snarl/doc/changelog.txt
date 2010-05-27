@@ -44,6 +44,12 @@
 
 	Snarl Change Log
 
+	- Fixed bug in the apps preferences page which was causing the wrong
+	  application to be selected from the list.  (40.51)
+
+	- Notifications (theorectially) now fade out twice as fast as they
+	  fade in.  (40.51)
+
 	- Added "IP forwarder" default style.  (40.49)
 
 	- Fixed auto update check (same bug as for the remote icon download
