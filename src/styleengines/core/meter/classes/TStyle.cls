@@ -27,6 +27,8 @@ Public Enum E_METER_STYLE_FLAGS
     E_METER_STYLE_CAN_SET_FG_ALPHA = &H400
     E_METER_STYLE_HAS_SPECTRUMS = &H800
 
+    E_METER_STYLE_HAS_OWN_PAGE = &H8000&
+
 End Enum
 
 Dim mFlags As E_METER_STYLE_FLAGS
@@ -39,9 +41,11 @@ Dim mSchemes As ConfigFile
 Dim mMeters As String
 Dim mSpectrums As String
 
+Dim mPage As KPrefsPage
+
 Public Sub Init(ByVal StyleName As String, ByVal Description As String, ByVal Flags As S_STYLE_FLAGS, ByVal Schemes As String, _
                 ByVal Major As Long, ByVal Minor As Long, ByRef Defaults As BPackedData, ByVal LibDate As String, _
-                ByVal IntFlags As E_METER_STYLE_FLAGS, ByVal MeterTypes As String, ByVal SpectrumTypes As String)
+                ByVal IntFlags As E_METER_STYLE_FLAGS, ByVal MeterTypes As String, ByVal SpectrumTypes As String, ByRef Page As KPrefsPage)
 
 Dim ps As ConfigSection
 
@@ -113,6 +117,9 @@ Dim i As Long
         End If
 
     End With
+
+    Set mPage = Page
+
 End Sub
 
 Public Function Flags() As E_METER_STYLE_FLAGS
@@ -257,3 +264,8 @@ Dim i As Long
 
 End Function
 
+Public Function Page() As KPrefsPage
+
+    Set Page = mPage
+
+End Function

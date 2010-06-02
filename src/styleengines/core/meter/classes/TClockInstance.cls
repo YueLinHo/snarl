@@ -293,7 +293,6 @@ Dim hr As Double, Mr As Double, Sr As Double
 
         End If
 
-
     End With
 
 End Sub

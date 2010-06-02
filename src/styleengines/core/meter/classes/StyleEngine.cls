@@ -111,7 +111,15 @@ Private Function IStyleEngine_GetConfigWindow(ByVal StyleName As String) As Long
             .SetTitle StyleName & " Preferences"
             .SetWidth 300
             .SetWindow 1
-            .AddPage new_BPrefsPage("", Nothing, Me)
+
+            If (mCurrent.Flags And E_METER_STYLE_HAS_OWN_PAGE) Then
+                .AddPage new_BPrefsPage("", Nothing, mCurrent.Page)
+
+            Else
+                .AddPage new_BPrefsPage("", Nothing, Me)
+
+            End If
+
             .Go
 '    g_SetWindowIconToAppResourceIcon mPanel.hWnd
 
@@ -191,7 +199,7 @@ Private Function IStyleEngine_Initialize() As melon.M_RESULT
 
     uAdd STYLE_NAME_CLOCK, _
          "Displays notification text formatted as 'YYYYMMDDHHMMSS' as a time", S_STYLE_IS_CONFIGURABLE Or S_STYLE_MULTI_INSTANCE, _
-         "", 0, 1, uCreatePackedStr(""), E_METER_STYLE_LOAD_SCHEMES_FROM_FILE
+         "", 0, 1, uCreatePackedStr(""), E_METER_STYLE_LOAD_SCHEMES_FROM_FILE Or E_METER_STYLE_HAS_OWN_PAGE, , , New TClockPage
 
 
 Dim pPacked As BPackedData
@@ -825,11 +833,11 @@ End Sub
 '
 'End Function
 
-Private Sub uAdd(ByVal StyleName As String, ByVal Description As String, ByVal Flags As S_STYLE_FLAGS, ByVal Schemes As String, ByVal Major As Long, ByVal Minor As Long, ByRef Defaults As BPackedData, ByVal IntFlags As E_METER_STYLE_FLAGS, Optional ByVal MeterTypes As String, Optional ByVal SpectrumTypes As String)
+Private Sub uAdd(ByVal StyleName As String, ByVal Description As String, ByVal Flags As S_STYLE_FLAGS, ByVal Schemes As String, ByVal Major As Long, ByVal Minor As Long, ByRef Defaults As BPackedData, ByVal IntFlags As E_METER_STYLE_FLAGS, Optional ByVal MeterTypes As String, Optional ByVal SpectrumTypes As String, Optional ByRef CustomPrefsPage As KPrefsPage)
 Dim ps As TStyle
 
     Set ps = New TStyle
-    ps.Init StyleName, Description, Flags, Schemes, Major, Minor, Defaults, LIB_DATE, IntFlags, MeterTypes, SpectrumTypes
+    ps.Init StyleName, Description, Flags, Schemes, Major, Minor, Defaults, LIB_DATE, IntFlags, MeterTypes, SpectrumTypes, CustomPrefsPage
 
     mCount = mCount + 1
     ReDim Preserve mStyle(mCount)
