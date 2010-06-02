@@ -1121,6 +1121,8 @@ End Function
 
 Private Sub uUpdateStyleContent(ByRef Info As T_NOTIFICATION_INFO)
 
+    On Error GoTo er
+
     If (mInstance Is Nothing) Then _
         Exit Sub
 
@@ -1175,6 +1177,10 @@ Dim pInfo As notification_info
     End With
 
     mInstance.UpdateContent pInfo
+    Exit Sub
+
+er:
+    g_Debug "CSnarlWindow.uUpdateStyleContent(): " & Err.Description, LEMON_LEVEL_CRITICAL
 
 End Sub
 
