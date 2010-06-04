@@ -123,7 +123,6 @@ Dim pi As MImage
 End Sub
 
 Private Sub uDraw()
-Dim pi As mfxBitmap
 
     If (mView Is Nothing) Then
         g_Debug "TClockInstance.uCalcSize(): view not created", LEMON_LEVEL_CRITICAL
@@ -131,8 +130,18 @@ Dim pi As mfxBitmap
 
     End If
 
-    ' /* background */
-    
+    If LCase$(mInfo.Scheme) = "analog" Then
+        uDrawAnalog
+
+    Else
+        uDrawDigital
+
+    End If
+
+End Sub
+
+Private Sub uDrawAnalog()
+Dim pi As mfxBitmap
 Static i As Integer
 Static n As Double
 Dim pr As BRect
@@ -297,6 +306,62 @@ Dim hr As Double, Mr As Double, Sr As Double
 
 End Sub
 
+Private Sub uDrawDigital()
+Dim title_height As Long
+Dim pr As BRect
 
+    With mView
+        .SizeTo 120, 54
+        .EnableSmoothing True
+
+        If mInfo.Title <> "" Then
+            .SetFont "Calibri", 9, True
+            .MeasureString mInfo.Title, .Bounds.InsetByCopy(8, 0), pr
+            title_height = pr.Height
+            .SizeTo 120, .Height + title_height + 4
+
+        End If
+
+        .SetHighColour rgba(32, 32, 32, 220)
+        .FillRoundRect .Bounds, 12, 12
+
+        .SetHighColour rgba(0, 0, 0)
+        .StrokeRoundRect .Bounds, 12, 12
+
+Dim cx As Long
+
+        If is_valid_image(mIcon) Then
+            cx = MIN(mIcon.Width, .Height - 4)
+            mView.DrawScaledImage mIcon, new_BPoint(Fix((.Width - cx) / 2), Fix((.Height - cx) / 2)), new_BPoint(cx, cx), 128
+
+        End If
+
+        .SetHighColour rgba(255, 255, 255, 240)
+        .SetLowColour IIf((mInfo.Flags And S_NOTIFICATION_IS_PRIORITY), rgba(255, 0, 0, 220), rgba(0, 0, 0, 180))
+
+        .SetFont "Calibri", 20
+
+        ' /* time */
+        .DrawString Format$(mTime.Hour, "00") & ":" & Format$(mTime.Minute, "00") & ":" & Format$(mTime.Second, "00"), _
+                    .Bounds.InsetByCopy(0, 4).OffsetByCopy(0, IIf(title_height, title_height, 0)), MFX_ALIGN_H_CENTER Or MFX_ALIGN_TOP Or MFX_SIMPLE_OUTLINE
+
+        .SetFont "Calibri", 9, True
+
+        ' /* date */
+        .DrawString Format$(DateSerial(mTime.Year, mTime.Month, mTime.Date), "d mmmm yyyy"), _
+                    .Bounds.InsetByCopy(0, 4), MFX_ALIGN_H_CENTER Or MFX_ALIGN_BOTTOM Or MFX_SIMPLE_OUTLINE
+
+        ' /* title */
+
+        If mInfo.Title <> "" Then _
+            .DrawString mInfo.Title, .Bounds.InsetByCopy(0, 4), MFX_ALIGN_H_CENTER Or MFX_ALIGN_TOP Or MFX_SIMPLE_OUTLINE
+
+        .SetHighColour rgba(255, 255, 255, 160)
+        .SetLowColour rgba(255, 255, 255, 30)
+        .FillRoundRect new_BRect(0, 0, .Bounds.Right, 24), 12, 12, MFX_VERT_GRADIENT
+
+    End With
+
+End Sub
 
 
