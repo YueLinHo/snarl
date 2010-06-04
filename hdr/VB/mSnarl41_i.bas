@@ -279,7 +279,7 @@ Dim pReq As SNARLMSG
 
 End Function
 
-Public Function sn41EZNotify(ByVal Token As Long, ByVal Id As String, ByVal Title As String, ByVal Text As String, Optional ByVal Timeout As Long = -1, Optional ByVal Icon As String, Optional ByVal Priority As Long = 0, Optional ByVal Acknowledge As String) As Long
+Public Function sn41EZNotify(ByVal Token As Long, ByVal Id As String, ByVal Title As String, ByVal Text As String, Optional ByVal Timeout As Long = -1, Optional ByVal Icon As String, Optional ByVal Priority As Long = 0, Optional ByVal Acknowledge As String, Optional ByVal Value As String) As Long
 Dim pReq As SNARLMSG
 
     With pReq
@@ -291,7 +291,8 @@ Dim pReq As SNARLMSG
                               "#?timeout::" & CStr(Timeout) & _
                               "#?icon::" & Icon & _
                               "#?priority::" & CStr(Priority) & _
-                              "#?ack::" & Acknowledge _
+                              "#?ack::" & Acknowledge & _
+                              "#?value::" & Value _
                               )
 
     End With
