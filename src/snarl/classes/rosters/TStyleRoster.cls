@@ -181,21 +181,21 @@ Private Property Get MVersionInfo_Version() As Long
 
 End Property
 
-Private Function uLoadStyleEngine(ByVal Object As String) As Boolean
+Private Function uLoadStyleEngine(ByVal Object As String, Optional ByRef FailedReason As String) As Boolean
 Dim pStyleEngine As IStyleEngine
-Dim sz As String
 
     On Error Resume Next
 
     Err.Clear
     Set pStyleEngine = CreateObject(Object)
     If Err.Number = 0 Then
-        uLoadStyleEngine = uAddStyleEngine(pStyleEngine, sz, Object)
+        uLoadStyleEngine = uAddStyleEngine(pStyleEngine, FailedReason, Object)
         If Not uLoadStyleEngine Then _
-            g_Debug "TStyleRoster.uLoadStyleEngine(): '" & Object & "' failed to load: " & sz, LEMON_LEVEL_CRITICAL
+            g_Debug "TStyleRoster.uLoadStyleEngine(): '" & Object & "' failed to load: " & FailedReason, LEMON_LEVEL_CRITICAL
 
     Else
-        g_Debug "TStyleRoster.uLoadStyleEngine(): " & Err.Description & " loading '" & Object & "'", LEMON_LEVEL_CRITICAL
+        FailedReason = "Couldn't create '" & Object & "'"
+        g_Debug "TStyleRoster.uLoadStyleEngine(): " & Err.Description & "' creating '" & Object & "'", LEMON_LEVEL_CRITICAL
 
     End If
 
@@ -204,7 +204,7 @@ End Function
 Public Function uAddStyleEngine(ByRef Engine As IStyleEngine, ByRef FailedReason As String, ByVal Library As String, Optional ByVal Flags As Long) As Boolean
 
     ' /* introduced in R2.2 - much neater style engine interface - returns False (and tries to set 'FailedReason' if
-    '    something goes wrong, otherwise returns True (and adds engine to roster) */
+    '    something goes wrong), otherwise returns True (and adds engine to roster) */
 
     On Error Resume Next
 
@@ -489,15 +489,9 @@ Dim i As Long
     On Error Resume Next
 
     i = uFindEngine(Engine)
-'    If i = 0 Then
-'        g_Debug "TStyleRoster.Load(): '" & Engine & "' not in list", LEMON_LEVEL_CRITICAL
-'        Exit Function
-'
-'    End If
-
     If i = 0 Then
         ' /* not already in list */
-        If Not uLoadStyleEngine(Engine) Then _
+        If Not uLoadStyleEngine(Engine, FailText) Then _
             Exit Function
 
     Else
@@ -505,6 +499,7 @@ Dim i As Long
 
         If Not (mEngine(i).Obj Is Nothing) Then
             g_Debug "TStyleRoster.Unload(): '" & Engine & "' is already loaded", LEMON_LEVEL_CRITICAL
+            FailText = "Style Engine is already loaded"
             Exit Function
 
         End If
@@ -566,6 +561,41 @@ Dim c As Long
     frmAbout.bUpdateStylesList
 
     Load = True
+
+End Function
+
+Public Function StylesForEngine(ByVal Engine As String, ByRef Styles As String) As Boolean
+Dim i As Long
+
+    i = uFindEngine(Engine)
+    If i = 0 Then
+        g_Debug "TStyleRoster.StylesForEngine(): '" & Engine & "' not in list", LEMON_LEVEL_CRITICAL
+        Exit Function
+
+    End If
+
+    If (mEngine(i).Obj Is Nothing) Then
+        g_Debug "TStyleRoster.StylesForEngine(): '" & Engine & "' is already unloaded", LEMON_LEVEL_CRITICAL
+        Exit Function
+
+    End If
+
+Dim sz As String
+Dim j As Long
+
+    ' /* find all styles associated with this engine */
+
+    If mItems Then
+        For j = 1 To mItems
+            If mItem(j).Engine.Name = Engine Then
+                sz = sz & mItem(j).Name & vbCrLf
+
+            End If
+        Next j
+    End If
+
+    Styles = sz
+    StylesForEngine = True
 
 End Function
 

@@ -47,15 +47,17 @@ Dim pm As CTempMsg
     pc.SizeTo 0, 26
     mPage.Add pc
 
-    mPage.Add new_BPrefsControl("fancytoolbar", "ftb>engine", "Show in Explorer|")
+    mPage.Add new_BPrefsControl("fancytoolbar", "ftb>engine", "Show in Explorer||Install...")
 
     mPage.Add new_BPrefsControl("fancybutton2", "fb2>loadunload", "Unload")
+'    mPage.Add new_BPrefsControl("fancybutton2", "fb2>install", "Install...")
 
 End Sub
 
 Private Sub KPrefsPage_ControlChanged(Control As prefs_kit_d2.BControl, ByVal Value As String)
 Dim pEngineInfo As T_SNARL_STYLE_ENGINE_INFO
 Dim pc As BControl
+Dim sz As String
 
     Select Case Control.GetName()
     Case "lb>engines"
@@ -114,6 +116,41 @@ Dim pc As BControl
         Case 1
             ShellExecute 0, "open", pEngineInfo.Path, vbNullString, vbNullString, SW_SHOWNORMAL
 
+'        Case 3
+'            If g_StyleRoster.StylesForEngine(mSelectedEngine, sz) Then
+'                If MsgBox("Uninstalling this style engine will remove the following styles:" & vbCrLf & vbCrLf & sz & vbCrLf & vbCrLf & "Are you sure you want to do this?", _
+'                        vbQuestion Or vbYesNo, App.Title) = vbYes Then
+'
+'                End If
+'
+'            End If
+
+        Case 3
+
+Dim szEngine As String
+
+            szEngine = InputBox("Style Engine to install?", App.Title)
+            If szEngine = "" Then _
+                Exit Sub
+    
+            If g_GetExtension(szEngine) = "" Then _
+                szEngine = szEngine & ".styleengine"
+    
+            If g_StyleRoster.Load(szEngine, sz, True) Then
+                snShowMessage szEngine & " installed ok", "", -1, g_MakePath(App.Path) & "etc\icons\style_engine.png"
+                uUpdateList
+    
+                If g_GetUserFolderPath(sz) Then
+                    sz = g_MakePath(sz) & "styles\" & szEngine
+                    If Not g_Exists(sz) Then _
+                        uCreateBlankFile sz
+    
+                End If
+    
+            Else
+                MsgBox sz, vbCritical Or vbOKOnly, "Error Installing Style Engine"
+    
+            End If
 
         End Select
 
@@ -144,10 +181,22 @@ Dim sz As String
             End If
 
         Case "Unload"
-            If g_StyleRoster.Unload(mSelectedEngine, sz) Then
-                MsgBox "Style Engine '" & mSelectedEngine & "' unloaded" & vbCrLf & "The following styles are no longer available:" & vbCrLf & vbCrLf & sz, vbInformation Or vbOKOnly, App.Title
-                uUpdateList
+            
+            If g_StyleRoster.StylesForEngine(mSelectedEngine, sz) Then
+                If MsgBox("Uninstalling this style engine will remove the following styles:" & vbCrLf & vbCrLf & _
+                          sz & vbCrLf & "Are you sure you want to do this?", _
+                          vbQuestion Or vbYesNo, App.Title) = vbYes Then
 
+                    If g_StyleRoster.Unload(mSelectedEngine, sz) Then
+                        MsgBox "Style Engine '" & mSelectedEngine & "' unloaded", vbInformation Or vbOKOnly, App.Title
+                        uUpdateList
+
+                    Else
+                        MsgBox "Error unloading Style Engine", vbExclamation Or vbOKOnly, App.Title
+
+                    End If
+
+                End If
             End If
 
         End Select
@@ -301,3 +350,16 @@ Dim i As Long
     pc.SetValue "1"
 
 End Function
+
+Private Sub uCreateBlankFile(ByVal Path As String)
+
+    On Error Resume Next
+
+Dim n As Integer
+
+    n = FreeFile()
+    Open Path For Output As #n
+'    Print #n, ""
+    Close #n
+
+End Sub

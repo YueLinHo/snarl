@@ -36,7 +36,10 @@ Public Type T_NOTIFICATION_INFO
     Position As E_START_POSITIONS
     Token As Long
     Priority As Long                    ' // V41: <0 = low, 0 = normal, >0 = high
-
+    Value As String                     ' // V41: freeform value which will negate the need to use the Text field
+                                        '         thoughts are the value can encapsulate the format it's sent in
+                                        '         e.g. 45%, 2.3466, $5.00, etc. it's up to the style to determine
+                                        '         how/if it's displayed
 End Type
 
 Public Type T_SNARL_STYLE_ENGINE_INFO
@@ -199,11 +202,11 @@ Public Type T_CONFIG
     auto_update As Boolean
     last_update_check As Date
 
-    enable_sounds As Boolean
-    use_style_sounds As Boolean
-    prefer_style_sounds As Boolean
-    default_notification_sound As String
-    default_priority_sound As String
+'    enable_sounds As Boolean
+'    use_style_sounds As Boolean
+'    prefer_style_sounds As Boolean
+'    default_notification_sound As String
+'    default_priority_sound As String
 
     AgreeBetaUsage As Boolean
 
@@ -742,12 +745,6 @@ Public Function g_ConfigInit() As Boolean
 
         .auto_update = True
 
-        .enable_sounds = True
-        .use_style_sounds = True
-        .prefer_style_sounds = False
-        .default_notification_sound = ""
-        .default_priority_sound = ""
-
     End With
 
 
@@ -799,6 +796,8 @@ Public Function g_ConfigInit() As Boolean
         .Add "default_normal_sound", ""
         .Add "default_priority_sound", ""
         .Add "use_style_icons", "1"
+
+        .Add "auto_sticky_on_screensaver", "1"
 
     End With
 

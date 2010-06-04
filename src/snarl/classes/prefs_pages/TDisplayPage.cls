@@ -35,15 +35,15 @@ Dim pdsp As TDisplaySubPage
 
     Set pdsp = New TDisplaySubPage
     pdsp.Name = "def"
-    BTabStrip_AddPage pc, "Defaults", new_BPrefsPage("pg>" & pdsp.Name, , pdsp)
+    BTabStrip_AddPage pc, "Appearance & Layout", new_BPrefsPage("pg>" & pdsp.Name, , pdsp)
 
     Set pdsp = New TDisplaySubPage
     pdsp.Name = "vis"
-    BTabStrip_AddPage pc, "Appearance", new_BPrefsPage("pg>" & pdsp.Name, , pdsp)
+    BTabStrip_AddPage pc, "Behaviour", new_BPrefsPage("pg>" & pdsp.Name, , pdsp)
 
-    Set pdsp = New TDisplaySubPage
-    pdsp.Name = "aud"
-    BTabStrip_AddPage pc, "Sounds", new_BPrefsPage("pg>" & pdsp.Name, , pdsp)
+'    Set pdsp = New TDisplaySubPage
+'    pdsp.Name = "aud"
+'    BTabStrip_AddPage pc, "Sounds", new_BPrefsPage("pg>" & pdsp.Name, , pdsp)
 
     mPage.Add pc
 

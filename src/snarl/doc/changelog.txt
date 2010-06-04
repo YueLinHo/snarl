@@ -44,6 +44,29 @@
 
 	Snarl Change Log
 
+	- Renamed to R2.3 Beta 1  (40.54)
+
+	- Fuzzy notifications now disappear correctly if they time out while
+	  still fuzzy.  (40.54)
+
+	- Prefs Panel "Display" sub pages reorganised.  (40.54)
+
+	- Idle timeout cycle button added to "General" page.  (40.54)
+
+	- Class Panel sub pages reorganised.  "View only" mode is
+	  now simply known as "ignore mouse and other input" and toggle button
+	  in the panel now works.  (40.54)
+
+	- Can now install new/existing Style Engines from the Style Engine
+	  Panel.  (40.54)
+
+	- sz41EzNotify() now accepts a "Value" entry (encoded as 'value' in
+	  the packed string).  The concept is that it should be free-form
+	  and can encapsulate the format of the value along with it - the
+	  obvious example of this is a value of '45%' which would be displayed
+	  by the various meter styles.  Other value types can be used and
+	  defined on a case-by-case basis.  (40.53)
+
 	- Fixed bug in the apps preferences page which was causing the wrong
 	  application to be selected from the list.  (40.51)
 

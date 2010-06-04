@@ -56,8 +56,10 @@ Dim sz As String
     ' /* update values */
 
     Select Case Control.GetName
-    Case "show_on_screen", "use_style", "custom_timeout", "use_custom_icon", "custom_icon", "use_custom_sound", "custom_sound"
+    Case "show_on_screen", "use_style", "custom_timeout", "use_custom_icon", "custom_icon", "use_custom_sound", "custom_sound", "ignore_input"
         gSelectedClass.SetValue Control.GetName, Value
+
+        Debug.Print Control.GetName
 
         If Control.GetName = "custom_timeout" Then _
             Control.SetText IIf(Value = "0", "Sticky", Value & " second" & IIf(Value = "1", "", "s"))
@@ -114,219 +116,6 @@ Dim sz As String
 
     uSetControls
 
-'    Select Case Control.GetName
-'    Case "show_on_screen"
-'        Me.Update
-'
-'    End Select
-
-'Dim fUpdateConfig As Boolean
-'Dim pc As BControl
-'Dim pm As CTempMsg
-'Dim sz As String
-'Dim dw As Long
-'
-'    Select Case Control.GetName()
-'
-'    Case "duration_cycle"
-'        ' /* duration cycle button */
-'        If Not mPanel.Find("fs>gen.timeout", pc) Then
-'            g_Debug "TConfigureClasSPanel.ControlChanged(): can't find timeout slider", LEMON_LEVEL_CRITICAL
-'            Exit Sub
-'
-'        End If
-'
-'        ' /* value translates to: App Decides (1) Default (2) Custom (3) */
-'
-'        If Val(Value) = 3 Then
-'            ' /* custom duration */
-'            pc.SetEnabled True
-'            gSelectedClass.SetDuration Val(pc.GetValue)
-'
-'        Else
-'            ' /* app decides or default */
-'            pc.SetEnabled False
-'            gSelectedClass.SetDuration IIf(Val(Value) = 1, E_CLASS_DURATION_APP_DECIDES, E_CLASS_DURATION_DEFAULT)
-'
-'        End If
-'
-'        fUpdateConfig = True
-'
-'
-'    Case "fs>gen.timeout"
-'        ' /* custom timeout slider (while it's being dragged) */
-'        Select Case Val(Value)
-'
-'        Case 0:     Control.SetText "Sticky"
-'        Case 1:     Control.SetText "1 sec"
-'        Case Else:  Control.SetText Value & " secs"
-'
-'        End Select
-'
-'        gSelectedClass.SetDuration Val(Value)
-'        fUpdateConfig = True
-'
-'
-'    Case "cyc>position"
-'        ' /* position cycle button */
-'        gSelectedClass.SetPosition (Val(Value) - 2)
-'        fUpdateConfig = True
-'
-'
-'    Case "ft>use_custom_style"
-'        ' /* use custom style */
-'
-'        gSelectedClass.SetUseCustomStyle Val(Value)
-'
-'        If mPanel.Find("cb>style", pc) Then _
-'            pc.SetEnabled Val(Value)
-'
-'        If mPanel.Find("cb>scheme", pc) Then _
-'            pc.SetEnabled Val(Value)
-'
-'        fUpdateConfig = True
-'
-'
-'
-'
-'    Case "ipb>aud.sound"
-'        ' /* cycle button - translates to: App Decides (1), Custom (2), None (3) */
-'
-'        Select Case Val(Value)
-'        Case 1
-'            ' /* app decides */
-''            gSelectedClass.RemoveFlag (E_CLASS_CUSTOM_SOUND Or E_CLASS_NO_SOUND)
-'            dw = 0
-'
-'        Case 2
-'            ' /* custom sound */
-''            gSelectedClass.RemoveFlag E_CLASS_NO_SOUND
-''            gSelectedClass.AddFlag E_CLASS_CUSTOM_SOUND
-'
-'        Case 3
-'            ' /* force no sound */
-''            gSelectedClass.RemoveFlag E_CLASS_CUSTOM_SOUND
-''            gSelectedClass.AddFlag E_CLASS_NO_SOUND
-'
-'        End Select
-'
-'        ' /* enable/disable the file picker */
-'
-'        If mPanel.Find("fp>aud.sound", pc) Then _
-'            pc.SetEnabled (Val(Value) = 2)
-'
-'        fUpdateConfig = True
-'
-'
-'    Case "fp>aud.sound"
-'        If Value <> gSelectedClass.CustomSound Then
-''            gSelectedClass.SetCustomSound Value
-'            sz = g_GetPath(Value)
-'            If sz <> "" Then _
-'                g_Prefs.last_sound_folder = sz
-'
-'            Debug.Print "** LAST SOUND FOLDER = " & sz & " ***"
-'            fUpdateConfig = True
-'
-'        End If
-'
-'
-'
-'
-'    ' /* ---------------------------------- advanced page ---------------------------------- */
-'
-'
-'    Case "cyc>suppression"
-'        ' /* duplicate suppression cycle button - translates to App Decides (1), Blocked (2), Not Blocked (3), Delayed (4) */
-'
-''        gSelectedClass.RemoveFlag (E_CLASS_ALLOW_DUPLICATES Or E_CLASS_DELAY_DUPLICATES Or E_CLASS_NO_DUPLICATES)
-'
-'        Select Case Val(Value)
-'        Case 1
-'            ' /* nothing to do! */
-'
-'        Case 2
-''            gSelectedClass.AddFlag E_CLASS_NO_DUPLICATES
-'
-'        Case 3
-''            gSelectedClass.AddFlag E_CLASS_ALLOW_DUPLICATES
-'
-'        Case 4
-''            gSelectedClass.AddFlag E_CLASS_DELAY_DUPLICATES
-'
-'        End Select
-'
-'        fUpdateConfig = True
-'
-'
-'    Case "ft>adv.priority"
-'        ' /* 'priority notification' toggle */
-'        If Val(Value) Then
-'            gSelectedClass.SetPriority True
-'
-'        Else
-'            gSelectedClass.SetPriority False
-'
-'        End If
-'
-'        fUpdateConfig = True
-'
-'
-'    Case "ft>adv.notify_only"
-'        ' /* 'notification only' toggle */
-'        If Val(Value) Then
-'            gSelectedClass.SetClickThru True
-'
-'        Else
-'            gSelectedClass.SetClickThru False
-'
-'        End If
-'
-'        fUpdateConfig = True
-'
-'
-'
-'
-'    Case "ipb>net"
-'        dw = Val(Value)
-'        If mPanel.Find("lb>net", pc) Then _
-'            pc.SetEnabled (dw = 2)
-'
-''        mInfoLabel.SetText IIf(dw = 1, "Notifications will not be forwarded", IIf(dw = 2, "Notifications will be forwarded to the following:", "Notifications will be forwarded to the list of IP addresses defined in the network tab"))
-'
-'    Case "ft>forward"
-'        ' /* the forward/don't forward toggle button on the 'forwarding' page */
-'        If mPanel.Find("chk>hide", pc) Then _
-'            pc.SetEnabled Val(Value)
-'
-'
-'
-'
-'
-'
-'
-'
-'
-'    ' /* advanced page */
-'
-'    Case "ft>adv.notify_only"
-'        If Val(Value) <> 0 Then
-'            gSelectedClass.SetClickThru True
-'
-'        Else
-'            gSelectedClass.SetClickThru False
-'
-'        End If
-'
-''        Debug.Print g_HexStr(gSelectedClass.PersistentFlags)
-'
-'    End Select
-'
-'
-'    If (fUpdateConfig) And (Not mIgnoreChanges) Then _
-'        g_WriteConfig
-'
-
 End Sub
 
 Private Sub KPrefsPage_ControlInvoked(Control As prefs_kit_d2.BControl)
@@ -336,13 +125,6 @@ Private Sub KPrefsPage_ControlInvoked(Control As prefs_kit_d2.BControl)
     Case "test"
         If Not (gSelectedClass Is Nothing) Then _
             gSelectedClass.TestNotification
-
-'    Case "fb2>use_default_style"
-'        If Not (gSelectedClass Is Nothing) Then
-'            gSelectedClass.SetCustomStyle "", ""
-'            Me.Update
-'
-'        End If
 
     End Select
 
@@ -369,8 +151,6 @@ Dim sz As String
                 gSelectedClass.RemForward sz
 
             End If
-
-
 
         End If
 
@@ -433,34 +213,27 @@ Dim pm As CTempMsg
         ' /* general page */
 
 '        Set pp = new_BPrefsPage("General", , Me)
-        Set pp = new_BPrefsPage("Basic", load_image_obj(g_MakePath(App.Path) & "etc\icons\class-basic.png"), Me)
+        Set pp = new_BPrefsPage("Appearance", load_image_obj(g_MakePath(App.Path) & "etc\icons\class-app.png"), Me)
         With pp
             .SetMargin 90
             .SetWidth 300
 
-            ' /* Display */
+            ' /* display */
+            .Add new_BPrefsControl("fancytoggle2", "show_on_screen", "Show on screen?", "Visibility:", gSelectedClass.GetValue("show_on_screen"))
 
-            .Add new_BPrefsControl("fancytoggle2", "show_on_screen", "Show on screen?", , gSelectedClass.GetValue("show_on_screen"))
-            .Add new_BPrefsControl("fancycycle", "priority", "App Decides|Low|Normal|High", "Priority:")
-            .Add new_BPrefsControl("fancycycle", "position", "Default|Top Left|Top Right|Bottom Left|Bottom Right", "Position:")
-            .Add new_BPrefsControl("fancycycle", "duration", "Default|App Decides|Custom", "Duration:")
-
-            ' /* R2.2: custom timeout slider */
-            Set pm = New CTempMsg
-            pm.Add "min", 0&
-            pm.Add "max", 60&
-            pm.Add "freq", 10&
-            pm.Add "label_size", 64&
-            .Add new_BPrefsControl("fancyslider", "custom_timeout", , , , pm)
-
-            ' /* Style */
-
+            ' /* style */
             .Add new_BPrefsControl("fancytoggle2", "use_style", "Use a specific style?", "Style:", gSelectedClass.GetValue("use_style"))
             .Add new_BPrefsCombo("style_name", "", "", , 24)
             .Add new_BPrefsCombo("scheme_name", "", "", , 24)
 
-            ' /* test button */
+            ' /* position */
+            .Add new_BPrefsControl("fancycycle", "position", "Default|Top Left|Top Right|Bottom Left|Bottom Right", "Position:")
 
+            ' /* R2.3: custom icon */
+            .Add new_BPrefsControl("fancytoggle2", "use_custom_icon", "Use custom icon?", "Icon:")
+            .Add new_BPrefsControl("fancyfilepicker", "custom_icon", , , "")
+
+            ' /* test button */
             .Add new_BPrefsSeparator
             .Add new_BPrefsControl("fancybutton2", "test", "Test")
 
@@ -469,24 +242,45 @@ Dim pm As CTempMsg
         .AddPage pp
 
 
-
-        Set pp = new_BPrefsPage("Advanced", load_image_obj(g_MakePath(App.Path) & "etc\icons\class-advanced.png"), Me)
+        Set pp = new_BPrefsPage("Behaviour", load_image_obj(g_MakePath(App.Path) & "etc\icons\class-beh.png"), Me)
         With pp
             .SetMargin 90
             .SetWidth 300
 
-            ' /* R2.3: custom icon */
-            .Add new_BPrefsControl("fancytoggle2", "use_custom_icon", "Use custom icon?", "Icon:")
-            .Add new_BPrefsControl("fancyfilepicker", "custom_icon", , , "")
+            ' /* duration */
+            .Add new_BPrefsControl("fancycycle", "duration", "Default|App Decides|Custom", "Duration:")
+            Set pm = New CTempMsg
+            pm.Add "min", 0&
+            pm.Add "max", 60&
+            pm.Add "freq", 10&
+            pm.Add "label_size", 64&
+            .Add new_BPrefsControl("fancyslider", "custom_timeout", , , , pm)
+
+            ' /* priority */
+            .Add new_BPrefsControl("fancycycle", "priority", "App Decides|Low|Normal|High", "Priority:")
 
             ' /* R2.3: custom sound */
             .Add new_BPrefsControl("fancytoggle2", "use_custom_sound", "Play custom sound?", "Sound:")
             .Add new_BPrefsControl("fancyfilepicker", "custom_sound", , , "")
 
-            .Add new_BPrefsControl("fancytoggle2", "ft>adv.notify_only", "Display in view-only mode?", "Other:")
+            ' /* duplicates */
+            .Add new_BPrefsControl("fancycycle", "duplicates", "Allow|Block|Delay", "Flooding:")
 
-            ' /* Duplicates */
-            .Add new_BPrefsControl("fancycycle", "duplicates", "Allow|Block|Delay", "Duplicates:")
+            ' /* view-only */
+            .Add new_BPrefsControl("fancytoggle2", "ignore_input", "Ignore mouse and other input events?", "Interaction:")
+
+        End With
+        .AddPage pp
+
+'                .Add new_BPrefsControl("fancycycle", "fc>fwd.when", "Never|Always|Away|Do Not Disturb Set", "When:")
+'            .Add new_BPrefsControl("label", "", "View-only mode makes the notification invisible to the mouse pointer, allowing you to access content beneath it.  View-only notifications cannot be interacted with.")
+
+
+
+        Set pp = new_BPrefsPage("?", load_image_obj(g_MakePath(App.Path) & "etc\icons\class-basic.png"), Me)
+        With pp
+            .SetMargin 90
+            .SetWidth 300
 
             ' /* forwarding */
             Set pm = New CTempMsg
@@ -495,10 +289,12 @@ Dim pm As CTempMsg
             mCurrentForward = 1
 
         End With
+
         .AddPage pp
 
-'                .Add new_BPrefsControl("fancycycle", "fc>fwd.when", "Never|Always|Away|Do Not Disturb Set", "When:")
-'            .Add new_BPrefsControl("label", "", "View-only mode makes the notification invisible to the mouse pointer, allowing you to access content beneath it.  View-only notifications cannot be interacted with.")
+
+
+
 
         .Go
 
@@ -541,22 +337,6 @@ Public Sub Quit()
 
 End Sub
 
-Private Function uGetAudioSetting() As String
-
-'    If (gSelectedClass.GetFlags And E_CLASS_NO_SOUND) Then
-'        uGetAudioSetting = "3"
-'
-'    ElseIf (gSelectedClass.GetFlags And E_CLASS_CUSTOM_SOUND) Then
-'        uGetAudioSetting = "2"
-'
-'    Else
-'        ' /* app decides */
-'        uGetAudioSetting = "1"
-'
-'    End If
-
-End Function
-
 Public Sub ClassChanged()
 
     If (gSelectedClass Is Nothing) Then _
@@ -569,75 +349,9 @@ Public Sub ClassChanged()
     uSetValues
     uSetControls
 
-
-'Dim pc As BControl
-
-
-
-
-'Dim pca As BControl
-'Dim pcb As BControl
-'Dim lDur As E_CLASS_DURATION
-'
-'    ' /* notification duration cycle button on general page */
-'
-'    If (mPanel.Find("duration_cycle", pca)) And (mPanel.Find("fs>gen.timeout", pcb)) Then
-'        ' /* pca is the cycle button
-'        '    pcb is the duration slider */
-'
-'        lDur = gSelectedClass.Duration
-'
-'        If lDur >= E_CLASS_DURATION_CUSTOM Then
-'            pca.SetValue "3"
-'            pcb.SetValue CStr(lDur)
-'            pcb.SetEnabled True
-'
-'        ElseIf lDur = E_CLASS_DURATION_DEFAULT Then
-'            pca.SetValue "2"
-'            pcb.SetValue CStr(g_Prefs.default_duration)
-'            pcb.SetEnabled False
-'
-'        ElseIf lDur = E_CLASS_DURATION_APP_DECIDES Then
-'            pca.SetValue "1"
-'            pcb.SetValue CStr(g_Prefs.default_duration)
-'            pcb.SetEnabled False
-'
-''            pcb.SetValue CStr(IIf(gSelectedClass.Duration = E_DEFAULT_DURATION, g_Prefs.default_duration, gSelectedClass.Duration))
-'
-'        End If
-'    End If
-'
-'    ' /* R2.2: notification only toggle */
-'
-'    If mPanel.Find("ft>adv.notify_only", pca) Then _
-'        pca.SetValue IIf(gSelectedClass.IsClickThru, "1", "0")
-'
-'    ' /* duplicate suppression cycle button - translates to App Decides (1), Blocked (2), Not Blocked (3), Delayed (4) */
-'
-'    If mPanel.Find("cyc>suppression", pca) Then _
-'        pca.SetValue uGetSuppressionSetting()
-
     mIgnoreChanges = False
 
 End Sub
-
-Private Function uGetSuppressionSetting() As String
-
-'    If (gSelectedClass.GetFlags() And E_CLASS_NO_DUPLICATES) Then
-'        uGetSuppressionSetting = "2"
-'
-'    ElseIf (gSelectedClass.GetFlags() And E_CLASS_DELAY_DUPLICATES) Then
-'        uGetSuppressionSetting = "4"
-'
-'    ElseIf (gSelectedClass.GetFlags() And E_CLASS_ALLOW_DUPLICATES) Then
-'        uGetSuppressionSetting = "3"
-'
-'    Else
-'        uGetSuppressionSetting = "1"
-'
-'    End If
-
-End Function
 
 Private Sub uUpdateStyleList()
 Dim pc As BControl
@@ -805,8 +519,8 @@ Dim dw As Long
     With gSelectedClass
 
         uSafeSetValue "show_on_screen", .GetValue("show_on_screen")
-    '    uSafeSetValue "is_priority", .GetValue("is_priority")
-        
+        uSafeSetValue "ignore_input", .GetValue("ignore_input")
+
         If .GetValue("custom_priority") = "0" Then
             ' /* app decides */
             uSafeSetValue "priority", "1"

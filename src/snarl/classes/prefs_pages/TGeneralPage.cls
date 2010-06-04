@@ -41,18 +41,29 @@ Dim pm As CTempMsg
         .Add new_BPrefsControl("fancybutton2", "start", "Stop Snarl", "")
         .Add new_BPrefsControl("label", "lbl_running", "Snarl is running", "")
 '        .Add new_BPrefsControl("separator", "")
-
 '        .Add new_BPrefsControl("banner", "", "Miscellaneous")
 
         ' /* miscellaneous */
 
         .Add new_BPrefsControl("banner", "", "Miscellaneous")
-
         .Add new_BPrefsControl("fancytoggle2", "show_msg_on_start", "Show message on startup?", "", IIf(g_Prefs.show_msg_on_start, "1", "0"), pm)
         .Add new_BPrefsControl("fancytoggle2", "sticky_snarls", "Sticky notifications?", , IIf(g_Prefs.sticky_snarls, "1", "0"))
         .Add new_BPrefsControl("fancytoggle2", "log_only", "Log only (don't display)?", , IIf(g_Prefs.log_only, "1", "0"))
         .Add new_BPrefsControl("fancytoggle2", "notify_on_first_register", "Show notification on first registration only?", , IIf(g_Prefs.notify_on_first_register, "1", "0"))
         .Add new_BPrefsControl("fancytoggle2", "auto_update", "Check for updates on launch?", "", IIf(g_Prefs.auto_update, "1", "0"))
+
+Dim nIdle As Long
+
+        .Add new_BPrefsControl("banner", "", "Behaviour")
+        .Add new_BPrefsControl("label", "", "Enable sticky notifications after the following period of inactivity:")
+
+        nIdle = ROUNDUP(g_Prefs.idle_timeout / 300)
+        If (nIdle < 0) Or (nIdle > 3) Then _
+            nIdle = 0
+
+        .Add new_BPrefsControl("fancycycle", "idle_timeout", "Never|5 Minutes|10 Minutes|15 Minutes", "", CStr(nIdle + 1))
+
+'        .Add new_BPrefsControl("fancytoggle2", "auto_sticky_on_screensaver", "Enable sticky notifications when screensaver starts?", "", g_ConfigGet("auto_sticky_on_screensaver"))
 
 '        ' /* hotkey */
 '
@@ -136,7 +147,6 @@ Dim dw As Long
                 sz(1) = CStr(g_Prefs.hotkey_prefs)
 
             End If
-
         End If
 
         Control.SetValue CStr(MOD_CONTROL) & "," & sz(1)
@@ -146,6 +156,16 @@ Dim dw As Long
 
     Case "auto_update"
         g_Prefs.auto_update = CBool(Value)
+
+    Case "auto_sticky_on_screensaver"
+        g_ConfigSet Control.GetName, Value
+        Exit Sub
+
+    Case "idle_timeout"
+        dw = (Val(Value) - 1) * 300
+        Debug.Print "new idle = " & dw & " secs"
+        g_ConfigSet Control.GetName, CStr(dw)
+        Exit Sub
 
     Case Else
         Exit Sub

@@ -225,7 +225,7 @@ End Function
 Public Function IsClickThru() As Boolean
 
     If Not (mContent.Config Is Nothing) Then _
-        IsClickThru = (Me.GetValue("click_thru") = "1")
+        IsClickThru = (Me.GetValue("ignore_input") = "1")
 
 End Function
 

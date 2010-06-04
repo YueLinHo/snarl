@@ -44,30 +44,71 @@ Private Sub KPrefsPage_Attached()
 Dim pm As CTempMsg
 Dim i As Long
 
-'    Set pm = New CTempMsg
-'    pm.Add "height", 20
-'
     Select Case Name
 
-    Case "aud"                  ' /* audio */
-    
-        mPage.Add new_BPrefsControl("banner", "", "General Settings")
-        mPage.Add new_BPrefsControl("fancytoggle2", "ft>enable_sounds", "Enable sounds?", , IIf(g_Prefs.enable_sounds, "1", "0"))
-        mPage.Add new_BPrefsControl("fancytoggle2", "ft>use_style_sounds", "Use Style-provided sounds (if available)?", , IIf(g_Prefs.use_style_sounds, "1", "0"))
-        mPage.Add new_BPrefsControl("fancytoggle2", "ft>prefer_style_sounds", "Style-provided sounds take priority?", , IIf(g_Prefs.prefer_style_sounds, "1", "0"))
-        mPage.Add new_BPrefsControl("label", "", "If enabled Snarl will use the Style sounds even if an application specifies its own.")
+    ' /* ¬¬¬¬¬¬¬¬¬¬ appearance & layout ¬¬¬¬¬¬¬¬¬¬ */
 
-        mPage.Add new_BPrefsControl("banner", "", "Defaults")
-        mPage.Add new_BPrefsControl("fancyfilepicker", "ffp>default_notification_sound", g_Prefs.default_notification_sound, "Normal:")
-        mPage.Add new_BPrefsControl("fancyfilepicker", "ffp>default_priority_sound", g_Prefs.default_priority_sound, "Priority:")
-        mPage.Add new_BPrefsControl("label", "", "Leave blank for no default sound or specify a Windows sound by prefixing the event with '!'.  Event labels are stored in registry key HKEY_CURRENT_USER\AppEvents\EventLabels.")
+    Case "def"
+
+        ' /* ~~~~~~~~ inside the notification ~~~~~~~~ */
+
+        mPage.Add new_BPrefsControl("banner", "", "Inside")
+
+        ' /* opacity */
+
+        Set pm = New CTempMsg
+        pm.Add "min", 1&
+        pm.Add "max", 100&
+        pm.Add "freq", 10&
+        pm.Add "suffix", "%"
+        mPage.Add new_BPrefsControl("fancyslider", "fs>global_opacity", "", "Opacity:", CStr(g_Prefs.global_opacity), pm)
+
+        ' /* icon theme */
+
+        mPage.Add new_BPrefsControl("fancytoggle2", "use_style_icons", "Use style-provided icons (where possible) over Snarl icons?", "Icons:", g_ConfigGet("use_style_icons"))
 
 
+        ' /* ~~~~~~~~ outside the notification ~~~~~~~~ */
 
-    Case "def"                  ' /* defaults */
 
-        mPage.Add new_BPrefsControl("banner", "", "Notifications")
+        mPage.Add new_BPrefsControl("banner", "", "Outside")
+
         mPage.Add new_BPrefsControl("fancycycle", "default_position", "Top Left#?0|Top Right#?1|Bottom Left#?2|Bottom Right#?3", "Position:", g_ConfigGet("default_position"))
+
+        Set pm = New CTempMsg
+        pm.Add "min", -20&
+        pm.Add "max", 20&
+        pm.Add "freq", 5&
+        mPage.Add new_BPrefsControl("fancyslider", "fs>margin_spacing", "", "Spacing:", CStr(g_Prefs.margin_spacing), pm)
+    
+        ' /* dropshadow */
+
+        mPage.Add new_BPrefsControl("label", "", "Shadow:")
+
+'        mPage.Add new_BPrefsControl("fancytoggle2", "ft>use_dropshadow", "Add dropshadow to notifications?", "", IIf(g_Prefs.use_dropshadow, "1", "0"), pm)
+    
+        Set pm = New CTempMsg
+        pm.Add "min", 0&
+        pm.Add "max", 100&
+        pm.Add "freq", 10&
+        pm.Add "suffix", "%"
+        mPage.Add new_BPrefsControl("fancyslider", "fs>dropshadow_strength", "", "Strength:", CStr(g_Prefs.dropshadow_strength), pm, g_Prefs.use_dropshadow)
+    
+        Set pm = New CTempMsg
+        pm.Add "min", 0&
+        pm.Add "max", 20&
+        pm.Add "freq", 2&
+        mPage.Add new_BPrefsControl("fancyslider", "fs>dropshadow_size", "", "Size:", CStr(g_Prefs.dropshadow_size), pm, g_Prefs.use_dropshadow)
+
+
+
+
+
+    ' /* ¬¬¬¬¬¬¬¬¬¬ notification behaviour ¬¬¬¬¬¬¬¬¬¬ */
+
+    Case "vis"
+
+        mPage.Add new_BPrefsControl("banner", "", "General")
 
         i = g_Prefs.default_duration
         i = i \ 5
@@ -91,57 +132,31 @@ Dim i As Long
         pm.Add "freq", 5&
         pm.Add "label_size", 50&
         mPage.Add new_BPrefsControl("fancyslider", "fs>default_duration", "", "Duration:", CStr(-1), pm)
-        mPage.Add new_BPrefsControl("label", "", "The above settings can be overridden on a per-class basis by configuring the class in the 'Apps' tab.")
+'        mPage.Add new_BPrefsControl("label", "", "The above settings can be overridden on a per-class basis by configuring the class in the 'Apps' tab.")
+
+        ' /* text overflow */
+
+'        mPage.Add new_BPrefsControl("label", "", "", "Text Limiting:")
+'        mPage.Add new_BPrefsControl("fancycycle", "text_overflow", "Any|3 Lines|5 Lines|7 Lines|9 Lines", "", "1")
+
+        ' /* sounds */
+
+        mPage.Add new_BPrefsControl("banner", "", "Sounds")
+        mPage.Add new_BPrefsControl("fancytoggle2", "enable_sounds", "Enable sounds?", "", g_ConfigGet("enable_sounds"))
+        mPage.Add new_BPrefsControl("fancytoggle2", "use_style_sounds", "Use style-provided sounds (if available)?", , g_ConfigGet("use_style_sounds"))
+        mPage.Add new_BPrefsControl("fancytoggle2", "prefer_style_sounds", "Style-provided sounds take priority over app-provided sounds?", , g_ConfigGet("prefer_style_sounds"))
+'        mPage.Add new_BPrefsControl("label", "", "If enabled Snarl will use the Style sounds even if an application specifies its own.")
+
+        mPage.Add new_BPrefsControl("label", "", "Default sounds:", "")
+        mPage.Add new_BPrefsControl("fancyfilepicker", "default_notification_sound", g_ConfigGet("default_notification_sound"), "Normal:")
+        mPage.Add new_BPrefsControl("fancyfilepicker", "default_priority_sound", g_ConfigGet("default_priority_sound"), "Priority:")
+        mPage.Add new_BPrefsControl("label", "", "Leave blank for no default sound or specify a Windows sound by prefixing with '!'.  Sounds are stored HKEY_CURRENT_USER\AppEvents\EventLabels.")
 
 
-    Case "vis"                  ' /* appearance */
-
-        mPage.Add new_BPrefsControl("banner", "", "General Settings")
-
-        ' /* opacity */
-    
-        Set pm = New CTempMsg
-        pm.Add "min", 1&
-        pm.Add "max", 100&
-        pm.Add "freq", 10&
-        pm.Add "suffix", "%"
-        mPage.Add new_BPrefsControl("fancyslider", "fs>global_opacity", "", "Opacity:", CStr(g_Prefs.global_opacity), pm)
-    
         ' /* spacing */
-    
-        Set pm = New CTempMsg
-        pm.Add "min", -20&
-        pm.Add "max", 20&
-        pm.Add "freq", 5&
-        mPage.Add new_BPrefsControl("fancyslider", "fs>margin_spacing", "", "Spacing:", CStr(g_Prefs.margin_spacing), pm)
-    
-        ' /* dropshadow */
-
-        mPage.Add new_BPrefsControl("banner", "", "Shadow")
-
-'        mPage.Add new_BPrefsControl("fancytoggle2", "ft>use_dropshadow", "Add dropshadow to notifications?", "", IIf(g_Prefs.use_dropshadow, "1", "0"), pm)
-    
-        Set pm = New CTempMsg
-        pm.Add "min", 0&
-        pm.Add "max", 100&
-        pm.Add "freq", 10&
-        pm.Add "suffix", "%"
-        mPage.Add new_BPrefsControl("fancyslider", "fs>dropshadow_strength", "", "Strength:", CStr(g_Prefs.dropshadow_strength), pm, g_Prefs.use_dropshadow)
-    
-        Set pm = New CTempMsg
-        pm.Add "min", 0&
-        pm.Add "max", 20&
-        pm.Add "freq", 2&
-        mPage.Add new_BPrefsControl("fancyslider", "fs>dropshadow_size", "", "Size:", CStr(g_Prefs.dropshadow_size), pm, g_Prefs.use_dropshadow)
 
 '        mPage.Add new_BPrefsSeparator()
-    
-        ' /* icon theme */
-    
-        mPage.Add new_BPrefsControl("banner", "", "Other")
-
-        mPage.Add new_BPrefsControl("fancytoggle2", "use_style_icons", "Use style icons?", "", g_ConfigGet("use_style_icons"))
-
+'        mPage.Add new_BPrefsControl("banner", "", "Other")
 '        mPage.Add new_BPrefsCombo("c>icon_theme", "", "Icon Theme:", , 28)
 '        uUpdateIconThemes
 
@@ -365,25 +380,8 @@ Dim i As Long
 '        g_Prefs.default_duration = dw
 '        Debug.Print "*** default duration changed to '" & dw & "' ***"
 
-    Case "ffp>default_notification_sound"
-        g_Prefs.default_notification_sound = Value
-        fUpdate = True
-
-    Case "ffp>default_priority_sound"
-        g_Prefs.default_priority_sound = Value
-        fUpdate = True
-
-    Case "ft>enable_sounds"
-        g_Prefs.enable_sounds = (Val(Value) <> 0)
-        fUpdate = True
-
-    Case "ft>use_style_sounds"
-        g_Prefs.use_style_sounds = (Val(Value) <> 0)
-        fUpdate = True
-
-    Case "ft>prefer_style_sounds"
-        g_Prefs.prefer_style_sounds = (Val(Value) <> 0)
-        fUpdate = True
+    Case "default_notification_sound", "default_priority_sound", "enable_sounds", "use_style_sounds", "prefer_style_sounds"
+        g_ConfigSet Control.GetName, Value
 
     End Select
 

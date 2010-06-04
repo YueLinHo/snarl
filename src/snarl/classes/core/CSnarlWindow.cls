@@ -28,14 +28,14 @@ Dim mOriginalTimeout As Long            ' // in seconds!
 
 Dim mInfo As T_NOTIFICATION_INFO
 
-Dim m_Current As Long
+Dim mCurrent As Long
 Dim m_Target As Long
 Dim m_step As Long
 
     ' /* 37.33 */
 Dim m_Disable As Long                   ' // >0 = timer paused, <=0 timer running
     ' /* 37.80
-Dim m_IsVisible As Boolean
+Dim mVisible As Boolean
 
     ' /* 39.62 */
 Dim mInstance As IStyleInstance
@@ -59,6 +59,7 @@ Dim mTick As Long                       '// timeout/100
 Dim mClickThru As Boolean               '// set during Create() - taken from class settings and then modified by style flags
 Dim mStylePath As String
 Dim mClass As TAlert
+'Dim mIsClosing As Boolean
 
 Implements MWndProcSink
 
@@ -146,7 +147,7 @@ Dim pt As POINTAPI
 
             mInstance.Show True
             m_Alpha = 255
-            m_Current = 255
+            mCurrent = 255
 
             Do
                 bDone = True
@@ -170,7 +171,7 @@ Dim pt As POINTAPI
             
 Debug.Print "TIMEOUT " & mOriginalTimeout
             
-            m_IsVisible = True
+            mVisible = True
 
             Exit Sub
 
@@ -190,25 +191,18 @@ Debug.Print "TIMEOUT " & mOriginalTimeout
 '        If m_Timeout > 0 Then _
             theWindow.AddTimer TIMER_MAIN_TICK, m_Timeout * 1000
 
-        m_IsVisible = True
+        mVisible = True
 
     End If
 
 End Sub
 
 Public Sub Quit()
-'Static bBusy As Boolean
-Dim i As Long
-
-'    If bBusy Or mQuitting Then _
-        Exit Sub
 
     If mQuitting Then _
         Exit Sub
 
-    m_IsVisible = False
-'    bBusy = True
-
+    mVisible = False
     If Not (theWindow Is Nothing) Then
         mQuitting = True                                    '// set this notification as no longer valid...
         KillTimer theWindow.hWnd, TIMER_TRACK_POINTER
@@ -219,16 +213,8 @@ Dim i As Long
             g_NotificationRoster.Remove mInfo.Token         '// remove from roster so space can be reused
 
         uSetTargetAlpha 0                                   '// async fade to zero
-'        Do While m_step <> 0
-'            DoEvents
-'            Sleep 1
-'            DoEvents
-'
-'        Loop
 
     End If
-
-'    bBusy = False
 
 End Sub
 
@@ -419,9 +405,9 @@ Debug.Print "SNARL_NOTIFICATION_TIMED_OUT " & mTick
                 
 'Debug.Print "FADING DOWN"
                 
-                If m_Current <= m_Target Then
+                If mCurrent <= m_Target Then
                     ' /* done! */
-                    m_Current = m_Target
+                    mCurrent = m_Target
                     KillTimer hWnd, wParam
 '                    g_NotificationRoster.Remove m_Id
                     m_step = 0
@@ -438,9 +424,9 @@ Debug.Print "SNARL_NOTIFICATION_TIMED_OUT " & mTick
 
             Else
                 ' /* fading up */
-                If m_Current >= m_Target Then
+                If mCurrent >= m_Target Then
                     ' /* done! */
-                    m_Current = m_Target
+                    mCurrent = m_Target
                     KillTimer hWnd, wParam
                     m_step = 0
                     Exit Function
@@ -450,8 +436,8 @@ Debug.Print "SNARL_NOTIFICATION_TIMED_OUT " & mTick
             End If
 
             ' /* keep fading */
-            m_Current = m_Current + m_step
-            apply_view_to_window theView, hWnd, m_Current
+            mCurrent = mCurrent + m_step
+            apply_view_to_window theView, hWnd, mCurrent
 
 
         ElseIf (wParam = TIMER_TRACK_POINTER) And (Not f) Then
@@ -459,7 +445,7 @@ Debug.Print "SNARL_NOTIFICATION_TIMED_OUT " & mTick
             If Not theWindow.Frame.Contains(nto_NewPoint(pt.x, pt.y)) Then
                 KillTimer hWnd, wParam
                 mCloseButtonVisible = False
-                uDrawContent m_Current
+                uDrawContent mCurrent
 
             End If
 
@@ -470,7 +456,7 @@ Debug.Print "SNARL_NOTIFICATION_TIMED_OUT " & mTick
 
     Case WM_NCHITTEST
         mCloseButtonVisible = True
-        uDrawContent m_Current
+        uDrawContent mCurrent
         SetTimer hWnd, TIMER_TRACK_POINTER, 100, 0
 
     Case WM_CAPTURECHANGED
@@ -538,7 +524,7 @@ Dim pt As POINTAPI
 
     If Not (mInstance Is Nothing) Then
         If (mStyleFlags And S_STYLE_CUSTOM_HIDE) Then
-            m_IsVisible = False
+            mVisible = False
             mQuitting = True
 
             With theWindow
@@ -594,7 +580,7 @@ Friend Function Update(ByRef Info As T_NOTIFICATION_INFO) As M_RESULT
     ' /* view is already set - don't bother resizing */
 
     Set theBitmap = uGetContent2()
-    uDrawContent m_Current
+    uDrawContent mCurrent
 
     SetTimeout mOriginalTimeout                 ' // V37.80 - reset timeout value
     Update = M_OK
@@ -605,10 +591,10 @@ Public Sub uSetTargetAlpha(ByVal Alpha As Long)
 
 Debug.Print "SET TARGET ALPHA " & Alpha
 
-    If Alpha < m_Current Then
+    If Alpha < mCurrent Then
         m_step = -Val(g_ConfigGet("step_size")) * 8
 
-    ElseIf Alpha > m_Current Then
+    ElseIf Alpha > mCurrent Then
         m_step = Val(g_ConfigGet("step_size")) * 4
 
     Else
@@ -660,7 +646,7 @@ End Function
 
 Public Property Get IsVisible() As Boolean
 
-    IsVisible = m_IsVisible
+    IsVisible = mVisible
 
 End Property
 
@@ -678,7 +664,7 @@ Private Sub uDrawContent(Optional ByVal Alpha As Long = -1, Optional ByVal x As 
 'Dim pr As NRect
 
     If Alpha = -1 Then _
-        Alpha = m_Current
+        Alpha = mCurrent
 
     If uDrawDropshadow() Then
         If (x = -1) And (y = -1) Then
@@ -720,8 +706,8 @@ Friend Sub bSetAlpha(ByVal Alpha As Integer)
 
     End If
 
-    m_Current = Alpha
-    uDrawContent m_Current
+    mCurrent = Alpha
+    uDrawContent mCurrent
 
 End Sub
 
@@ -833,12 +819,12 @@ Dim c As Long
     Loop
 
     mCloseButtonVisible = False
-    uDrawContent m_Current
+    uDrawContent mCurrent
 
     CaptureToFile sz
 
     mCloseButtonVisible = True
-    uDrawContent m_Current
+    uDrawContent mCurrent
 
 End Sub
 
@@ -1003,7 +989,7 @@ Dim pt As POINTAPI
     ' /* make it visible */
 
     g_MoveWindow theWindow.hWnd, pt.x, pt.y
-    uDrawContent m_Current
+    uDrawContent mCurrent
 
 End Sub
 
@@ -1015,27 +1001,24 @@ End Function
 
 Public Sub MakeFuzzy(ByVal Enabled As Boolean)
 
-    If mFuzzy = Enabled Then _
+    If (mFuzzy = Enabled) Or (Not mVisible) Then _
         Exit Sub
 
 Static iPrevAlpha As Long
 Static bmOld As mfxBitmap
 
-'Dim pv As mfxView
-
     If Enabled Then
-
         Set bmOld = theBitmap.Duplicate
         theBitmap.MakeGreyscale
         uDrawContent
 
-        iPrevAlpha = m_Current
-        uSetTargetAlpha MIN(102, Fix(m_Current / 2))
+        iPrevAlpha = mCurrent
+        uSetTargetAlpha MIN(102, Fix(mCurrent / 2))
 
-'        uFadeTo MIN(102, Fix(m_Current / 2))
+'        uFadeTo MIN(102, Fix(mCurrent / 2))
 '
 '
-''        bSetAlpha MIN(60, Fix(m_Current / 2))
+''        bSetAlpha MIN(60, Fix(mCurrent / 2))
 '
 ''        Set pv = New mfxView
 ''        pv.SizeTo theView.Width * 4, theView.Height * 4
@@ -1073,23 +1056,23 @@ Dim i As Long
 
     End If
 
-    If m_Current > Alpha Then
+    If mCurrent > Alpha Then
         ' /* fade down */
-        For i = m_Current To Alpha Step -3
+        For i = mCurrent To Alpha Step -3
             uDrawContent i
 
         Next i
 
-    ElseIf m_Current < Alpha Then
+    ElseIf mCurrent < Alpha Then
         ' /* fade up */
-        For i = m_Current To Alpha Step 3
+        For i = mCurrent To Alpha Step 3
             uDrawContent i
 
         Next i
 
     End If
 
-    m_Current = Alpha
+    mCurrent = Alpha
 
 End Sub
 

@@ -149,6 +149,8 @@ Private Function MWndProcSink_WndProc(ByVal hWnd As Long, ByVal uMsg As Long, By
         End Select
 
 
+'    Case WM_SYSCOMMAND
+'        If (wParam = SC_SCREENSAVE) And (g_ConfigGet("auto_sticky_on_screensaver") = 1) Then _
 
 
     End Select
@@ -910,6 +912,7 @@ Dim pInfo As T_NOTIFICATION_INFO
         .uReplyMsg = Val(pData.ValueOf("umsg"))
         .Priority = Val(pData.ValueOf("priority"))
         .DefaultAck = pData.ValueOf("ack")
+        .Value = pData.ValueOf("value")
 
     End With
 

@@ -34,15 +34,15 @@ Begin VB.Form frmAbout
       BackStyle       =   0  'Transparent
       Caption         =   $"frmAbout.frx":1042
       BeginProperty Font 
-         Name            =   "Trebuchet MS"
-         Size            =   8.25
+         Name            =   "Calibri"
+         Size            =   9
          Charset         =   0
          Weight          =   400
          Underline       =   0   'False
          Italic          =   0   'False
          Strikethrough   =   0   'False
       EndProperty
-      Height          =   975
+      Height          =   1095
       Index           =   4
       Left            =   1980
       TabIndex        =   5
@@ -53,6 +53,15 @@ Begin VB.Form frmAbout
       Alignment       =   2  'Center
       BackStyle       =   0  'Transparent
       Caption         =   "www.fullphat.net"
+      BeginProperty Font 
+         Name            =   "Calibri"
+         Size            =   9.75
+         Charset         =   0
+         Weight          =   400
+         Underline       =   0   'False
+         Italic          =   0   'False
+         Strikethrough   =   0   'False
+      EndProperty
       ForeColor       =   &H008A504A&
       Height          =   255
       Left            =   2370
@@ -60,21 +69,13 @@ Begin VB.Form frmAbout
       Top             =   3180
       Width           =   1710
    End
-   Begin VB.Image Image3 
-      Height          =   300
-      Left            =   5460
-      Picture         =   "frmAbout.frx":10ED
-      Stretch         =   -1  'True
-      Top             =   2580
-      Width           =   825
-   End
    Begin VB.Image Image2 
       Appearance      =   0  'Flat
       Height          =   450
-      Left            =   5460
-      Picture         =   "frmAbout.frx":26CE
+      Left            =   5520
+      Picture         =   "frmAbout.frx":10ED
       Stretch         =   -1  'True
-      Top             =   1980
+      Top             =   2460
       Width           =   825
    End
    Begin VB.Line Line1 
@@ -87,7 +88,7 @@ Begin VB.Form frmAbout
    Begin VB.Image Image1 
       Height          =   1920
       Left            =   60
-      Picture         =   "frmAbout.frx":3334
+      Picture         =   "frmAbout.frx":1D53
       Top             =   180
       Width           =   1920
    End
@@ -95,10 +96,10 @@ Begin VB.Form frmAbout
       BackStyle       =   0  'Transparent
       Caption         =   "Snarl"
       BeginProperty Font 
-         Name            =   "Trebuchet MS"
-         Size            =   14.25
+         Name            =   "Calibri"
+         Size            =   15.75
          Charset         =   0
-         Weight          =   400
+         Weight          =   700
          Underline       =   0   'False
          Italic          =   0   'False
          Strikethrough   =   0   'False
@@ -114,7 +115,7 @@ Begin VB.Form frmAbout
       BackStyle       =   0  'Transparent
       Caption         =   "A Notification System for Windows"
       BeginProperty Font 
-         Name            =   "Trebuchet MS"
+         Name            =   "Calibri"
          Size            =   9.75
          Charset         =   0
          Weight          =   400
@@ -131,9 +132,9 @@ Begin VB.Form frmAbout
    End
    Begin VB.Label Label3 
       BackStyle       =   0  'Transparent
-      Caption         =   "© 2005-2008 full phat products"
+      Caption         =   "© 2005-2010 full phat products"
       BeginProperty Font 
-         Name            =   "Trebuchet MS"
+         Name            =   "Calibri"
          Size            =   9
          Charset         =   0
          Weight          =   400
@@ -145,14 +146,14 @@ Begin VB.Form frmAbout
       Index           =   2
       Left            =   1980
       TabIndex        =   1
-      Top             =   960
+      Top             =   1200
       Width           =   4155
    End
    Begin VB.Label Label3 
       BackStyle       =   0  'Transparent
       Caption         =   "Inspired by Growl for Macintosh"
       BeginProperty Font 
-         Name            =   "Trebuchet MS"
+         Name            =   "Calibri"
          Size            =   9
          Charset         =   0
          Weight          =   400
@@ -164,7 +165,7 @@ Begin VB.Form frmAbout
       Index           =   3
       Left            =   1980
       TabIndex        =   0
-      Top             =   1320
+      Top             =   780
       Width           =   3435
    End
    Begin VB.Shape Shape1 
@@ -337,7 +338,7 @@ Dim n As Integer
     ' /* create the idle input timer */
 
     Set theIdleTimer = New BTimer
-    theIdleTimer.SetTo 1000         ' // check every second
+    theIdleTimer.SetTo 250
 
 End Sub
 
@@ -410,13 +411,6 @@ Private Sub Image1_MouseMove(Button As Integer, Shift As Integer, x As Single, y
 End Sub
 
 Private Sub Image2_MouseMove(Button As Integer, Shift As Integer, x As Single, y As Single)
-
-    If Label1.Font.Underline = True Then _
-        Label1.Font.Underline = False
-
-End Sub
-
-Private Sub Image3_MouseMove(Button As Integer, Shift As Integer, x As Single, y As Single)
 
     If Label1.Font.Underline = True Then _
         Label1.Font.Underline = False
@@ -991,7 +985,6 @@ Dim lii As LASTINPUTINFO
 Static b As Boolean
 
     b = (lii.dwTime > (g_Prefs.idle_timeout * 1000))
-
     If b <> gIsIdle Then
         g_Debug "_theIdleTimer.Pulse(): " & Now() & " away mode: " & b
         gIsIdle = b

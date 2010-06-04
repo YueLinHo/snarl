@@ -205,6 +205,8 @@ End Function
 
 Public Sub WriteConfig()
 
+'    Debug.Print mSettings.File
+
     If Not (mSettings Is Nothing) Then _
         mSettings.Save
 

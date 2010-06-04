@@ -393,12 +393,12 @@ Dim psi As IStyleInstance
 
 Dim szSound As String
 
-    If g_Prefs.enable_sounds Then
+    If g_ConfigGet("enable_sounds") = "1" Then
 
         szSound = trim(Info.SndFile)
 
-        If g_Prefs.use_style_sounds Then
-            If (szSound = "") Or ((szSound <> "") And (g_Prefs.prefer_style_sounds)) Then _
+        If g_ConfigGet("use_style_sounds") = "1" Then
+            If (szSound = "") Or ((szSound <> "") And (g_ConfigGet("prefer_style_sounds") = "1")) Then _
                 szSound = ""        ' // get_style_sound()
 
         End If
@@ -406,7 +406,7 @@ Dim szSound As String
         ' /* no specific or style-provided sound? */
 
         If szSound = "" Then _
-            szSound = IIf(Info.Priority > 0, g_Prefs.default_priority_sound, g_Prefs.default_notification_sound)
+            szSound = IIf(Info.Priority > 0, g_ConfigGet("default_priority_sound"), g_ConfigGet("default_notification_sound"))
 
         ' /* play what we have - if we have something */
 
