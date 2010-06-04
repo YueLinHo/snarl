@@ -2,7 +2,7 @@ VERSION 5.00
 Begin VB.Form Form1 
    BorderStyle     =   1  'Fixed Single
    Caption         =   "Snarl time format sample"
-   ClientHeight    =   3090
+   ClientHeight    =   2535
    ClientLeft      =   45
    ClientTop       =   435
    ClientWidth     =   4680
@@ -18,31 +18,39 @@ Begin VB.Form Form1
    LinkTopic       =   "Form1"
    MaxButton       =   0   'False
    MinButton       =   0   'False
-   ScaleHeight     =   3090
+   ScaleHeight     =   2535
    ScaleWidth      =   4680
    StartUpPosition =   3  'Windows Default
-   Begin VB.CommandButton Command1 
+   Begin VB.CommandButton Command2 
       Caption         =   "Go"
       Default         =   -1  'True
-      Height          =   495
-      Left            =   3180
+      Height          =   315
+      Left            =   3780
+      TabIndex        =   5
+      Top             =   1500
+      Width           =   855
+   End
+   Begin VB.CommandButton Command1 
+      Caption         =   "Go"
+      Height          =   315
+      Left            =   2880
       TabIndex        =   3
-      Top             =   1680
-      Width           =   1335
+      Top             =   1500
+      Width           =   855
    End
    Begin VB.TextBox Text1 
       Height          =   315
       Left            =   60
       TabIndex        =   2
-      Top             =   1740
-      Width           =   3015
+      Top             =   1500
+      Width           =   2775
    End
    Begin VB.Label Label3 
       Caption         =   "Make sure the Meter/Clock style is selected in Snarl for this application before clicking ""Go""."
-      Height          =   495
+      Height          =   435
       Left            =   60
       TabIndex        =   4
-      Top             =   2220
+      Top             =   1980
       Width           =   4575
    End
    Begin VB.Label Label2 
@@ -50,12 +58,12 @@ Begin VB.Form Form1
       Height          =   675
       Left            =   60
       TabIndex        =   1
-      Top             =   840
+      Top             =   720
       Width           =   4515
    End
    Begin VB.Label Label1 
       Caption         =   $"Form1.frx":008E
-      Height          =   675
+      Height          =   615
       Left            =   60
       TabIndex        =   0
       Top             =   60
@@ -74,6 +82,12 @@ Dim mToken As Long
 Private Sub Command1_Click()
 
     sn41EZNotify mToken, "", Me.Caption, Text1.Text
+
+End Sub
+
+Private Sub Command2_Click()
+
+    sn41EZNotify mToken, "", "", Text1.Text
 
 End Sub
 
