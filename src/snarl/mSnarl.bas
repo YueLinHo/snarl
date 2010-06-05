@@ -40,6 +40,8 @@ Public Type T_NOTIFICATION_INFO
                                         '         thoughts are the value can encapsulate the format it's sent in
                                         '         e.g. 45%, 2.3466, $5.00, etc. it's up to the style to determine
                                         '         how/if it's displayed
+    DateStamp As Date                   ' // V41: when it was added to the Notification Roster
+
 End Type
 
 Public Type T_SNARL_STYLE_ENGINE_INFO
@@ -788,7 +790,8 @@ Public Function g_ConfigInit() As Boolean
         .Add "dropshadow_strength", "88"    ' // is a %
         .Add "dropshadow_size", "10"
         .Add "icon_theme", ""
-        
+
+        ' /* R2.3 */
         .Add "auto_update", "1"
         .Add "enable_sounds", "1"
         .Add "use_style_sounds", "1"
@@ -796,8 +799,8 @@ Public Function g_ConfigInit() As Boolean
         .Add "default_normal_sound", ""
         .Add "default_priority_sound", ""
         .Add "use_style_icons", "1"
-
         .Add "auto_sticky_on_screensaver", "1"
+        .Add "show_timestamp", "0"
 
     End With
 

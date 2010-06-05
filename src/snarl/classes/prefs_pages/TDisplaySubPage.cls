@@ -67,6 +67,9 @@ Dim i As Long
 
         mPage.Add new_BPrefsControl("fancytoggle2", "use_style_icons", "Use style-provided icons (where possible) over Snarl icons?", "Icons:", g_ConfigGet("use_style_icons"))
 
+        ' /* timestamp */
+
+        mPage.Add new_BPrefsControl("fancytoggle2", "show_timestamp", "Show timestamp while pointer is over notification?", "", g_ConfigGet("show_timestamp"))
 
         ' /* ~~~~~~~~ outside the notification ~~~~~~~~ */
 
@@ -233,7 +236,7 @@ Dim i As Long
 
     Select Case Control.GetName()
 
-    Case "use_style_icons"
+    Case "use_style_icons", "show_timestamp"
         g_ConfigSet Control.GetName, Value
 
 

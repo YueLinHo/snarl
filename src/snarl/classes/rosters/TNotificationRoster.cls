@@ -239,6 +239,10 @@ Friend Function Add(ByRef Class As TAlert, ByRef Info As T_NOTIFICATION_INFO) As
     Info.Title = Replace$(Info.Title, "\n", vbCrLf)
     Info.Text = Replace$(Info.Text, "\n", vbCrLf)
 
+    ' /* R2.3: set datestamp */
+
+    Info.DateStamp = Now()
+
     ' /* R2.2: if DnD is enabled and the notification's priority is normal or low, we just add it to
     '    the missed notification list */
 
@@ -266,12 +270,10 @@ Dim pIcon As mfxBitmap
     End If
 
     ' /* 40.7 - icon can be an http:// or https:// url - if it is we initiate an
-    '    async download of the icon on put the notification onto a stack while
+    '    async download of the icon and put the notification onto a stack while
     '    we wait for the download to complete */
 
 Dim pDelayed As TDelayedNotification
-
-Debug.Print ">> icon: " & Info.IconPath
 
     Info.IconPath = LCase$(Info.IconPath)
     If (g_SafeLeftStr(Info.IconPath, 7) = "http://") Or (g_SafeLeftStr(Info.IconPath, 8) = "https://") Then
@@ -303,9 +305,7 @@ Debug.Print ">> icon: " & Info.IconPath
 
     End If
 
-
     ' /* if we're here we need to create an instance of the notification */
-
 
     If (g_IsSticky()) And (Info.Priority > 0) Then
         ' /* R2.3: if sticky, force timeout to 0 for priority notifications */
@@ -317,6 +317,11 @@ Debug.Print ">> icon: " & Info.IconPath
 
     End If
 
+
+    ' /* experimental: determine how many lines the text will take up (based on CR/LF's
+    '    only) and trim it down if necessary */
+
+    Info.Text = uTrimLines(Info.Text)
 
 
     If Info.StyleToUse = "" Then _
@@ -1216,3 +1221,23 @@ Dim pStyle As TStyle
 
 End Sub
 
+Private Function uTrimLines(ByVal Text As String) As String
+Dim sz() As String
+Dim c As Long
+
+Dim max_num_lines As Long
+
+    max_num_lines = 3
+
+    sz() = Split(Text, vbCrLf)
+    c = UBound(sz) + 1
+    Debug.Print "uTrimLines(): text is " & c & " line(s)"
+
+    If c > max_num_lines Then
+        ' /* first line /n ... /n last line */
+
+    End If
+
+    uTrimLines = Text
+
+End Function

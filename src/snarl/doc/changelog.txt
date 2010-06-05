@@ -46,8 +46,14 @@
 
 	- Renamed to R2.3 Beta 1  (40.54)
 
-	- Fuzzy notifications now disappear correctly if they time out while
-	  still fuzzy.  (40.54)
+	- Fixed bug where fuzzy notifications timed out even while fuzzy
+	  (i.e. mouse pointer over them).  (40.54)
+
+	- Added 'Details' submenu to notification menu.  Currently displays
+	  timestamp and sending application name.  (40.54)
+
+	- Added optional display of timestamp while mouse pointer is over
+	  plugin.  (40.54)
 
 	- Prefs Panel "Display" sub pages reorganised.  (40.54)
 
