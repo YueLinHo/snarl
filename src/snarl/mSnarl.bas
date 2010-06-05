@@ -1392,8 +1392,11 @@ Dim rv As Long
     ' /* this just updates the tray icon menu contents */
 
     If Not IsRunning Then
-        ' /* tell our applications we've stopped */
+        ' /* close all notifications */
+        If Not (g_NotificationRoster Is Nothing) Then _
+            g_NotificationRoster.CloseMultiple 0
 
+        ' /* tell our applications we've stopped */
         If Not (g_AppRoster Is Nothing) Then _
             g_AppRoster.SendAll SNARL_QUIT
 

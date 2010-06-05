@@ -46,6 +46,9 @@
 
 	- Renamed to R2.3 Beta 1  (40.54)
 
+	- Any notifications left on-screen when Snarl is stopped (or restarted)
+	  are now removed.  [SF FR 2935808]  (40.54)
+
 	- Fixed bug where fuzzy notifications timed out even while fuzzy
 	  (i.e. mouse pointer over them).  (40.54)
 
@@ -53,11 +56,12 @@
 	  timestamp and sending application name.  (40.54)
 
 	- Added optional display of timestamp while mouse pointer is over
-	  plugin.  (40.54)
+	  plugin.  [SF FR 3000019]  (40.54)
 
 	- Prefs Panel "Display" sub pages reorganised.  (40.54)
 
-	- Idle timeout cycle button added to "General" page.  (40.54)
+	- Idle timeout cycle button added to "General" page.  [SF FR 2935822]
+	  (40.54)
 
 	- Class Panel sub pages reorganised.  "View only" mode is
 	  now simply known as "ignore mouse and other input" and toggle button
