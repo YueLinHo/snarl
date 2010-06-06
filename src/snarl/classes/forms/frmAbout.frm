@@ -266,6 +266,54 @@ Dim n As Integer
 
     g_HideFromView Me.hWnd
 
+    ' /* add user messages to UIPI allowed filter */
+
+    g_Debug "frmAbout.Load(): relaxing UIPI message filter..."
+    g_Debug "frmAbout.Load(): o/s is 0x" & g_HexStr(g_GetNTVersion())
+
+    If g_GetNTVersion() >= NTWIN7 Then
+        g_Debug "Windows 7 / Windows 2008 R2 (or better)..."
+        ChangeWindowMessageFilterEx Me.hWnd, WM_SNARL_TRAY_ICON, MSGFLT_ALLOW, 0&
+        ChangeWindowMessageFilterEx Me.hWnd, WM_REMOTENOTIFY, MSGFLT_ALLOW, 0&
+        ChangeWindowMessageFilterEx Me.hWnd, WM_INSTALL_SNARL, MSGFLT_ALLOW, 0&
+        ChangeWindowMessageFilterEx Me.hWnd, MSG_SHOW_PREFS, MSGFLT_ALLOW, 0&
+        ChangeWindowMessageFilterEx Me.hWnd, MSG_QUIT, MSGFLT_ALLOW, 0&
+        ChangeWindowMessageFilterEx Me.hWnd, WM_SNARLTEST, MSGFLT_ALLOW, 0&
+        ChangeWindowMessageFilterEx Me.hWnd, WM_MANAGE_SNARL, MSGFLT_ALLOW, 0&
+
+'WM_SNARL_TRAY_ICON     ' // WM_USER + 3
+'WM_REMOTENOTIFY        ' // WM_USER + 9
+'WM_INSTALL_SNARL       ' // WM_USER + 12
+'MSG_SHOW_PREFS         ' // WM_USER + 80
+'MSG_QUIT               ' // WM_USER + 81
+'WM_SNARLTEST           ' // WM_USER + 237
+'WM_MANAGE_SNARL        ' // WM_USER + 238
+
+    ElseIf g_GetNTVersion() = NTVISTA Then
+        ' /* we will do this here but *NOT* in TMainWindow construction */
+        g_Debug "Windows Vista / Windows 2008"
+        ChangeWindowMessageFilter WM_SNARL_TRAY_ICON, MSGFLT_ADD
+        ChangeWindowMessageFilter WM_REMOTENOTIFY, MSGFLT_ADD
+        ChangeWindowMessageFilter WM_INSTALL_SNARL, MSGFLT_ADD
+        ChangeWindowMessageFilter MSG_SHOW_PREFS, MSGFLT_ADD
+        ChangeWindowMessageFilter MSG_QUIT, MSGFLT_ADD
+        ChangeWindowMessageFilter WM_SNARLTEST, MSGFLT_ADD
+        ChangeWindowMessageFilter WM_MANAGE_SNARL, MSGFLT_ADD
+
+    End If
+
+
+
+
+
+
+
+
+
+
+
+
+
     ' /* register the hotkeys */
 
     Me.bSetHotkeys
@@ -756,7 +804,7 @@ Private Property Get MMessageSink_Name() As String
 
 End Property
 
-Private Function MMessageSink_Received(Message As melon.MMessage) As Boolean
+Private Function MMessageSink_Received(message As melon.MMessage) As Boolean
 
 End Function
 

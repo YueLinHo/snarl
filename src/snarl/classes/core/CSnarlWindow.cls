@@ -699,13 +699,12 @@ Dim pr As BRect
                 .TextMode = MFX_TEXT_ANTIALIAS
                 .SetHighColour rgba(255, 255, 255, 230)
                 .SetLowColour rgba(0, 0, 0, 190)
-                
-                Set pr = .Bounds.InsetByCopy(4, 4)
+                Set pr = .Bounds.InsetByCopy(2, 2)
                 If uDrawDropshadow() Then _
                     pr.InsetBy g_Prefs.dropshadow_size, g_Prefs.dropshadow_size
 
                 .FillRoundRect new_BRect(pr.Right - .StringWidth(uDateStamp()), pr.Bottom - .StringHeight("A"), pr.Right + 2, pr.Bottom + 2), 6, 6, MFX_SOLID_LOW
-                .DrawString uDateStamp(), pr, MFX_ALIGN_BOTTOM Or MFX_ALIGN_RIGHT 'Or MFX_SIMPLE_OUTLINE
+                .DrawString uDateStamp(), pr, MFX_ALIGN_BOTTOM Or MFX_ALIGN_RIGHT
 
             End If
         End If
