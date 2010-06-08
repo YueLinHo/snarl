@@ -26,6 +26,7 @@ Public Enum E_METER_STYLE_FLAGS
     E_METER_STYLE_CAN_SET_ICON_POS = &H200
     E_METER_STYLE_CAN_SET_FG_ALPHA = &H400
     E_METER_STYLE_HAS_SPECTRUMS = &H800
+    E_METER_STYLE_NO_SHOW_PERCENT = &H1000
 
     E_METER_STYLE_HAS_OWN_PAGE = &H8000&
 
@@ -192,17 +193,17 @@ Public Function GetSchemeColour(ByVal Scheme As String, ByVal Colour As String) 
 
     On Error Resume Next
 
-    If (mSchemes Is Nothing) Then _
-        Exit Function
-
     ' /* pre-set with default in case we can't find the required scheme */
 
     GetSchemeColour = Me.ReadSetting(Colour)
 
+    If (mSchemes Is Nothing) Then _
+        Exit Function
+
 Dim i As Long
 
     i = mSchemes.FindSection(Scheme)
-    
+
 Debug.Print "scheme count: " & mSchemes.CountSections & " > " & i & " " & Scheme
 
     If i = 0 Then _
