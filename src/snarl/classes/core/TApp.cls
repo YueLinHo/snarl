@@ -465,12 +465,12 @@ Public Function Flags() As SNARL41_APP_FLAGS
 
 End Function
 
-'Public Function IsSnarlApp() As Boolean
-'
-'    If IsWindow(mInfo.hWnd) <> 0 Then _
-'        IsSnarlApp = (GetProp(mInfo.hWnd, "snarl_app") = 1) Or ((mInfo.Flags And SNARL41_APP_IS_WINDOWLESS) <> 0)
-'
-'End Function
+Public Function IsSnarlApp() As Boolean
+
+    If IsWindow(mInfo.hWnd) <> 0 Then _
+        IsSnarlApp = (GetProp(mInfo.hWnd, "snarl_app") = 1) Or ((mInfo.Flags And SNARL41_APP_IS_WINDOWLESS) <> 0)
+
+End Function
 
 Public Sub DoAbout()
 

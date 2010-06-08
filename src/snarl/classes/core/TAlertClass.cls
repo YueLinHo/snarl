@@ -45,7 +45,6 @@ Private Type T_ALERT
     App As TApp                             '// app who this class belongs to
     Config As ConfigSection                 '// V41: persistent settings
     Defaults As BPackedData
-
     Forward As BPackedData                  '// each style/scheme to use
 
 End Type
@@ -448,3 +447,8 @@ Public Function HasForward(ByVal StyleAndScheme As String) As Boolean
 
 End Function
 
+Public Function ForwardList() As BPackedData
+
+    Set ForwardList = mContent.Forward
+
+End Function
