@@ -108,14 +108,6 @@ Dim pi As MImage
         .Minute = Val(Mid$(mInfo.Text, 11, 2))
         .Second = Val(Mid$(mInfo.Text, 13, 2))
 
-        If .Hour > 12 Then
-            .Hour = .Hour - 12
-
-        ElseIf .Hour = 0 Then
-            .Hour = 12
-
-        End If
-
     End With
 
     uDraw
@@ -145,6 +137,17 @@ Dim pi As mfxBitmap
 Static i As Integer
 Static n As Double
 Dim pr As BRect
+
+    With mTime
+        If .Hour > 12 Then
+            .Hour = .Hour - 12
+
+        ElseIf .Hour = 0 Then
+            .Hour = 12
+
+        End If
+
+    End With
 
     Set pi = load_image_obj(g_MakePath(App.Path) & IIf(g_IsIDE(), "bin\", "") & "clock\back.png")
     If is_valid_image(pi) Then
@@ -216,7 +219,7 @@ Dim cx As Long
 
 Dim hi As Long, mi As Long, si As Long
 Dim Hd As Double, Md As Double, Sd As Double
-Dim hr As Double, Mr As Double, Sr As Double
+Dim hr As Double, Mr As Double, sr As Double
  
     hi = mTime.Hour
     mi = mTime.Minute
@@ -245,7 +248,7 @@ Dim hr As Double, Mr As Double, Sr As Double
 
     hr = Hd / t
     Mr = Md / t
-    Sr = Sd / t
+    sr = Sd / t
 
     With mView
 
@@ -268,8 +271,8 @@ Dim hr As Double, Mr As Double, Sr As Double
         .SetHighColour rgba(255, 0, 0)
         .StrokeLine new_BRect(Fix(.Bounds.Width / 2), _
                               Fix(.Bounds.Height / 2), _
-                              Fix(.Bounds.Width / 2) + (Fix(.Bounds.Width / 2) * Val(mStyle.GetSchemeSetting(mInfo.Scheme, "second_ratio")) * Cos(Sr)), _
-                              Fix(.Bounds.Height / 2) + (Fix(.Bounds.Height / 2) * Val(mStyle.GetSchemeSetting(mInfo.Scheme, "second_ratio")) * Sin(Sr)))
+                              Fix(.Bounds.Width / 2) + (Fix(.Bounds.Width / 2) * Val(mStyle.GetSchemeSetting(mInfo.Scheme, "second_ratio")) * Cos(sr)), _
+                              Fix(.Bounds.Height / 2) + (Fix(.Bounds.Height / 2) * Val(mStyle.GetSchemeSetting(mInfo.Scheme, "second_ratio")) * Sin(sr)))
 
         ' /* draw centre point if no background */
 
