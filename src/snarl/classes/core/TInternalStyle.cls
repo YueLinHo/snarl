@@ -257,6 +257,7 @@ Dim prFrame As BRect
         ' /* calculate height */
 
         .SizeTo 250, 110
+        .TextMode = MFX_TEXT_ANTIALIAS
 
         Set prFrame = .Bounds.Duplicate
         prFrame.Left = cx
