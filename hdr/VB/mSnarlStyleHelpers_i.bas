@@ -99,7 +99,7 @@ End Function
 '
 'End Function
 
-Public Function style_MakeSquareImage(ByRef Img As MImage) As mfxBitmap
+Public Function style_MakeSquareImage(ByRef Img As MImage, Optional ByVal Maximum As Long) As mfxBitmap
 Dim pv As mfxView
 Dim c As Long
 
@@ -107,6 +107,9 @@ Dim c As Long
         Exit Function
 
     c = MAX(Img.Width, Img.Height)
+    If Maximum > 0 Then _
+        c = MIN(c, Maximum)
+
     Set pv = New mfxView
     With pv
         .SizeTo c, c
