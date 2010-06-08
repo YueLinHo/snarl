@@ -277,7 +277,7 @@ Dim n As Integer
         ChangeWindowMessageFilterEx Me.hWnd, WM_REMOTENOTIFY, MSGFLT_ALLOW, 0&
         ChangeWindowMessageFilterEx Me.hWnd, WM_INSTALL_SNARL, MSGFLT_ALLOW, 0&
         ChangeWindowMessageFilterEx Me.hWnd, MSG_SHOW_PREFS, MSGFLT_ALLOW, 0&
-        ChangeWindowMessageFilterEx Me.hWnd, MSG_QUIT, MSGFLT_ALLOW, 0&
+'        ChangeWindowMessageFilterEx Me.hWnd, MSG_QUIT, MSGFLT_ALLOW, 0&
         ChangeWindowMessageFilterEx Me.hWnd, WM_SNARLTEST, MSGFLT_ALLOW, 0&
         ChangeWindowMessageFilterEx Me.hWnd, WM_MANAGE_SNARL, MSGFLT_ALLOW, 0&
 
@@ -296,7 +296,7 @@ Dim n As Integer
         ChangeWindowMessageFilter WM_REMOTENOTIFY, MSGFLT_ADD
         ChangeWindowMessageFilter WM_INSTALL_SNARL, MSGFLT_ADD
         ChangeWindowMessageFilter MSG_SHOW_PREFS, MSGFLT_ADD
-        ChangeWindowMessageFilter MSG_QUIT, MSGFLT_ADD
+'        ChangeWindowMessageFilter MSG_QUIT, MSGFLT_ADD
         ChangeWindowMessageFilter WM_SNARLTEST, MSGFLT_ADD
         ChangeWindowMessageFilter WM_MANAGE_SNARL, MSGFLT_ADD
 
@@ -480,10 +480,9 @@ Dim dw As Long
     Case WM_HOTKEY
         If LoWord(wParam) = mSysKeyPrefs Then
 '            sosOutput "ISubClassed.WndProc(): Old config hotkey pressed!", LEMON_LEVEL_WARNING
-            uNewDoPrefs
+            Me.NewDoPrefs
 
         ElseIf LoWord(wParam) = mSysKeyTest Then
-
             uDoSysInfoNotification
 
         Else
@@ -496,13 +495,12 @@ Dim dw As Long
 
 
     Case MSG_SHOW_PREFS
-        uNewDoPrefs
+        ' /* this message shouldn't arrive here anymore, being directed to TMainWindow instead */
+        Me.NewDoPrefs
 
 
-    Case MSG_QUIT
-'        Unload Me
+    Case MSG_QUIT, WM_CLOSE
         PostQuitMessage 0
-        MWndProcSink_WndProc = True
 
 
     Case WM_SNARL_TRAY_ICON
@@ -517,8 +515,7 @@ Dim dw As Long
             End If
 
         Case WM_LBUTTONDBLCLK
-'            fIgnoreNext = True
-            uNewDoPrefs
+            Me.NewDoPrefs
 
         End Select
 
@@ -603,7 +600,7 @@ Dim update_config   As Boolean
         .AddSeparator
         .AddItem .CreateItem("prefs", "Settings...")
 '        .AddItem .CreateItem("app_mgr", "App Manager...")
-'        .AddItem .CreateItem("", "Snarl Apps", , , , , , g_AppRoster.SnarlAppsMenu())
+        .AddItem .CreateItem("", "Snarl Apps", , , , , , g_AppRoster.SnarlAppsMenu())
         .AddSeparator
         .AddItem .CreateItem("about", "About Snarl")
 
@@ -636,7 +633,7 @@ Dim update_config   As Boolean
             g_SetRunning False
 
         Case "prefs"
-            uNewDoPrefs
+            Me.NewDoPrefs
 
         Case "app_mgr"
             ShellExecute 0, "open", g_MakePath(App.Path) & "Snarl_App_Manager.exe", vbNullString, vbNullString, SW_SHOW
@@ -676,7 +673,9 @@ Dim update_config   As Boolean
 
 End Sub
 
-Private Sub uNewDoPrefs()
+Public Sub NewDoPrefs()
+
+    Debug.Print "frmAbout:Prefs"
 
     If Not (mPanel Is Nothing) Then _
         Exit Sub
