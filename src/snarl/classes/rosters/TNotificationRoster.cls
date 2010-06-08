@@ -243,6 +243,26 @@ Friend Function Add(ByRef Class As TAlert, ByRef Info As T_NOTIFICATION_INFO) As
 
     Info.DateStamp = Now()
 
+
+    ' /* R2.3: send to any selected non-window styles */
+
+Dim pCopyList As BPackedData
+Dim pCopyInfo As T_NOTIFICATION_INFO
+Dim itemName As String
+
+    Set pCopyList = Class.ForwardList()
+    If Not (pCopyList Is Nothing) Then
+        With pCopyList
+            .Rewind
+            Do While .GetNextItem(itemName, "")
+                LSet pCopyInfo = Info
+                pCopyInfo.StyleToUse = itemName
+                uCopyTo pCopyInfo, Class
+
+            Loop
+        End With
+    End If
+
     ' /* R2.2: if DnD is enabled and the notification's priority is normal or low, we just add it to
     '    the missed notification list */
 
@@ -258,9 +278,9 @@ Dim pIcon As mfxBitmap
             .Timeout = Info.Timeout
             .Ack = Info.DefaultAck
             .Timestamp = Now()
-    
+
         End With
-    
+
         If Not (mMissedPanel Is Nothing) Then _
             mMissedPanel.UpdateList
 
@@ -305,7 +325,7 @@ Dim pDelayed As TDelayedNotification
 
     End If
 
-    ' /* if we're here we need to create an instance of the notification */
+    ' /* if we're here we need to create an on-screen instance of the notification */
 
     If (g_IsSticky()) And (Info.Priority > 0) Then
         ' /* R2.3: if sticky, force timeout to 0 for priority notifications */
@@ -608,6 +628,7 @@ Dim pInfo As T_NOTIFICATION_INFO
         .Text = Text
         ' /* R2.3: get the correct icon taking the current style into consideration */
         .IconPath = uTranslateIconPath(IconPath, mItem(i).Window.StylePath)
+        .StyleToUse = "-"
 
     End With
     
@@ -1241,3 +1262,53 @@ Dim max_num_lines As Long
     uTrimLines = Text
 
 End Function
+
+Private Sub uCopyTo(ByRef Info As T_NOTIFICATION_INFO, ByRef Class As TAlert)
+
+    ' /* get the appropriate instance for the notification before we do anything else
+    '    we must pass a valid style instance to CSnarlWindow, even if the style
+    '    roster is invalid */
+
+Dim pStyle As TStyle
+
+    ' /* get the style from the roster here - this is guaranteed to return a usable TStyle */
+
+    uSafeGetStyle Info.StyleToUse, pStyle
+
+    ' /* get the path to the style - we need this for style-provided icons and sounds */
+
+    Info.IconPath = uTranslateIconPath(Info.IconPath, pStyle.Path)
+
+    ' /* if S_STYLE_WANT_APP_NAME is set, prefix title with the sending app name */
+
+    If (pStyle.Flags And S_STYLE_WANT_APP_NAME) Then
+        g_Debug "TNotificationRoster.uCopyTo(): style wants application name"
+        Info.Title = Class.App.Name & "#?" & Info.Title
+
+    End If
+
+    ' /* this is just a safety check */
+
+    If (pStyle.Flags And S_STYLE_IS_WINDOWLESS) = 0 Then
+        Debug.Print "TNotificationRoster.uCopyTo(): '" & pStyle.Name & "' is not a windowless style"
+        Exit Sub
+
+    End If
+
+Dim psi As IStyleInstance
+
+    Set psi = pStyle.CreateInstance()
+    If (psi Is Nothing) Then
+        Debug.Print "TNotificationRoster.uCopyTo(): failed to create instance for '" & pStyle.Name & "'"
+        Exit Sub
+
+    End If
+
+    g_Debug "TNotificationRoster.uCopyTo(): sending to '" & pStyle.Name & "'"
+    psi.UpdateContent pStyle.CreateNotificationInfo(Info.Title, Info.Text, Info.IconPath, _
+                                                    style_GetSchemeName(Info.StyleToUse), _
+                                                    IIf(Info.Priority > 0, S_NOTIFICATION_IS_PRIORITY, 0))
+
+End Sub
+
+
