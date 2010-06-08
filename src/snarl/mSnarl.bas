@@ -281,7 +281,7 @@ Dim l As Long
     If InStr(sz, "-quit") Then
         l = FindWindow(WINDOW_CLASS, "Snarl")
         If l <> 0 Then _
-            SendMessage l, MSG_QUIT, 0, ByVal 0&    ' // tell the running instance to quit...
+            SendMessage l, WM_CLOSE, 0, ByVal 0&    ' // tell the running instance to quit...
                     ' // better to use WM_CLOSE??
 
         Exit Sub
