@@ -22,6 +22,7 @@ Private Const STYLE_NAME_SONY = "Sony"
 Private Const STYLE_NAME_SMOOTH = "Smooth"
 Private Const STYLE_NAME_METRO = "Metro"
 Private Const STYLE_NAME_CLOCK = "Clock"
+Private Const STYLE_NAME_MUSIC = "Slideshow"
 
 Dim mLastErr As String
 
@@ -70,6 +71,9 @@ Dim pStyle As IMeterStyle
 
     Case STYLE_NAME_CLOCK
         Set pStyle = New TClockInstance
+
+    Case STYLE_NAME_MUSIC
+        Set pStyle = New TMusicInstance
 
     End Select
 
@@ -197,9 +201,19 @@ Private Function IStyleEngine_Initialize() As melon.M_RESULT
          uCreatePackedStr("title_font::Arial#?title_size::11#?text_font::Arial#?text_size::9#?background::" & CStr(rgba(255, 255, 255)) & "#?border::" & CStr(rgba(255, 176, 0)) & "#?foreground::" & CStr(rgba(82, 98, 160)) & "#?show_graphically::1#?show_percent::1"), _
          E_METER_STYLE_CAN_CHANGE_FONT Or E_METER_STYLE_CAN_CHANGE_BKGND Or E_METER_STYLE_CAN_CHANGE_BORDER Or E_METER_STYLE_CAN_CHANGE_FGND Or E_METER_STYLE_HAS_CUSTOM_SCHEME Or E_METER_STYLE_LOAD_SCHEMES_FROM_FILE
 
+
     uAdd STYLE_NAME_CLOCK, _
          "Displays notification text formatted as 'YYYYMMDDHHMMSS' as a time", S_STYLE_IS_CONFIGURABLE Or S_STYLE_MULTI_INSTANCE, _
          "", 0, 1, uCreatePackedStr(""), E_METER_STYLE_LOAD_SCHEMES_FROM_FILE Or E_METER_STYLE_HAS_OWN_PAGE, , , New TClockPage
+
+
+    uAdd STYLE_NAME_MUSIC, _
+         "Displays a fixed-size rectangular notification with the text part is limited to two lines.  Landscape icons with a height of more than 100px are recommended.", _
+         S_STYLE_IS_CONFIGURABLE Or S_STYLE_MULTI_INSTANCE, _
+         "Top and Bottom|Bottom|Top", _
+         0, 1, _
+         uCreatePackedStr("title_font::Arial#?title_size::8#?text_font::Arial#?text_size::7#?background::" & CStr(rgba(17, 17, 17)) & "#?show_graphically::1#?fg_alpha::100"), _
+         E_METER_STYLE_CAN_CHANGE_FONT Or E_METER_STYLE_CAN_CHANGE_BKGND Or E_METER_STYLE_CAN_CHANGE_FGND Or E_METER_STYLE_CAN_SET_FG_ALPHA Or E_METER_STYLE_NO_SHOW_PERCENT
 
 
 Dim pPacked As BPackedData
@@ -481,7 +495,7 @@ Dim f As Boolean
             pm.Add "max", 100&
             pm.Add "freq", 10&
             pm.Add "suffix", "%"
-            .Add new_BPrefsControl("fancyslider", "fg_alpha", "", "Text opacity:", mCurrent.ReadSetting("fg_alpha"), pm)
+            .Add new_BPrefsControl("fancyslider", "fg_alpha", "", "Foreground opacity:", mCurrent.ReadSetting("fg_alpha"), pm)
 
         End If
 
@@ -507,7 +521,8 @@ Dim f As Boolean
             End If
         End If
 
-        .Add new_BPrefsControl("fancytoggle2", "show_percent", "Display value as percentage?", "Options:", mCurrent.ReadSetting("show_percent"))
+        If (mCurrent.Flags And E_METER_STYLE_NO_SHOW_PERCENT) = 0 Then _
+            .Add new_BPrefsControl("fancytoggle2", "show_percent", "Display value as percentage?", "Options:", mCurrent.ReadSetting("show_percent"))
 
         ' /* test and reset buttons - all */
 
@@ -669,13 +684,12 @@ Dim szv As String
 End Sub
 
 Private Sub KPrefsPage_ControlNotify(Control As prefs_kit_d2.BControl, ByVal Notification As String, Data As melon.MMessage)
-
 End Sub
 
 Private Sub KPrefsPage_Create(Page As BPrefsPage)
 
     Set mPage = Page
-    mPage.SetMargin 120
+    mPage.SetMargin 140
 
     ' /* get our settings */
 
