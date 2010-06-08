@@ -153,6 +153,13 @@ Private Function MWndProcSink_WndProc(ByVal hWnd As Long, ByVal uMsg As Long, By
 '        If (wParam = SC_SCREENSAVE) And (g_ConfigGet("auto_sticky_on_screensaver") = 1) Then _
 
 
+    Case MSG_SHOW_PREFS
+        Debug.Print "+msg_show_prefs+"
+        frmAbout.NewDoPrefs
+
+    Case MSG_QUIT, WM_CLOSE
+        PostQuitMessage 0
+
     End Select
 
 End Function
