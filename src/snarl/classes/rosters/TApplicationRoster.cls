@@ -731,31 +731,31 @@ End Function
 '
 'End Function
 
-'Public Function SnarlAppsMenu() As OMMenu
-'Dim pm As OMMenu
-'Dim i As Long
-'
-'    Set SnarlAppsMenu = New OMMenu
-'
-'    With SnarlAppsMenu
-'        If mCount Then
-'            For i = 1 To mCount
-'                If mApp(i).IsSnarlApp Then
+Public Function SnarlAppsMenu() As OMMenu
+Dim pm As OMMenu
+Dim i As Long
+
+    Set SnarlAppsMenu = New OMMenu
+
+    With SnarlAppsMenu
+        If mCount Then
+            For i = 1 To mCount
+                If mApp(i).IsSnarlApp Then
 '                    Set pm = New OMMenu
 '                    pm.AddItem pm.CreateItem("cfg" & CStr(i), "Settings...", , (mApp(i).Flags And E_APP_HAS_PREFS))
 '                    pm.AddItem pm.CreateItem("abt" & CStr(i), "About...", , (mApp(i).Flags And E_APP_HAS_ABOUT))
-'                    .AddItem .CreateItem("", mApp(i).Name, , , , , , pm)
-'
-'                End If
-'            Next i
-'        End If
-'
-'        If .CountItems = 0 Then _
-'            .AddItem .CreateItem("", "None", , False)
-'
-'    End With
-'
-'End Function
+                    .AddItem .CreateItem(mApp(i).Token, mApp(i).Name)
+
+                End If
+            Next i
+        End If
+
+        If .CountItems = 0 Then _
+            .AddItem .CreateItem("", "None", , False)
+
+    End With
+
+End Function
 
 Public Sub SnarlAppDo(ByVal Index As Long, ByVal Cmd As SNARL_APP_COMMANDS)
 
