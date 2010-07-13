@@ -30,8 +30,8 @@ Option Explicit
     ' /* our constants */
 
 Const EXT_NAME = "Clock+"
-Const EXT_DATE = "4-Jun-2010"
-Const EXT_REL = "2.0 Alpha 2"
+Const EXT_DATE = "15-Jun-2010"
+Const EXT_REL = "2.0 RC"
 
 Const CLASS_HOUR_CHIME = "hrch"
 Const CLASS_COUNTDOWN_COMPLETE = "ccom"
@@ -417,10 +417,8 @@ Static dTemp As Date
         mChimeId = sn41EZNotify(mToken, _
                                 CLASS_HOUR_CHIME, _
                                 "Hourly reminder", _
-                                "It's now " & g_GetTimeString(gConfig, True), _
-                                -1, _
-                                g_MakePath(App.Path) & "icon.png")
-
+                                IIf(gConfig.format_type = 2, "", "It's now ") & g_GetTimeString(gConfig, True), _
+                                -1)
 
         mLastHour = Hour(Now)
 

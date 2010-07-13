@@ -122,7 +122,7 @@ Dim i As Integer
     ElseIf Config.format_type = 2 Then
         ' /* YYYYMMDDHHMMSS */
         txt = Format$(pt.Year, "0000") & Format$(pt.Month, "00") & Format$(pt.Day, "00") & _
-              Format$(pt.Hour, "00") & Format$(pt.Minutes, "00") & Format$(pt.Seconds, "00")
+              Format$(pt.Hour, "00") & Format$(pt.Minutes, "00") & IIf(HoursOnly, "XX", Format$(pt.Seconds, "00"))
 
     Else
         ' /* numerically */
