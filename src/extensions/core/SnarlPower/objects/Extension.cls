@@ -33,7 +33,7 @@ Option Explicit
     '
     ' */
 
-Private Const OBJ_DATE = "4-Jun-2010"
+Private Const OBJ_DATE = "28-Jun-2010"
 Private Const CLASS_POWER_CONNECT = "pwrc"
 Private Const CLASS_POWER_DISCONNECT = "pwrd"
 Private Const CLASS_POWER_LOW = "pwrl"
@@ -127,7 +127,7 @@ Private Sub ISnarlExtension_GetInfo(Info As libSnarlExtn.extension_info)
         .IconPath = g_MakePath(App.Path) & "icon.png"
         .Name = App.Title
         .Path = g_MakePath(App.Path)
-        .Release = "1.0 Alpha 2"
+        .Release = "1.0 RC1"
         .Revision = App.Revision
         .SupportEmail = "info@fullphat.net"
         .URL = "http://www.fullphat.net"
