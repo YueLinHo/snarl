@@ -20,6 +20,7 @@ Dim mhWnd As Long
 Dim mFeedRoster As TFeedRoster
 
 Dim WithEvents theAddFeedPanel As TAddFeedPanel
+Attribute theAddFeedPanel.VB_VarHelpID = -1
 
 Implements KPrefsPanel
 Implements KPrefsPage
@@ -156,7 +157,7 @@ Private Sub uRegisterWithSnarl()
 '        sn41AddClass gtoken, "none", "Other notifications"
 
     Else
-        frmMain.Add "Error registering with Snarl"
+        frmMain.Add "Error registering with Snarl (" & CStr(sn41GetLastError()) & ")"
 
     End If
 
@@ -226,40 +227,11 @@ Dim pm As CTempMsg
 
                 .Add new_BPrefsControl("fancytoolbar", "feed_toolbar", "Show Headline|Show Summary|Refresh|Feed Information", , , , False)
 
-'        .Add new_BPrefsControl("label", "", "Extensions are modules loaded by Snarl during startup; " & _
-'                                            "they can register with Snarl and add alerts in exactly the " & _
-'                                            "same way applications can.  To disable an extension, " & _
-'                                            "untick it's entry in the list below:")
-'
-'        Set pm = New CTempMsg
-'        pm.Add "checkboxes", 1
-'
-'
-'
-''        .Add new_BPrefsControl("fancybutton2", "fb2>ext.cfg", "Configure", , , , False)
-'
-''        Set pc = new_BPrefsControl("label", "ext_desc", " ", "Description:")
-''        pc.SizeTo 0, 26
-''        mPage.Add pc
-'
-''        .Add new_BPrefsControl("label", "ext_desc", String$(92, " "), "Description:")
-''        .Add new_BPrefsControl("label", "ext_info", String$(92, " "), "Version:")
-'        .Add new_BPrefsControl("label", "ext_stat", String$(92, " "), "")
-''        .Add new_BPrefsControl("separator", "")
-'
-'
-''        .Add new_BPrefsControl("fancybutton2", "fb2>ext.reload", "Reload Extensions")
-'        .Add new_BPrefsControl("separator", "")
-'
-'        Set pm = New CTempMsg
-'        pm.Add "image-file", g_MakePath(App.Path) & "etc\icons\info_emblem.png"
-''        pm.Add "valign", "centre"
-'        Set pc = new_BPrefsControl("labelex", "", "To prevent extensions from being loaded, hold down either Control (Ctrl) key while Snarl loads.", , , pm)
-'        pc.SizeTo 0, 56
-'        .Add pc
-'
-'
-'        .Add new_BPrefsControl("label", "", "")
+                .Add new_BPrefsSeparator
+
+                .Add new_BPrefsControl("fancybutton2", "quit_app", "Quit snaRSS")
+                .Add new_BPrefsControl("label", "", "snaRSS " & CStr(App.Major) & "." & CStr(App.Minor) & " (Build " & CStr(App.Revision) & ") " & App.LegalCopyright, , , , False)
+                .Add new_BPrefsControl("label", "", "http://www.fullphat.net", , , , False)
 
             End With
 
@@ -270,7 +242,6 @@ Dim pm As CTempMsg
             uUpdateFeedList
 
         End With
-
     End If
 
     g_ShowWindow gPanel.hWnd, True, True
@@ -343,6 +314,9 @@ End Sub
 
 Private Sub KPrefsPage_ControlInvoked(Control As prefs_kit_d2.BControl)
 
+    If Control.GetName = "quit_app" Then _
+        PostQuitMessage 0
+
 End Sub
 
 Private Sub KPrefsPage_ControlNotify(Control As prefs_kit_d2.BControl, ByVal Notification As String, Data As melon.MMessage)
@@ -393,16 +367,21 @@ Dim i As Long
         Exit Sub
 
     szCurrent = pList.GetValue
+    If szCurrent = "0" Then _
+        szCurrent = "1"
 
     With mFeedRoster
         .Rewind
         Do While .NextFeed(pFeed)
-            sz = sz & uSpecialMidStr(pFeed.URL, 54) & "#?0#?" & _
-            IIf(pFeed.IsRefreshing, "Refreshing...", pFeed.EntriesStr & ". Last refreshed: " & pFeed.LastAttempt & IIf(pFeed.WasSuccessful, "", " (failed)")) & "|"
+            sz = sz & uSpecialMidStr(pFeed.TitleOrURL, 52) & "#?0#?" & pFeed.Status() & "|"
 
         Loop
 
     End With
+
+    Debug.Print "**"
+    Debug.Print sz
+    Debug.Print "**"
 
     pList.SetText g_SafeLeftStr(sz, Len(sz) - 1)
     pList.SetValue szCurrent
@@ -414,6 +393,7 @@ Dim i As Long
             prefskit_SetItem pList, i, "checked", IIf(pFeed.IsEnabled, 1&, 0&)
 
         Loop
+
     End With
 
 End Sub
@@ -465,8 +445,11 @@ Private Sub theAddFeedPanel_AddFeed(ByVal URL As String)
         If mFeedRoster.AddFeed(URL, "") Then
             uUpdateConfig
             uUpdateFeedList
+            prefskit_SetValue gPanel, "feed_list", prefskit_DoCmd(gPanel, "feed_list", B_COUNT_ITEMS)
 
         End If
     End If
 
 End Sub
+
+

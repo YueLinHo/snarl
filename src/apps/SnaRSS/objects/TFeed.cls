@@ -59,17 +59,11 @@ Public Sub Quit()
 
 End Sub
 
-Public Function LastAttempt() As Date
-
-    LastAttempt = mLastAttempt
-
-End Function
-
-Public Function WasSuccessful() As Boolean
-
-    WasSuccessful = mSuccess
-
-End Function
+'Public Function WasSuccessful() As Boolean
+'
+'    WasSuccessful = mSuccess
+'
+'End Function
 
 Private Function uFixStr(ByVal str As String) As String
 Dim i As Integer
@@ -125,9 +119,14 @@ End Function
 Private Sub theFeed_Completed(ByVal WasSuccessful As Boolean)
 Dim pList As BControl
 
+    On Error Resume Next
+
     mLastAttempt = Now()
     mSuccess = WasSuccessful
     mRefreshing = False
+
+'    Debug.Print "imgurl: " & theFeed.Channel.ImageUrl
+'    Debug.Print "imglink: " & theFeed.Channel.ImageLink
 
     ' /* if the prefs panel is open, tell the feed list to refresh */
 
@@ -137,8 +136,15 @@ Dim pList As BControl
 
     End If
 
-    If (Not WasSuccessful) Or (theFeed.CountItems < 1) Then _
+    If Not theFeed.IsValid Then
+        frmMain.Add "FAIL: " & g_SafeRightStr(mURL, 80, True)
         Exit Sub
+
+    ElseIf theFeed.CountItems < 1 Then
+        frmMain.Add "EMPTY: " & g_SafeRightStr(mURL, 80, True)
+        Exit Sub
+
+    End If
 
 Static szLastEntry As String
 Static szEntry As String
@@ -147,7 +153,7 @@ Static szEntry As String
         szEntry = .Description '//  .Title & "+" & .Description
         If szEntry <> szLastEntry Then
             ' /* top story has changed */
-            frmMain.Add "changed: " & theFeed.Channel.Title
+            frmMain.Add "UPDATED: " & g_SafeRightStr(mURL, 80, True)
             szLastEntry = szEntry
             If Not mFirstRun Then
                 ShowHeadline
@@ -173,20 +179,20 @@ Public Function URL() As String
 
 End Function
 
-Public Function EntriesStr() As String
+Private Function uEntriesStr() As String
 
     If (theFeed Is Nothing) Then _
         Exit Function
 
     Select Case theFeed.CountItems
     Case 0
-        EntriesStr = "No entries"
+        uEntriesStr = "No entries"
 
     Case 1
-        EntriesStr = "1 entry"
+        uEntriesStr = "1 entry"
 
     Case Else
-        EntriesStr = CStr(theFeed.CountItems) & " entries"
+        uEntriesStr = CStr(theFeed.CountItems) & " entries"
 
     End Select
 
@@ -240,7 +246,7 @@ Static sz As String
 
     With theFeed
         For i = 1 To MIN(8, .CountItems)
-            sz = sz & .ItemAt(i).Title & IIf(i < .CountItems, vbCrLf, "")
+            sz = sz & "• " & .ItemAt(i).Title & IIf(i < .CountItems, vbCrLf, "")
 
         Next i
 
@@ -260,16 +266,16 @@ Public Function Refresh() As Boolean
     If mRefreshing Then _
         Exit Function
 
-    Refresh = (theFeed.GetContent(URL) = B_OK)
+    Refresh = (theFeed.GetContent(mURL) = B_OK)
     mRefreshing = True
 
 End Function
 
-Public Function IsRefreshing() As Boolean
-
-    IsRefreshing = mRefreshing
-
-End Function
+'Public Function IsRefreshing() As Boolean
+'
+'    IsRefreshing = mRefreshing
+'
+'End Function
 
 Public Sub FeedInfo()
 Static sz As String
@@ -280,27 +286,73 @@ Static i As Long
     If (theFeed Is Nothing) Then _
         Exit Sub
 
-    With theFeed
+    If Not theFeed.IsValid Then
+        i = sn41EZNotify(gToken, "", _
+                         "Could not retrieve feed", _
+                         "There may be a problem with your Internet connection, or the server providing the feed may be off-line - try accessing the feed from a browser", , _
+                         g_MakePath(App.Path) & "failed.png")
 
-        Debug.Print .RawXML
+    ElseIf (theFeed.Channel Is Nothing) Then
+        i = sn41EZNotify(gToken, "", _
+                         "Invalid RSS Feed", _
+                         "Data was returned but it does not appear to be a valid RSS feed", , _
+                         g_MakePath(App.Path) & "failed.png")
 
-        sz = IIf(.Channel.Description <> "", .Channel.Description & vbCrLf, "") & _
-             IIf(.Channel.Copyright <> "", .Channel.Copyright & vbCrLf, "") & _
-             IIf(.FeedVersion <> "", "Version " & .FeedVersion, "")
+    Else
+        With theFeed
 
-'        sz = "Version: " & .FeedVersion & vbCrLf & "Valid: " & .IsValid & vbCrLf & "Category: " & .Channel.Category & vbCrLf & _
-             "Copyright: " & .Channel.Copyright & vbCrLf & "" & .Channel.WebMaster
+            Debug.Print .RawXML
 
-        If sz <> "" Then _
-            i = sn41EZNotify(gToken, "", _
-                             .Channel.Title, _
-                             sz, _
-                             , _
-                             .Channel.ImageUrl, , _
-                             .Channel.Link)
+            sz = IIf(.Channel.Description <> "", .Channel.Description & vbCrLf, "") & _
+                 IIf(.Channel.Copyright <> "", .Channel.Copyright & vbCrLf, "") & _
+                 IIf(.FeedVersion <> "", "Version " & .FeedVersion, "")
 
-    End With
+            If sz <> "" Then _
+                i = sn41EZNotify(gToken, "", _
+                                 .Channel.Title, _
+                                 sz, _
+                                 , _
+                                 .Channel.ImageUrl, , _
+                                 .Channel.Link)
+
+        End With
+    End If
 
 End Sub
 
+Public Function TitleOrURL() As String
 
+    If Not (theFeed Is Nothing) Then
+        If theFeed.IsValid Then _
+            TitleOrURL = Replace$(theFeed.Channel.Title, "|", ":")
+
+    End If
+
+    If TitleOrURL = "" Then _
+        TitleOrURL = mURL
+
+End Function
+
+Public Function Status() As String
+
+    If Not (theFeed Is Nothing) Then
+        If theFeed.IsValid Then
+            If mRefreshing Then
+                Status = "Refreshing..."
+
+            Else
+                Status = uEntriesStr() & ".  Last refreshed: " & mLastAttempt
+
+            End If
+
+        Else
+            Status = "Failed.  Last attempt: " & mLastAttempt
+
+        End If
+
+    Else
+        Status = "Error."
+
+    End If
+
+End Function
