@@ -420,6 +420,19 @@ Dim i As Long
 
 End Function
 
+Public Function IndexOf(ByVal Name As String) As Long
+
+    IndexOf = MRoster_FindItem(Name)
+
+End Function
+
+Public Function ItemAt(ByVal Index As Long) As TExtension
+
+    If (Index > 0) And (Index <= mCount) Then _
+        Set ItemAt = mExt(Index)
+
+End Function
+
 Public Sub WriteExcludeList()
 Dim pn As Node
 
@@ -717,3 +730,30 @@ Dim i As Long
     Next i
 
 End Sub
+
+Public Function LoadExtensionByClass(ByVal Class As String, ByRef Result As String) As Boolean
+Dim anExt As TExtension
+
+'    MsgBox MRoster_FindItem(Class)
+
+    If MRoster_FindItem(Class) Then
+        Result = "Extension is already loaded"
+        Exit Function
+
+    End If
+
+    Set anExt = New TExtension
+    If anExt.SetTo(Class, "") Then
+        ' /* initialised okay, so add it to our list */
+        uAdd anExt, False
+        LoadExtensionByClass = True
+
+    Else
+        Result = Class & " is not a valid extension"
+
+    End If
+
+End Function
+
+
+

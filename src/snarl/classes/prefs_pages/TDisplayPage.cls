@@ -59,7 +59,7 @@ Dim pdsp As TDisplaySubPage
 '    pm.Add "max", 100&
 '    pm.Add "freq", 10&
 '    pm.Add "suffix", "%"
-'    mPage.Add new_BPrefsControl("fancyslider", "fs>global_opacity", "", "Opacity:", CStr(g_Prefs.global_opacity), pm)
+'    mPage.Add new_BPrefsControl("fancyslider", "global_opacity", "", "Opacity:", CStr(g_Prefs.global_opacity), pm)
 '
 '    ' /* spacing */
 '
@@ -67,7 +67,7 @@ Dim pdsp As TDisplaySubPage
 '    pm.Add "min", -20&
 '    pm.Add "max", 20&
 '    pm.Add "freq", 5&
-'    mPage.Add new_BPrefsControl("fancyslider", "fs>margin_spacing", "", "Spacing:", CStr(g_Prefs.margin_spacing), pm)
+'    mPage.Add new_BPrefsControl("fancyslider", "margin_spacing", "", "Spacing:", CStr(g_Prefs.margin_spacing), pm)
 '
 '    ' /* dropshadow */
 '
@@ -77,7 +77,7 @@ Dim pdsp As TDisplaySubPage
 '    pm.Add "min", 1&
 '    pm.Add "max", 8&
 '    pm.Add "freq", 1&
-'    mPage.Add new_BPrefsControl("fancyslider", "fs>dropshadow_strength", "", "Shadow Strength:", CStr(g_Prefs.dropshadow_strength), pm)
+'    mPage.Add new_BPrefsControl("fancyslider", "dropshadow_strength", "", "Shadow Strength:", CStr(g_Prefs.dropshadow_strength), pm)
 '
 '    ' /* icon theme */
 '
@@ -135,22 +135,22 @@ Private Sub KPrefsPage_ControlChanged(Control As BControl, ByVal Value As String
 '        g_Prefs.melontype_contrast = Val(Control.GetValue())
 '        fUpdate = True
 '
-'    Case "fs>global_opacity"
+'    Case "global_opacity"
 '        g_Prefs.global_opacity = Val(Value)
 '        fUpdate = True
 '
-'    Case "fs>margin_spacing"
+'    Case "margin_spacing"
 '        g_Prefs.margin_spacing = Val(Value)
 '        fUpdate = True
 '
 '    Case "ft>use_dropshadow"
 '        g_Prefs.use_dropshadow = (Val(Value) <> 0)
-'        If mPage.Find("fs>dropshadow_strength", pc) Then _
+'        If mPage.Find("dropshadow_strength", pc) Then _
 '            pc.SetEnabled (Val(Value) <> 0)
 '
 '        fUpdate = True
 '
-'    Case "fs>dropshadow_strength"
+'    Case "dropshadow_strength"
 '        g_Prefs.dropshadow_strength = Val(Value)
 '        fUpdate = True
 '

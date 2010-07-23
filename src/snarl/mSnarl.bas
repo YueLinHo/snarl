@@ -97,10 +97,17 @@ Private Const FE_FONTSMOOTHINGCLEARTYPE = 2
 Public Const HWND_SNARL = &H534E524C Or &H80000000
 
 Public Const MSG_SHOW_PREFS = WM_USER + 80
+    ' /* MSG_SHOW_PREFS expanded in R2.3 to use wParam and lParam, as follows:
+    '       wParam                                                          lParam
+    '          0        Display Preferences Panel                           0
+    '          1        Install style or extension                          atom of registered string containing style or extension
+    '          2        Configure style or extension                        ("")
+    ' */
+
+
+    ' /* MSG_QUIT is deprecated in favour of using standard WM_CLOSE.  Handling of MSG_QUIT is retained in R2.3 */
 Public Const MSG_QUIT = WM_USER + 81
 
-'Public bm_Back As mfxBitmap
-'Public bm_Shadow As mfxBitmap
 Public bm_Close As MImage
 
 Public Enum E_START_POSITIONS
@@ -156,67 +163,22 @@ End Type
 
 
 Public Type T_CONFIG
-    ' /* non-configurable elements */
-'    STEP_SIZE As Double
 
-    ' /* user-configurable elements */
-'    default_position As E_START_POSITIONS
-'    default_opacity As Long
-    show_msg_on_start As Boolean
     run_on_logon As Boolean
-'    default_dye_colour As Long      ' // rgba
-
-    ' /* R2.0 (V38.13) */
-'    default_style As String
-
-    ' /* R2.0 (V38.32) */
-    sticky_snarls As Boolean
-    log_only As Boolean
-    default_duration As Long
-
-    ' /* R2.04 (V38.82) */
     font_smoothing As E_FONTSMOOTHING
-    melontype_contrast As Long
-
-    ' /* R2.1 (V39) */
-'    listen_for_json As Boolean
-'    listen_for_snarl As Boolean
-    suppress_delay As Long          ' // in ms
+'    suppress_delay As Long          ' // in ms
     hotkey_prefs As Long            ' // MAKELONG(mods,key)
-'    hotkey_test_message As Long     ' // MAKELONG(mods,key)
-    notify_on_first_register As Boolean
-    global_opacity As Long
-    last_sound_folder As String
-    show_tray_icon As Boolean
-    ignore_new_classes As Boolean   ' // new alert classes are always disabled by default
-
-    ' /* R2.2 */
+'    last_sound_folder As String
     use_hotkey As Boolean
     do_not_disturb_ As Boolean      ' // not persitent: user-controlled DND setting
     dnd_count As Long               ' // set using WM_MANAGE_SNARL
-
-    idle_timeout As Long     ' // number of seconds of idle before enabling sticky mode
-    margin_spacing As Long          ' // px between notification and screen edge
-'    icon_theme As String            ' // name of icon theme to use (if blank, 'default_theme' is used)
     use_dropshadow As Boolean
-    dropshadow_strength As Long
-    dropshadow_size As Long
-    auto_update As Boolean
     last_update_check As Date
-
-'    enable_sounds As Boolean
-'    use_style_sounds As Boolean
-'    prefer_style_sounds As Boolean
-'    default_notification_sound As String
-'    default_priority_sound As String
-
     AgreeBetaUsage As Boolean
 
 End Type
 
 Public g_Prefs As T_CONFIG
-'Public g_TempPrefs As T_CONFIG
-'Dim m_GlobalId As Long
 
 Dim mSettings As ConfigFile         ' // V40.25 - new way of managing persistent settings
 Dim mConfig As ConfigSection        ' // V40.25 - the actual config section
@@ -258,51 +220,78 @@ Public gLastErr As SNARL_STATUS_41      ' // V41 api
 
 Private Declare Function WinExec Lib "kernel32" (ByVal lpCmdLine As String, ByVal nCmdShow As Long) As Long
 Public Declare Sub CoFreeUnusedLibrariesEx Lib "ole32" (ByVal dwUnloadDelay As Long, ByVal dwReserved As Long)
+Private Declare Function RegisterClipboardFormat Lib "user32" Alias "RegisterClipboardFormatA" (ByVal lpString As String) As Long
+
 'Private Declare Function GetModuleHandle Lib "kernel32" Alias "GetModuleHandleA" (ByVal lpModuleName As String) As Long
 'Private Declare Sub CoFreeLibrary Lib "ole32.dll" (ByVal hInst As Long)
 
-'Public gClassToken As Long
-
 Public Sub Main()
-Dim sz As String
+Dim szArg() As String
 Dim l As Long
 
-    ' /* first off, get the command line */
-
-    sz = Command$
+'Dim iv As MVersionInfo
+'
+'    Set iv = web_resource.globals
+'    MsgBox iv.Version & "." & iv.Revision
 
     ' /* get comctl.dll loaded up for our XP manifest... */
 
     g_InitComCtl
 
-    ' /* if '-quit' was specified in the command line look for an already
-    '    running instance of snarl and tell it to quit */
+    ' /* is Snarl already running? */
 
-    If InStr(sz, "-quit") Then
-        l = FindWindow(WINDOW_CLASS, "Snarl")
-        If l <> 0 Then _
-            SendMessage l, WM_CLOSE, 0, ByVal 0&    ' // tell the running instance to quit...
-                    ' // better to use WM_CLOSE??
+    l = FindWindow(WINDOW_CLASS, "Snarl")
 
+
+    szArg = Split(Command$, " ")
+    If UBound(szArg) > -1 Then
+        ' /* command specified, but which? */
+        Select Case LCase$(szArg(0))
+        Case "-quit"
+            If l <> 0 Then _
+                SendMessage l, WM_CLOSE, 0, ByVal 0&
+
+            Exit Sub
+
+        Case "-debug"
+            gDebugMode = True
+
+
+        Case "-install"
+            ' /* must have one further arg: style engine or extension to install */
+
+            If (UBound(szArg()) = 1) And (l <> 0) Then
+                PostMessage l, MSG_SHOW_PREFS, 1, ByVal RegisterClipboardFormat(szArg(1))
+                Exit Sub
+
+            End If
+
+        Case "-configure"
+            ' /* must have one further arg: style or extension to install */
+
+            If (UBound(szArg()) = 1) And (l <> 0) Then
+                PostMessage l, MSG_SHOW_PREFS, 2, ByVal RegisterClipboardFormat(szArg(1))
+                Exit Sub
+
+            End If
+
+        End Select
+
+    End If
+
+    If l <> 0 Then
+        ' /* Snarl is already running (and no useful command-line arg specified) */
+        PostMessage l, MSG_SHOW_PREFS, 0, ByVal 0&    ' // tell the running instance to show its ui...
         Exit Sub
 
     End If
 
     App.TaskVisible = False
 
-    ' /* check we're not already running */
-
-    l = FindWindow(WINDOW_CLASS, "Snarl")
-    If l <> 0 Then
-        PostMessage l, MSG_SHOW_PREFS, 0, ByVal 0&    ' // tell the running instance to show its gui...
-        Exit Sub
-
-    End If
-
     ' /* V38.133 - enable debug mode if switch present */
     ' /* V40.18 - or if either CTRL key is held down */
 
-    gDebugMode = (InStr(sz, "-debug") > 0) Or (g_IsPressed(VK_LCONTROL)) Or (g_IsPressed(VK_RCONTROL))
+    gDebugMode = gDebugMode Or (g_IsPressed(VK_LCONTROL)) Or (g_IsPressed(VK_RCONTROL))
 
     If gDebugMode Then
         ' /* start logging */
@@ -507,11 +496,16 @@ Dim dStep As Double
 
     g_GetIconThemes
 
-    ' /* tell everyone we're open for business */
+    ' /* set master running flag */
 
-    g_Debug "Notifying ready to run..."
-    g_SetRunning True, True
+    g_SetRunning True, False
 
+    ' /* display welcome message */
+
+    If g_ConfigGet("show_msg_on_start") = "1" Then _
+        snShowMessageEx "Welcome Message", "Welcome to Snarl!", _
+                        "Snarl " & g_Version() & vbCrLf & App.LegalCopyright & vbCrLf & "http://www.fullphat.net", _
+                        -1, g_MakePath(App.Path) & "etc\icons\snarl.png"
 
     ' /* get extensions */
 
@@ -532,7 +526,7 @@ Dim pBetaPanel As TBetaPanel
 
 #End If
 
-    If g_Prefs.auto_update Then
+    If g_ConfigGet("auto_update") = "1" Then
         g_Debug "Main(): Doing auto-update check..."
         Set myUpdateCheck = New TAutoUpdate
         If myUpdateCheck.Check(False) Then _
@@ -542,6 +536,11 @@ Dim pBetaPanel As TBetaPanel
         g_Debug "Main(): Auto-update is disabled"
 
     End If
+
+    ' /* tell everyone we're open for business */
+
+    g_Debug "Notifying ready to run..."
+    PostMessage HWND_BROADCAST, snGetGlobalMsg(), SNARL_LAUNCHED, ByVal CLng(App.Major)
 
     g_Debug "Main(): startup complete"
     With New BMsgLooper
@@ -569,7 +568,7 @@ Dim t As Long
     If uSnarlGlobal > 0 Then
         g_Debug "main(): broadcasting SNARL_QUIT..."
 '        SendMessageTimeout HWND_BROADCAST, um, SNARL_QUIT, ByVal 0&, SMTO_NORMAL, 10, i
-        PostMessage HWND_BROADCAST, uSnarlGlobal, SNARL_QUIT, ByVal 0&
+        PostMessage HWND_BROADCAST, uSnarlGlobal, SNARL_QUIT, ByVal CLng(App.Major)
 
     Else
         g_Debug "main(): snGetGlobalMsg() returned zero", LEMON_LEVEL_WARNING
@@ -615,140 +614,27 @@ nonitro:
     close_library "graphics.library"
 
 nographics:
-
 noexec:
 
-'    lemonUnregister
-
 End Sub
-
-
-'Public Sub g_Quit()
-'Dim um As Long
-'Dim i As Long
-'
-'    ' /* broadcast SNARL_QUIT */
-'
-'    um = snGetGlobalMsg()
-'    If um > 0 Then
-'        sosOutput "g_Quit(): broadcasting SNARL_QUIT..."
-''        SendMessageTimeout HWND_BROADCAST, um, SNARL_QUIT, ByVal 0&, SMTO_NORMAL, 10, i
-'        PostMessage HWND_BROADCAST, um, SNARL_QUIT, ByVal 0&
-'
-'    Else
-'        sosOutput "g_Quit(): snGetGlobalMsg() returned zero", LEMON_LEVEL_WARNING
-'
-'    End If
-'
-'    ' /* stop various rosters - order *is* important
-'    '    (and should be reverse of startup) */
-'
-'    g_Debug "g_Quit(): stopping extension roster..."
-'    melonLibClose g_ExtnRoster
-'    melonLibUninit g_ExtnRoster
-'
-'    g_Debug "g_Quit(): stopping style roster..."
-'    melonLibClose g_StyleRoster
-'    melonLibUninit g_StyleRoster
-'
-'    g_Debug "g_Quit(): stopping application roster..."
-'    melonLibClose g_AppRoster
-'    melonLibUninit g_AppRoster
-'
-'    g_Debug "g_Quit(): stopping notification roster..."
-'    melonLibClose g_NotificationRoster
-'    melonLibUninit g_NotificationRoster
-'
-'
-'
-''    If mNotifications Then
-''        sosOutput "g_Quit(): zapping " & CStr(mNotifications) & " snarl(s)"
-''        For i = mNotifications To 1 Step -1
-''            If Not (mNotification(i).Window Is Nothing) Then _
-''                mNotification(i).Window.Zap
-''
-''        Next i
-''    End If
-''
-''    ReDim mNotification(0)
-''    mNotifications = 0
-'
-''    If g_Applets Then
-''        For i = g_Applets To 1 Step -1
-''            If (IsWindow(g_Applet(i).hWnd) <> 0) And (g_Applet(i).uMsg <> 0) Then _
-''                SendMessage g_Applet(i).hWnd, g_Applet(i).uMsg, SNARL_QUIT, ByVal 0&
-''
-''        Next i
-''    End If
-'
-'    close_library "Nitro R1.2"
-'    close_library "graphics.library"
-'    close_library "openmenulite.library"
-'
-'    sosOutput "g_Quit(): done", LEMON_LEVEL_PROC
-'
-'End Sub
-
-
-
-'Public Function globalSetTimeout(ByVal msgId As Long, ByVal Timeout As Long) As M_RESULT
-'Dim i As Long
-'
-'    i = uFindMsg(msgId)
-'    If i Then
-'        g_Debug "globalSetTimeout(): id " & msgId & " found at index " & i, LEMON_LEVEL_INFO
-'        mNotification(i).Window.SetTimeout Timeout
-'        globalSetTimeout = M_OK
-'
-'    Else
-'        g_Debug "globalSetTimeout(): id " & msgId & " not found", LEMON_LEVEL_WARNING
-'        globalSetTimeout = M_NOT_FOUND
-'
-'    End If
-'
-'End Function
 
 Public Function g_ConfigInit() As Boolean
 
     On Error Resume Next
 
     With g_Prefs
-'        .default_position = E_START_BOTTOM_RIGHT
-        .show_msg_on_start = True
         .run_on_logon = True
-'        .step_size = 1#
-'        .default_dye_colour = 0     ' // none
-
-        .default_duration = 10
-        .log_only = False
-        .sticky_snarls = False
-'        .default_style = "iphoney/standard"
-
         .font_smoothing = E_MELONTYPE
-        .melontype_contrast = 10
-        .suppress_delay = 2000
+'        .suppress_delay = 2000
         .hotkey_prefs = vbKeyF10
-'        .hotkey_test_message = MAKELONG(MOD_CONTROL Or MOD_SHIFT, vbKeyF10)
-        .notify_on_first_register = False
-        .global_opacity = 100
-
 '        If g_GetSystemFolder(CSIDL_PERSONAL, sz) Then _
             .last_sound_folder = sz
 
-        .show_tray_icon = True
         .use_hotkey = True
         .do_not_disturb_ = False
-        .idle_timeout = 300          ' // == 5 minutes
-        .margin_spacing = 0
         .use_dropshadow = True
-        .dropshadow_strength = 88           ' // as a % - translated into a 0-255 opacity value
-        .dropshadow_size = 10
-'        .icon_theme = ""
-
-        .auto_update = True
 
     End With
-
 
     ' /* defaults */
 
@@ -779,7 +665,7 @@ Public Function g_ConfigInit() As Boolean
         .Add "global_opacity", "100"
         .Add "last_sound_folder", g_GetSystemFolderStr(CSIDL_PERSONAL)
         .Add "show_tray_icon", "1"
-        .Add "ignore_new_classes", "0"      ' // new alert classes are always disabled by default
+        .Add "ignore_new_classes", "0"      ' // new alert classes are always enabled by default
 
         ' /* R2.2 */
         .Add "use_hotkey", "1"
@@ -849,408 +735,6 @@ Dim i As Long
 
 End Function
 
-
-'Public Function g_ReadConfig() As Boolean
-'Dim sz As String
-'Dim dw As Long
-'Dim i As Long
-'Dim f As Boolean
-'
-'    On Error Resume Next
-'
-'    ' /* defaults */
-'
-'    With g_Prefs
-'        .default_position = E_START_BOTTOM_RIGHT
-'        .show_msg_on_start = True
-'        .run_on_logon = True
-''        .step_size = 1#
-''        .default_dye_colour = 0     ' // none
-'
-'        .default_duration = 10
-'        .log_only = False
-'        .sticky_snarls = False
-'        .default_style = "iphoney/standard"
-'
-'        .font_smoothing = E_MELONTYPE
-'        .melontype_contrast = 10
-'        .suppress_delay = 2000
-'        .hotkey_prefs = vbKeyF10
-''        .hotkey_test_message = MAKELONG(MOD_CONTROL Or MOD_SHIFT, vbKeyF10)
-'        .notify_on_first_register = False
-'        .global_opacity = 100
-'
-'        If g_GetSystemFolder(CSIDL_PERSONAL, sz) Then _
-'            .last_sound_folder = sz
-'
-'        .show_tray_icon = True
-'        .use_hotkey = True
-'        .do_not_disturb_ = False
-'        .idle_timeout = 300          ' // == 5 minutes
-'        .margin_spacing = 0
-'        .use_dropshadow = True
-'        .dropshadow_strength = 88           ' // as a % - translated into a 0-255 opacity value
-'        .dropshadow_size = 10
-'        .icon_theme = ""
-'
-'        .auto_update = True
-'
-'        .enable_sounds = True
-'        .use_style_sounds = True
-'        .prefer_style_sounds = False
-'        .default_notification_sound = ""
-'        .default_priority_sound = ""
-'
-'    End With
-'
-'    ' /* do we have a V37 config? */
-'
-'    g_Debug "g_ReadConfig(): loading config..."
-'
-'    Set g_Settings = New ConfigFile
-'    With g_Settings
-'        If g_GetSystemFolder(CSIDL_APPDATA, sz) Then
-'            ' /* V38 - look for settings in %appdata% first */
-'            .File = g_MakePath(sz) & "full phat\snarl\etc\v41.snarl"
-'            f = .Load()
-'
-'            If Not f Then _
-'                g_Debug "g_ReadConfig(): not found in '" & .File & "'"
-'
-'        End If
-'
-'        If Not f Then
-'            ' /* if this fails, look in %pwd% */
-'            .File = g_MakePath(App.Path) & "etc\v41.snarl"
-'            f = .Load()
-'            If Not f Then _
-'                g_Debug "g_ReadConfig(): not found in '" & .File & "'"
-'
-'        End If
-'
-'        If f Then
-'            i = .FindSection("snarl")
-'            If i = 0 Then
-'                g_Debug "g_ReadConfig(): pre-V37 config detected", LEMON_LEVEL_WARNING
-'
-'                ' /* load existing settings */
-'
-'                With New CConfFile
-'                    If .SetTo(g_MakePath(App.Path) & "etc\.snarl") Then
-'
-'                        val(g_configget("step_size")) = .GetValueWithDefault("gfxdelta", "0")
-'
-''                        If .FindEntry("snarlopacity", sz) Then
-''                            dw = Val(sz)
-''                            If (dw < 1) Or (dw > 255) Then
-''                                g_Debug "g_ReadConfig(): 'snarlopacity' was set to invalid value '" & sz & "'", LEMON_LEVEL_WARNING
-''                                dw = 200
-''
-''                            End If
-''                            g_Prefs.default_opacity = dw
-''
-''                        End If
-'
-'                        If .FindEntry("startinfo", sz) Then _
-'                            g_Prefs.show_msg_on_start = .StrToBool(sz)
-'
-'                        If .FindEntry("startonlogon", sz) Then _
-'                            g_Prefs.run_on_logon = .StrToBool(sz)
-'
-'                        ' /* XxXxXxXxXxX DON'T ADD HERE!  THIS IS FOR PRE-V37 CONFIGS XxXxXxXxXxX */
-'
-'                    Else
-'                        g_Debug "g_ReadConfig(): failed to load pre-V37 config", LEMON_LEVEL_CRITICAL
-'
-'                    End If
-'
-'                End With
-'            Else
-'                ' /* read settings from V37 config */
-'
-'                g_Debug "g_ReadConfig(): using V37 config", LEMON_LEVEL_INFO
-'                val(g_configget("step_size")) = Val(.SectionAt(i).GetValueWithDefault("gfxdelta", "0"))
-'                g_Prefs.default_position = Val(.SectionAt(i).GetValueWithDefault("default_position", CStr(E_START_POSITIONS.E_START_BOTTOM_RIGHT)))
-''                g_Prefs.default_opacity = Val(.SectionAt(i).GetValueWithDefault("snarlopacity", 255))
-'                g_Prefs.show_msg_on_start = .StrToBool(.SectionAt(i).GetValueWithDefault("startinfo", "1"))
-'                g_Prefs.run_on_logon = .StrToBool(.SectionAt(i).GetValueWithDefault("startonlogon", "1"))
-'                g_Prefs.default_style = .SectionAt(i).GetValueWithDefault("default_style", "iphoney/standard")
-'                g_Prefs.log_only = .StrToBool(.SectionAt(i).GetValueWithDefault("log_only", "0"))
-'                g_Prefs.sticky_snarls = .StrToBool(.SectionAt(i).GetValueWithDefault("sticky_snarls", "0"))
-'                g_Prefs.default_duration = Val(.SectionAt(i).GetValueWithDefault("default_duration", "10"))
-'
-'                With g_Prefs
-'                    If .default_duration < 0 Then
-'                        .default_duration = 0
-'
-'                    ElseIf .default_duration > 60 Then
-'                        .default_duration = 60
-'
-'                    End If
-'
-'                    If (.default_position < 0) Or (.default_position > 3) Then _
-'                        .default_position = E_START_BOTTOM_RIGHT
-'
-'                End With
-'
-'                ' /* R2.04 */
-'
-'                g_Prefs.font_smoothing = Val(.SectionAt(i).GetValueWithDefault("font_smoothing", "0"))
-'                g_Prefs.melontype_contrast = Val(.SectionAt(i).GetValueWithDefault("melontype_contrast", "10"))
-'
-'                With g_Prefs
-'                    If (.font_smoothing < E_MELONTYPE) Or (.font_smoothing > E_WINDOWS_DEFAULT) Then _
-'                        .font_smoothing = E_MELONTYPE
-'
-'                    If (.melontype_contrast < 0) Or (.melontype_contrast > 100) Then _
-'                        .melontype_contrast = 10
-'
-'                    ' /* R2.06 */
-'                    If .default_style = "" Then _
-'                        .default_style = "glass/smoke"
-'
-'                End With
-'
-'                ' /* R2.1 */
-'
-'                g_Prefs.listen_for_json = .StrToBool(.SectionAt(i).GetValueWithDefault("listen_for_json", "0"))
-'                g_Prefs.listen_for_snarl = .StrToBool(.SectionAt(i).GetValueWithDefault("listen_for_snarl", "0"))
-'                g_Prefs.suppress_delay = Val(.SectionAt(i).GetValueWithDefault("suppress_delay", "2000"))
-'
-'                With g_Prefs
-'                    If .suppress_delay < 500 Then _
-'                        .suppress_delay = 500
-'
-'                End With
-'
-'                If .SectionAt(i).Find("hotkey_prefs", sz) Then _
-'                    g_Prefs.hotkey_prefs = Val(sz)
-'
-'                g_Prefs.notify_on_first_register = .StrToBool(.SectionAt(i).GetValueWithDefault("notify_on_first_register", "0"))
-'
-'                If .SectionAt(i).Find("global_opacity", sz) Then _
-'                    g_Prefs.global_opacity = Val(sz)
-'
-'                ' /* 2.1b4 */
-'
-'                With g_Prefs
-'                    If .global_opacity > 100 Then
-'                        .global_opacity = 100
-'
-'                    ElseIf .global_opacity < 1 Then
-'                        .global_opacity = 1
-'
-'                    End If
-'
-'                End With
-'
-'                If .SectionAt(i).Find("last_sound_folder", sz) Then _
-'                    g_Prefs.last_sound_folder = sz
-'
-'                g_Prefs.show_tray_icon = .StrToBool(.SectionAt(i).GetValueWithDefault("show_tray_icon", "1"))
-'                g_Prefs.ignore_new_classes = .StrToBool(.SectionAt(i).GetValueWithDefault("ignore_new_classes", "0"))
-'
-'                ' /* 2.2 */
-'
-'                g_Prefs.use_hotkey = .StrToBool(.SectionAt(i).GetValueWithDefault("use_hotkey", "1"))
-'                g_Prefs.do_not_disturb_ = .StrToBool(.SectionAt(i).GetValueWithDefault("do_not_disturb", "0"))
-'
-'                If .SectionAt(i).Find("idle_timeout", sz) Then _
-'                    g_Prefs.idle_timeout = Val(sz)
-'
-'                If .SectionAt(i).Find("margin_spacing", sz) Then _
-'                    g_Prefs.margin_spacing = Val(sz)
-'
-'                g_Prefs.use_dropshadow = .StrToBool(.SectionAt(i).GetValueWithDefault("use_dropshadow", "1"))
-'
-'                If .SectionAt(i).Find("dropshadow_strength", sz) Then _
-'                    g_Prefs.dropshadow_strength = Val(sz)
-'
-'                With g_Prefs
-'                    If .dropshadow_strength > 100 Then
-'                        .dropshadow_strength = 100
-'
-'                    ElseIf .dropshadow_strength < 0 Then
-'                        .dropshadow_strength = 0
-'
-'                    End If
-'
-'                End With
-'
-'                If .SectionAt(i).Find("dropshadow_size", sz) Then _
-'                    g_Prefs.dropshadow_size = Val(sz)
-'
-'                If .SectionAt(i).Find("icon_theme", sz) Then _
-'                    g_Prefs.icon_theme = sz
-'
-'                ' /* note the name mismatch - the config file entry changes depending on the
-'                '    beta this release actually is */
-'
-'                If .SectionAt(i).Find("AgreeR22BetaUsage", sz) Then _
-'                    g_Prefs.AgreeBetaUsage = (sz = "1")
-'
-'                If .SectionAt(i).Find("auto_update", sz) Then _
-'                    g_Prefs.auto_update = (sz = "1")
-'
-'                If .SectionAt(i).Find("enable_sounds", sz) Then _
-'                    g_Prefs.enable_sounds = (sz = "1")
-'
-'                If .SectionAt(i).Find("use_style_sounds", sz) Then _
-'                    g_Prefs.use_style_sounds = (sz = "1")
-'
-'                If .SectionAt(i).Find("prefer_style_sounds", sz) Then _
-'                    g_Prefs.prefer_style_sounds = (sz = "1")
-'
-'                If .SectionAt(i).Find("default_notification_sound", sz) Then _
-'                    g_Prefs.default_notification_sound = sz
-'
-'                If .SectionAt(i).Find("default_priority_sound", sz) Then _
-'                    g_Prefs.default_priority_sound = sz
-'
-'
-'                g_ReadConfig = True
-'
-'            End If
-'
-'        Else
-'            g_Debug "g_ReadConfig(): config not found", LEMON_LEVEL_WARNING
-'
-'        End If
-'
-'        If i = 0 Then _
-'            .AddSection "snarl"
-'
-'
-'        i = .FindSection("remote_computers")
-'
-'        If i Then
-'            Set gRemoteComputers = .SectionAt(i)
-'
-'        Else
-'            i = .AddSection("remote_computers")
-'            Set gRemoteComputers = .SectionAt(i)
-'
-'        End If
-'
-'    End With
-'
-'    ' /* validate settings */
-'
-''    dw = Val(g_Prefs.default_opacity)
-''    If (dw < 1) Or (dw > 255) Then
-''        g_Debug "g_ReadConfig(): 'snarlopacity' was set to invalid value '" & sz & "'", LEMON_LEVEL_WARNING
-''        dw = 200
-''
-''    End If
-''    g_Prefs.default_opacity = dw
-'
-''    If val(g_configget("step_size")) < 1# Then _
-''        val(g_configget("step_size")) = 1
-'
-'    g_ReadConfig = (val(g_configget("step_size")) > 0)
-'
-'    ' /* write updated file out */
-'
-'    g_WriteConfig
-'
-'End Function
-
-'Public Sub g_WriteConfig()
-'
-'    Debug.Print "g_WriteConfig: " & gNoWriteConfig
-'
-'    If gNoWriteConfig Then _
-'        Exit Sub
-'
-'    ' /* V38 - always save to %appdata% */
-'
-'Dim sz As String
-'
-'    If Not g_GetSystemFolder(CSIDL_APPDATA, sz) Then
-'        g_Debug "g_WriteConfig(): couldn't retrieve %appdata% location", LEMON_LEVEL_CRITICAL
-'        Exit Sub
-'
-'    End If
-'
-'    sz = g_MakePath(sz) & "full phat\snarl\etc"
-'    create_directory_path sz
-'
-'Dim i As Long
-'
-'    With g_Settings
-'        ' /* V38 - force the filename */
-'        .File = g_MakePath(sz) & ".snarl"
-'
-'        i = .FindSection("snarl")
-'        If i Then
-'            With .SectionAt(i)
-'                .Update "gfxdelta", CStr(g_Prefs.STEP_SIZE)
-'                .Update "default_position", CStr(g_Prefs.default_position)
-'                .Update "startinfo", g_Settings.BoolToStr(g_Prefs.show_msg_on_start)
-'                .Update "startonlogon", g_Settings.BoolToStr(g_Prefs.run_on_logon)
-'                .Update "default_style", g_Prefs.default_style
-'
-'                .Update "log_only", g_Settings.BoolToStr(g_Prefs.log_only)
-'                .Update "sticky_snarls", g_Settings.BoolToStr(g_Prefs.sticky_snarls)
-'                .Update "default_duration", CStr(g_Prefs.default_duration)
-'
-'                ' /* R2.04 */
-'                .Update "font_smoothing", CStr(g_Prefs.font_smoothing)
-'                .Update "melontype_contrast", CStr(g_Prefs.melontype_contrast)
-'
-'                ' /* R2.1 */
-'                .Update "listen_for_json", g_Settings.BoolToStr(g_Prefs.listen_for_json)
-'                .Update "listen_for_snarl", g_Settings.BoolToStr(g_Prefs.listen_for_snarl)
-'                .Update "suppress_delay", CStr(g_Prefs.suppress_delay)
-'                .Update "hotkey_prefs", CStr(g_Prefs.hotkey_prefs)
-'                .Update "notify_on_first_register", g_Settings.BoolToStr(g_Prefs.notify_on_first_register)
-'                ' /* R2.1d4 */
-'                .Update "global_opacity", CStr(g_Prefs.global_opacity)
-'                .Update "last_sound_folder", g_Prefs.last_sound_folder
-'                .Update "show_tray_icon", g_Settings.BoolToStr(g_Prefs.show_tray_icon)
-'                .Update "ignore_new_classes", g_Settings.BoolToStr(g_Prefs.ignore_new_classes)
-'                ' /* R2.2 */
-'                .Update "use_hotkey", g_Settings.BoolToStr(g_Prefs.use_hotkey)
-'                .Update "do_not_disturb", g_Settings.BoolToStr(g_Prefs.do_not_disturb_)
-'                .Update "idle_timeout", CStr(g_Prefs.idle_timeout)
-'                .Update "margin_spacing", CStr(g_Prefs.margin_spacing)
-'                .Update "use_dropshadow", g_Settings.BoolToStr(g_Prefs.use_dropshadow)
-'                .Update "dropshadow_strength", CStr(g_Prefs.dropshadow_strength)
-'                .Update "dropshadow_size", CStr(g_Prefs.dropshadow_size)
-'                .Update "icon_theme", g_Prefs.icon_theme
-'                .Update "auto_update", g_Settings.BoolToStr(g_Prefs.auto_update)
-'
-'
-'                .Update "AgreeR22BetaUsage", g_Settings.BoolToStr(g_Prefs.AgreeBetaUsage)
-'
-'            End With
-'
-'            If Not (g_AppRoster Is Nothing) Then _
-'                g_AppRoster.WriteConfig
-'
-'
-''            With gRemoteConfig
-''                .MakeEmpty
-''                If gRemoteCount Then
-''                    For i = 1 To gRemoteCount
-''                        .Add "ip", gRemoteComputer(i).HostNameOrIp
-''
-''                    Next i
-''                End If
-''
-''            End With
-'
-'        Else
-'            g_Debug "g_WriteConfig(): [snarl] section missing - can't write contents", LEMON_LEVEL_CRITICAL
-'
-'        End If
-'
-'        .Save
-'
-'    End With
-'
-'End Sub
-
 Public Function g_ConfigGet(ByVal Name As String) As String
 
     ' /* pre-set with default */
@@ -1292,84 +776,6 @@ Public Sub g_WriteConfig()
     g_Debug "g_WriteConfig(): writing to " & mSettings.File & "..."
     mSettings.Save
 
-    ' /* V38 - always save to %appdata% */
-
-'Dim sz As String
-'
-'    If Not g_GetSystemFolder(CSIDL_APPDATA, sz) Then
-'        g_Debug "g_WriteConfig(): couldn't retrieve %appdata% location", LEMON_LEVEL_CRITICAL
-'        Exit Sub
-'
-'    End If
-
-'    sz = g_MakePath(sz) & "full phat\snarl\etc"
-'    create_directory_path sz
-'
-'Dim i As Long
-'
-'    With g_Settings
-'        ' /* V38 - force the filename */
-'        .File = g_MakePath(sz) & "v41.snarl"
-'
-'        i = .FindSection("snarl")
-'        If i Then
-'            With .SectionAt(i)
-'                .Update "gfxdelta", CStr(g_Prefs.STEP_SIZE)
-'                .Update "default_position", CStr(g_Prefs.default_position)
-'                .Update "startinfo", g_Settings.BoolToStr(g_Prefs.show_msg_on_start)
-'                .Update "startonlogon", g_Settings.BoolToStr(g_Prefs.run_on_logon)
-'                .Update "default_style", g_Prefs.default_style
-'
-'                .Update "log_only", g_Settings.BoolToStr(g_Prefs.log_only)
-'                .Update "sticky_snarls", g_Settings.BoolToStr(g_Prefs.sticky_snarls)
-'                .Update "default_duration", CStr(g_Prefs.default_duration)
-'
-'                ' /* R2.04 */
-'                .Update "font_smoothing", CStr(g_Prefs.font_smoothing)
-'                .Update "melontype_contrast", CStr(g_Prefs.melontype_contrast)
-'
-'                ' /* R2.1 */
-'                .Update "listen_for_json", g_Settings.BoolToStr(g_Prefs.listen_for_json)
-'                .Update "listen_for_snarl", g_Settings.BoolToStr(g_Prefs.listen_for_snarl)
-'                .Update "suppress_delay", CStr(g_Prefs.suppress_delay)
-'                .Update "hotkey_prefs", CStr(g_Prefs.hotkey_prefs)
-'                .Update "notify_on_first_register", g_Settings.BoolToStr(g_Prefs.notify_on_first_register)
-'                ' /* R2.1d4 */
-'                .Update "global_opacity", CStr(g_Prefs.global_opacity)
-'                .Update "last_sound_folder", g_Prefs.last_sound_folder
-'                .Update "show_tray_icon", g_Settings.BoolToStr(g_Prefs.show_tray_icon)
-'                .Update "ignore_new_classes", g_Settings.BoolToStr(g_Prefs.ignore_new_classes)
-'                ' /* R2.2 */
-'                .Update "use_hotkey", g_Settings.BoolToStr(g_Prefs.use_hotkey)
-'                .Update "do_not_disturb", g_Settings.BoolToStr(g_Prefs.do_not_disturb_)
-'                .Update "idle_timeout", CStr(g_Prefs.idle_timeout)
-'                .Update "margin_spacing", CStr(g_Prefs.margin_spacing)
-'                .Update "use_dropshadow", g_Settings.BoolToStr(g_Prefs.use_dropshadow)
-'                .Update "dropshadow_strength", CStr(g_Prefs.dropshadow_strength)
-'                .Update "dropshadow_size", CStr(g_Prefs.dropshadow_size)
-'                .Update "icon_theme", g_Prefs.icon_theme
-'                .Update "auto_update", g_Settings.BoolToStr(g_Prefs.auto_update)
-'
-'
-'                .Update "AgreeR22BetaUsage", g_Settings.BoolToStr(g_Prefs.AgreeBetaUsage)
-'
-'            End With
-'
-'            If Not (g_AppRoster Is Nothing) Then _
-'                g_AppRoster.WriteConfig
-'
-'
-''            With gRemoteConfig
-''                .MakeEmpty
-''                If gRemoteCount Then
-''                    For i = 1 To gRemoteCount
-''                        .Add "ip", gRemoteComputer(i).HostNameOrIp
-''
-''                    Next i
-''                End If
-''
-''            End With
-
 End Sub
 
 Public Function g_Version() As String
@@ -1381,72 +787,57 @@ Public Function g_Version() As String
 
 End Function
 
-Public Sub g_SetRunning(ByVal IsRunning As Boolean, Optional ByVal Startup As Boolean)
-Dim snarl_msg As Long
-Dim i As Long
-Dim rv As Long
+Public Sub g_SetRunning(ByVal IsRunning As Boolean, Optional ByVal Broadcast As Boolean = True)
 
     If g_IsRunning = IsRunning Then _
         Exit Sub
 
-    ' /* this just updates the tray icon menu contents */
+Dim dw As Long
 
-    If Not IsRunning Then
+    If IsRunning Then
+        ' /* set master flag *first* */
+        g_IsRunning = True
+
+        ' /* tell the extensions */
+        If Not (g_ExtnRoster Is Nothing) Then _
+            g_ExtnRoster.SendSnarlState True
+
+        ' /* tell our applications we're starting */
+        If Not (g_AppRoster Is Nothing) Then _
+            g_AppRoster.SendAll SNARL_LAUNCHED
+
+'        If Broadcast Then
+'            ' /* send started broadcast */
+'            g_Debug "g_SetRunning(): Broadcasting SNARL_LAUNCHED..."
+'            SendMessageTimeout HWND_BROADCAST, snGetGlobalMsg(), SNARL_LAUNCHED, ByVal CLng(App.Major), SMTO_ABORTIFHUNG, 500, dw
+'
+'        End If
+
+    Else
+
+'        If Broadcast Then
+'            ' /* send stopped broadcast */
+'            g_Debug "g_SetRunning(): Broadcasting SNARL_QUIT..."
+'            SendMessageTimeout HWND_BROADCAST, snGetGlobalMsg(), SNARL_QUIT, ByVal CLng(App.Major), SMTO_ABORTIFHUNG, 500, dw
+'
+'        End If
+
         ' /* close all notifications */
         If Not (g_NotificationRoster Is Nothing) Then _
             g_NotificationRoster.CloseMultiple 0
+
+        ' /* tell the extensions */
+        If Not (g_ExtnRoster Is Nothing) Then _
+            g_ExtnRoster.SendSnarlState False
 
         ' /* tell our applications we've stopped */
         If Not (g_AppRoster Is Nothing) Then _
             g_AppRoster.SendAll SNARL_QUIT
 
-    Else
-        ' /* started running so set master flag now */
-
-        g_IsRunning = True
-
-    End If
-
-    ' /* special case (sic) - if 'Startup' is set, show our welcome message now */
-
-'    If Startup Then _
-        i = snShowMessageEx("Welcome Message", "Welcome to Snarl!", _
-                            "Snarl " & g_Version() & vbCrLf & App.LegalCopyright & vbCrLf & "http://www.fullphat.net", _
-                            10, "http://www.google.com/ig/images/weather/chance_of_rain.gif")
-
-    If Startup Then _
-        i = snShowMessageEx("Welcome Message", "Welcome to Snarl!", _
-                            "Snarl " & g_Version() & vbCrLf & App.LegalCopyright & vbCrLf & "http://www.fullphat.net", _
-                            10, g_MakePath(App.Path) & "etc\icons\snarl.png")
-
-
-'    Debug.Print "**: " & i
-'    If i <> 0 Then
-'        gfSetSnarlElement i, SNARL_ATTRIBUTE_ACK, "http://www.fullphat.net/"
-'
-'    End If
-
-    ' /* send started/stopped broadcast */
-
-    snarl_msg = snGetGlobalMsg()
-    If snarl_msg > 0 Then
-        g_Debug "g_SetRunning(): Broadcasting " & IIf(IsRunning, "SNARL_LAUNCHED", "SNARL_QUIT") & "..."
-        SendMessageTimeout HWND_BROADCAST, snarl_msg, IIf(IsRunning, SNARL_LAUNCHED, SNARL_QUIT), ByVal 0&, SMTO_ABORTIFHUNG, 10, i
-
-    Else
-        g_Debug "g_SetRunning(): couldn't get snarl global message", LEMON_LEVEL_WARNING
-
-    End If
-
-    ' /* tell the extensions */
-
-    If Not (g_ExtnRoster Is Nothing) Then _
-        g_ExtnRoster.SendSnarlState IsRunning
-
-    ' /* stopped running so set master flag here */
-
-    If Not IsRunning Then _
+        ' /* set master flag last */
         g_IsRunning = False
+
+    End If
 
 End Sub
 
@@ -1573,7 +964,7 @@ Dim dw As Long
             aView.SetLowColour rgba(get_red(TextColour), _
                                     get_green(TextColour), _
                                     get_blue(TextColour), _
-                                    (g_Prefs.melontype_contrast / 100) * 255)
+                                    (Val(g_ConfigGet("melontype_contrast")) / 100) * 255)
 
         Else
             aView.SetLowColour SmoothingColour
@@ -2001,7 +1392,7 @@ End Sub
 
 Public Function g_IsSticky() As Boolean
 
-    g_IsSticky = (g_Prefs.sticky_snarls) Or (gIsIdle)
+    g_IsSticky = (g_ConfigGet("sticky_snarls") = "1") Or (gIsIdle)
 
 End Function
 
@@ -2028,5 +1419,12 @@ End Function
 Public Function g_RemoveForwarder(ByVal UID As Long)
 
     Debug.Print "STUB: g_RemoveForwarder(" & CStr(UID) & ")"
+
+End Function
+
+Public Function g_SettingsPath() As String
+
+    If Not (mSettings Is Nothing) Then _
+        g_SettingsPath = mSettings.File
 
 End Function

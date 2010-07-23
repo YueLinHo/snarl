@@ -46,15 +46,16 @@ Public Function Init(ByVal URL As String) As Boolean
 
     End If
 
-    mTempIcon = g_GetSafeTempIconPath()
+    mTempIcon = g_GetSafeTempIconPath() & "." & g_GetExtension(URL)
     If mTempIcon = "" Then
         g_Debug "TDelayedNotification.Init(): couldn't create local temporary file", LEMON_LEVEL_CRITICAL
         Exit Function
 
     End If
 
-    g_Debug "TDelayedNotification.Init(): temporary icon is '" & mTempIcon & "'"
+'MsgBox URL
 
+    g_Debug "TDelayedNotification.Init(): saving as '" & mTempIcon & "'"
     Init = theIconRequest.GetFile(URL, mTempIcon)
 
 End Function
@@ -68,6 +69,8 @@ End Sub
 
 Private Sub theIconRequest_Completed(ByVal WasSuccessful As Boolean)
 Dim sz As String
+
+    Debug.Print "TDelayedNotification.Completed(): " & WasSuccessful
 
     If Not WasSuccessful Then
         ' /* didn't download for some reason so use the class default icon, if one exists */

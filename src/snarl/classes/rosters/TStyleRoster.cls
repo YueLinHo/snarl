@@ -413,7 +413,6 @@ Dim i As Long
         Exit Function
 
     Style = LCase$(Style)
-
     For i = 1 To mItems
         If LCase$(mItem(i).Name) = Style Then
             IndexOf = i

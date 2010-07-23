@@ -676,7 +676,7 @@ Dim sz As String
 
     End With
 
-    snShowMessage mInfo.Name & " " & mInfo.Release, sz, -1
+    snShowMessage mInfo.Name & " " & mInfo.Release, sz, -1, mInfo.IconPath
 
 End Sub
 

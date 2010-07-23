@@ -105,18 +105,9 @@ Dim f As Boolean
 
 End Function
 
-Public Function AddAlert(ByVal Class As String, ByVal Description As String, Optional ByRef ClassObject As TAlert) As M_RESULT
+Public Function AddAlert(ByVal Class As String, ByVal Description As String, Optional ByRef ClassObject As TAlert, Optional ByVal Flags As E_CLASS_FLAGS) As M_RESULT
 
     g_Debug "TApp.AddAlert()", LEMON_LEVEL_PROC_ENTER
-
-'    ' /* validate some key stuff */
-'
-'    If (g_Settings Is Nothing) Then
-'        g_Debug "TApp.AddAlert(): config error", LEMON_LEVEL_CRITICAL
-'        AddAlert = M_FAILED
-'        Exit Function
-'
-'    End If
 
     ' /* check the class isn't already registered */
 
@@ -154,7 +145,7 @@ Dim i As Long
 
     g_Debug "creating class object..."
     Set ClassObject = New TAlert
-    ClassObject.bInit Class, Description, Me, pClassSettings
+    ClassObject.bInit Class, Description, Me, pClassSettings, Flags
 
     mAlerts = mAlerts + 1
     ReDim Preserve mAlert(mAlerts)
@@ -429,12 +420,19 @@ Public Function AddClass(ByRef Data As BPackedData, Optional ByRef ClassObject A
 
     End If
 
-'Dim lFlags As E_ALERT_CLASS_FLAGS
+    ' /* enabled/disabled (backwards compatability with pre-release editions) */
+
+Dim lFlags As E_CLASS_FLAGS
+
+    If Data.Exists("enabled") Then
+        If Data.ValueOf("enabled") = "0" Then _
+            lFlags = lFlags Or E_CLASS_DISABLED
+
+    End If
 
     ' /* Use AddAlert() to actually add the class to our app */
-    ' /* TO DO: extract flags from packed data */
 
-    If AddAlert(Data.ValueOf("id"), Data.ValueOf("name"), ClassObject) <> M_OK Then _
+    If AddAlert(Data.ValueOf("id"), Data.ValueOf("name"), ClassObject, lFlags) <> M_OK Then _
         Exit Function
 
     ' /* do some V41 post-initialization */
@@ -449,7 +447,71 @@ Public Function AddClass(ByRef Data As BPackedData, Optional ByRef ClassObject A
 
     End With
 
+    frmAbout.bUpdateClassList mInfo.Token
     AddClass = -1
+
+End Function
+
+Public Function RemClass(ByRef Data As BPackedData) As Long
+
+    ' /* validate some key stuff */
+
+    If (Data Is Nothing) Then
+        g_Debug "TApp.RemClass(): config error", LEMON_LEVEL_CRITICAL
+        gLastErr = SNARL41_ERROR_FAILED
+        Exit Function
+
+    End If
+
+    If Data.ValueOf("all") = "1" Then
+        g_Debug "TApp.RemClass(): removing all classes..."
+        mAlerts = 0
+        ReDim mAlert(0)
+        AddAlert "_all", ""
+        RemClass = -1
+        frmAbout.bUpdateClassList mInfo.Token
+        Exit Function
+
+    End If
+
+    If Not Data.Exists("id") Then
+        g_Debug "TApp.RemClass(): required arg 'id' missing", LEMON_LEVEL_CRITICAL
+        gLastErr = SNARL41_ERROR_ARG_MISSING
+        Exit Function
+
+    End If
+
+    If Data.ValueOf("id") = "_all" Then
+        g_Debug "TApp.RemClass(): cannot remove '_all' class", LEMON_LEVEL_CRITICAL
+        gLastErr = SNARL41_ERROR_FAILED
+        Exit Function
+
+    End If
+
+Dim i As Long
+
+    i = uIndexOf(Data.ValueOf("id"))
+    If i = 0 Then
+        g_Debug "TApp.RemClass(): class '" & Data.ValueOf("id") & "' not found", LEMON_LEVEL_CRITICAL
+        gLastErr = SNARL41_ERROR_CLASS_NOT_FOUND
+        Exit Function
+
+    End If
+
+Dim j As Long
+
+    If i < mAlerts Then
+        For j = i To (mAlerts - 1)
+            Set mAlert(j) = mAlert(j + 1)
+
+        Next j
+
+    End If
+
+    mAlerts = mAlerts - 1
+    ReDim Preserve mAlert(mAlerts)
+    frmAbout.bUpdateClassList mInfo.Token
+    RemClass = -1
 
 End Function
 
@@ -485,3 +547,20 @@ Public Sub DoSettings()
         PostMessage mInfo.hWnd, sn41AppMsg(), SNARL41_APP_PREFS, ByVal 0&
 
 End Sub
+
+Private Function uIndexOf(ByVal Id As String) As Long
+
+    If mAlerts = 0 Then _
+        Exit Function
+
+Dim i As Long
+
+    For i = 1 To mAlerts
+        If mAlert(i).Name = Id Then
+            uIndexOf = i
+            Exit Function
+
+        End If
+    Next i
+
+End Function

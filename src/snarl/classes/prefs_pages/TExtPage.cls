@@ -54,7 +54,12 @@ Dim i As Long
         pc.SizeTo 0, 160
         .Add pc
 
-        .Add new_BPrefsControl("fancytoolbar", "ftb>extension", "Details|Configure|Advanced")
+        Set pc = new_BPrefsControl("fancytoolbar", "ftb>extension", "Details|Configure...|Show in Explorer")
+        prefskit_SetItem pc, 1, "enabled", 0&
+        prefskit_SetItem pc, 2, "enabled", 0&
+        prefskit_SetItem pc, 3, "enabled", 0&
+        .Add pc
+
 
 '        .Add new_BPrefsControl("fancybutton2", "fb2>ext.cfg", "Configure", , , , False)
 
@@ -66,7 +71,10 @@ Dim i As Long
 '        .Add new_BPrefsControl("label", "ext_info", String$(92, " "), "Version:")
         .Add new_BPrefsControl("label", "ext_stat", String$(92, " "), "")
 '        .Add new_BPrefsControl("separator", "")
-        .Add new_BPrefsControl("fancybutton2", "fb2>ext.reload", "Reload Extensions")
+        
+        .Add new_BPrefsControl("fancytoolbar", "toolbar-general", "Reload Extensions|Install Extension...")
+
+'        .Add new_BPrefsControl("fancybutton2", "fb2>ext.reload", "Reload Extensions")
         .Add new_BPrefsControl("separator", "")
 
         Set pm = New CTempMsg
@@ -86,8 +94,9 @@ Dim i As Long
 End Sub
 
 Private Sub KPrefsPage_ControlChanged(Control As BControl, ByVal Value As String)
+Dim pmi As OMMenuItem
+Dim pm As MMessage
 Dim pc As BControl
-'Dim px As TExtension
 Dim b As Boolean
 
     Debug.Print "[" & mPage.GetName() & "]: ControlChanged '" & Control.GetName() & "' >> '" & Value & "'"
@@ -127,8 +136,6 @@ Dim b As Boolean
 
     Case "ftb>extension"
 
-Dim pm As MMessage
-
         Select Case Val(Value)
         Case 1
             ' /* details */
@@ -141,7 +148,45 @@ Dim pm As MMessage
                 mCurrent.DoPrefs mPage.Panel.hWnd
 
         Case 3
-        
+            If Not (mCurrent Is Nothing) Then _
+                ShellExecute mPage.Panel.hWnd, "open", g_MakePath(mCurrent.Path), vbNullString, vbNullString, SW_SHOW
+            
+'            ' /* advanced */
+'            With New OMMenu
+'                .AddItem .CreateItem("expl", "Show in Explorer...")
+'                .AddItem .CreateItem("inst", "Install Extension...")
+'
+'                Set pmi = .Track(mPage.Panel.hWnd)
+'                If Not (pmi Is Nothing) Then
+'                    Select Case pmi.Name
+'                    Case "expl"
+'
+'                    Case "inst"
+'                        uDoInstallExtension
+'
+'                    End Select
+'                End If
+'
+'            End With
+
+        End Select
+
+
+    Case "toolbar-general"
+
+        Select Case Val(Value)
+        Case 1
+            ' /* reload */
+            If Not (g_ExtnRoster Is Nothing) Then
+                g_ExtnRoster.Reload
+                uUpdateExtensions
+
+            End If
+
+        Case 2
+            ' /* install */
+            uDoInstallExtension
+
         End Select
 
     End Select
@@ -156,13 +201,13 @@ Dim rv As Long
     Debug.Print "[" & mPage.GetName() & "]: ControlInvoked '" & Control.GetName() & "'"
 
     Select Case Control.GetName()
-    Case "fb2>ext.reload"
-        ' /* reload extensions */
-        If Not (g_ExtnRoster Is Nothing) Then
-            g_ExtnRoster.Reload
-            uUpdateExtensions
-
-        End If
+'    Case "fb2>ext.reload"
+'        ' /* reload extensions */
+'        If Not (g_ExtnRoster Is Nothing) Then
+'            g_ExtnRoster.Reload
+'            uUpdateExtensions
+'
+'        End If
 
     Case "fb2>ext.cfg"
         ' /* configure extension */
@@ -371,8 +416,12 @@ Dim sz As String
 
     ' /* toolbar 'configure' button */
 
-    If mPage.Find("ftb>extension", pc) Then _
+    If mPage.Find("ftb>extension", pc) Then
+        prefskit_SetItem pc, 1, "enabled", -1&
         prefskit_SetItem pc, 2, "enabled", IIf(mCurrent.IsEnabled, IIf((mCurrent.Flags And SNARL_EXTN_IS_CONFIGURABLE), 1&, 0&), 0&)
+        prefskit_SetItem pc, 3, "enabled", -1&
+
+    End If
 
 End Sub
 
@@ -388,6 +437,45 @@ Private Function uStr(ByVal str As String) As String
 
 End Function
 
+Private Sub uDoInstallExtension()
+Dim szError As String
+Dim szPath As String
+Dim sz As String
 
+    sz = InputBox("Enter the name of the extension to install", "Install Extension")
+    If sz = "" Then _
+        Exit Sub
 
+'    If LCase$(g_GetExtension(sz)) <> "extension" Then _
+        sz = sz & ".extension"
 
+    If Not (g_ExtnRoster Is Nothing) Then
+        If g_ExtnRoster.LoadExtensionByClass(sz, szError) Then
+            If g_GetUserFolderPath(szPath) Then
+                uCreateMarkerFile g_MakePath(szPath) & "extensions\" & sz & ".extension"
+                If Not (g_ExtnRoster Is Nothing) Then _
+                    g_ExtnRoster.WriteExcludeList
+
+            End If
+
+            uUpdateExtensions
+
+        Else
+            MsgBox szError, vbOKOnly Or vbExclamation, "Error Installing Extension"
+        
+        End If
+
+    End If
+
+End Sub
+
+Private Sub uCreateMarkerFile(ByVal File As String)
+Dim n As Integer
+
+    On Error Resume Next
+    
+    n = FreeFile()
+    Open File For Output As #n
+    Close #n
+
+End Sub

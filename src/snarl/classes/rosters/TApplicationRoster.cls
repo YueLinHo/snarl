@@ -227,7 +227,7 @@ Dim pInfo As T_SNARL_APP
         .LargeIcon = .Icon                       ' // no need for two icons: V41 spec recommends 128x128px icon
 
         .hWnd = Val(Data.ValueOf("hwnd"))
-'        .uMsg = Val(Data.ValueOf("umsg"))
+        .uMsg = Val(Data.ValueOf("umsg"))
 
         .Flags = Val(Data.ValueOf("flags"))
 
@@ -320,12 +320,12 @@ Dim bShow As Boolean
 
     ' /* don't show if it's us or we're locked */
 
-Debug.Print "(): " & g_Prefs.notify_on_first_register & " >> " & g_IgnoreLock
+'Debug.Print "(): " & g_Prefs.notify_on_first_register & " >> " & g_IgnoreLock
 
     If (theApp.Name = App.Title) Or (g_IgnoreLock) > 0 Then
         bShow = False
 
-    ElseIf g_Prefs.notify_on_first_register Then
+    ElseIf g_ConfigGet("notify_on_first_register") = "1" Then
         ' /* if notify_on_first_register is set, we need to take account of the IsNewApp setting */
         bShow = IsNewApp
 
@@ -581,7 +581,7 @@ Dim i As Long
 
     ' /* don't show if it's us unregistering ;-) */
 
-    If (sz <> App.Title) And (g_IgnoreLock < 1) And (Not g_Prefs.notify_on_first_register) Then _
+    If (sz <> App.Title) And (g_IgnoreLock < 1) And (g_ConfigGet("notify_on_first_register") = "0") Then _
         snShowNotification SNARL_CLASS_APP_UNREG, "Application Unregistered", _
                         sz & " unregistered successfully with Snarl", 10, _
                         szIcon
@@ -744,7 +744,7 @@ Dim i As Long
 '                    Set pm = New OMMenu
 '                    pm.AddItem pm.CreateItem("cfg" & CStr(i), "Settings...", , (mApp(i).Flags And E_APP_HAS_PREFS))
 '                    pm.AddItem pm.CreateItem("abt" & CStr(i), "About...", , (mApp(i).Flags And E_APP_HAS_ABOUT))
-                    .AddItem .CreateItem(mApp(i).Token, mApp(i).Name)
+                    .AddItem .CreateItem("!" & CStr(i), mApp(i).Name, , (mApp(i).Flags And SNARL41_APP_HAS_PREFS))
 
                 End If
             Next i
@@ -761,6 +761,8 @@ Public Sub SnarlAppDo(ByVal Index As Long, ByVal Cmd As SNARL_APP_COMMANDS)
 
     If (Index < 1) Or (Index > mCount) Then _
         Exit Sub
+
+'    Debug.Print "SNARLAPPDO: " & Cmd & " > " & mApp(Index).hWnd
 
     PostMessage mApp(Index).hWnd, mSnarlAppMsg, Cmd, ByVal 0&
 

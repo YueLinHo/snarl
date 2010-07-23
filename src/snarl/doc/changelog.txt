@@ -44,6 +44,68 @@
 
 	Snarl Change Log
 
+	- Further improvements to the way sn41Update() works.  (41.26)
+
+	- sn41Update() didn't send timeout value.  Now fixed.  [Toke] (41.25)
+
+	- Renamed sn41RemClass() and sn41RemAllClasses() to sn41RemoveClass() and
+	  sn41RemoveAllClasses() respectively.  Added sn41Notify() although this
+	  is still to be documented and approved.  [Toke] (41.25)
+
+	- Removed redundant "Launch App Manager" button from Advanced page. [psy]
+	  Fixed bugs in - and tidied up - Debug page.  (41.24)
+
+	- Released as R2.3 RC1.  (41.23)
+
+	- Changed the way the SNARL_LAUNCHED and SNARL_QUIT broadcast messages are
+	  sent (PostMessage() is now used over SendMessageTimeout()) and the point
+	  when the initial SNARL_LAUNCHED is sent.   Most importantly, broadcasts
+	  are *no longer sent* when Snarl is stopped or started (but remains running)
+	  however each application that has registered a window handle and reply
+	  message will still receive a SNARL_LAUNCHED and SNARL_QUIT notification.
+	  (41.23)
+
+	- Notification "Details" menu now includes the name of the notification
+	  class and a "<App> Settings..." option which will open Snarl's Preferences
+	  Panel (if it's not already open) and select the application from the
+	  registered apps list.  (41.20)
+
+	- Fixed bug that was preventing some icons from being downloaded via a
+	  URL.  (41.19)
+
+	- Notification fade in/out speed increased (ought to be made configurable)
+	  and info notification formatting changed slightly.  (41.18)
+
+	- sn41AddClass() now supports the ability for applications to add classes
+	  that are disabled by default.  (41.17)
+
+	- SNARL_GLOBAL_MSG broadcast message now sends the system version
+	  number in lParam.  (41.16)
+
+	- Snarl Apps without a GUI are now ghosted in the Snarl Apps menu.  (41.15)
+
+	- Registered applications which have no icon are now given a default icon
+	  in the prefs panel.  (41.12)
+
+	- Settings should now persist.  (41.11)
+
+	- Added support for .ico files and for the extraction of icons from
+	  resource files.  To extract an icon from a resource file, append
+	  a comma and then the icon's resource identifier (or index) to
+	  the icon path.  In all cases, Snarl will attempt to extract the
+	  largest, most colourful version of the icon contained within the
+	  file.  (41.8)
+
+	- Bumped to V41.  (41.1)
+
+	- Notification forwarding ("Copy To") implemented.  (40.55)
+
+	- TMainWindow also accepts WM_CLOSE as an alternative to MSG_QUIT.
+	  (40.55)
+
+	- MSG_QUIT and MSG_PREFS were incorrectly being handled by frmAbout as
+	  opposed to TMainWindow.  Now fixed.  (40.55)
+
 	- Renamed to R2.3 Beta 1  (40.54)
 
 	- Any notifications left on-screen when Snarl is stopped (or restarted)
@@ -826,6 +888,29 @@
 	  folder.  Names of extensions that appear in this file are not loaded.  The
 	  file is a standard melon config file (except it has no extension) with a
 	  single [exclude] section.  (37.37)
+
+
+
+
+Event				DnD	Sticky
+-------------------------------------------------------------------------
+full-screen app in f/ground	SET	n/a
+computer locked			SET	SET		either/or
+screensaver started		SET	SET		either/or
+idle				SET	SET		either/or
+
+Set DnD if:
+	full-screen app in f/ground
+	computer locked
+	screensaver starts (how to detect is s/s stopped?)
+	idle
+
+During g_RemDNDLock()...
+	- check if zero (i.e. DND disabled)
+	- if missed count > 0 then show "while you were away/there were <n> notifications"
+	- clicking notification displays missed notification window
+
+
 
 
 

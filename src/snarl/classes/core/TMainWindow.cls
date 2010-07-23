@@ -16,6 +16,7 @@ Option Explicit
     ' /* local Win32 api defines */
 
 Private Declare Function GetCurrentProcessId Lib "kernel32" () As Long
+Private Declare Function GetClipboardFormatName Lib "user32" Alias "GetClipboardFormatNameA" (ByVal wFormat As Long, ByVal lpString As String, ByVal nMaxCount As Long) As Long
 
     ' /* these are only used by the deprecated SNARL_GET_VERSION, we still maintain them however */
 
@@ -154,8 +155,21 @@ Private Function MWndProcSink_WndProc(ByVal hWnd As Long, ByVal uMsg As Long, By
 
 
     Case MSG_SHOW_PREFS
-        Debug.Print "+msg_show_prefs+"
-        frmAbout.NewDoPrefs
+        Select Case wParam
+        Case 1
+            ' /* install specified style engine or extension */
+            uInstall uAtomName(lParam)
+
+        Case 2
+            ' /* configure specified style engine or extension */
+            uConfigure uAtomName(lParam)
+
+
+        Case Else
+            frmAbout.NewDoPrefs
+
+        End Select
+
 
     Case MSG_QUIT, WM_CLOSE
         PostQuitMessage 0
@@ -298,9 +312,7 @@ Private Function uManageSnarl(ByVal wParam As Long, ByVal lParam As Long) As Lon
         Select Case lParam
         Case 1
             ' /* enable sticky option */
-            g_Prefs.sticky_snarls = Not g_Prefs.sticky_snarls
-            g_WriteConfig
-
+            g_ConfigSet "sticky_snarls", IIf(g_ConfigGet("sticky_snarls") = "1", "0", "1")
 
         End Select
 
@@ -474,6 +486,7 @@ Dim pss As SNARLSTRUCTI
 
     Else
         g_Debug "TMainWindow.uCopyData(): notification engine is not running", LEMON_LEVEL_WARNING
+        gLastErr = SNARL41_ERROR_NOT_RUNNING
 
         ' /* TO-DO: we might want to log the notification somewhere? */
 
@@ -842,8 +855,22 @@ Dim pApp As TApp
         uDoV41Request = pApp.AddClass(pData)
 
 
-
     Case SNARL41_REMOVE_CLASS
+        If (g_AppRoster Is Nothing) Then
+            g_Debug "TMainWindow.uDoV41Request(): SNARL41_REMOVE_CLASS: app roster is not available", LEMON_LEVEL_CRITICAL
+            gLastErr = SNARL41_ERROR_FAILED
+            Exit Function
+
+        End If
+
+        If Not g_AppRoster.FindByToken(pReq.Token, pApp) Then
+            gLastErr = SNARL41_ERROR_NOT_REGISTERED
+            Exit Function
+
+        End If
+
+        gLastErr = 0
+        uDoV41Request = pApp.RemClass(pData)
 
 
     Case SNARL41_LAST_ERROR
@@ -935,13 +962,13 @@ End Function
 
 Private Function uUpdate(ByVal Token As Long, ByRef pData As BPackedData) As Long
 
+    ' /* return -1 on success, 0 on failure */
+
     gLastErr = SNARL41_ERROR_SYSTEM
     If (g_NotificationRoster Is Nothing) Then _
         Exit Function
 
 Dim pInfo As notification_info
-
-    gLastErr = SNARL41_SUCCESS
 
     If pData.Exists("title") Then
         pInfo.Title = pData.ValueOf("title")
@@ -967,10 +994,74 @@ Dim pInfo As notification_info
 
     End If
 
-    uUpdate = g_NotificationRoster.Update(Token, pInfo.Title, pInfo.Text, pInfo.Icon)
+Dim hr As M_RESULT
+
+    ' /* call the pre-V41 stuff here */
+
+    hr = g_NotificationRoster.Update(Token, pInfo.Title, pInfo.Text, pInfo.Icon)
+    If hr <> M_OK Then
+        gLastErr = SNARL41_ERROR_FAILED
+        uUpdate = 0
+
+    Else
+        ' /* success, was timeout specified? */
+
+        If pData.Exists("timeout") Then _
+            g_NotificationRoster.SetAttribute Token, SNARL_ATTRIBUTE_TIMEOUT, pData.ValueOf("timeout")
+
+        gLastErr = SNARL41_SUCCESS
+        uUpdate = -1
+
+    End If
 
 End Function
 
+Private Function uAtomName(ByVal Atom As Long) As String
+Dim sz As String
+Dim hr As Long
 
+    sz = String$(1024, 0)
+    hr = GetClipboardFormatName(Atom, sz, Len(sz))
+    If hr Then _
+        uAtomName = g_SafeLeftStr(sz, hr)
 
+End Function
 
+Private Function uConfigure(ByVal Item As String) As Boolean
+Dim i As Long
+
+    Item = Replace$(Item, "%20", " ")
+    Debug.Print "TMainWindow.uConfigure(): " & Item
+
+    Select Case LCase$(g_GetExtension(Item))
+    Case "extension"
+        If (g_ExtnRoster Is Nothing) Then _
+            Exit Function
+
+        i = g_ExtnRoster.IndexOf(g_RemoveExtension(Item))
+        If i Then
+            frmAbout.NewDoPrefs 5
+            uConfigure = frmAbout.DoExtensionConfig(i)
+
+        End If
+
+    Case "style"
+        If (g_StyleRoster Is Nothing) Then _
+            Exit Function
+
+        i = g_StyleRoster.IndexOf(g_RemoveExtension(Item))
+        Debug.Print "style: " & i
+
+        If i Then
+            frmAbout.NewDoPrefs 4
+            uConfigure = frmAbout.DoStyleConfig(i)
+
+        End If
+
+    End Select
+
+End Function
+
+Private Sub uInstall(ByVal Item As String)
+
+End Sub

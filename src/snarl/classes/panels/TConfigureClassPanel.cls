@@ -279,13 +279,13 @@ Dim pm As CTempMsg
 
         Set pp = new_BPrefsPage("Forwarding", load_image_obj(g_MakePath(App.Path) & "etc\icons\class-ext.png"), Me)
         With pp
-            .SetMargin 90
+            .SetMargin 0
             .SetWidth 300
 
             ' /* forwarding */
             Set pm = New CTempMsg
             pm.Add "checkboxes", 1
-            .Add new_BPrefsControl("listbox", "lb>notify", g_StyleRoster.GetNonWindowStyleList(), "Copy to:", "1", pm)
+            .Add new_BPrefsControl("listbox", "lb>notify", g_StyleRoster.GetNonWindowStyleList(), "", "1", pm)
             mCurrentForward = 1
 
         End With

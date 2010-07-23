@@ -27,7 +27,7 @@ Option Explicit
 
 Dim mPage As BPrefsPage
 'Dim mGetFileRequest As CHTTPRequest
-Dim mPanel As TBetaPanel
+'Dim mPanel As TBetaPanel
 
 Implements KPrefsPage
 
@@ -53,7 +53,7 @@ Dim pm As CTempMsg
         pc.DoExCmd "load", pm
         .Add pc
 
-        .Add new_BPrefsControl("fancytoolbar", "ftb>web_stuff", "Snarl Website|Snarl Forums|CVS Repository")
+        .Add new_BPrefsControl("fancytoolbar", "ftb>web_stuff", "Snarl Website|Discussion Group|Blog")
 
 '        .Add new_BPrefsControl("fancybutton2", "go_web_site", "Snarl Website")
 '        .Add new_BPrefsControl("fancybutton2", "go_forum", "Snarl Forums")
@@ -105,8 +105,8 @@ Private Sub KPrefsPage_ControlChanged(Control As BControl, ByVal Value As String
             ShellExecute 0, "open", "http://groups.google.co.uk/group/snarl-discuss?hl=en", vbNullString, vbNullString, SW_SHOW
 
         Case 3
-            ' /* cvs */
-            ShellExecute 0, "open", "http://snarlwin.cvs.sourceforge.net/snarlwin/", vbNullString, vbNullString, SW_SHOW
+            ' /* blog */
+            ShellExecute 0, "open", "http://www.snarl-development.blogspot.com/", vbNullString, vbNullString, SW_SHOW
 
         End Select
 

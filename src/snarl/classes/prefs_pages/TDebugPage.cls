@@ -28,17 +28,21 @@ Dim pm As CTempMsg
     On Error Resume Next
 
     With mPage
-        .Add new_BPrefsControl("fancybutton2", "go_lemon", "Launch Lemon")
-        .Add new_BPrefsControl("label", "", "Lemon is an external log/debug console created by k23 productions.  Snarl sends information to it which can be useful for debugging purposes.")
+        .SetMargin 96
+        .Add new_BPrefsControl("banner", "", "Debugging")
+        .Add new_BPrefsControl("fancybutton2", "go_lemon", "Open Lemon Log")
+        .Add new_BPrefsControl("label", "", "Lemon is an external log/debug console created by k23 productions.  The log file can be useful for debugging purposes.")
 
-        .Add new_BPrefsControl("separator", "")
+'        .Add new_BPrefsControl("separator", "")
+        .Add new_BPrefsControl("banner", "", "Configuration")
         .Add new_BPrefsControl("fancybutton2", "open_config", "Open Config File")
         .Add new_BPrefsControl("label", "", "Opens the current config file in notepad so it can be edited manually.")
 
         .Add new_BPrefsControl("fancybutton2", "cycle_config", "Reload Config File")
         .Add new_BPrefsControl("label", "", "Reloads the current configuration file.")
 
-        .Add new_BPrefsControl("separator", "")
+'        .Add new_BPrefsControl("separator", "")
+        .Add new_BPrefsControl("banner", "", "Diagnostics")
         .Add new_BPrefsControl("fancybutton2", "test", "Test Notification")
         .Add new_BPrefsControl("label", "", "Sends a special test message to the Snarl engine which should result in a notification appearing.  This message is sent using the same mechanism a 3rd party application would use and therefore should prove (or otherwise) that the Snarl notification engine is running correctly.")
 
@@ -54,7 +58,7 @@ Private Sub KPrefsPage_ControlChanged(Control As BControl, ByVal Value As String
 End Sub
 
 Private Sub KPrefsPage_ControlInvoked(Control As BControl)
-Dim sz As String
+'Dim sz As String
 Dim hWnd As Long
 
     Debug.Print "[" & mPage.GetName() & "]: ControlInvoked '" & Control.GetName() & "'"
@@ -62,14 +66,10 @@ Dim hWnd As Long
     Select Case Control.GetName()
 
     Case "go_lemon"
-        If g_GetSystemFolder(CSIDL_PROGRAM_FILES_COMMON, sz) Then _
-            ShellExecute 0, "open", g_MakePath(sz) & "k23 productions\melon\tools\lemon.exe", vbNullString, vbNullString, SW_SHOW
+        ShellExecute 0, "open", "notepad.exe", l3LogPath(), vbNullString, SW_SHOW
 
     Case "open_config"
-'        If Not (g_Settings Is Nothing) Then _
-'            ShellExecute 0, "open", "notepad.exe", g_Settings.File, vbNullString, SW_SHOW
-'
-''        MsgBox g_Settings.File
+        ShellExecute 0, "open", "notepad.exe", g_SettingsPath(), vbNullString, SW_SHOW
 
     Case "cycle_config"
         g_ConfigInit

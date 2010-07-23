@@ -219,7 +219,7 @@ Friend Function Add(ByRef Class As TAlert, ByRef Info As T_NOTIFICATION_INFO) As
 
     ' /* log only? */
 
-    If g_Prefs.log_only Then
+    If g_ConfigGet("log_only") = "1" Then
         g_WriteToLog Info.Title, Info.Text
         Add = -1                    ' // V40.7 - changed from M_OK to -1 (indicates success but no token available)
         Exit Function               ' // TO-DO: determine if we should return 0 and set last_error instead
@@ -295,8 +295,7 @@ Dim pIcon As mfxBitmap
 
 Dim pDelayed As TDelayedNotification
 
-    Info.IconPath = LCase$(Info.IconPath)
-    If (g_SafeLeftStr(Info.IconPath, 7) = "http://") Or (g_SafeLeftStr(Info.IconPath, 8) = "https://") Then
+    If (LCase$(g_SafeLeftStr(Info.IconPath, 7)) = "http://") Or (LCase$(g_SafeLeftStr(Info.IconPath, 8)) = "https://") Then
         g_Debug "TNotificationRoster.Add(): remote icon specified, starting async download..."
 
         ' /* to-do: allow user to suppress this by specifying a maximum download wait
@@ -333,7 +332,7 @@ Dim pDelayed As TDelayedNotification
 
     ElseIf Info.Timeout = -1 Then
         ' /* V41: (not sure it's documented) - if timeout is -1 then use global default timeout */
-        Info.Timeout = g_Prefs.default_duration
+        Info.Timeout = Val(g_ConfigGet("default_duration"))
 
     End If
 
@@ -972,8 +971,11 @@ End Function
 
 Private Function uTranslateIconPath(ByVal Icon As String, ByVal StylePath As String) As String
 Dim pbm As mfxBitmap
+Dim pIcon As BIcon
 Dim sz As String
 Dim dw As Long
+Dim i As Long
+
 
     If g_SafeLeftStr(Icon, 1) = "!" Then
         ' /* convert the icon into it's corresponding file */
@@ -995,9 +997,8 @@ Dim dw As Long
 
         End If
 
-Debug.Print "----- " & uTranslateIconPath
-
     ElseIf g_SafeLeftStr(Icon, 1) = "%" Then
+        ' /* whatever is after the % should be a valid HICON */
         dw = Val(g_SafeRightStr(Icon, Len(Icon) - 1))
         If dw Then
             Set pbm = uGetIcon(dw)
@@ -1012,10 +1013,65 @@ Debug.Print "----- " & uTranslateIconPath
 
         End If
 
+    ElseIf LCase$(g_GetExtension(Icon)) = "ico" Then
+        uTranslateIconPath = uLoadICO(Icon)
+
     Else
+
         uTranslateIconPath = Icon
 
+        ' /* windows icon? */
+
+        i = InStr(Icon, ",")
+        If i <> 0 Then
+            dw = Val(g_SafeRightStr(Icon, Len(Icon) - i))
+            Icon = g_SafeLeftStr(Icon, i - 1)
+            uTranslateIconPath = uGetBestIcon(Icon, dw)
+
+        End If
     End If
+
+End Function
+
+Private Function uLoadICO(ByVal IconPath As String) As String
+Dim pbm As mfxBitmap
+Dim pIcon As BIcon
+
+    On Error Resume Next
+
+    With New BIconContent
+        If Not .LoadFromICO(IconPath) Then _
+            Exit Function
+
+        If .GetIcon(B_GET_ICON_BIGGEST Or B_GET_ICON_MOST_COLOURS, pIcon) Then
+            Set pbm = create_bitmap_from_image(pIcon.Render)
+            uLoadICO = g_GetSafeTempIconPath()
+            pbm.Save uLoadICO, "image/png"
+
+        End If
+
+    End With
+
+End Function
+
+Private Function uGetBestIcon(ByVal IconPath As String, ByVal Index As Long) As String
+Dim pbm As mfxBitmap
+Dim pIcon As BIcon
+
+    On Error Resume Next
+
+    With New BIconContent
+        If Not .LoadFromResource(IconPath, Index) Then _
+            Exit Function
+
+        If .GetIcon(B_GET_ICON_BIGGEST Or B_GET_ICON_MOST_COLOURS, pIcon) Then
+            Set pbm = create_bitmap_from_image(pIcon.Render)
+            uGetBestIcon = g_GetSafeTempIconPath()
+            pbm.Save uGetBestIcon, "image/png"
+
+        End If
+
+    End With
 
 End Function
 
@@ -1059,8 +1115,8 @@ Dim ps As SIZEL
 
     ' /* TODO: needs to take into account styles which veto the dropshadow */
 
-    ps.cx = ps.cx + (2 * g_Prefs.margin_spacing)
-    ps.cy = ps.cy + (2 * g_Prefs.margin_spacing)
+    ps.cx = ps.cx + (2 * Val(g_ConfigGet("margin_spacing")))
+    ps.cy = ps.cy + (2 * Val(g_ConfigGet("margin_spacing")))
 
 Dim rcwa As RECT
 Const MARGIN = 4

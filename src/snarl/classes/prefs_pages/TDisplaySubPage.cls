@@ -35,8 +35,8 @@ Implements KPrefsPage
 Private Sub KPrefsPage_AllAttached()
 Dim pc As BControl
 
-    If mPage.Find("fs>default_duration", pc) Then _
-        pc.SetValue CStr(g_Prefs.default_duration)
+    If mPage.Find("default_duration", pc) Then _
+        pc.SetValue g_ConfigGet("default_duration")
 
 End Sub
 
@@ -61,7 +61,7 @@ Dim i As Long
         pm.Add "max", 100&
         pm.Add "freq", 10&
         pm.Add "suffix", "%"
-        mPage.Add new_BPrefsControl("fancyslider", "fs>global_opacity", "", "Opacity:", CStr(g_Prefs.global_opacity), pm)
+        mPage.Add new_BPrefsControl("fancyslider", "global_opacity", "", "Opacity:", g_ConfigGet("global_opacity"), pm)
 
         ' /* icon theme */
 
@@ -82,8 +82,8 @@ Dim i As Long
         pm.Add "min", -20&
         pm.Add "max", 20&
         pm.Add "freq", 5&
-        mPage.Add new_BPrefsControl("fancyslider", "fs>margin_spacing", "", "Spacing:", CStr(g_Prefs.margin_spacing), pm)
-    
+        mPage.Add new_BPrefsControl("fancyslider", "margin_spacing", "", "Spacing:", g_ConfigGet("margin_spacing"), pm)
+
         ' /* dropshadow */
 
         mPage.Add new_BPrefsControl("label", "", "Shadow:")
@@ -95,13 +95,13 @@ Dim i As Long
         pm.Add "max", 100&
         pm.Add "freq", 10&
         pm.Add "suffix", "%"
-        mPage.Add new_BPrefsControl("fancyslider", "fs>dropshadow_strength", "", "Strength:", CStr(g_Prefs.dropshadow_strength), pm, g_Prefs.use_dropshadow)
+        mPage.Add new_BPrefsControl("fancyslider", "dropshadow_strength", "", "Strength:", g_ConfigGet("dropshadow_strength"), pm, g_Prefs.use_dropshadow)
     
         Set pm = New CTempMsg
         pm.Add "min", 0&
         pm.Add "max", 20&
         pm.Add "freq", 2&
-        mPage.Add new_BPrefsControl("fancyslider", "fs>dropshadow_size", "", "Size:", CStr(g_Prefs.dropshadow_size), pm, g_Prefs.use_dropshadow)
+        mPage.Add new_BPrefsControl("fancyslider", "dropshadow_size", "", "Size:", g_ConfigGet("dropshadow_size"), pm, g_Prefs.use_dropshadow)
 
 
 
@@ -113,7 +113,7 @@ Dim i As Long
 
         mPage.Add new_BPrefsControl("banner", "", "General")
 
-        i = g_Prefs.default_duration
+        i = Val(g_ConfigGet("default_duration"))
         i = i \ 5
         i = i * 5
 
@@ -134,7 +134,7 @@ Dim i As Long
         pm.Add "max", 60&
         pm.Add "freq", 5&
         pm.Add "label_size", 50&
-        mPage.Add new_BPrefsControl("fancyslider", "fs>default_duration", "", "Duration:", CStr(-1), pm)
+        mPage.Add new_BPrefsControl("fancyslider", "default_duration", "", "Duration:", CStr(-1), pm)
 '        mPage.Add new_BPrefsControl("label", "", "The above settings can be overridden on a per-class basis by configuring the class in the 'Apps' tab.")
 
         ' /* text overflow */
@@ -215,7 +215,7 @@ Dim i As Long
 '        pm.Add "max", 60&
 '        pm.Add "freq", 5&
 '        pm.Add "label_size", 50&
-'        mPage.Add new_BPrefsControl("fancyslider", "fs>default_duration", "", "Duration:", CStr(-1), pm)
+'        mPage.Add new_BPrefsControl("fancyslider", "default_duration", "", "Duration:", CStr(-1), pm)
 '
 '        mPage.Add new_BPrefsControl("fancycycle", "default_position", "Top Left#?0|Top Right#?1|Bottom Left#?2|Bottom Right#?3", "Position:", CStr(g_Prefs.default_position + 1))
 
@@ -236,14 +236,6 @@ Dim i As Long
 
     Select Case Control.GetName()
 
-    Case "use_style_icons", "show_timestamp"
-        g_ConfigSet Control.GetName, Value
-
-
-
-'    Case "default_position"
-'        g_Prefs.default_position = Val(Control.GetValue()) - 1
-
     ' /* notification settings */
 
     Case "font_smoothing"
@@ -253,64 +245,16 @@ Dim i As Long
 
         fUpdate = True
 
-    Case "melontype_contrast"
-        g_Prefs.melontype_contrast = Val(Control.GetValue())
-        fUpdate = True
-
-    Case "fs>global_opacity"
-        g_Prefs.global_opacity = Val(Value)
-        fUpdate = True
-
-    Case "fs>margin_spacing"
-        g_Prefs.margin_spacing = Val(Value)
-        fUpdate = True
 
     Case "ft>use_dropshadow"
         g_Prefs.use_dropshadow = (Val(Value) <> 0)
-        If mPage.Find("fs>dropshadow_strength", pc) Then _
+        If mPage.Find("dropshadow_strength", pc) Then _
             pc.SetEnabled (Val(Value) <> 0)
 
-        If mPage.Find("fs>dropshadow_size", pc) Then _
+        If mPage.Find("dropshadow_size", pc) Then _
             pc.SetEnabled (Val(Value) <> 0)
 
         fUpdate = True
-
-    Case "fs>dropshadow_strength"
-        g_Prefs.dropshadow_strength = Val(Value)
-        fUpdate = True
-
-    Case "fs>dropshadow_size"
-        g_Prefs.dropshadow_size = Val(Value)
-        fUpdate = True
-
-'    Case "c>icon_theme"
-'        i = Val(Value)
-'        If i = 1 Then
-'            g_Prefs.icon_theme = ""
-'
-'        Else
-'            g_Prefs.icon_theme = gIconTheme(i - 1).Name
-'
-'        End If
-'        fUpdate = True
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
     Case "default_style"
@@ -321,8 +265,13 @@ Dim i As Long
 '        g_StyleRoster.StyleAt Val(Value), mStyle
 '        uUpdateSchemeList
 
-    Case "default_position"
-        g_ConfigSet "default_position", Value
+
+    Case "default_position", "melontype_contrast", "global_opacity", "margin_spacing", "dropshadow_strength", "dropshadow_size", _
+         "default_notification_sound", "default_priority_sound", "enable_sounds", "use_style_sounds", "prefer_style_sounds", _
+         "use_style_icons", "show_timestamp"
+
+        g_ConfigSet Control.GetName, Value
+
 
     Case "default_scheme"
         ' /* 'scheme' combo on 'visuals' page */
@@ -343,7 +292,7 @@ Dim i As Long
         End If
 
 
-    Case "fs>default_duration"
+    Case "default_duration"
         Select Case Val(Value)
         Case 0
             Control.SetText "Sticky"
@@ -356,37 +305,10 @@ Dim i As Long
 
         End Select
 
-        g_Prefs.default_duration = Val(Value)
-        fUpdate = True
-
-
-
-'    Case "default_duration"
-'        Select Case Val(Value)
-'        Case 1
-'            dw = 0
-'
-'        Case 2
-'            dw = 5
-'
-'        Case 3
-'            dw = 10
-'
-'        Case 4
-'            dw = 30
-'
-'        Case 5
-'            dw = 60
-'
-'        End Select
-'
-'        g_Prefs.default_duration = dw
-'        Debug.Print "*** default duration changed to '" & dw & "' ***"
-
-    Case "default_notification_sound", "default_priority_sound", "enable_sounds", "use_style_sounds", "prefer_style_sounds"
         g_ConfigSet Control.GetName, Value
 
     End Select
+
 
     If fUpdate Then _
         g_WriteConfig
@@ -394,11 +316,9 @@ Dim i As Long
 End Sub
 
 Private Sub KPrefsPage_ControlInvoked(Control As prefs_kit_d2.BControl)
-
 End Sub
 
 Private Sub KPrefsPage_ControlNotify(Control As prefs_kit_d2.BControl, ByVal Notification As String, Data As melon.MMessage)
-
 End Sub
 
 Private Sub KPrefsPage_Create(Page As prefs_kit_d2.BPrefsPage)

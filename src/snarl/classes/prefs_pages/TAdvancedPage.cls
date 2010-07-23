@@ -43,8 +43,8 @@ Dim pm As CTempMsg
         ' /* other stuff */
 
         .Add new_BPrefsControl("banner", "", "System Functions")
-        .Add new_BPrefsControl("fancybutton2", "go_app_manager", "Launch App Manager")
-        .Add new_BPrefsControl("label", "", "The App Manager allows you to control other Snarl applications which don't have their own user interface.")
+'        .Add new_BPrefsControl("fancybutton2", "go_app_manager", "Launch App Manager")
+'        .Add new_BPrefsControl("label", "", "The App Manager allows you to control other Snarl applications which don't have their own user interface.")
 
         .Add new_BPrefsControl("fancybutton2", "restart_style_roster", "Reload Styles")
         .Add new_BPrefsControl("label", "", "Forces Snarl to reload all installed styles.  Under normal circumstances you shouldn't need to do this; it's provided for users who are developing their own styles and want to test them without restarting Snarl.")

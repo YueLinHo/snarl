@@ -39,6 +39,11 @@ Public Enum E_CLASS_DUPLICATES
 
 End Enum
 
+Public Enum E_CLASS_FLAGS
+    E_CLASS_DISABLED = 1
+
+End Enum
+
 Private Type T_ALERT
     Class As String                         '// unique identifier - once assigned, can't be changed
     Desc As String                          '// displayed name - added in V38, doc'd in V39
@@ -67,7 +72,8 @@ End Sub
 Private Property Get MObject_Type() As String
 End Property
 
-Friend Sub bInit(ByVal Id As String, ByVal Name As String, ByRef Owner As TApp, ByRef Settings As ConfigSection)
+Friend Sub bInit(ByVal Id As String, ByVal Name As String, ByRef Owner As TApp, ByRef Settings As ConfigSection, ByVal Flags As E_CLASS_FLAGS)
+Dim bEnabled As Boolean
 
     ' /* initialize */
 
@@ -83,9 +89,13 @@ Friend Sub bInit(ByVal Id As String, ByVal Name As String, ByRef Owner As TApp, 
         ' /* added in R2.1 (moved here in V41): if this global setting is enabled, new classes are auto-disabled when created */
 
         g_Debug "setting defaults..."
+        bEnabled = True
+
+        If (g_ConfigGet("ignore_new_classes") = "1") Or ((Flags And E_CLASS_DISABLED)) Then _
+            bEnabled = False
 
         Set .Defaults = New BPackedData
-        .Defaults.SetTo "enabled::" & IIf(g_Prefs.ignore_new_classes, "0", "1") & "#?" & _
+        .Defaults.SetTo "enabled::" & IIf(bEnabled, "1", "0") & "#?" & _
                         "show_on_screen::1#?" & _
                         "position::" & CStr(E_START_DEFAULT_POS) & "#?" & _
                         "duration::" & CStr(E_DURATION_APP_DECIDES) & "#?" & _
@@ -119,6 +129,13 @@ Public Function IsEnabled() As Boolean
         IsEnabled = (Me.GetValue("enabled") = "1")
 
 End Function
+
+Public Sub SetEnabled(ByVal Enabled As Boolean)
+
+    If Not (mContent.Config Is Nothing) Then _
+        Me.SetValue "enabled", IIf(Enabled, "1", "0")
+
+End Sub
 
 Public Function Name() As String
 
@@ -310,7 +327,7 @@ Dim lDup As E_CLASS_DUPLICATES
             ShowNotification = mLastToken
             Exit Function
 
-        ElseIf (lDup = E_CLASS_DUPLICATES_DELAY) And ((GetTickCount() - mPrevTick) <= g_Prefs.suppress_delay) Then
+        ElseIf (lDup = E_CLASS_DUPLICATES_DELAY) And ((GetTickCount() - mPrevTick) <= Val(g_ConfigGet("suppress_delay"))) Then
             g_Debug "TAlert.ShowNotification(): blocked duplicate within delay timeout", LEMON_LEVEL_INFO
             ShowNotification = mLastToken
             Exit Function
@@ -342,11 +359,11 @@ Dim lDur As E_NOTIFICATION_DURATION
         Info.Timeout = Val(Me.GetValue("custom_timeout"))
 
     Case E_DURATION_DEFAULT
-        Info.Timeout = g_Prefs.default_duration
+        Info.Timeout = Val(Me.GetValue("default_duration"))
 
     Case Else
         g_Debug "TAlert.ShowNotification(): invalid duration setting '" & CStr(lDur) & "'", LEMON_LEVEL_WARNING
-        Info.Timeout = g_Prefs.default_duration
+        Info.Timeout = Val(Me.GetValue("default_duration"))
 
     End Select
 
@@ -394,7 +411,7 @@ Dim lDur As E_NOTIFICATION_DURATION
     ShowNotification = g_NotificationRoster.Add(Me, Info)
 
     mLastToken = Info.Token
-    Debug.Print "TAlert.ShowNotification(): token was " & CStr(mLastToken)
+    Debug.Print "TAlert.ShowNotification(): token=" & CStr(mLastToken) & " sender=" & CStr(mContent.App.Token) & " (" & mContent.App.Signature & ") title=" & Info.Title
 
 End Function
 
@@ -405,7 +422,7 @@ Public Sub AddForward(ByVal StyleAndScheme As String)
 
     With mContent
         .Forward.Add LCase$(Replace$(StyleAndScheme, ": ", "/")), ""    ' // add the forwarder
-        .Config.Update "forward", mContent.Forward.AsString()           ' // translate the packed data into a string
+        .Config.Update "forward", .Forward.AsString()                   ' // translate the packed data into a string
         .App.WriteConfig                                                ' // write the config
 
     End With
@@ -436,7 +453,12 @@ Dim sz As String
 
     End With
 
-    Set mContent.Forward = ppd
+    With mContent
+        Set .Forward = ppd
+        .Config.Update "forward", .Forward.AsString()           ' // translate the packed data into a string
+        .App.WriteConfig
+
+    End With
 
 End Sub
 

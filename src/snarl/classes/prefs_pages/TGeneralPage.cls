@@ -46,18 +46,18 @@ Dim pm As CTempMsg
         ' /* miscellaneous */
 
         .Add new_BPrefsControl("banner", "", "Miscellaneous")
-        .Add new_BPrefsControl("fancytoggle2", "show_msg_on_start", "Show message on startup?", "", IIf(g_Prefs.show_msg_on_start, "1", "0"), pm)
-        .Add new_BPrefsControl("fancytoggle2", "sticky_snarls", "Sticky notifications?", , IIf(g_Prefs.sticky_snarls, "1", "0"))
-        .Add new_BPrefsControl("fancytoggle2", "log_only", "Log only (don't display)?", , IIf(g_Prefs.log_only, "1", "0"))
-        .Add new_BPrefsControl("fancytoggle2", "notify_on_first_register", "Show notification on first registration only?", , IIf(g_Prefs.notify_on_first_register, "1", "0"))
-        .Add new_BPrefsControl("fancytoggle2", "auto_update", "Check for updates on launch?", "", IIf(g_Prefs.auto_update, "1", "0"))
+        .Add new_BPrefsControl("fancytoggle2", "show_msg_on_start", "Show message on startup?", "", g_ConfigGet("show_msg_on_start"), pm)
+        .Add new_BPrefsControl("fancytoggle2", "sticky_snarls", "Sticky notifications?", , g_ConfigGet("sticky_snarls"))
+        .Add new_BPrefsControl("fancytoggle2", "log_only", "Log only (don't display)?", , g_ConfigGet("log_only"))
+        .Add new_BPrefsControl("fancytoggle2", "notify_on_first_register", "Show notification on first registration only?", , g_ConfigGet("notify_on_first_register"))
+        .Add new_BPrefsControl("fancytoggle2", "auto_update", "Check for updates on launch?", "", g_ConfigGet("auto_update"))
 
 Dim nIdle As Long
 
         .Add new_BPrefsControl("banner", "", "Behaviour")
         .Add new_BPrefsControl("label", "", "Enable sticky notifications after the following period of inactivity:")
 
-        nIdle = ROUNDUP(g_Prefs.idle_timeout / 300)
+        nIdle = ROUNDUP(Val(g_ConfigGet("idle_timeout")) / 300)
         If (nIdle < 0) Or (nIdle > 3) Then _
             nIdle = 0
 
@@ -107,14 +107,6 @@ Dim dw As Long
     Case "run_on_logon"
         g_Prefs.run_on_logon = CBool(Value)
 
-    Case "show_msg_on_start"
-        g_Prefs.show_msg_on_start = CBool(Value)
-
-    Case "sticky_snarls"
-        g_Prefs.sticky_snarls = CBool(Value)
-
-    Case "log_only"
-        g_Prefs.log_only = CBool(Value)
 
     Case "use_hotkey"
         ' /* R2.2: we have a separate config entry now */
@@ -151,21 +143,18 @@ Dim dw As Long
 
         Control.SetValue CStr(MOD_CONTROL) & "," & sz(1)
 
-    Case "notify_on_first_register"
-        g_Prefs.notify_on_first_register = CBool(Value)
 
-    Case "auto_update"
-        g_Prefs.auto_update = CBool(Value)
-
-    Case "auto_sticky_on_screensaver"
+    Case "auto_sticky_on_screensaver", "notify_on_first_register", "auto_update", "sticky_snarls", "log_only", "show_msg_on_start"
         g_ConfigSet Control.GetName, Value
         Exit Sub
+
 
     Case "idle_timeout"
         dw = (Val(Value) - 1) * 300
         Debug.Print "new idle = " & dw & " secs"
         g_ConfigSet Control.GetName, CStr(dw)
         Exit Sub
+
 
     Case Else
         Exit Sub

@@ -81,8 +81,8 @@ Dim pbm As mfxBitmap
 Dim rc As RECT
 Dim i As Long
 
-    m_Alpha = 255 * (g_Prefs.global_opacity / 100)
-    mOriginalTimeout = IIf(g_Prefs.sticky_snarls, 0, Info.Timeout)
+    m_Alpha = 255 * (Val(g_ConfigGet("global_opacity")) / 100)
+    mOriginalTimeout = IIf(g_ConfigGet("sticky_snarls") = "1", 0, Info.Timeout)
     Set mInstance = Instance
     mStyleFlags = StyleFlags
 
@@ -102,7 +102,7 @@ Dim dwExStyle As Long
         dwExStyle = dwExStyle Or WS_EX_TRANSPARENT
         If mOriginalTimeout = 0 Then
             g_Debug "CSnarlWindow.Create(): timeout cannot be zero if E_CLASS_NOTIFICATION_ONLY is set", LEMON_LEVEL_WARNING
-            mOriginalTimeout = IIf(g_Prefs.default_duration > 0, g_Prefs.default_duration, 10)
+            mOriginalTimeout = IIf(Val(g_ConfigGet("default_duration")) > 0, Val(g_ConfigGet("default_duration")), 10)
 
         End If
     End If
@@ -498,7 +498,7 @@ Dim n As Integer
     GetClientRect theWindow.hWnd, rc
 
     If uDrawDropshadow() Then _
-        n = g_Prefs.dropshadow_size
+        n = Val(g_ConfigGet("dropshadow_size"))
 
     If (pt.x >= rc.Left) And (pt.x <= rc.Right) And (pt.y >= rc.Top) And (pt.y <= rc.Bottom) Then
         ' /* returns either "close" or "client" depending on where the cursor is */
@@ -594,10 +594,12 @@ Public Sub uSetTargetAlpha(ByVal Alpha As Long)
 Debug.Print "SET TARGET ALPHA " & Alpha
 
     If Alpha < mCurrent Then
-        m_step = -Val(g_ConfigGet("step_size")) * 8
+        ' /* fade out */
+        m_step = -Val(g_ConfigGet("step_size")) * 12
 
     ElseIf Alpha > mCurrent Then
-        m_step = Val(g_ConfigGet("step_size")) * 4
+        ' /* fade in */
+        m_step = Val(g_ConfigGet("step_size")) * 8
 
     Else
         Exit Sub
@@ -674,8 +676,8 @@ Private Sub uDrawContent(Optional ByVal Alpha As Long = -1, Optional ByVal x As 
 
         Else
             ' /* specific position requested and dropshadow enabled */
-            x = x - g_Prefs.dropshadow_size
-            y = y - g_Prefs.dropshadow_size
+            x = x - Val(g_ConfigGet("dropshadow_size"))
+            y = y - Val(g_ConfigGet("dropshadow_size"))
 
         End If
     End If
@@ -691,7 +693,7 @@ Dim pr As BRect
         .DrawScaledImage theBitmap, new_BPoint(OFFSET_ICON, OFFSET_ICON)
         If (mCloseButtonVisible) And (Not mClickThru) Then _
             .DrawScaledImage bm_Close, _
-                             IIf(uDrawDropshadow(), new_BPoint(g_Prefs.dropshadow_size, g_Prefs.dropshadow_size), new_BPoint(0, 0))
+                             IIf(uDrawDropshadow(), new_BPoint(Val(g_ConfigGet("dropshadow_size")), Val(g_ConfigGet("dropshadow_size"))), new_BPoint(0, 0))
 
         If g_ConfigGet("show_timestamp") = "1" Then
             If ((mCloseButtonVisible) And (Not mClickThru)) Or (mFuzzy) Then
@@ -701,7 +703,7 @@ Dim pr As BRect
                 .SetLowColour rgba(0, 0, 0, 190)
                 Set pr = .Bounds.InsetByCopy(2, 2)
                 If uDrawDropshadow() Then _
-                    pr.InsetBy g_Prefs.dropshadow_size, g_Prefs.dropshadow_size
+                    pr.InsetBy Val(g_ConfigGet("dropshadow_size")), Val(g_ConfigGet("dropshadow_size"))
 
                 .FillRoundRect new_BRect(pr.Right - .StringWidth(uDateStamp()), pr.Bottom - .StringHeight("A"), pr.Right + 2, pr.Bottom + 2), 6, 6, MFX_SOLID_LOW
                 .DrawString uDateStamp(), pr, MFX_ALIGN_BOTTOM Or MFX_ALIGN_RIGHT
@@ -790,7 +792,15 @@ Dim pm As OMMenu
             Clipboard.SetText mInfo.Title & vbCrLf & mInfo.Text
 
         Case Else
-            If g_SafeLeftStr(pmi.Name, 3) = "ip>" Then
+            
+            Select Case g_SafeLeftStr(pmi.Name, 1)
+            Case "$"
+                ' /* app settings */
+                frmAbout.DoAppConfig g_SafeRightStr(pmi.Name, Len(pmi.Name) - 1)
+
+            End Select
+            
+'            If g_SafeLeftStr(pmi.Name, 3) = "ip>" Then
 '                MsgBox g_SafeRightStr(pmi.Name, Len(pmi.Name) - 3)
 
 '                With New SNBConnection
@@ -801,8 +811,8 @@ Dim pm As OMMenu
 '                    End If
 '
 '                End With
-
-            End If
+'
+'            End If
 
         End Select
 
@@ -857,6 +867,19 @@ End Function
 
 Public Function SetMenu(ByVal Value As String) As M_RESULT
 
+    ' /* 'Value' should be a string formatted as <Label>[#?<value>][|<Label>[#?<value>]]...
+    '    <Label> defines the menu item label and can be any text string.  <Value> must be numeric
+    '    and in the range of 1 to 65535.  <Value> does not need to be specified, in which
+    '    case the item is added but no notification is sent if it is selected.  If <Label> is
+    '    blank, a separator item is added (which cannot be selected) */
+
+    ' /* R2.3 onwards: if <Label> is prefixed with '$' the following character is used as
+    '    a control character.  The following are currently defined:
+    '       'X' a checkmark is displayed against the menu item
+    '       '\' the menu item is ghosted and cannot be selected
+    '       'x'  a checkmark is displayed against the menu item and the menu item is ghosted and cannot be selected
+    ' */
+
     On Error Resume Next
 
     Set mMenu = Nothing
@@ -886,14 +909,7 @@ End Function
 Private Sub uAddToMenu(ByRef Menu As OMMenu, ByVal Item As String)
 Dim szText As String
 Dim szData As String
-Dim dw As Long
 Dim i As Integer
-
-    If Item = "" Then
-        Menu.AddSeparator
-        Exit Sub
-
-    End If
 
     i = InStr(Item, "#?")
     If i = 0 Then
@@ -902,6 +918,53 @@ Dim i As Integer
     Else
         szText = g_SafeLeftStr(Item, i - 1)
         szData = g_SafeRightStr(Item, Len(Item) - i - 1)
+
+    End If
+
+Dim itemEnabled As Boolean
+Dim itemMarked As Boolean
+
+    ' /* pre-set this */
+
+    itemEnabled = True
+
+    If szText = "" Then
+        ' /* R2.3 seperator added even if <value> supplied with empty <Label> */
+        Menu.AddSeparator
+        Exit Sub
+
+    ElseIf g_SafeLeftStr(szText, 1) = "$" Then
+        ' /* control character */
+
+        Select Case g_SafeMidStr(szText, 2, 1)
+        Case "X"
+            ' /* checkmark */
+            itemMarked = True
+
+        Case "\"
+            ' /* disabled */
+            itemEnabled = False
+
+        Case "x"
+            ' /* disabled and marked */
+            itemMarked = True
+            itemEnabled = False
+
+        Case Else
+            g_Debug "CSnarlWindow.uAddToMenu(): invalid control character '" & g_SafeMidStr(szText, 2, 1) & "'", LEMON_LEVEL_CRITICAL
+            Exit Sub
+
+        End Select
+
+        szText = g_SafeRightStr(szText, Len(szText) - 2)
+
+    End If
+
+Dim dw As Long
+
+    ' /* if <Value> is provided, make sure it's valid */
+
+    If szData <> "" Then
         If Not g_IsNumeric(szData) Then
             g_Debug "CSnarlWindow.uAddToMenu(): can't add '" & Item & "' to menu: data part is not numeric", LEMON_LEVEL_CRITICAL
             Exit Sub
@@ -917,7 +980,7 @@ Dim i As Integer
 
     End If
 
-    Menu.AddItem mMenu.CreateItem(szData, szText)
+    Menu.AddItem mMenu.CreateItem(szData, szText, , itemEnabled, itemMarked)
 
 End Sub
 
@@ -945,16 +1008,15 @@ Dim pmi As OMMenuItem
 
 Dim dw As Long
 
-    SendMessageTimeout mInfo.hWndReply, mInfo.uReplyMsg, MAKELONG(SNARL_NOTIFICATION_MENU, Val(pmi.Name)), ByVal mInfo.Token, SMTO_ABORTIFHUNG, 500, dw
+    PostMessage mInfo.hWndReply, mInfo.uReplyMsg, MAKELONG(SNARL_NOTIFICATION_MENU, Val(pmi.Name)), ByVal mInfo.Token
 
 End Sub
 
 Private Sub uNotify(ByVal Notification As Long)
-Dim dw As Long
 
-    If (mInfo.hWndReply) And (mInfo.uReplyMsg) Then
+    If (IsWindow(mInfo.hWndReply) <> 0) And (mInfo.uReplyMsg <> 0) Then
         g_Debug "CSnarlWindow.uNotify(): sending #" & CStr(Notification) & " to hWnd=" & g_HexStr(mInfo.hWndReply) & " msg=" & g_HexStr(mInfo.uReplyMsg) & " id=" & g_HexStr(mInfo.Token), LEMON_LEVEL_INFO
-        SendMessageTimeout mInfo.hWndReply, mInfo.uReplyMsg, Notification, ByVal mInfo.Token, SMTO_ABORTIFHUNG, 500, dw
+        PostMessage mInfo.hWndReply, mInfo.uReplyMsg, Notification, ByVal mInfo.Token
 
     Else
         g_Debug "CSnarlWindow.uNotify(): can't send #" & CStr(Notification) & ": hWnd=" & g_HexStr(mInfo.hWndReply) & " msg=" & g_HexStr(mInfo.uReplyMsg) & " id=" & g_HexStr(mInfo.Token), LEMON_LEVEL_WARNING
@@ -1113,7 +1175,7 @@ Dim pv As mfxView
         Set pv = New mfxView
         pv.SizeTo pbm.Width, pbm.Height
         pv.DrawScaledImage pbm
-        Set uGetContent2 = create_dropshadow(pv, , g_Prefs.dropshadow_size * 2, Fix((g_Prefs.dropshadow_strength / 100) * 255))
+        Set uGetContent2 = create_dropshadow(pv, , Val(g_ConfigGet("dropshadow_size")) * 2, Fix((Val(g_ConfigGet("dropshadow_strength")) / 100) * 255))
 
     Else
         Set uGetContent2 = pbm
@@ -1190,8 +1252,8 @@ End Sub
 Public Sub AdjustPosition(ByRef x As Long, ByRef y As Long)
 
     If uDrawDropshadow() Then
-        x = x + g_Prefs.dropshadow_size
-        y = y + g_Prefs.dropshadow_size
+        x = x + Val(g_ConfigGet("dropshadow_size"))
+        y = y + Val(g_ConfigGet("dropshadow_size"))
 
     End If
 
@@ -1200,8 +1262,8 @@ Public Sub AdjustPosition(ByRef x As Long, ByRef y As Long)
     ' /* compensate for dropshadow */
 
     If uDrawDropshadow() Then
-        x = x - g_Prefs.dropshadow_size
-        y = y - g_Prefs.dropshadow_size
+        x = x - Val(g_ConfigGet("dropshadow_size"))
+        y = y - Val(g_ConfigGet("dropshadow_size"))
 
     End If
 
@@ -1265,11 +1327,20 @@ Private Function uDateStamp() As String
 End Function
 
 Private Function uDetailsMenu() As OMMenu
+Dim szClass As String
 
     Set uDetailsMenu = New OMMenu
     With uDetailsMenu
         .AddItem .CreateItem("", "Received: " & uDateStamp())
         .AddItem .CreateItem("", "Generated by: " & mClass.App.Name)
+
+        szClass = mClass.Description
+        If szClass = "_all" Then _
+            szClass = "<Other Notifications>"
+
+        .AddItem .CreateItem("", "Class: " & szClass)
+        .AddSeparator
+        .AddItem .CreateItem("$" & mClass.App.Name, mClass.App.Name & " Settings...")
 
     End With
 

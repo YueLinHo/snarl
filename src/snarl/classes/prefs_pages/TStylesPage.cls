@@ -494,26 +494,6 @@ Dim i As Long
 
 End Sub
 
-Private Sub uShowConfigWindow(ByVal hWndConfig As Long)
-Dim rcConfig As RECT
-Dim rc As RECT
-
-    AddSubClass hWndConfig, Me
-    SetWindowLong hWndConfig, GWL_HWNDPARENT, mPage.Panel.hWnd
-    EnableWindow mPage.Panel.hWnd, 0
-
-    GetWindowRect mPage.Panel.hWnd, rc
-    GetWindowRect hWndConfig, rcConfig
-    g_RectNormalise rcConfig
-
-    g_MoveWindow hWndConfig, _
-                 rc.Left + Fix(((rc.Right - rc.Left) - rcConfig.Right) / 2), _
-                 rc.Top + Fix(((rc.Bottom - rc.Top) - rcConfig.Bottom) / 2)
-
-    g_ShowWindow hWndConfig, True, True
-
-End Sub
-
 Private Function MWndProcSink_WndProc(ByVal hWnd As Long, ByVal uMsg As Long, ByVal wParam As Long, ByVal lParam As Long, ByVal PrevWndProc As Long, ReturnValue As Long) As Boolean
 Dim ps As TStyle
 
@@ -593,22 +573,39 @@ Private Function uMakePreviewName() As String
  
 End Function
 
-Private Sub uDoConfigureStyleWindow()
+Private Function uDoConfigureStyleWindow() As Boolean
 
     If (mStyle.Engine Is Nothing) Then _
-        Exit Sub
+        Exit Function
 
-Dim dw As Long
+Dim hWndConfig As Long
 
-    dw = mStyle.Engine.GetConfigWindow(mStyle.Name)
-    If IsWindow(dw) = 0 Then
-        g_Debug "TStylePage.ControlChanged(): ConfigRequested() failed (" & g_HexStr(dw) & ")"
-        MsgBox "This style cannot be configured.", vbInformation Or vbOKOnly, App.Title
-        Exit Sub
+    hWndConfig = mStyle.Engine.GetConfigWindow(mStyle.Name)
+    If IsWindow(hWndConfig) = 0 Then
+        g_Debug "TStylePage.ControlChanged(): ConfigRequested() failed (" & g_HexStr(hWndConfig) & ")"
+'        MsgBox "This style cannot be configured.", vbInformation Or vbOKOnly, App.Title
+        Exit Function
 
     End If
 
     ' /* valid window */
-    uShowConfigWindow dw
 
-End Sub
+Dim rcConfig As RECT
+Dim rc As RECT
+
+    AddSubClass hWndConfig, Me
+    SetWindowLong hWndConfig, GWL_HWNDPARENT, mPage.Panel.hWnd
+    EnableWindow mPage.Panel.hWnd, 0
+
+    GetWindowRect mPage.Panel.hWnd, rc
+    GetWindowRect hWndConfig, rcConfig
+    g_RectNormalise rcConfig
+
+    g_MoveWindow hWndConfig, _
+                 rc.Left + Fix(((rc.Right - rc.Left) - rcConfig.Right) / 2), _
+                 rc.Top + Fix(((rc.Bottom - rc.Top) - rcConfig.Bottom) / 2)
+
+    g_ShowWindow hWndConfig, True, True
+    uDoConfigureStyleWindow = True
+
+End Function

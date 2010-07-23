@@ -639,8 +639,7 @@ Dim update_config   As Boolean
             ShellExecute 0, "open", g_MakePath(App.Path) & "Snarl_App_Manager.exe", vbNullString, vbNullString, SW_SHOW
 
         Case "sticky"
-            g_Prefs.sticky_snarls = Not g_Prefs.sticky_snarls
-            g_WriteConfig
+            g_ConfigSet "sticky_snarls", IIf(g_ConfigGet("sticky_snarls") = "1", "0", "1")
 
         Case "dnd"
             g_Prefs.do_not_disturb_ = Not g_Prefs.do_not_disturb_
@@ -651,19 +650,22 @@ Dim update_config   As Boolean
                 g_NotificationRoster.ShowMissedPanel
 
         Case Else
-            sz = g_SafeLeftStr(pi.Name, 3)
-            szData = g_SafeRightStr(pi.Name, Len(pi.Name) - 3)
+            If g_SafeLeftStr(pi.Name, 1) = "!" Then _
+                g_AppRoster.SnarlAppDo Val(g_SafeRightStr(pi.Name, Len(pi.Name) - 1)), SNARL_APP_SHOW_PREFS
 
-            Select Case sz
-            Case "cfg"
-                ' /* Snarl App -> Settings... szData is App Roster index */
-                g_AppRoster.SnarlAppDo Val(szData), SNARL_APP_SHOW_PREFS
-
-            Case "abt"
-                ' /* Snarl App -> About... szData is App Roster index */
-                g_AppRoster.SnarlAppDo Val(szData), SNARL_APP_SHOW_ABOUT
-
-            End Select
+'            sz = g_SafeLeftStr(pi.Name, 3)
+'            szData = g_SafeRightStr(pi.Name, Len(pi.Name) - 3)
+'
+'            Select Case sz
+'            Case "cfg"
+'                ' /* Snarl App -> Settings... szData is App Roster index */
+'                g_AppRoster.SnarlAppDo Val(szData), SNARL_APP_SHOW_PREFS
+'
+'            Case "abt"
+'                ' /* Snarl App -> About... szData is App Roster index */
+'                g_AppRoster.SnarlAppDo Val(szData), SNARL_APP_SHOW_ABOUT
+'
+'            End Select
 
         End Select
     End If
@@ -673,55 +675,41 @@ Dim update_config   As Boolean
 
 End Sub
 
-Public Sub NewDoPrefs()
+Public Sub NewDoPrefs(Optional ByVal PageToSelect As Integer)
 
-    Debug.Print "frmAbout:Prefs"
+    If (mPanel Is Nothing) Then
 
-    If Not (mPanel Is Nothing) Then _
-        Exit Sub
+        Set mPanel = New BPrefsPanel
+        With mPanel
+            .SetHandler Me
 
-Dim pbm As MImage
+            mPanel.SetTitle "Snarl Preferences"
+            mPanel.SetWidth 500
 
-    Set mPanel = New BPrefsPanel
-    mPanel.SetHandler Me
-'    mPanel.SetMargin 90
+            .AddPage new_BPrefsPage("General", load_image_obj(g_MakePath(App.Path) & "etc\icons\general.png"), New TGeneralPage)
 
-    load_image g_MakePath(App.Path) & "etc\icons\general.png", pbm
-    mPanel.AddPage new_BPrefsPage("General", pbm, New TGeneralPage)
+            Set mAppsPage = New TAppsPage
+            .AddPage new_BPrefsPage("Apps", load_image_obj(g_MakePath(App.Path) & "etc\icons\apps.png"), mAppsPage)
+            .AddPage new_BPrefsPage("Display", load_image_obj(g_MakePath(App.Path) & "etc\icons\display.png"), New TDisplayPage)
+            .AddPage new_BPrefsPage("Styles", load_image_obj(g_MakePath(App.Path) & "etc\icons\styles.png"), New TStylesPage)
+            .AddPage new_BPrefsPage("Extensions", load_image_obj(g_MakePath(App.Path) & "etc\icons\extensions.png"), New TExtPage)
+            .AddPage new_BPrefsPage("Network", load_image_obj(g_MakePath(App.Path) & "etc\icons\network.png"), New TNetworkPage)
+            .AddPage new_BPrefsPage("Advanced", load_image_obj(g_MakePath(App.Path) & "etc\icons\advanced.png"), New TAdvancedPage)
+            .AddPage new_BPrefsPage("About", load_image_obj(g_MakePath(App.Path) & "etc\icons\about.png"), New TAboutPage)
 
-    load_image g_MakePath(App.Path) & "etc\icons\apps.png", pbm
-    Set mAppsPage = New TAppsPage
-    mPanel.AddPage new_BPrefsPage("Apps", pbm, mAppsPage)
+            If gDebugMode Then _
+                .AddPage new_BPrefsPage("Debug", load_image_obj(g_MakePath(App.Path) & "etc\icons\debug.png"), New TDebugPage)
 
-    load_image g_MakePath(App.Path) & "etc\icons\display.png", pbm
-    mPanel.AddPage new_BPrefsPage("Display", pbm, New TDisplayPage)
+            .Go
+            g_SetWindowIconToAppResourceIcon .hWnd
 
-    load_image g_MakePath(App.Path) & "etc\icons\styles.png", pbm
-    mPanel.AddPage new_BPrefsPage("Styles", pbm, New TStylesPage)
-
-    load_image g_MakePath(App.Path) & "etc\icons\extensions.png", pbm
-    mPanel.AddPage new_BPrefsPage("Extensions", pbm, New TExtPage)
-
-    load_image g_MakePath(App.Path) & "etc\icons\network.png", pbm
-    mPanel.AddPage new_BPrefsPage("Network", pbm, New TNetworkPage)
-
-    load_image g_MakePath(App.Path) & "etc\icons\advanced.png", pbm
-    mPanel.AddPage new_BPrefsPage("Advanced", pbm, New TAdvancedPage)
-
-    load_image g_MakePath(App.Path) & "etc\icons\about.png", pbm
-    mPanel.AddPage new_BPrefsPage("About", pbm, New TAboutPage)
-
-    If gDebugMode Then
-        load_image g_MakePath(App.Path) & "etc\icons\debug.png", pbm
-        mPanel.AddPage new_BPrefsPage("Debug", pbm, New TDebugPage)
+        End With
 
     End If
 
-    mPanel.SetTitle "Snarl Preferences"
-    mPanel.SetWidth 500
+    If (PageToSelect > 0) And (PageToSelect <= mPanel.CountPages) Then _
+        mPanel.SetPage PageToSelect
 
-    mPanel.Go
-    g_SetWindowIconToAppResourceIcon mPanel.hWnd
 
 End Sub
 
@@ -827,7 +815,7 @@ End Sub
 Private Sub uAddTrayIcon()
 Dim hIcon As Long
 
-    If (mTrayIcon Is Nothing) Or (Not g_Prefs.show_tray_icon) Then _
+    If (mTrayIcon Is Nothing) Or (g_ConfigGet("show_tray_icon") = "0") Then _
         Exit Sub
 
     hIcon = LoadImage(App.hInstance, 1&, IMAGE_ICON, 16, 16, 0)
@@ -940,6 +928,21 @@ Dim pc As BControl
 
 End Sub
 
+Friend Sub bUpdateClassList(ByVal AppToken As Long)
+Dim pc As BControl
+Dim pm As CTempMsg
+
+    If Not (mPanel Is Nothing) Then
+        If mPanel.Find("cb>apps", pc) Then
+            Set pm = New CTempMsg
+            pm.What = AppToken
+            pc.Notify "update_classes", pm
+
+        End If
+    End If
+
+End Sub
+
 Private Sub uUpdateStyleList()
 Dim pc As BControl
 
@@ -984,8 +987,8 @@ Dim dw As Long
         snShowMessage g_GetUserName() & " on " & g_GetComputerName(), _
                       g_GetOSName() & " " & g_GetServicePackName() & vbCrLf & _
                       IIf(dw > 1, CStr(dw) & "x", "") & .FullName & " @ " & Format$(dFreq, "0.0#") & " " & szMetric & vbCrLf & _
-                      g_FileSizeToStringEx2(g_GetPhysMem(True), "GB", " ", "0.0#") & " physical, " & g_FileSizeToStringEx2(g_GetPageMem(True) + g_GetPhysMem(True), "GB", " ", "0.##") & " total RAM" & vbCrLf & _
-                      "Snarl " & App.Major & "." & App.Revision & ", exec " & melonGetVersion(libmexec.globals), _
+                      g_FileSizeToStringEx2(g_GetPhysMem(True), "GB", " ", "0.##") & " / " & g_FileSizeToStringEx2(g_GetPageMem(True) + g_GetPhysMem(True), "GB", " ", "0.##") & " RAM" & vbCrLf & _
+                      "Snarl " & App.Major & "." & App.Revision & ", melon " & melonGetVersion(libmexec.globals), _
                       20, _
                       g_MakePath(App.Path) & "etc\icons\snarl.png"
 
@@ -1017,7 +1020,7 @@ Private Sub theIdleTimer_Pulse()
 
     ' /* ignore if no idle timeout set */
 
-    If g_Prefs.idle_timeout <= 0 Then _
+    If Val(g_ConfigGet("idle_timeout")) <= 0 Then _
         Exit Sub
 
 Dim lii As LASTINPUTINFO
@@ -1031,10 +1034,12 @@ Dim lii As LASTINPUTINFO
 
 Static b As Boolean
 
-    b = (lii.dwTime > (g_Prefs.idle_timeout * 1000))
+    b = (lii.dwTime > (Val(g_ConfigGet("idle_timeout")) * 1000))
     If b <> gIsIdle Then
         g_Debug "_theIdleTimer.Pulse(): " & Now() & " away mode: " & b
         gIsIdle = b
+
+'        snShowMessage "Idle", "Idle mode is " & gIsIdle, 0
 
     End If
 
@@ -1276,5 +1281,54 @@ Dim i As Long
     End If
 
     g_Debug "", LEMON_LEVEL_PROC_EXIT
+
+End Sub
+
+Public Function DoExtensionConfig(ByVal Index As Long) As Boolean
+
+    If (mPanel Is Nothing) Then _
+        Exit Function
+
+    If IsWindowEnabled(mPanel.hWnd) = 0 Then _
+        Exit Function
+
+Dim pExtList As BControl
+
+    If mPanel.Find("lb>extensions", pExtList) Then _
+        pExtList.SetValue CStr(Index)
+
+Dim pExt As TExtension
+
+    Set pExt = g_ExtnRoster.ItemAt(Index)
+    DoExtensionConfig = pExt.DoPrefs(mPanel.hWnd)
+
+End Function
+
+Public Function DoStyleConfig(ByVal Index As Long) As Boolean
+
+    If (mPanel Is Nothing) Then _
+        Exit Function
+
+    If IsWindowEnabled(mPanel.hWnd) = 0 Then _
+        Exit Function
+
+Dim pStyleList As BControl
+
+    If mPanel.Find("installed_styles", pStyleList) Then _
+        pStyleList.SetValue CStr(Index)
+
+    If mPanel.Find("ftb>style", pStyleList) Then _
+        pStyleList.Changed "1"
+
+    DoStyleConfig = True
+
+End Function
+
+Public Sub DoAppConfig(ByVal AppName As String)
+
+    NewDoPrefs 2
+
+    If Not (g_AppRoster Is Nothing) Then _
+        prefskit_SetValue mPanel, "cb>apps", CStr(g_AppRoster.IndexOf(AppName))
 
 End Sub
