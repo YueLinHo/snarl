@@ -221,12 +221,6 @@ Static iCmd As Long
 '    Form1.List1.AddItem "uCopyData(): cb=" & pNotify.cbSize & " command=" & iCmd
 '    Form1.Log "uCopyData(): cb=" & pNotify.cbSize & " command=" & iCmd & " " & uCmdStr(iCmd)
 
-    If (pNotify.cbSize < SIZEOF_NOTIFYICONDATA5) Or (pNotify.cbSize > SIZEOF_NOTIFYICONDATA6) Then
-        Form1.List1.AddItem "ignoring non-V5 or V6 notification..."
-        Exit Sub
-
-    End If
-
     If (iCmd <> NIM_ADD) And (iCmd <> NIM_MODIFY) Then
         Form1.List1.AddItem "ignoring non-add or modify..."
         Exit Sub
@@ -241,7 +235,7 @@ Dim szIcon As String
 Dim lIcon As Long
 
     Select Case pNotify.cbSize
-    Case SIZEOF_NOTIFYICONDATA6
+    Case Is >= SIZEOF_NOTIFYICONDATA6
         CopyMemory pNotify6, ByVal cds.lpData + 8, Len(pNotify6)
         With pNotify6
             If (.uFlags And NIF_INFO) Then
@@ -249,6 +243,9 @@ Dim lIcon As Long
                 szTitle = g_TrimStr(StrConv(.szInfoTitle, vbFromUnicode))
                 szText = g_TrimStr(StrConv(.szInfo, vbFromUnicode))
                 szClass = "none"
+
+                If pNotify.cbSize > SIZEOF_NOTIFYICONDATA6 Then _
+                    Form1.List1.AddItem "post-V6 struct (cb=" & CStr(pNotify.cbSize) & ")"
 
                 If (.dwInfoFlags And NIIF_ICON_MASK) = NIIF_USER Then
 '                    DestroyIcon pEntry.hInfoIcon
@@ -314,6 +311,10 @@ Dim lIcon As Long
 
             End If
         End With
+
+    Case Else
+
+
     End Select
 
 Dim szSource As String
