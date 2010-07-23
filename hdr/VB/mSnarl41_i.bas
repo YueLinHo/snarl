@@ -94,6 +94,7 @@ Public Enum SNARL_STATUS_41
     SNARL41_ERROR_ALREADY_REGISTERED        '// not used yet; sn41RegisterApp() returns existing token
     SNARL41_ERROR_CLASS_ALREADY_EXISTS      '// not used yet; sn41AddClass() returns existing token
     SNARL41_ERROR_CLASS_BLOCKED
+    SNARL41_ERROR_CLASS_NOT_FOUND
 
 End Enum
 
@@ -179,7 +180,7 @@ Dim dw As Long
 
 End Function
 
-Public Function sn41RegisterApp(ByVal Id As String, ByVal Title As String, ByVal Icon As String, Optional ByVal hWndReply As Long, Optional ByVal Flags As SNARL41_APP_FLAGS) As Long
+Public Function sn41RegisterApp(ByVal Id As String, ByVal Title As String, ByVal Icon As String, Optional ByVal hWndReply As Long, Optional ByVal uMsgReply As Long, Optional ByVal Flags As SNARL41_APP_FLAGS) As Long
 Dim pReq As SNARLMSG
 
     With pReq
@@ -187,6 +188,7 @@ Dim pReq As SNARLMSG
         .Token = 0
         .PacketData = uToUTF8("id::" & Id & "#?title::" & Title & "#?icon::" & Icon & "#?" & _
                               "hwnd::" & CStr(hWndReply) & "#?" & _
+                              "umsg::" & CStr(uMsgReply) & "#?" & _
                               "flags::" & CStr(Flags) _
                               )
 
@@ -251,13 +253,13 @@ Dim sz As String
 
 End Function
 
-Public Function sn41AddClass(ByVal Token As Long, ByVal Id As String, ByVal Name As String) As Long
+Public Function sn41AddClass(ByVal Token As Long, ByVal Id As String, ByVal Name As String, Optional ByVal Enabled As Boolean = True) As Long
 Dim pReq As SNARLMSG
 
     With pReq
         .Command = SNARL41_ADD_CLASS
         .Token = Token
-        .PacketData = uToUTF8("id::" & Id & "#?name::" & Name)
+        .PacketData = uToUTF8("id::" & Id & "#?name::" & Name & "#?enabled::" & IIf(Enabled, "1", "0"))
 
     End With
 
@@ -265,17 +267,31 @@ Dim pReq As SNARLMSG
 
 End Function
 
-Public Function sn41RemClass(ByVal Token As Long, ByVal Class As Long) As Long
+Public Function sn41RemoveClass(ByVal Token As Long, ByVal Id As String, Optional ByVal ForgetSettings As Boolean) As Long
 Dim pReq As SNARLMSG
 
     With pReq
         .Command = SNARL41_REMOVE_CLASS
         .Token = Token
-        .PacketData = uToUTF8("class_token::" & CStr(Class))
+        .PacketData = uToUTF8("id::" & Id & IIf(ForgetSettings, "#?forget::1", ""))
 
     End With
 
-    sn41RemClass = uSend(pReq)
+    sn41RemoveClass = uSend(pReq)
+
+End Function
+
+Public Function sn41RemoveAllClasses(ByVal Token As Long, Optional ByVal ForgetSettings As Boolean) As Long
+Dim pReq As SNARLMSG
+
+    With pReq
+        .Command = SNARL41_REMOVE_CLASS
+        .Token = Token
+        .PacketData = uToUTF8("all::1" & IIf(ForgetSettings, "#?forget::1", ""))
+
+    End With
+
+    sn41RemoveAllClasses = uSend(pReq)
 
 End Function
 
@@ -301,13 +317,56 @@ Dim pReq As SNARLMSG
 
 End Function
 
-Public Function sn41Update(ByVal Token As Long, Optional ByVal Title As String = "-", Optional ByVal Text As String = "-", Optional ByVal Timeout As Long, Optional ByVal Icon As String = "-") As Long
+Public Function sn41Notify(ByVal Token As Long, ByVal Id As String, ByVal PacketData As String) As Long
 Dim pReq As SNARLMSG
+
+    With pReq
+        .Command = SNARL41_NOTIFY
+        .Token = Token
+        .PacketData = uToUTF8("id::" & Id & "#?" & PacketData)
+
+    End With
+
+    sn41Notify = uSend(pReq)
+
+End Function
+
+Public Function sn41Update(ByVal Token As Long, Optional ByVal Title As String = "/?", Optional ByVal Text As String = "/?", Optional ByVal Timeout As Long = &H80000000, Optional ByVal Icon As String = "/?") As Long
+Dim pReq As SNARLMSG
+Dim sz As String
 
     With pReq
         .Command = SNARL41_UPDATE_NOTIFICATION
         .Token = Token
-        .PacketData = uToUTF8("title::" & Title & "#?text::" & Text & "#?icon::" & Icon)
+
+        If Title <> "/?" Then _
+            sz = sz & "title::" & Title
+
+        If Text <> "/?" Then
+            If sz <> "" Then _
+                sz = sz & "#?"
+
+            sz = sz & "text::" & Text
+
+        End If
+
+        If Icon <> "/?" Then
+            If sz <> "" Then _
+                sz = sz & "#?"
+
+            sz = sz & "icon::" & Icon
+
+        End If
+
+        If Timeout <> &H80000000 Then
+            If sz <> "" Then _
+                sz = sz & "#?"
+
+            sz = sz & "timeout::" & CStr(Timeout)
+
+        End If
+
+        .PacketData = uToUTF8(sz)
 
     End With
 
@@ -399,7 +458,7 @@ End Function
 Public Function sn41GetSnarlWindow() As Long
 
     sn41GetSnarlWindow = FindWindow("w>Snarl", "Snarl")
-    If sn41GetSnarlWindow = 0 Then _
+'    If sn41GetSnarlWindow = 0 Then _
         sn41GetSnarlWindow = FindWindow(vbNullString, "Snarl")
 
 End Function
