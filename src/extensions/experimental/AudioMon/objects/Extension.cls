@@ -50,8 +50,8 @@ Option Explicit
     '
     ' */
 
-Private Const LIB_DATE = "12-Jun-2010"
-Private Const LIB_REL = "1.7 Alpha 2"
+Private Const LIB_DATE = "15-Jul-2010"
+Private Const LIB_REL = "1.7 RC1"
 
 Private Const WINDOW_CLASS = "w>audiomon_extension"
 
@@ -192,7 +192,7 @@ Dim i As Long
 
             Else
                 mVolId = sn41EZNotify(mAppToken, _
-                                      CLASS_AUDIO_LEVEL_CHANGED, _
+                                      CLASS_AUDIO_CHANGE, _
                                       "", _
                                       IIf(Value = 1, "", IIf(bMeterMode, CStr(mVol), "")), _
                                       -1, _
@@ -619,7 +619,7 @@ Dim bMultiNotify As Boolean
         sn41AddClass mAppToken, CLASS_AUDIO_UNMUTED, "Audio unmuted"
 
     Else
-        sn41AddClass mAppToken, CLASS_AUDIO_CHANGE, "Master volume change/mute"
+        sn41AddClass mAppToken, CLASS_AUDIO_CHANGE, "Master volume changes"
 
     End If
 
