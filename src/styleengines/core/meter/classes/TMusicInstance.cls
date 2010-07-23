@@ -17,7 +17,7 @@ Option Explicit
 '/
 '/  File:           TMusicInstance.cls
 '/
-'/  Description:    Represents a single instance of a Music style notification
+'/  Description:    Represents a single instance of a Slideshow notification
 '/
 '/  © 2010 full phat products
 '/
@@ -108,7 +108,10 @@ Dim pi As MImage
     If mIconOnly Then _
         Exit Sub
 
-    If mInfo.Scheme = "top and bottom" Then
+    If mInfo.Scheme = "none" Then
+        ' /* do nothing else */
+
+    ElseIf mInfo.Scheme = "top and bottom" Then
         uDrawTopAndBottom
 
     Else
@@ -157,23 +160,23 @@ Dim pr As BRect
     With mView
 
         txtFlags = MFX_ALIGN_LEFT Or MFX_ALIGN_V_CENTER
-        If (mInfo.Flags And S_NOTIFICATION_IS_PRIORITY) Then
-            .SetLowColour rgba(255, 0, 0, 200)
-            txtFlags = txtFlags Or MFX_SIMPLE_OUTLINE
-
-        End If
+'        If (mInfo.Flags And S_NOTIFICATION_IS_PRIORITY) Then
+''            .SetLowColour rgba(255, 0, 0, 200)
+'            txtFlags = txtFlags Or MFX_SIMPLE_OUTLINE
+'
+'        End If
 
         ' /* title */
         .SetFont mStyle.ReadSetting("title_font"), Val(mStyle.ReadSetting("title_size")), True
-        .SetHighColour rgba(0, 0, 0, 160)
+        .SetHighColour IIf((mInfo.Flags And S_NOTIFICATION_IS_PRIORITY), rgba(255, 0, 0, 160), rgba(0, 0, 0, 160))
         Set pr = new_BRect(0, 0, .Width - 1, .StringHeight("A") + 6)
         .FillRect pr
         .SetHighColour rgba(255, 255, 255)
-        .DrawString mInfo.Title, pr.InsetByCopy(4, 0), txtFlags
+        .DrawString uFitText(mInfo.Title, pr), pr.InsetByCopy(4, 0), txtFlags
 
         ' /* text */
         .SetFont mStyle.ReadSetting("text_font"), Val(mStyle.ReadSetting("text_size")), True
-        .SetHighColour rgba(0, 0, 0, 160)
+        .SetHighColour IIf((mInfo.Flags And S_NOTIFICATION_IS_PRIORITY), rgba(255, 0, 0, 160), rgba(0, 0, 0, 160))
         Set pr = new_BRect(0, 0, .Width - 1, (.StringHeight("A") * 2) + 6)
         pr.OffsetBy 0, .Height - pr.Height
         .FillRect pr
@@ -182,8 +185,9 @@ Dim pr As BRect
             uDrawStars pr.TopLeft.OffsetByCopy(4, Fix((pr.Height - mStarIcon.Height) / 2))
 
         Else
+            pr.InsetBy 4, 2
             .SetHighColour rgba(255, 255, 255, 220)
-            .DrawString mInfo.Text, pr.InsetByCopy(4, 0), txtFlags
+            .DrawString uFitText(mInfo.Text, pr), pr, txtFlags
 
         End If
 
@@ -193,32 +197,36 @@ End Sub
 
 Private Sub uDrawTopOrBottom()
 Dim txtFlags As MFX_DRAWSTRING_FLAGS
+Dim cyTitle As Long
+Dim cyText As Long
 Dim pr As BRect
 
     With mView
 
         txtFlags = MFX_ALIGN_LEFT Or MFX_ALIGN_TOP
 
-        If (mInfo.Flags And S_NOTIFICATION_IS_PRIORITY) Then
-            .SetLowColour rgba(255, 0, 0, 200)
-            txtFlags = txtFlags Or MFX_SIMPLE_OUTLINE
-
-        End If
+'        If (mInfo.Flags And S_NOTIFICATION_IS_PRIORITY) Then
+'            .SetLowColour rgba(255, 0, 0, 200)
+'            txtFlags = txtFlags Or MFX_SIMPLE_OUTLINE
+'
+'        End If
 
         ' /* calc title */
         .SetFont mStyle.ReadSetting("title_font"), Val(mStyle.ReadSetting("title_size")), True
-        Set pr = new_BRect(0, 0, .Width - 1, .StringHeight("A"))
-        
+        cyTitle = .StringHeight("A")
+        Set pr = new_BRect(0, 0, .Width - 1, cyTitle)
+
         ' /* calc text */
         .SetFont mStyle.ReadSetting("text_font"), Val(mStyle.ReadSetting("text_size")), True
-        pr.ExpandBy 0, .StringHeight("A") * 2
-        
+        cyText = .StringHeight("A")
+        pr.ExpandBy 0, cyText * 2
+
         pr.ExpandBy 0, 6        ' // padding
 
         If mInfo.Scheme = "bottom" Then _
             pr.OffsetBy 0, .Height - pr.Height
 
-        .SetHighColour rgba(0, 0, 0, 160)
+        .SetHighColour IIf((mInfo.Flags And S_NOTIFICATION_IS_PRIORITY), rgba(255, 0, 0, 160), rgba(0, 0, 0, 160))
         .FillRect pr
 
         pr.InsetBy 4, 3
@@ -226,7 +234,7 @@ Dim pr As BRect
         ' /* title */
         .SetFont mStyle.ReadSetting("title_font"), Val(mStyle.ReadSetting("title_size")), True
         .SetHighColour rgba(255, 255, 255)
-        .DrawString mInfo.Title, pr, txtFlags
+        .DrawString uFitText(mInfo.Title, new_BRect(pr.Left, pr.Top, pr.Right, pr.Top + cyTitle + 1)), pr, txtFlags
         pr.OffsetBy 0, .StringHeight("A")
 
         ' /* text */
@@ -236,14 +244,9 @@ Dim pr As BRect
         Else
             .SetFont mStyle.ReadSetting("text_font"), Val(mStyle.ReadSetting("text_size")), True
             .SetHighColour rgba(255, 255, 255, 220)
-            .DrawString mInfo.Text, pr, txtFlags
+            .DrawString uFitText(mInfo.Text, new_BRect(pr.Left, pr.Top, pr.Right, pr.Top + cyText * 2)), pr, txtFlags
 
         End If
-
-'        .DrawString mInfo.Scheme, .Bounds, MFX_ALIGN_H_CENTER Or MFX_ALIGN_V_CENTER
-
-
-'        .DrawScaledImage pb, new_BPoint(0, 0)
 
     End With
 
@@ -276,5 +279,28 @@ Dim c As Long
 
 End Sub
 
+Private Function uFitText(ByVal Text As String, ByRef Bounds As BRect) As String
 
+    If (mView Is Nothing) Or (Text = "") Then _
+        Exit Function
+
+Dim pr As BRect
+Dim bDots As Boolean
+
+    Do
+        mView.MeasureString Text & IIf(bDots, "...", ""), Bounds, pr
+        If pr.Height < Bounds.Height Then
+            uFitText = Text & IIf(bDots, "...", "")
+            Exit Function
+
+        End If
+
+        Text = g_SafeLeftStr(Text, Len(Text) - 1)
+        bDots = True
+        If Text = "" Then _
+            Exit Function
+
+    Loop
+
+End Function
 

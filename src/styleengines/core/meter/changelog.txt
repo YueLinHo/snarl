@@ -2,6 +2,16 @@
 
 	Meter Style Engine Change Log
 
+	- Added "None" scheme to Slideshow style which draws only the
+	  icon.  (39.50)
+
+	- Added missing bar colour control to Just Black preferences
+	  page.  (39.49)
+
+	- Tidied up the digital clock scheme. (39.47)
+
+	- iPhoney icon reflection is now drawn correctly.  (39.46)
+
 	- iPhoney style title is now drawn without a black outline and
 	  uses the foreground alpha setting.  (39.32)
 

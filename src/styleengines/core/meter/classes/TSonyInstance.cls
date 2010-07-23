@@ -107,7 +107,7 @@ Dim pi As MImage
     Set pi = load_image_obj(NotificationInfo.Icon)
     If is_valid_image(pi) Then
         Set mIcon = style_MakeSquareImage(pi)
-        mIconSize = MIN(mIcon.Height, 48)
+        mIconSize = MIN(mIcon.Height, IIf(InStr(mInfo.Scheme, "big icon"), 128, 48))
 
     End If
 
@@ -249,7 +249,7 @@ Dim pr As BRect
         pr.InsetBy EM_MARGIN, EM_MARGIN
 
         ' /* if we have an icon then shrink accordingly */
-        If mIconSize > 0 Then _
+        If (mIconSize > 0) And (mIconSize < 128) Then _
             pr.Right = pr.Right - (mIconSize + EM_MARGIN)
 
         ' /* measure title */
@@ -291,8 +291,10 @@ Dim pt As BPoint
                 ' /* centre of the notification */
                 Set pt = new_BPoint(Fix((.Width - mIconSize) / 2), Fix((.Height - mIconSize) / 2))
 
+            ElseIf InStr(mInfo.Scheme, "big icon") Then
+                Set pt = new_BPoint(0, Fix((.Height - mIconSize) / 2))
+
             Else
-                ' /* top-right corner */
                 Set pt = new_BPoint(EM_MARGIN, EM_MARGIN)
 
             End If
@@ -312,7 +314,7 @@ Dim pt As BPoint
 Dim xOffset As Long
 
     If mIconSize > 0 Then _
-        xOffset = mIconSize + EM_MARGIN
+        xOffset = IIf(mIconSize = 128, 0, 48) + EM_MARGIN
 
 Dim pr As BRect
 

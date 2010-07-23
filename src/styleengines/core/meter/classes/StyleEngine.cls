@@ -13,7 +13,7 @@ Attribute VB_PredeclaredId = False
 Attribute VB_Exposed = True
 Option Explicit
 
-Private Const LIB_DATE = "27-May-2010"
+Private Const LIB_DATE = "23-Jul-2010"
 
 Private Const STYLE_NAME_JUST_BLACK = "Just Black"
 Private Const STYLE_NAME_IPHONEY = "iPhoney"
@@ -141,9 +141,9 @@ Private Function IStyleEngine_Initialize() As melon.M_RESULT
     uAdd STYLE_NAME_JUST_BLACK, _
          "A simple notification inspired by Notify-OSD", _
          S_STYLE_IS_CONFIGURABLE Or S_STYLE_MULTI_INSTANCE, _
-         "Standard|Big Icon", _
-         1, 1, _
-         uCreatePackedStr("title_font::Verdana#?title_size::9#?text_font::Verdana#?text_size::9#?background::" & CStr(rgba(32, 32, 32)) & "#?foreground::" & CStr(rgba(255, 255, 255)) & "#?show_graphically::1#?show_percent::0#?meter_type=1#?bar_colour::" & CStr(rgba(255, 128, 0)) & "#?spectrum_type::1"), _
+         "Standard|Big Icon|Big Icon (Whole)", _
+         1, 21, _
+         uCreatePackedStr("title_font::Verdana#?title_size::8#?text_font::Verdana#?text_size::8#?background::" & CStr(rgba(32, 32, 32)) & "#?foreground::" & CStr(rgba(255, 255, 255)) & "#?show_graphically::1#?show_percent::0#?meter_type=1#?bar_colour::" & CStr(rgba(255, 128, 0)) & "#?spectrum_type::1"), _
          E_METER_STYLE_CAN_CHANGE_FONT Or E_METER_STYLE_VARIABLE_METERS Or E_METER_STYLE_HAS_SPECTRUMS, _
          "Monochrome Bar|Coloured Bar|Spectrum Bar|Monochrome Graph|Coloured Graph|Spectrum Graph", _
          "Red/Yellow/Green|Magenta/White/Cyan"
@@ -181,7 +181,7 @@ Private Function IStyleEngine_Initialize() As melon.M_RESULT
     uAdd STYLE_NAME_SONY, _
          "Displays a notification with a background that changes colour based on the month of the year", _
          S_STYLE_IS_CONFIGURABLE Or S_STYLE_MULTI_INSTANCE, _
-         "PS3|PSP", _
+         "PS3|PS3 (Big Icon)|PSP|PSP (Big Icon)", _
          0, 3, uCreatePackedStr("title_font::Trebuchet MS#?title_size::11#?text_font::Trebuchet MS#?text_size::10#?fg_alpha::100#?show_graphically::1#?show_icon::1#?icon_align::0#?show_percent::1"), _
          E_METER_STYLE_CAN_CHANGE_FONT Or E_METER_STYLE_CAN_SET_ICON_POS Or E_METER_STYLE_CAN_HIDE_SHOW_ICON
 
@@ -203,15 +203,15 @@ Private Function IStyleEngine_Initialize() As melon.M_RESULT
 
 
     uAdd STYLE_NAME_CLOCK, _
-         "Displays notification text formatted as 'YYYYMMDDHHMMSS' as a time", S_STYLE_IS_CONFIGURABLE Or S_STYLE_MULTI_INSTANCE, _
+         "Displays notification text formatted as 'YYYYMMDDHHMMSS' as a time", S_STYLE_MULTI_INSTANCE, _
          "", 0, 1, uCreatePackedStr(""), E_METER_STYLE_LOAD_SCHEMES_FROM_FILE Or E_METER_STYLE_HAS_OWN_PAGE, , , New TClockPage
 
 
     uAdd STYLE_NAME_MUSIC, _
          "Displays a fixed-size rectangular notification with the text part is limited to two lines.  Landscape icons with a height of more than 100px are recommended.", _
          S_STYLE_IS_CONFIGURABLE Or S_STYLE_MULTI_INSTANCE, _
-         "Top and Bottom|Bottom|Top", _
-         0, 1, _
+         "Top and Bottom|Bottom|Top|None", _
+         0, 3, _
          uCreatePackedStr("title_font::Arial#?title_size::8#?text_font::Arial#?text_size::7#?background::" & CStr(rgba(17, 17, 17)) & "#?show_graphically::1#?fg_alpha::100"), _
          E_METER_STYLE_CAN_CHANGE_FONT Or E_METER_STYLE_CAN_CHANGE_BKGND Or E_METER_STYLE_CAN_CHANGE_FGND Or E_METER_STYLE_CAN_SET_FG_ALPHA Or E_METER_STYLE_NO_SHOW_PERCENT
 
@@ -510,6 +510,9 @@ Dim f As Boolean
             .Add new_BPrefsControl("fancycycle", "meter_type", mCurrent.MeterTypes, "Type:", mCurrent.ReadSetting("meter_type"), , fUseMeter)
 
             If (mCurrent.Flags And E_METER_STYLE_HAS_SPECTRUMS) Then
+                
+                .Add new_BPrefsControl("fancycolourpicker", "bar_colour", "", "Bar colour:", mCurrent.ReadSetting("bar_colour"))
+                
                 Set pm = New CTempMsg
                 pm.Add "item-height", 24&
                 Set pc = new_BPrefsControl("combo", "spectrum_type", mCurrent.Spectrums, "Spectrum type:", mCurrent.ReadSetting("spectrum_type"), pm, (InStr(mCurrent.MeterType(Val(mCurrent.ReadSetting("meter_type"))), "Spectrum")))
@@ -584,6 +587,9 @@ Dim pc As BControl
     Case "meter_type"
         If Control.Page.Find("spectrum_type", pc) Then _
             pc.SetEnabled (InStr(mCurrent.MeterType(Val(Value)), "Spectrum"))
+
+        If Control.Page.Find("bar_colour", pc) Then _
+            pc.SetEnabled (InStr(mCurrent.MeterType(Val(Value)), "Coloured"))
 
 '    ' /* Sony only */
 '

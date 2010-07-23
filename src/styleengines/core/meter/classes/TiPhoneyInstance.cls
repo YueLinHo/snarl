@@ -246,7 +246,7 @@ Dim dw As Long
                 Set pt = new_BPoint(Fix((.Width - mIconSize) / 2), Fix((.Height - mIconSize) / 2))
 
             Else
-                Set pt = new_BPoint(.Width - (mIconSize + 10), IIf(gSettings.CentreIcon, Fix((.Height - mIconSize) / 2), 10))
+                Set pt = new_BPoint(.Width - (mIconSize + 10), IIf((gSettings.CentreIcon) Or (mIsNumeric), Fix((.Height - mIconSize) / 2), 10))
 
             End If
 
@@ -255,21 +255,26 @@ Dim dw As Long
             ' /* draw inverted (reflected) image */
 
             Set pbm = create_bitmap_from_image(mIcon)
-            GdipImageRotateFlip pbm.Handle, RotateNoneFlipY
-            pt.OffsetBy 0, mIconSize
-            pt.OffsetBy 0, -2
-            .DrawScaledImage pbm, pt, new_BPoint(mIconSize, mIconSize)
+            If is_valid_image(pbm) Then
+                Set pbm = pbm.SizeTo(mIconSize, mIconSize)
+                GdipImageRotateFlip pbm.Handle, RotateNoneFlipY
+                pt.OffsetBy 0, mIconSize
+                dw = MIN(mIconSize, .Height - pt.Y - 1)
+                .DrawImage pbm, new_BRect(pt.X, pt.Y, mIconSize, dw), new_BRect(0, 0, mIconSize, dw)
 
-            ' /* draw shading over image */
+                ' /* draw shading over image */
 
-            .EnableSmoothing False
-            .SetLowColour .HighColour
-            .SetHighColour rgba(get_red(.HighColour), get_green(.HighColour), get_blue(.HighColour), 220)
-            
-'            .SetHighColour rgba(255, 0, 0)
-'            .SetLowColour rgba(0, 0, 255)
-            
-            .FillRect new_BRect(pt.X, pt.Y, pt.X + mIconSize, pt.Y + mIconSize), MFX_VERT_GRADIENT
+                .EnableSmoothing False
+                .SetLowColour .HighColour
+                .SetHighColour rgba(get_red(.HighColour), get_green(.HighColour), get_blue(.HighColour), 190)
+
+'                .SetHighColour rgba(255, 0, 0)
+'                .SetLowColour rgba(0, 0, 255)
+
+                .FillRect new_BRect(pt.X, pt.Y, pt.X + mIconSize, MIN(pt.Y + mIconSize, .Height - 2)), MFX_VERT_GRADIENT
+
+            End If
+
             .EnableSmoothing True
 
         End If

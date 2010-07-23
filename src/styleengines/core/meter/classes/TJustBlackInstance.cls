@@ -132,7 +132,7 @@ Dim szMeterType As String
     ' /* now we have the final notification height, calculate the size of the icon */
 
     If is_valid_image(mIcon) Then _
-        mIconSize = MIN(mIcon.Height, IIf(mInfo.Scheme = "big icon", 128, 48))
+        mIconSize = MIN(mIcon.Height, IIf(InStr(mInfo.Scheme, "big icon"), 128, 48))
 
     uDraw
 
@@ -201,7 +201,7 @@ Dim cy As Long
 
         Set pr = new_BRect(0, 0, 250 - 1, cyNotification - 1)
         pr.InsetBy EM_MARGIN, EM_MARGIN
-        pr.Left = pr.Left + 48 + EM_MARGIN
+        pr.Left = pr.Left + IIf(mInfo.Scheme = "big icon (whole)", 0, 48) + EM_MARGIN
 
         ' /* measure title */
 
@@ -249,8 +249,14 @@ Dim pt As BPoint
         Else
             ' /* center icon vertically and offset off-notification if using the 'big icon' scheme */
             Set pt = new_BPoint(EM_MARGIN, Fix((mView.Height - mIconSize) / 2))
-            If mInfo.Scheme = "big icon" Then _
+            
+            If mInfo.Scheme = "big icon (whole)" Then
+                pt.OffsetBy -EM_MARGIN, 0
+
+            ElseIf mInfo.Scheme = "big icon" Then
                 pt.OffsetBy -Fix(mIconSize / 2), 0
+
+            End If
 
         End If
 
@@ -270,7 +276,7 @@ Dim xOff As Long
 
         xOff = EM_MARGIN
         If mIconSize > 0 Then _
-            xOff = xOff + 48 + EM_MARGIN
+            xOff = xOff + IIf(mInfo.Scheme = "big icon (whole)", 0, 48) + EM_MARGIN
 
         ' /* title */
 

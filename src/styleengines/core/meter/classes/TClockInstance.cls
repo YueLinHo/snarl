@@ -15,9 +15,9 @@ Option Explicit
 
 '/*********************************************************************************************
 '/
-'/  File:           TMinimalInstance.cls
+'/  File:           TClockInstance.cls
 '/
-'/  Description:    Represents a single instance of a Minimal style notification
+'/  Description:    Represents a single instance of a Clock style notification
 '/
 '/  © 2010 full phat products
 '/
@@ -101,12 +101,12 @@ Dim pi As MImage
     End If
 
     With mTime
-        .Year = Val(Left$(mInfo.Text, 4))
-        .Month = Val(Mid$(mInfo.Text, 5, 2))
-        .Date = Val(Mid$(mInfo.Text, 7, 2))
-        .Hour = Val(Mid$(mInfo.Text, 9, 2))
-        .Minute = Val(Mid$(mInfo.Text, 11, 2))
-        .Second = Val(Mid$(mInfo.Text, 13, 2))
+        .Year = uVal(Left$(mInfo.Text, 4))
+        .Month = uVal(Mid$(mInfo.Text, 5, 2))
+        .Date = uVal(Mid$(mInfo.Text, 7, 2))
+        .Hour = uVal(Mid$(mInfo.Text, 9, 2))
+        .Minute = uVal(Mid$(mInfo.Text, 11, 2))
+        .Second = uVal(Mid$(mInfo.Text, 13, 2))
 
     End With
 
@@ -196,7 +196,7 @@ Dim pr As BRect
                     End If
                     .FillEllipse pr
     
-                ElseIf MIN(.Width, .Height) > 179 Then
+                ElseIf (MIN(.Width, .Height) > 179) Then
                     ' /* draw second ticks */
                     pr.InsetBy -1, -1
                     .FillEllipse pr
@@ -268,11 +268,14 @@ Dim hr As Double, Mr As Double, sr As Double
                               Fix(.Bounds.Height / 2) + (Fix(.Bounds.Height / 2) * Val(mStyle.GetSchemeSetting(mInfo.Scheme, "minute_ratio")) * Sin(Mr))), _
                               2
 
-        .SetHighColour rgba(255, 0, 0)
-        .StrokeLine new_BRect(Fix(.Bounds.Width / 2), _
-                              Fix(.Bounds.Height / 2), _
-                              Fix(.Bounds.Width / 2) + (Fix(.Bounds.Width / 2) * Val(mStyle.GetSchemeSetting(mInfo.Scheme, "second_ratio")) * Cos(sr)), _
-                              Fix(.Bounds.Height / 2) + (Fix(.Bounds.Height / 2) * Val(mStyle.GetSchemeSetting(mInfo.Scheme, "second_ratio")) * Sin(sr)))
+        If mTime.Second > -1 Then
+            .SetHighColour rgba(255, 0, 0)
+            .StrokeLine new_BRect(Fix(.Bounds.Width / 2), _
+                                  Fix(.Bounds.Height / 2), _
+                                  Fix(.Bounds.Width / 2) + (Fix(.Bounds.Width / 2) * Val(mStyle.GetSchemeSetting(mInfo.Scheme, "second_ratio")) * Cos(sr)), _
+                                  Fix(.Bounds.Height / 2) + (Fix(.Bounds.Height / 2) * Val(mStyle.GetSchemeSetting(mInfo.Scheme, "second_ratio")) * Sin(sr)))
+
+        End If
 
         ' /* draw centre point if no background */
 
@@ -311,19 +314,58 @@ End Sub
 
 Private Sub uDrawDigital()
 Dim title_height As Long
+Dim time_height As Long
+Dim date_height As Long
+Dim dateFormat As String
 Dim pr As BRect
 
     With mView
+
         .SizeTo 120, 54
-        .EnableSmoothing True
+
+        ' /* this style only utilises the notification title.  It consists of three parts (one of which is optional)
+        '
+        '       TITLE
+        '      -------
+        '       TIME
+        '      -------
+        '      [Date]
+        ' */
+
+        If mTime.Date > -1 Then _
+            dateFormat = dateFormat & "d"
+
+        If mTime.Month > -1 Then _
+            dateFormat = dateFormat & IIf(dateFormat <> "", " ", "") & "mmmm"
+
+        If mTime.Year > -1 Then _
+            dateFormat = dateFormat & IIf(dateFormat <> "", " ", "") & "yyyy"
+
+
+        ' /* measure the title and text sizes */
+
+        .SetFont "Calibri", 9, True
 
         If mInfo.Title <> "" Then
-            .SetFont "Calibri", 9, True
             .MeasureString mInfo.Title, .Bounds.InsetByCopy(8, 0), pr
             title_height = pr.Height
-            .SizeTo 120, .Height + title_height + 4
 
         End If
+
+        If dateFormat <> "" Then
+            .MeasureString dateFormat, .Bounds.InsetByCopy(8, 0), pr
+            date_height = pr.Height
+
+        End If
+
+        .SetFont "Calibri", 20
+        .MeasureString "00:00", .Bounds.InsetByCopy(8, 0), pr
+        time_height = pr.Height + 2
+
+        ' /* size to correct height */
+
+        .SizeTo 120, title_height + time_height + date_height
+        .EnableSmoothing True
 
         .SetHighColour rgba(32, 32, 32, 220)
         .FillRoundRect .Bounds, 12, 12
@@ -342,17 +384,20 @@ Dim cx As Long
         .SetHighColour rgba(255, 255, 255, 240)
         .SetLowColour IIf((mInfo.Flags And S_NOTIFICATION_IS_PRIORITY), rgba(255, 0, 0, 220), rgba(0, 0, 0, 180))
 
-        .SetFont "Calibri", 20
 
         ' /* time */
-        .DrawString Format$(mTime.Hour, "00") & ":" & Format$(mTime.Minute, "00") & ":" & Format$(mTime.Second, "00"), _
-                    .Bounds.InsetByCopy(0, 4).OffsetByCopy(0, IIf(title_height, title_height, 0)), MFX_ALIGN_H_CENTER Or MFX_ALIGN_TOP Or MFX_SIMPLE_OUTLINE
+
+        .SetFont "Calibri", 20
+        .DrawString Format$(mTime.Hour, "00") & ":" & Format$(mTime.Minute, "00") & IIf(mTime.Second = -1, "", ":" & Format$(mTime.Second, "00")), _
+                    .Bounds, MFX_ALIGN_H_CENTER Or MFX_ALIGN_V_CENTER Or MFX_SIMPLE_OUTLINE
+
+        ' /* date */
 
         .SetFont "Calibri", 9, True
 
-        ' /* date */
-        .DrawString Format$(DateSerial(mTime.Year, mTime.Month, mTime.Date), "d mmmm yyyy"), _
-                    .Bounds.InsetByCopy(0, 4), MFX_ALIGN_H_CENTER Or MFX_ALIGN_BOTTOM Or MFX_SIMPLE_OUTLINE
+        If dateFormat <> "" Then _
+            .DrawString Format$(DateSerial(mTime.Year, mTime.Month, mTime.Date), dateFormat), _
+                        .Bounds.InsetByCopy(0, 4), MFX_ALIGN_H_CENTER Or MFX_ALIGN_BOTTOM Or MFX_SIMPLE_OUTLINE
 
         ' /* title */
 
@@ -367,4 +412,15 @@ Dim cx As Long
 
 End Sub
 
+Private Function uVal(ByVal str As String) As Integer
+
+    If (LCase$(str) = "xx") Or (LCase$(str) = "xxxx") Then
+        uVal = -1
+
+    Else
+        uVal = Val(str)
+
+    End If
+
+End Function
 
