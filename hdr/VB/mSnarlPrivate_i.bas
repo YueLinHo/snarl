@@ -21,7 +21,10 @@ Public Const WM_MANAGE_SNARL = &H400 + 238  ' // note hardcoded WM_USER value!
     ' /* WM_MANAGE_SNARL constants */
 
 Public Enum E_MANAGE_SNARL
-    E_MISC_CMDS = 0
+    E_MISC_CMDS = 0                 ' // lParam is command
+                                    ' // 1 = enable sticky notifications
+                                    ' // 2 = show missed panel
+
     E_STOP_SNARL = 1
     E_START_SNARL = 2
     E_RECYCLE_SNARL = 3

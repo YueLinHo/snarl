@@ -95,6 +95,7 @@ Public Enum SNARL_STATUS_41
     SNARL41_ERROR_CLASS_ALREADY_EXISTS      '// not used yet; sn41AddClass() returns existing token
     SNARL41_ERROR_CLASS_BLOCKED
     SNARL41_ERROR_CLASS_NOT_FOUND
+    SNARL41_ERROR_NOTIFICATION_NOT_FOUND
 
 End Enum
 
@@ -226,7 +227,7 @@ Dim pReq As SNARLMSG
 
 End Function
 
-Public Function sn41UpdateApp(ByVal Token As Long, Optional ByVal NotUsed As String, Optional ByVal Icon As String) As Long
+Public Function sn41UpdateApp(ByVal Token As Long, Optional ByVal Title As String, Optional ByVal Icon As String) As Long
 Dim pReq As SNARLMSG
 Dim sz As String
 
@@ -234,8 +235,8 @@ Dim sz As String
         .Command = SNARL41_UPDATE_APP
         .Token = Token
 
-        If NotUsed <> "" Then _
-            sz = sz & "title::" & NotUsed
+        If Title <> "" Then _
+            sz = sz & "title::" & Title
 
         If Icon <> "" Then
             If sz <> "" Then _
@@ -331,7 +332,7 @@ Dim pReq As SNARLMSG
 
 End Function
 
-Public Function sn41Update(ByVal Token As Long, Optional ByVal Title As String = "/?", Optional ByVal Text As String = "/?", Optional ByVal Timeout As Long = &H80000000, Optional ByVal Icon As String = "/?") As Long
+Public Function sn41EZUpdate(ByVal Token As Long, Optional ByVal Title As String = "/?", Optional ByVal Text As String = "/?", Optional ByVal Timeout As Long = &H80000000, Optional ByVal Icon As String = "/?") As Long
 Dim pReq As SNARLMSG
 Dim sz As String
 
@@ -367,6 +368,20 @@ Dim sz As String
         End If
 
         .PacketData = uToUTF8(sz)
+
+    End With
+
+    sn41EZUpdate = uSend(pReq)
+
+End Function
+
+Public Function sn41Update(ByVal Token As Long, ByVal PacketData As String) As Long
+Dim pReq As SNARLMSG
+
+    With pReq
+        .Command = SNARL41_UPDATE_NOTIFICATION
+        .Token = Token
+        .PacketData = uToUTF8("id::" & Id & "#?" & PacketData)
 
     End With
 
