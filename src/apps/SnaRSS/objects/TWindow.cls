@@ -33,6 +33,7 @@ Private Function BWndProcSink_WndProc(ByVal hWnd As Long, ByVal uMsg As Long, By
     Select Case uMsg
     Case WM_CREATE
         frmMain.Add "WM_CREATE"
+        slInitApp hWnd, App.ProductName, "snaRSS", g_MakePath(App.Path) & IIf(g_IsIDE, "bin\", "") & "icon.png"
         mhWnd = hWnd
         uStart
 
@@ -72,6 +73,29 @@ Private Function BWndProcSink_WndProc(ByVal hWnd As Long, ByVal uMsg As Long, By
                          "snaRSS " & CStr(App.Major) & "." & CStr(App.Minor) & " " & App.Comments, _
                          App.LegalCopyright & vbCrLf & "Build " & CStr(App.Revision), , _
                          g_MakePath(App.Path) & IIf(g_IsIDE(), "bin\", "") & "icon.png"
+
+        End Select
+
+
+    Case slMsg()
+        Select Case wParam
+        Case SL_ABOUT
+            sn41EZNotify gToken, "", _
+                         "snaRSS " & CStr(App.Major) & "." & CStr(App.Minor) & " " & App.Comments, _
+                         App.LegalCopyright & vbCrLf & "Build " & CStr(App.Revision), , _
+                         g_MakePath(App.Path) & IIf(g_IsIDE(), "bin\", "") & "icon.png"
+
+        Case SL_PREFS
+            frmMain.Add "_APP_PREFS"
+            uDoPrefs
+
+        Case SL_QUIT
+            PostQuitMessage 0
+
+'        Case SL_SHOW_ALL
+'        Case SL_HIDE_ALL
+'        Case SL_COUNT_WINDOWS
+'        Case SL_SWITCH_TO
 
         End Select
 
@@ -373,7 +397,7 @@ Dim i As Long
     With mFeedRoster
         .Rewind
         Do While .NextFeed(pFeed)
-            sz = sz & uSpecialMidStr(pFeed.TitleOrURL, 52) & "#?0#?" & pFeed.Status() & "|"
+            sz = sz & g_FormattedMidStr(pFeed.TitleOrURL, 52) & "#?0#?" & pFeed.Status() & "|"
 
         Loop
 
@@ -398,20 +422,20 @@ Dim i As Long
 
 End Sub
 
-Private Function uSpecialMidStr(ByVal Text As String, ByVal MaxLen As Long) As String
-
-    If Len(Text) < MaxLen Then
-        uSpecialMidStr = Text
-        Exit Function
-
-    End If
-
-Dim i As Long
-
-    i = Fix((MaxLen - 3) / 2)
-    uSpecialMidStr = g_SafeLeftStr(Text, i) & "…" & g_SafeRightStr(Text, i)  '"…"
-
-End Function
+'Private Function uSpecialMidStr(ByVal Text As String, ByVal MaxLen As Long) As String
+'
+'    If Len(Text) < MaxLen Then
+'        uSpecialMidStr = Text
+'        Exit Function
+'
+'    End If
+'
+'Dim i As Long
+'
+'    i = Fix((MaxLen - 3) / 2)
+'    uSpecialMidStr = g_SafeLeftStr(Text, i) & "…" & g_SafeRightStr(Text, i)  '"…"
+'
+'End Function
 
 Private Sub uUpdateConfig()
 Dim pFile As CConfFile3

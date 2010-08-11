@@ -33,6 +33,7 @@ Private Function BWndProcSink_WndProc(ByVal hWnd As Long, ByVal uMsg As Long, By
     Case WM_CREATE
         Form1.Add "WM_CREATE"
         mhWnd = hWnd
+        slInitApp hWnd, App.ProductName, "SnarlTray", g_MakePath(App.Path) & IIf(g_IsIDE, "bin\", "") & "icon.png"
         uStart
 
 
@@ -76,6 +77,28 @@ Private Function BWndProcSink_WndProc(ByVal hWnd As Long, ByVal uMsg As Long, By
                          "SnarlTray " & CStr(App.Major) & "." & CStr(App.Minor) & " " & App.Comments, _
                          App.LegalCopyright & vbCrLf & "Build " & CStr(App.Revision), , _
                          g_MakePath(App.Path) & "icon.png"
+
+        End Select
+
+
+    Case slMsg()
+        Select Case wParam
+
+        Case SL_ABOUT
+            sn41EZNotify mToken, "", _
+                         "SnarlTray " & CStr(App.Major) & "." & CStr(App.Minor) & " " & App.Comments, _
+                         App.LegalCopyright & vbCrLf & "Build " & CStr(App.Revision), , _
+                         g_MakePath(App.Path) & "icon.png"
+
+        Case SL_PREFS
+        Case SL_SWITCH_TO
+
+        Case SL_QUIT
+            PostQuitMessage 0
+
+        Case SL_SHOW_ALL
+        Case SL_HIDE_ALL
+        Case SL_COUNT_WINDOWS
 
         End Select
 
