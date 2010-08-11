@@ -52,29 +52,29 @@ Dim pm As CTempMsg
         .Add new_BPrefsControl("fancytoggle2", "notify_on_first_register", "Show notification on first registration only?", , g_ConfigGet("notify_on_first_register"))
         .Add new_BPrefsControl("fancytoggle2", "auto_update", "Check for updates on launch?", "", g_ConfigGet("auto_update"))
 
-Dim nIdle As Long
-
-        .Add new_BPrefsControl("banner", "", "Behaviour")
-        .Add new_BPrefsControl("label", "", "Enable sticky notifications after the following period of inactivity:")
-
-        nIdle = ROUNDUP(Val(g_ConfigGet("idle_timeout")) / 300)
-        If (nIdle < 0) Or (nIdle > 3) Then _
-            nIdle = 0
-
-        .Add new_BPrefsControl("fancycycle", "idle_timeout", "Never|5 Minutes|10 Minutes|15 Minutes", "", CStr(nIdle + 1))
-
-'        .Add new_BPrefsControl("fancytoggle2", "auto_sticky_on_screensaver", "Enable sticky notifications when screensaver starts?", "", g_ConfigGet("auto_sticky_on_screensaver"))
-
-'        ' /* hotkey */
+'Dim nIdle As Long
 '
-''        .Add new_BPrefsControl("separator", "")
+'        .Add new_BPrefsControl("banner", "", "Behaviour")
+'        .Add new_BPrefsControl("label", "", "Enable sticky notifications after the following period of inactivity:")
 '
-'        .Add new_BPrefsControl("banner", "", "Hotkeys")
+'        nIdle = ROUNDUP(Val(g_ConfigGet("idle_timeout")) / 300)
+'        If (nIdle < 0) Or (nIdle > 3) Then _
+'            nIdle = 0
 '
-'        .Add new_BPrefsControl("fancytoggle2", "use_hotkey", "Use a hotkey to activate Snarl's Preferences?", "", IIf(g_Prefs.use_hotkey, "1", "0"), pm)
+'        .Add new_BPrefsControl("fancycycle", "idle_timeout", "Never|5 Minutes|10 Minutes|15 Minutes", "", CStr(nIdle + 1))
 '
-'        .Add new_BPrefsControl("key_picker", "hotkey_prefs", , , CStr(MOD_CONTROL) & "," & CStr(g_Prefs.hotkey_prefs), , g_Prefs.use_hotkey)
-'        .Add new_BPrefsControl("label", "", "Press the key you want to use in the box the above.  Note that while you can select the key which activates Snarl, the modifiers (the combination of SHIFT and CTRL keys) used are automatically set.                            ")
+''        .Add new_BPrefsControl("fancytoggle2", "auto_sticky_on_screensaver", "Enable sticky notifications when screensaver starts?", "", g_ConfigGet("auto_sticky_on_screensaver"))
+'
+''        ' /* hotkey */
+''
+'''        .Add new_BPrefsControl("separator", "")
+''
+''        .Add new_BPrefsControl("banner", "", "Hotkeys")
+''
+''        .Add new_BPrefsControl("fancytoggle2", "use_hotkey", "Use a hotkey to activate Snarl's Preferences?", "", IIf(g_Prefs.use_hotkey, "1", "0"), pm)
+''
+''        .Add new_BPrefsControl("key_picker", "hotkey_prefs", , , CStr(MOD_CONTROL) & "," & CStr(g_Prefs.hotkey_prefs), , g_Prefs.use_hotkey)
+''        .Add new_BPrefsControl("label", "", "Press the key you want to use in the box the above.  Note that while you can select the key which activates Snarl, the modifiers (the combination of SHIFT and CTRL keys) used are automatically set.                            ")
 
 
 
@@ -98,8 +98,7 @@ End Sub
 
 Private Sub KPrefsPage_ControlChanged(Control As BControl, ByVal Value As String)
 Dim pc As BControl
-Dim sz() As String
-Dim dw As Long
+'Dim dw As Long
 
     Debug.Print "[" & mPage.GetName() & "]: ControlChanged '" & Control.GetName() & "' >> '" & Value & "'"
 
@@ -108,51 +107,18 @@ Dim dw As Long
         g_Prefs.run_on_logon = CBool(Value)
 
 
-    Case "use_hotkey"
-        ' /* R2.2: we have a separate config entry now */
-        g_Prefs.use_hotkey = CBool(Value)
-        If Control.Page.Find("hotkey_prefs", pc) Then _
-            pc.SetEnabled CBool(Value)
-
-        frmAbout.bSetHotkeys
-
-    Case "hotkey_prefs"
-
-        ' /* the key picker control should return a pair of values separated by a comma.  The first
-        '    value is the set of modifiers; the second value is the keycode of the key pressed */
-
-        sz() = Split(Value, ",")
-        If UBound(sz()) <> 1 Then _
-            Exit Sub
-
-        ' /* we're only interested in the keycode here */
-
-        dw = Val(sz(1))
-        If dw <> g_Prefs.hotkey_prefs Then
-            If frmAbout.bSetHotkeys(dw) Then
-                ' /* registered okay so store the new keycode */
-                g_Prefs.hotkey_prefs = dw
-                g_Debug "TGeneralPage.ControlChanged(): [hotkey_prefs]: hotkey changed to #" & sz(1)
-
-            Else
-                g_Debug "TGeneralPage.ControlChanged(): [hotkey_prefs]: couldn't set hotkey to #" & sz(1), LEMON_LEVEL_WARNING
-                sz(1) = CStr(g_Prefs.hotkey_prefs)
-
-            End If
-        End If
-
-        Control.SetValue CStr(MOD_CONTROL) & "," & sz(1)
-
-
     Case "auto_sticky_on_screensaver", "notify_on_first_register", "auto_update", "sticky_snarls", "log_only", "show_msg_on_start"
         g_ConfigSet Control.GetName, Value
         Exit Sub
 
 
     Case "idle_timeout"
-        dw = (Val(Value) - 1) * 300
-        Debug.Print "new idle = " & dw & " secs"
-        g_ConfigSet Control.GetName, CStr(dw)
+
+Dim dw2 As Long
+
+        dw2 = (Val(Value) - 1) * 300
+        Debug.Print "new idle = " & dw2 & " secs"
+        g_ConfigSet Control.GetName, CStr(dw2)
         Exit Sub
 
 

@@ -113,6 +113,7 @@ Public Function AddAlert(ByVal Class As String, ByVal Description As String, Opt
 
     If Me.FindAlert(Class, Nothing) Then
         g_Debug "class '" & Class & "' already exists", LEMON_LEVEL_CRITICAL Or LEMON_LEVEL_PROC_EXIT
+        gLastErr = SNARL41_ERROR_CLASS_ALREADY_EXISTS
         AddAlert = M_ALREADY_EXISTS
         Exit Function
 
@@ -430,7 +431,7 @@ Dim lFlags As E_CLASS_FLAGS
 
     End If
 
-    ' /* Use AddAlert() to actually add the class to our app */
+    ' /* Use AddAlert() to actually add the class to our app - LastError will be set on failure */
 
     If AddAlert(Data.ValueOf("id"), Data.ValueOf("name"), ClassObject, lFlags) <> M_OK Then _
         Exit Function
@@ -470,23 +471,19 @@ Public Function RemClass(ByRef Data As BPackedData) As Long
         AddAlert "_all", ""
         RemClass = -1
         frmAbout.bUpdateClassList mInfo.Token
-        Exit Function
 
-    End If
-
-    If Not Data.Exists("id") Then
+    ElseIf Not Data.Exists("id") Then
         g_Debug "TApp.RemClass(): required arg 'id' missing", LEMON_LEVEL_CRITICAL
         gLastErr = SNARL41_ERROR_ARG_MISSING
-        Exit Function
 
-    End If
 
-    If Data.ValueOf("id") = "_all" Then
+    ElseIf Data.ValueOf("id") = "_all" Then
         g_Debug "TApp.RemClass(): cannot remove '_all' class", LEMON_LEVEL_CRITICAL
         gLastErr = SNARL41_ERROR_FAILED
         Exit Function
 
     End If
+
 
 Dim i As Long
 

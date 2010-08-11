@@ -44,6 +44,47 @@
 
 	Snarl Change Log
 
+	- Added new status code SNARL41_ERROR_NOTIFICATION_NOT_FOUND'.  (41.32)
+
+	- sn41Update() renamed to sn41EZUpdate() and a new sn41Update() added which
+	  mirrors sn41Notify().  (41.32)
+
+	- sn41AddClass() now sets LastError to CLASS_ALREADY_EXISTS if the class being
+	  added has already been defined.  [Toke]  (41.32)
+
+	- Removed graphics test code and associated prompting.  (41.32)
+
+	- Removed RC branding.  (41.32)
+
+	- Fixed bugs in preferences hotkey code.  [Toke]  (41.32)
+
+	- Melon release number (rather than the exec.library version) is now displayed
+	  in the system information notification.  (41.31)
+
+	- Missed notifications are now checked (and notification displayed) on a
+	  manual DnD enable/disable.  (41.31)
+
+	- Notifications with remotely hosted icons now have the icon displayed in
+	  the Missed Notifications panel.  (41.31)
+
+	- More minor interface improvements to the Missed Notification panel.  (41.31)
+
+	- Icons in the Missed Notifications panel now have their aspect ratio
+	  preserved.  (41.31)
+
+	- Missed Notifications panel now displays sending app and class used for the
+	  notification.  (41.29)
+
+	- Missed Notifications panel now displays the notification timestamp's
+	  seconds.  (41.29)
+
+	- Removed idle timeout controls from panel and idle checking code.  This will
+	  be moved into the DnD extension.  (41.28)
+
+	- Added functionality to system DnD functions such that if notifications arrive
+	  while DnD is enabled, when DnD is finally disabled Snarl will display a
+	  notification detailing the number of missed notifications.  (41.27)
+
 	- Further improvements to the way sn41Update() works.  (41.26)
 
 	- sn41Update() didn't send timeout value.  Now fixed.  [Toke] (41.25)

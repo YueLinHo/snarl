@@ -196,8 +196,9 @@ Dim i As Long
 
     If (Data.ValueOf("title") = "") Or (Data.ValueOf("id") = "") Then
         g_Debug "required arg missing", LEMON_LEVEL_CRITICAL Or LEMON_LEVEL_PROC_EXIT
+        gLastErr = SNARL41_ERROR_ARG_MISSING
         Exit Function
-    
+
     End If
 
     ' /* check for duplicate and return existing token */

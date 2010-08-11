@@ -33,11 +33,11 @@ Dim pm As CTempMsg
         ' /* hotkeys */
 
         .Add new_BPrefsControl("banner", "", "Hotkeys")
-        .Add new_BPrefsControl("fancytoggle2", "use_hotkey", "Use a hotkey to activate Snarl's Preferences?", "", IIf(g_Prefs.use_hotkey, "1", "0"))
-        .Add new_BPrefsControl("key_picker", "hotkey_prefs", , , CStr(MOD_CONTROL) & "," & CStr(g_Prefs.hotkey_prefs), , g_Prefs.use_hotkey)
+        .Add new_BPrefsControl("fancytoggle2", "use_hotkey", "Use a hotkey to activate Snarl's Preferences?", "", g_ConfigGet("use_hotkey"))
+        .Add new_BPrefsControl("key_picker", "hotkey_prefs", , , CStr(MOD_CONTROL) & "," & g_ConfigGet("hotkey_prefs"), , (g_ConfigGet("use_hotkey") = "1"))
 
         .Add new_BPrefsControl("fancytoggle2", "", "Use a hotkey to activate Snarl's menu?", "", "0", , False)
-        .Add new_BPrefsControl("key_picker", "", , , CStr(MOD_WIN) & "," & CStr(g_Prefs.hotkey_prefs), , False)
+        .Add new_BPrefsControl("key_picker", "", , , CStr(MOD_WIN) & "," & g_ConfigGet("hotkey_prefs"), , False)
         .Add new_BPrefsControl("label", "", "Press the key you want to use in the boxes above.  Note that the modifiers (the combination of SHIFT and CTRL keys) used are automatically set.")
 
         ' /* other stuff */
@@ -57,6 +57,44 @@ Dim pm As CTempMsg
 End Sub
 
 Private Sub KPrefsPage_ControlChanged(Control As BControl, ByVal Value As String)
+Dim sz() As String
+
+    Select Case Control.GetName
+
+    Case "use_hotkey"
+        ' /* R2.2: we have a separate config entry now */
+        g_ConfigSet Control.GetName, Value
+        prefskit_SafeEnable Control.Page.Panel, "hotkey_prefs", (Value = "1")
+        frmAbout.bSetHotkeys
+
+    Case "hotkey_prefs"
+
+        ' /* the key picker control should return a pair of values separated by a comma.  The first
+        '    value is the set of modifiers; the second value is the keycode of the key pressed */
+
+        sz() = Split(Value, ",")
+        If UBound(sz()) <> 1 Then _
+            Exit Sub
+
+        ' /* we're only interested in the keycode here */
+
+        If sz(1) <> g_ConfigGet("hotkey_prefs") Then
+            If frmAbout.bSetHotkeys(Val(sz(1))) Then
+                ' /* registered okay so store the new keycode */
+                g_ConfigSet "hotkey_prefs", sz(1)
+                g_Debug "TGeneralPage.ControlChanged(): [hotkey_prefs]: hotkey changed to #" & sz(1)
+
+            Else
+                g_Debug "TGeneralPage.ControlChanged(): [hotkey_prefs]: couldn't set hotkey to #" & sz(1), LEMON_LEVEL_WARNING
+                sz(1) = g_ConfigGet("hotkey_prefs")
+
+            End If
+
+        End If
+
+        Control.SetValue CStr(MOD_CONTROL) & "," & sz(1)
+
+    End Select
 
 End Sub
 

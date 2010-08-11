@@ -301,12 +301,10 @@ Static f As Boolean
                     g_Debug "CSnarlWindow.WndProc(): client area invoked"
                     bPaused = True                  ' // don't count down while we're doing this...
     
-                    If mInfo.DefaultAck <> "" Then
-                        ' /* V38.94 - if an ACK string has been specified, launch it now */
-                        g_Debug "CSnarlWindow.WndProc(): launching ACK '" & mInfo.DefaultAck & "'...", LEMON_LEVEL_INFO
-                        ShellExecute frmAbout.hWnd, vbNullString, mInfo.DefaultAck, vbNullString, vbNullString, SW_SHOW
+                    ' /* V38.94 - if an ACK string has been specified, launch it now */
     
-                    End If
+                    If mInfo.DefaultAck <> "" Then _
+                            g_processack mInfo.DefaultAck
 
                     uNotify SNARL_NOTIFICATION_ACK
                     bPaused = False

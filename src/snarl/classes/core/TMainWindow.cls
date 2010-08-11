@@ -314,6 +314,11 @@ Private Function uManageSnarl(ByVal wParam As Long, ByVal lParam As Long) As Lon
             ' /* enable sticky option */
             g_ConfigSet "sticky_snarls", IIf(g_ConfigGet("sticky_snarls") = "1", "0", "1")
 
+        Case 2
+            ' /* show missed panel */
+            If Not (g_NotificationRoster Is Nothing) Then _
+                g_NotificationRoster.ShowMissedPanel
+
         End Select
 
 
@@ -878,19 +883,35 @@ Dim pApp As TApp
 
 
     Case SNARL41_NOTIFY
-        ' /* return notification token or zero on failure */
+        ' /* return notification token or zero on failure - last error will be set */
         uDoV41Request = uNotify(pReq.Token, pData)
 
+
     Case SNARL41_UPDATE_NOTIFICATION
+        ' /* last error will be set */
         uDoV41Request = uUpdate(pReq.Token, pData)
 
+
     Case SNARL41_HIDE_NOTIFICATION
-        If Not (g_NotificationRoster Is Nothing) Then _
+        If (g_NotificationRoster Is Nothing) Then
+            gLastErr = SNARL41_ERROR_FAILED
+
+        Else
+            gLastErr = 0
             uDoV41Request = CLng(g_NotificationRoster.Hide(pReq.Token))
 
+        End If
+
+
     Case SNARL41_IS_NOTIFICATION_VISIBLE
-        If Not (g_NotificationRoster Is Nothing) Then _
+        If (g_NotificationRoster Is Nothing) Then
+            gLastErr = SNARL41_ERROR_FAILED
+
+        Else
+            gLastErr = 0
             uDoV41Request = CLng(g_NotificationRoster.IsVisible(pReq.Token))
+        
+        End If
 
     End Select
 
@@ -902,12 +923,13 @@ Private Function uNotify(ByVal Token As Long, ByRef pData As BPackedData) As Lon
 
     If (g_AppRoster Is Nothing) Or (g_NotificationRoster Is Nothing) Then
         g_Debug "TMainWindow.uNotify(): app/notification roster invalid", LEMON_LEVEL_CRITICAL
+        gLastErr = SNARL41_ERROR_SYSTEM
         Exit Function
 
     End If
 
-Dim pApp As TApp
 Dim szClass As String
+Dim pApp As TApp
 
     ' /* special case: if the app token is 0, the notification is treated as local anonymous
     '    (akin to the old snShowMessage() function).  */
@@ -920,6 +942,7 @@ Dim szClass As String
         Else
             ' /* Snarl's registration not found */
             g_Debug "TMainWindow.uNotify(): Snarl internal app not in roster", LEMON_LEVEL_CRITICAL
+            gLastErr = SNARL41_ERROR_FAILED
             Exit Function
 
         End If
@@ -951,6 +974,7 @@ Dim pInfo As T_NOTIFICATION_INFO
     End With
 
     uNotify = pApp.ShowNew(szClass, pInfo)
+    
 
 End Function
 
@@ -996,21 +1020,19 @@ Dim pInfo As notification_info
 
 Dim hr As M_RESULT
 
-    ' /* call the pre-V41 stuff here */
+    ' /* call the pre-V41 stuff here - LastError will be set */
 
     hr = g_NotificationRoster.Update(Token, pInfo.Title, pInfo.Text, pInfo.Icon)
-    If hr <> M_OK Then
-        gLastErr = SNARL41_ERROR_FAILED
-        uUpdate = 0
-
-    Else
+    If hr = M_OK Then
         ' /* success, was timeout specified? */
 
         If pData.Exists("timeout") Then _
             g_NotificationRoster.SetAttribute Token, SNARL_ATTRIBUTE_TIMEOUT, pData.ValueOf("timeout")
 
-        gLastErr = SNARL41_SUCCESS
         uUpdate = -1
+
+    Else
+        uUpdate = 0
 
     End If
 

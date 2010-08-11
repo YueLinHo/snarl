@@ -197,13 +197,10 @@ Option Explicit
 '/
 '*********************************************************************************************/
 
-Private Type LASTINPUTINFO
-    cbSize As Long
-    dwTime As Long
-
-End Type
-
-Private Declare Function GetLastInputInfo Lib "user32" (ByRef plii As LASTINPUTINFO) As Boolean
+Private Const HKEY_LOCAL_MACHINE = &H80000002
+Private Const REG_SZ = 1
+Private Declare Function RegOpenKey Lib "advapi32.dll" Alias "RegOpenKeyA" (ByVal hKey As Long, ByVal lpSubKey As String, phkResult As Long) As Long
+Private Declare Function RegQueryValueEx Lib "advapi32.dll" Alias "RegQueryValueExA" (ByVal hKey As Long, ByVal lpValueName As Any, ByVal lpReserved As Long, lpType As Long, lpData As Any, lpcbData As Long) As Long
 
 Dim mSysKeyPrefs As Long
 Dim mSysKeyTest As Long
@@ -244,8 +241,7 @@ End Type
 Dim mRemoteNotification() As T_REMOTENOTIFICATION
 Dim mRemoteNotifications As Long
 
-Dim WithEvents theIdleTimer As BTimer
-Attribute theIdleTimer.VB_VarHelpID = -1
+'Dim WithEvents theIdleTimer As BTimer
 
 
 Implements MMessageSink
@@ -385,8 +381,8 @@ Dim n As Integer
 
     ' /* create the idle input timer */
 
-    Set theIdleTimer = New BTimer
-    theIdleTimer.SetTo 250
+'    Set theIdleTimer = New BTimer
+'    theIdleTimer.SetTo 250
 
 End Sub
 
@@ -415,7 +411,7 @@ Dim i As Long
 
     ' /* stop the idle timer */
 
-    Set theIdleTimer = Nothing
+'    Set theIdleTimer = Nothing
 
     ' /* close our Snarl listeners */
 
@@ -635,15 +631,23 @@ Dim update_config   As Boolean
         Case "prefs"
             Me.NewDoPrefs
 
-        Case "app_mgr"
-            ShellExecute 0, "open", g_MakePath(App.Path) & "Snarl_App_Manager.exe", vbNullString, vbNullString, SW_SHOW
+'        Case "app_mgr"
+'            ShellExecute 0, "open", g_MakePath(App.Path) & "Snarl_App_Manager.exe", vbNullString, vbNullString, SW_SHOW
 
         Case "sticky"
             g_ConfigSet "sticky_snarls", IIf(g_ConfigGet("sticky_snarls") = "1", "0", "1")
 
         Case "dnd"
-            g_Prefs.do_not_disturb_ = Not g_Prefs.do_not_disturb_
-            g_WriteConfig
+            g_Prefs.UserDnD = Not g_Prefs.UserDnD
+
+            If g_Prefs.UserDnD Then
+                If Not (g_NotificationRoster Is Nothing) Then _
+                    g_Prefs.MissedCountOnDnD = g_NotificationRoster.CountMissed
+
+            Else
+                g_CheckMissed
+
+            End If
 
         Case "missed"
             If Not (g_NotificationRoster Is Nothing) Then _
@@ -859,16 +863,11 @@ Private Sub ioSocket_OnDataArrival(ByVal bytesTotal As Long)
 
 End Sub
 
-
-
-
-
-
 Friend Function bSetHotkeys(Optional ByVal KeyCode As Long = 0) As Boolean
 
     ' /* return True if the prefs hotkey was registered ok */
 
-    If Not g_Prefs.use_hotkey Then
+    If g_ConfigGet("use_hotkey") = "0" Then
         ' /* hotkeys not enabled */
         uUnregisterHotkeys
         bSetHotkeys = True
@@ -877,8 +876,8 @@ Friend Function bSetHotkeys(Optional ByVal KeyCode As Long = 0) As Boolean
     End If
 
     If KeyCode = 0 Then
-        g_Debug "bSetHotKeys(): registering existing hotkey (" & CStr(g_Prefs.hotkey_prefs) & ")", LEMON_LEVEL_INFO
-        KeyCode = g_Prefs.hotkey_prefs
+        g_Debug "bSetHotKeys(): registering existing hotkey (" & g_ConfigGet("hotkey_prefs") & ")", LEMON_LEVEL_INFO
+        KeyCode = Val(g_ConfigGet("hotkey_prefs"))
 
     End If
 
@@ -967,8 +966,24 @@ End Sub
 
 Private Sub uDoSysInfoNotification()
 Dim szMetric As String
+Dim szMelon As String
 Dim dFreq As Double
+Dim hKey As Long
 Dim dw As Long
+Dim cb As Long
+
+    ' /* read melon version from registry */
+
+    If RegOpenKey(HKEY_LOCAL_MACHINE, "SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\melon", hKey) = ERROR_SUCCESS Then
+        If RegQueryValueEx(hKey, "DisplayVersion", 0, dw, ByVal 0&, cb) = ERROR_SUCCESS Then
+            If dw = REG_SZ Then
+                szMelon = String$(cb, 0)
+                If RegQueryValueEx(hKey, "DisplayVersion", 0, ByVal 0&, ByVal szMelon, cb) = ERROR_SUCCESS Then _
+                    szMelon = Left$(szMelon, cb - 1)
+
+            End If
+        End If
+    End If
 
     With New BCPU
         .SetTo 1
@@ -988,7 +1003,7 @@ Dim dw As Long
                       g_GetOSName() & " " & g_GetServicePackName() & vbCrLf & _
                       IIf(dw > 1, CStr(dw) & "x", "") & .FullName & " @ " & Format$(dFreq, "0.0#") & " " & szMetric & vbCrLf & _
                       g_FileSizeToStringEx2(g_GetPhysMem(True), "GB", " ", "0.##") & " / " & g_FileSizeToStringEx2(g_GetPageMem(True) + g_GetPhysMem(True), "GB", " ", "0.##") & " RAM" & vbCrLf & _
-                      "Snarl " & App.Major & "." & App.Revision & ", melon " & melonGetVersion(libmexec.globals), _
+                      "Snarl " & App.Major & "." & App.Revision & " (" & App.Comments & "), melon " & IIf(szMelon <> "", szMelon, "??"), _
                       20, _
                       g_MakePath(App.Path) & "etc\icons\snarl.png"
 
@@ -1016,34 +1031,34 @@ End Sub
 '
 'End Sub
 
-Private Sub theIdleTimer_Pulse()
-
-    ' /* ignore if no idle timeout set */
-
-    If Val(g_ConfigGet("idle_timeout")) <= 0 Then _
-        Exit Sub
-
-Dim lii As LASTINPUTINFO
-
-    lii.cbSize = Len(lii)
-    If GetLastInputInfo(lii) = False Then _
-        Exit Sub
-
-    lii.dwTime = GetTickCount() - lii.dwTime
-'    g_Debug "_theIdleTimer.Pulse(): idle time is now " & CStr(lii.dwTime) & " needs to be " & CStr(g_Prefs.idle_timeout * 1000)
-
-Static b As Boolean
-
-    b = (lii.dwTime > (Val(g_ConfigGet("idle_timeout")) * 1000))
-    If b <> gIsIdle Then
-        g_Debug "_theIdleTimer.Pulse(): " & Now() & " away mode: " & b
-        gIsIdle = b
-
-'        snShowMessage "Idle", "Idle mode is " & gIsIdle, 0
-
-    End If
-
-End Sub
+'Private Sub theIdleTimer_Pulse()
+'
+'    ' /* ignore if no idle timeout set */
+'
+'    If Val(g_ConfigGet("idle_timeout")) <= 0 Then _
+'        Exit Sub
+'
+'Dim lii As LASTINPUTINFO
+'
+'    lii.cbSize = Len(lii)
+'    If GetLastInputInfo(lii) = False Then _
+'        Exit Sub
+'
+'    lii.dwTime = GetTickCount() - lii.dwTime
+''    g_Debug "_theIdleTimer.Pulse(): idle time is now " & CStr(lii.dwTime) & " needs to be " & CStr(g_Prefs.idle_timeout * 1000)
+'
+'Static b As Boolean
+'
+'    b = (lii.dwTime > (Val(g_ConfigGet("idle_timeout")) * 1000))
+'    If b <> gIsIdle Then
+'        g_Debug "_theIdleTimer.Pulse(): " & Now() & " away mode: " & b
+'        gIsIdle = b
+'
+''        snShowMessage "Idle", "Idle mode is " & gIsIdle, 0
+'
+'    End If
+'
+'End Sub
 
 Private Sub Timer1_Timer()
 Dim pWindow As CSnarlWindow

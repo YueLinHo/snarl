@@ -263,32 +263,6 @@ Dim itemName As String
         End With
     End If
 
-    ' /* R2.2: if DnD is enabled and the notification's priority is normal or low, we just add it to
-    '    the missed notification list */
-
-Dim pIcon As mfxBitmap
-
-    If (g_IsDNDModeEnabled()) And (Info.Priority < 1) Then
-        mMissedCount = mMissedCount + 1
-        ReDim Preserve mMissed(mMissedCount)
-        With mMissed(mMissedCount)
-            .Title = Info.Title
-            .Text = Info.Text
-            Set .Icon = load_image_obj(uTranslateIconPath(Info.IconPath, ""))
-            .Timeout = Info.Timeout
-            .Ack = Info.DefaultAck
-            .Timestamp = Now()
-
-        End With
-
-        If Not (mMissedPanel Is Nothing) Then _
-            mMissedPanel.UpdateList
-
-        Add = -1                    ' // V40.7 - changed from M_OK to -1 (indicates success but no token available)
-        Exit Function               ' // TO-DO: we should probably return zero here and set last_error to something like "BLOCKED"
-
-    End If
-
     ' /* 40.7 - icon can be an http:// or https:// url - if it is we initiate an
     '    async download of the icon and put the notification onto a stack while
     '    we wait for the download to complete */
@@ -323,6 +297,37 @@ Dim pDelayed As TDelayedNotification
         End If
 
     End If
+
+
+    ' /* R2.2: if DnD is enabled and the notification's priority is normal or low, we just add it to
+    '    the missed notification list */
+
+Dim pIcon As mfxBitmap
+
+    If (g_IsDNDModeEnabled()) And (Info.Priority < 1) Then
+        mMissedCount = mMissedCount + 1
+        ReDim Preserve mMissed(mMissedCount)
+        With mMissed(mMissedCount)
+            .Title = Info.Title
+            .Text = Info.Text
+            Set .Icon = style_MakeSquareImage(load_image_obj(uTranslateIconPath(Info.IconPath, "")))
+            .Timeout = Info.Timeout
+            .Ack = Info.DefaultAck
+            .Timestamp = Now()
+            .Sender = Class.App.Name
+            .Class = Class.Description
+
+        End With
+
+        If Not (mMissedPanel Is Nothing) Then _
+            mMissedPanel.UpdateList
+
+        Add = -1                    ' // V40.7 - changed from M_OK to -1 (indicates success but no token available)
+        Exit Function               ' // TO-DO: we should probably return zero here and set last_error to something like "BLOCKED"
+
+    End If
+
+
 
     ' /* if we're here we need to create an on-screen instance of the notification */
 
@@ -613,6 +618,7 @@ Dim i As Long
     i = uFind(Token)
     If i = 0 Then
         g_Debug "TNotificationRoster.Update(): #" & g_HexStr(Token) & " not found", LEMON_LEVEL_WARNING
+        gLastErr = SNARL41_ERROR_NOTIFICATION_NOT_FOUND
         Update = M_NOT_FOUND
         Exit Function
 
@@ -630,7 +636,8 @@ Dim pInfo As T_NOTIFICATION_INFO
         .StyleToUse = "-"
 
     End With
-    
+
+    gLastErr = SNARL41_SUCCESS
     Update = mItem(i).Window.Update(pInfo)
 
 End Function

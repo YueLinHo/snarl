@@ -237,6 +237,7 @@ Dim c As Long
     c = Engine.CountStyles()
     If c < 1 Then
         g_Debug "uAddStyleEngine(): style engine '" & Engine.Name & "' (" & Library & ")" & "' has no styles", LEMON_LEVEL_CRITICAL
+        FailedReason = "No styles found"
         Exit Function
 
     End If

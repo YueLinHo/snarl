@@ -149,6 +149,7 @@ Public Enum E_FONTSMOOTHING
 
 End Enum
 
+    ' /* used by the missed notifications panel - should be consolidated with other similar structs */
 
 Public Type G_NOTIFICATION_CONTENT
     Title As String
@@ -156,8 +157,9 @@ Public Type G_NOTIFICATION_CONTENT
     Icon As mfxBitmap
     Timeout As Long
     Ack As String
-
     Timestamp As Date
+    Sender As String
+    Class As String
 
 End Type
 
@@ -167,11 +169,12 @@ Public Type T_CONFIG
     run_on_logon As Boolean
     font_smoothing As E_FONTSMOOTHING
 '    suppress_delay As Long          ' // in ms
-    hotkey_prefs As Long            ' // MAKELONG(mods,key)
+'    hotkey_prefs As Long            ' // MAKELONG(mods,key)
 '    last_sound_folder As String
-    use_hotkey As Boolean
-    do_not_disturb_ As Boolean      ' // not persitent: user-controlled DND setting
-    dnd_count As Long               ' // set using WM_MANAGE_SNARL
+'    use_hotkey As Boolean
+    UserDnD As Boolean      ' // not persitent: user-controlled DND setting
+    SysDnDCount As Long             ' // set using WM_MANAGE_SNARL
+    MissedCountOnDnD As Long
     use_dropshadow As Boolean
     last_update_check As Date
     AgreeBetaUsage As Boolean
@@ -419,46 +422,48 @@ Dim pName As String
 
     If Not g_ConfigInit() Then
 
-        MsgBox "As this is the first time Snarl has been run, I need to test the drawing" & vbCrLf & _
-               "speed of your PC.  This test will only take a few seconds, if that.", _
-               vbOKOnly Or vbInformation, "Snarl Graphics Test"
+        g_Debug "main(): new/clean installation..."
 
-        l = GetTickCount()
-        g_Debug "main(): GFXCHK: starting graphics test (tick_count=" & CStr(l) & ")"
+'        MsgBox "As this is the first time Snarl has been run, I need to test the drawing" & vbCrLf & _
+'               "speed of your PC.  This test will only take a few seconds, if that.", _
+'               vbOKOnly Or vbInformation, "Snarl Graphics Test"
+'
+'        l = GetTickCount()
+'        g_Debug "main(): GFXCHK: starting graphics test (tick_count=" & CStr(l) & ")"
+'
+'Dim pInfo As T_NOTIFICATION_INFO
+'
+'        With pInfo
+'            .Title = "Snarl Graphics Test"
+'            .Text = "Test Message"
+'            .Timeout = 1
+'            .StyleToUse = ""            ' // the scheme
+'
+'        End With
+'
+'        With New CSnarlWindow
+'            .Create New TAlert, pInfo, New TInternalStyle, 0, ""
+'            '"Snarl Graphics Test", "Test message", 1, "", 0, 0, 0, "", New TInternalStyle, "", 0
+'            .Quit
+'
+'        End With
+'
+'Dim dStep As Double
+'
+'        l = GetTickCount() - l
+'        g_Debug "main(): GFXCHK: completed graphics test (tick_count=" & CStr(GetTickCount()) & ")"
+'
+'        dStep = l / 422#
+'
+'        If dStep < 1# Then _
+'            dStep = 1#
+'
+'        g_Debug "main(): GFXCHK: delta=" & l & " actual=" & CStr(l / 422#) & " step=" & dStep
+'
+'        MsgBox "Graphics test complete.  Snarl has calculated a factor of " & Format$(dStep, "0.00") & vbCrLf & _
+'               "to use when displaying messages.", vbOKOnly Or vbInformation, "Test Complete"
 
-Dim pInfo As T_NOTIFICATION_INFO
-
-        With pInfo
-            .Title = "Snarl Graphics Test"
-            .Text = "Test Message"
-            .Timeout = 1
-            .StyleToUse = ""            ' // the scheme
-
-        End With
-
-        With New CSnarlWindow
-            .Create New TAlert, pInfo, New TInternalStyle, 0, ""
-            '"Snarl Graphics Test", "Test message", 1, "", 0, 0, 0, "", New TInternalStyle, "", 0
-            .Quit
-
-        End With
-
-Dim dStep As Double
-
-        l = GetTickCount() - l
-        g_Debug "main(): GFXCHK: completed graphics test (tick_count=" & CStr(GetTickCount()) & ")"
-
-        dStep = l / 422#
-
-        If dStep < 1# Then _
-            dStep = 1#
-
-        g_Debug "main(): GFXCHK: delta=" & l & " actual=" & CStr(l / 422#) & " step=" & dStep
-
-        MsgBox "Graphics test complete.  Snarl has calculated a factor of " & Format$(dStep, "0.00") & vbCrLf & _
-               "to use when displaying messages.", vbOKOnly Or vbInformation, "Test Complete"
-
-        g_ConfigSet "step_size", CStr(dStep)
+        g_ConfigSet "step_size", "1"
 
     End If
 
@@ -626,12 +631,10 @@ Public Function g_ConfigInit() As Boolean
         .run_on_logon = True
         .font_smoothing = E_MELONTYPE
 '        .suppress_delay = 2000
-        .hotkey_prefs = vbKeyF10
 '        If g_GetSystemFolder(CSIDL_PERSONAL, sz) Then _
             .last_sound_folder = sz
 
-        .use_hotkey = True
-        .do_not_disturb_ = False
+        .UserDnD = False
         .use_dropshadow = True
 
     End With
@@ -1172,13 +1175,42 @@ End Function
 
 Public Sub g_AddDNDLock()
 
-    g_Prefs.dnd_count = g_Prefs.dnd_count + 1
+    g_Prefs.SysDnDCount = g_Prefs.SysDnDCount + 1
+
+    If (g_IsDNDModeEnabled) And (Not (g_NotificationRoster Is Nothing)) Then _
+        g_Prefs.MissedCountOnDnD = g_NotificationRoster.CountMissed
 
 End Sub
 
 Public Sub g_RemDNDLock()
 
-    g_Prefs.dnd_count = g_Prefs.dnd_count - 1
+    g_Prefs.SysDnDCount = g_Prefs.SysDnDCount - 1
+    g_CheckMissed
+
+End Sub
+
+Public Sub g_CheckMissed()
+Dim iMissed As Long
+Dim iToken As Long
+
+    If (g_NotificationRoster Is Nothing) Then _
+        Exit Sub
+
+    ' /* if DnD mode is now disabled and there were some missed notifications, show notification
+    '    explaining this */
+
+    iMissed = g_NotificationRoster.CountMissed - g_Prefs.MissedCountOnDnD
+
+    If (Not g_IsDNDModeEnabled()) And (iMissed > 0) Then
+        iToken = snShowMessageEx("", "While you were away...", _
+                                    "You missed " & CStr(iMissed) & " notification" & IIf(iMissed > 1, "s", ""), _
+                                    -1, _
+                                    g_MakePath(App.Path) & "etc\icons\snarl.png")
+
+        If iToken > 0 Then _
+            snChangeAttribute iToken, SNARL_ATTRIBUTE_ACK, "!show_missed_panel"
+
+    End If
 
 End Sub
 
@@ -1186,10 +1218,10 @@ Public Function g_IsDNDModeEnabled() As Boolean
 
     ' /* DND mode is considered enabled if:
     '       1. the user has enabled it (g_Prefs.do_not_disturb is True)
-    '       2. an app has enabled it (g_Prefs.dnd_count > 0)
+    '       2. an app has enabled it (g_Prefs.SysDnDCount > 0)
     ' */
 
-    If (g_Prefs.do_not_disturb_) Or (g_Prefs.dnd_count > 0) Then _
+    If (g_Prefs.UserDnD) Or (g_Prefs.SysDnDCount > 0) Then _
         g_IsDNDModeEnabled = True
 
 End Function
@@ -1428,3 +1460,33 @@ Public Function g_SettingsPath() As String
         g_SettingsPath = mSettings.File
 
 End Function
+
+Public Sub g_ProcessAck(ByVal Ack As String)
+Dim arg() As String
+Dim argC As Long
+
+    g_Debug "g_ProcessAck(): ACK is '" & Ack & "'", LEMON_LEVEL_INFO
+
+    If Left$(Ack, 1) = "!" Then
+        ' /* bang command */
+
+        arg = Split(Right$(LCase$(Ack), Len(Ack) - 1), " ")
+        argC = UBound(arg) + 1
+
+        Debug.Print "g_ProcessAck(): " & Ack & " == " & argC
+
+        Select Case arg(0)
+        Case "show_missed_panel"
+            If Not (g_NotificationRoster Is Nothing) Then _
+                g_NotificationRoster.ShowMissedPanel
+
+
+        End Select
+
+    Else
+        ' /* treat as launchable */
+        ShellExecute frmAbout.hWnd, vbNullString, Ack, vbNullString, vbNullString, SW_SHOW
+
+    End If
+
+End Sub
