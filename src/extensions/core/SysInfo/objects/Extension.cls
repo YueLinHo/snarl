@@ -50,10 +50,10 @@ Option Explicit
     '
     ' */
 
-Private Const LIB_DATE = "28-Jun-2010"
-Private Const LIB_RELEASE = "Alpha 1"
+Private Const LIB_DATE = "6-Aug-2010"
+Private Const LIB_RELEASE = "1.0"
 Private Const EXT_NAME = "SysInfo"
-Private Const EXT_COMMENT = "Notifies you about certain system-wide events"
+Private Const EXT_COMMENT = "Notifies about various system-wide events"
 
 Private Const CLASS_LOW_MEM = "lmem"
 Private Const CLASS_NO_MEM = "nmem"
