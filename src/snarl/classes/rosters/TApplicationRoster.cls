@@ -196,7 +196,7 @@ Dim i As Long
 
     If (Data.ValueOf("title") = "") Or (Data.ValueOf("id") = "") Then
         g_Debug "required arg missing", LEMON_LEVEL_CRITICAL Or LEMON_LEVEL_PROC_EXIT
-        gLastErr = SNARL41_ERROR_ARG_MISSING
+        gSetLastError SNARL41_ERROR_ARG_MISSING
         Exit Function
 
     End If
@@ -656,7 +656,7 @@ Static i As Long
     i = IndexOfToken(Token)
     If i = 0 Then
         g_Debug "TApplicationRoster.Unregister(): '" & CStr(Token) & "' not found", LEMON_LEVEL_CRITICAL
-        gLastErr = SNARL41_ERROR_NOT_REGISTERED
+        gSetLastError SNARL41_ERROR_NOT_REGISTERED
 
     Else
         Remove i
@@ -689,7 +689,7 @@ Static i As Long
     i = IndexOfToken(Token)
     If i = 0 Then
         g_Debug "TApplicationRoster.Update(): '" & CStr(Token) & "' not found", LEMON_LEVEL_CRITICAL
-        gLastErr = SNARL41_ERROR_NOT_REGISTERED
+        gSetLastError SNARL41_ERROR_NOT_REGISTERED
 
     Else
 

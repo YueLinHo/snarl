@@ -214,6 +214,7 @@ End Property
 
 Friend Function Add(ByRef Class As TAlert, ByRef Info As T_NOTIFICATION_INFO) As Long
 
+    gSetLastError SNARL41_ERROR_FAILED
     If g_IsQuitting Then _
         Exit Function               ' // shutting down - can't do anything
 
@@ -222,6 +223,7 @@ Friend Function Add(ByRef Class As TAlert, ByRef Info As T_NOTIFICATION_INFO) As
     If g_ConfigGet("log_only") = "1" Then
         g_WriteToLog Info.Title, Info.Text
         Add = -1                    ' // V40.7 - changed from M_OK to -1 (indicates success but no token available)
+        gSetLastError SNARL41_SUCCESS
         Exit Function               ' // TO-DO: determine if we should return 0 and set last_error instead
 
     End If
@@ -233,6 +235,8 @@ Friend Function Add(ByRef Class As TAlert, ByRef Info As T_NOTIFICATION_INFO) As
         Exit Function
 
     End If
+
+    gSetLastError SNARL41_SUCCESS
 
     ' /* R2.3: convert \n's into CR/LFs */
 
@@ -618,7 +622,7 @@ Dim i As Long
     i = uFind(Token)
     If i = 0 Then
         g_Debug "TNotificationRoster.Update(): #" & g_HexStr(Token) & " not found", LEMON_LEVEL_WARNING
-        gLastErr = SNARL41_ERROR_NOTIFICATION_NOT_FOUND
+        gSetLastError SNARL41_ERROR_NOTIFICATION_NOT_FOUND
         Update = M_NOT_FOUND
         Exit Function
 
@@ -637,7 +641,7 @@ Dim pInfo As T_NOTIFICATION_INFO
 
     End With
 
-    gLastErr = SNARL41_SUCCESS
+    gSetLastError SNARL41_SUCCESS
     Update = mItem(i).Window.Update(pInfo)
 
 End Function

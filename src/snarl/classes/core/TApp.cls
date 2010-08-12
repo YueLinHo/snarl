@@ -113,7 +113,7 @@ Public Function AddAlert(ByVal Class As String, ByVal Description As String, Opt
 
     If Me.FindAlert(Class, Nothing) Then
         g_Debug "class '" & Class & "' already exists", LEMON_LEVEL_CRITICAL Or LEMON_LEVEL_PROC_EXIT
-        gLastErr = SNARL41_ERROR_CLASS_ALREADY_EXISTS
+        gSetLastError SNARL41_ERROR_CLASS_ALREADY_EXISTS
         AddAlert = M_ALREADY_EXISTS
         Exit Function
 
@@ -363,6 +363,7 @@ Dim pc As TAlert
 
     If (pc Is Nothing) Then
         g_Debug "TApp.Show(): couldn't find a suitable class", LEMON_LEVEL_CRITICAL
+        gSetLastError SNARL41_ERROR_FAILED
         Exit Function
 
     End If
@@ -402,21 +403,21 @@ Public Function AddClass(ByRef Data As BPackedData, Optional ByRef ClassObject A
 
     If (Data Is Nothing) Then
         g_Debug "TApp.AddClass(): config error", LEMON_LEVEL_CRITICAL
-        gLastErr = SNARL41_ERROR_FAILED
+        gSetLastError SNARL41_ERROR_FAILED
         Exit Function
 
     End If
 
     If Not Data.Exists("id") Then
         g_Debug "TApp.AddClass(): required arg 'id' missing", LEMON_LEVEL_CRITICAL
-        gLastErr = SNARL41_ERROR_ARG_MISSING
+        gSetLastError SNARL41_ERROR_ARG_MISSING
         Exit Function
 
     End If
 
     If Not Data.Exists("name") Then
         g_Debug "TApp.AddClass(): required arg 'name' missing", LEMON_LEVEL_CRITICAL
-        gLastErr = SNARL41_ERROR_ARG_MISSING
+        gSetLastError SNARL41_ERROR_ARG_MISSING
         Exit Function
 
     End If
@@ -459,7 +460,7 @@ Public Function RemClass(ByRef Data As BPackedData) As Long
 
     If (Data Is Nothing) Then
         g_Debug "TApp.RemClass(): config error", LEMON_LEVEL_CRITICAL
-        gLastErr = SNARL41_ERROR_FAILED
+        gSetLastError SNARL41_ERROR_FAILED
         Exit Function
 
     End If
@@ -474,12 +475,12 @@ Public Function RemClass(ByRef Data As BPackedData) As Long
 
     ElseIf Not Data.Exists("id") Then
         g_Debug "TApp.RemClass(): required arg 'id' missing", LEMON_LEVEL_CRITICAL
-        gLastErr = SNARL41_ERROR_ARG_MISSING
+        gSetLastError SNARL41_ERROR_ARG_MISSING
 
 
     ElseIf Data.ValueOf("id") = "_all" Then
         g_Debug "TApp.RemClass(): cannot remove '_all' class", LEMON_LEVEL_CRITICAL
-        gLastErr = SNARL41_ERROR_FAILED
+        gSetLastError SNARL41_ERROR_FAILED
         Exit Function
 
     End If
@@ -490,7 +491,7 @@ Dim i As Long
     i = uIndexOf(Data.ValueOf("id"))
     If i = 0 Then
         g_Debug "TApp.RemClass(): class '" & Data.ValueOf("id") & "' not found", LEMON_LEVEL_CRITICAL
-        gLastErr = SNARL41_ERROR_CLASS_NOT_FOUND
+        gSetLastError SNARL41_ERROR_CLASS_NOT_FOUND
         Exit Function
 
     End If

@@ -491,7 +491,7 @@ Dim pss As SNARLSTRUCTI
 
     Else
         g_Debug "TMainWindow.uCopyData(): notification engine is not running", LEMON_LEVEL_WARNING
-        gLastErr = SNARL41_ERROR_NOT_RUNNING
+        gSetLastError SNARL41_ERROR_NOT_RUNNING
 
         ' /* TO-DO: we might want to log the notification somewhere? */
 
@@ -804,10 +804,10 @@ Dim pApp As TApp
         ' */
         If (g_AppRoster Is Nothing) Then
             g_Debug "TMainWindow.uDoV41Request(): SNARL41_REGISTER_APP: app roster is not available", LEMON_LEVEL_CRITICAL
-            gLastErr = SNARL41_ERROR_FAILED
+            gSetLastError SNARL41_ERROR_FAILED
 
         Else
-            gLastErr = 0
+            gSetLastError 0
             uDoV41Request = g_AppRoster.Add41(pData)
 
         End If
@@ -817,10 +817,10 @@ Dim pApp As TApp
         ' /* PacketData is unused; Token should contain token off application to remove */
         If (g_AppRoster Is Nothing) Then
             g_Debug "TMainWindow.uDoV41Request(): SNARL41_UNREGISTER_APP: app roster is not available", LEMON_LEVEL_CRITICAL
-            gLastErr = SNARL41_ERROR_FAILED
+            gSetLastError SNARL41_ERROR_FAILED
 
         Else
-            gLastErr = 0
+            gSetLastError 0
             uDoV41Request = g_AppRoster.Unregister(pReq.Token)
 
         End If
@@ -833,10 +833,10 @@ Dim pApp As TApp
         ' */
         If (g_AppRoster Is Nothing) Then
             g_Debug "TMainWindow.uDoV41Request(): SNARL41_UPDATE_APP: app roster is not available", LEMON_LEVEL_CRITICAL
-            gLastErr = SNARL41_ERROR_FAILED
+            gSetLastError SNARL41_ERROR_FAILED
 
         Else
-            gLastErr = 0
+            gSetLastError 0
             uDoV41Request = g_AppRoster.Update(pReq.Token, pData)
 
         End If
@@ -845,41 +845,41 @@ Dim pApp As TApp
     Case SNARL41_ADD_CLASS
         If (g_AppRoster Is Nothing) Then
             g_Debug "TMainWindow.uDoV41Request(): SNARL41_ADD_CLASS: app roster is not available", LEMON_LEVEL_CRITICAL
-            gLastErr = SNARL41_ERROR_FAILED
+            gSetLastError SNARL41_ERROR_FAILED
             Exit Function
 
         End If
 
         If Not g_AppRoster.FindByToken(pReq.Token, pApp) Then
-            gLastErr = SNARL41_ERROR_NOT_REGISTERED
+            gSetLastError SNARL41_ERROR_NOT_REGISTERED
             Exit Function
 
         End If
 
-        gLastErr = 0
+        gSetLastError 0
         uDoV41Request = pApp.AddClass(pData)
 
 
     Case SNARL41_REMOVE_CLASS
         If (g_AppRoster Is Nothing) Then
             g_Debug "TMainWindow.uDoV41Request(): SNARL41_REMOVE_CLASS: app roster is not available", LEMON_LEVEL_CRITICAL
-            gLastErr = SNARL41_ERROR_FAILED
+            gSetLastError SNARL41_ERROR_FAILED
             Exit Function
 
         End If
 
         If Not g_AppRoster.FindByToken(pReq.Token, pApp) Then
-            gLastErr = SNARL41_ERROR_NOT_REGISTERED
+            gSetLastError SNARL41_ERROR_NOT_REGISTERED
             Exit Function
 
         End If
 
-        gLastErr = 0
+        gSetLastError 0
         uDoV41Request = pApp.RemClass(pData)
 
 
     Case SNARL41_LAST_ERROR
-        uDoV41Request = gLastErr
+        uDoV41Request = GetProp(ghWndMain, "last_error")
 
 
     Case SNARL41_NOTIFY
@@ -894,10 +894,10 @@ Dim pApp As TApp
 
     Case SNARL41_HIDE_NOTIFICATION
         If (g_NotificationRoster Is Nothing) Then
-            gLastErr = SNARL41_ERROR_FAILED
+            gSetLastError SNARL41_ERROR_FAILED
 
         Else
-            gLastErr = 0
+            gSetLastError 0
             uDoV41Request = CLng(g_NotificationRoster.Hide(pReq.Token))
 
         End If
@@ -905,10 +905,10 @@ Dim pApp As TApp
 
     Case SNARL41_IS_NOTIFICATION_VISIBLE
         If (g_NotificationRoster Is Nothing) Then
-            gLastErr = SNARL41_ERROR_FAILED
+            gSetLastError SNARL41_ERROR_FAILED
 
         Else
-            gLastErr = 0
+            gSetLastError 0
             uDoV41Request = CLng(g_NotificationRoster.IsVisible(pReq.Token))
         
         End If
@@ -923,7 +923,7 @@ Private Function uNotify(ByVal Token As Long, ByRef pData As BPackedData) As Lon
 
     If (g_AppRoster Is Nothing) Or (g_NotificationRoster Is Nothing) Then
         g_Debug "TMainWindow.uNotify(): app/notification roster invalid", LEMON_LEVEL_CRITICAL
-        gLastErr = SNARL41_ERROR_SYSTEM
+        gSetLastError SNARL41_ERROR_SYSTEM
         Exit Function
 
     End If
@@ -942,7 +942,7 @@ Dim pApp As TApp
         Else
             ' /* Snarl's registration not found */
             g_Debug "TMainWindow.uNotify(): Snarl internal app not in roster", LEMON_LEVEL_CRITICAL
-            gLastErr = SNARL41_ERROR_FAILED
+            gSetLastError SNARL41_ERROR_SYSTEM
             Exit Function
 
         End If
@@ -953,7 +953,7 @@ Dim pApp As TApp
 
     Else
         g_Debug "TMainWindow.uNotify(): app " & g_HexStr(Token) & " not in roster", LEMON_LEVEL_CRITICAL
-        gLastErr = SNARL41_ERROR_NOT_REGISTERED
+        gSetLastError SNARL41_ERROR_NOT_REGISTERED
         Exit Function
 
     End If
@@ -974,7 +974,6 @@ Dim pInfo As T_NOTIFICATION_INFO
     End With
 
     uNotify = pApp.ShowNew(szClass, pInfo)
-    
 
 End Function
 
@@ -988,7 +987,7 @@ Private Function uUpdate(ByVal Token As Long, ByRef pData As BPackedData) As Lon
 
     ' /* return -1 on success, 0 on failure */
 
-    gLastErr = SNARL41_ERROR_SYSTEM
+    gSetLastError SNARL41_ERROR_SYSTEM
     If (g_NotificationRoster Is Nothing) Then _
         Exit Function
 

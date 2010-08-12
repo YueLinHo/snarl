@@ -300,7 +300,7 @@ Friend Function ShowNotification(ByRef Info As T_NOTIFICATION_INFO) As Long
 
     ' /* IMPORTANT! This should *only* be called by TApp.Show() */
 
-    gLastErr = SNARL41_ERROR_SYSTEM
+    gSetLastError SNARL41_ERROR_SYSTEM
     If (g_NotificationRoster Is Nothing) Then _
         Exit Function
 
@@ -308,7 +308,7 @@ Friend Function ShowNotification(ByRef Info As T_NOTIFICATION_INFO) As Long
 
     If Me.GetValue("enabled") = "0" Then
         g_Debug "TAlert.ShowNotification(): class '" & mContent.Class & "' has been disabled by the user"
-        gLastErr = SNARL41_ERROR_CLASS_BLOCKED
+        gSetLastError SNARL41_ERROR_CLASS_BLOCKED
         Exit Function
 
     End If

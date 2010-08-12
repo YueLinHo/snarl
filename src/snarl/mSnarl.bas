@@ -219,7 +219,7 @@ Public gUpdateFilename As String            ' // name of the update file to down
 
 Dim myUpdateCheck As TAutoUpdate
 
-Public gLastErr As SNARL_STATUS_41      ' // V41 api
+'Public gLastErr As SNARL_STATUS_41      ' // V41 api
 
 Private Declare Function WinExec Lib "kernel32" (ByVal lpCmdLine As String, ByVal nCmdShow As Long) As Long
 Public Declare Sub CoFreeUnusedLibrariesEx Lib "ole32" (ByVal dwUnloadDelay As Long, ByVal dwReserved As Long)
@@ -1488,5 +1488,11 @@ Dim argC As Long
         ShellExecute frmAbout.hWnd, vbNullString, Ack, vbNullString, vbNullString, SW_SHOW
 
     End If
+
+End Sub
+
+Public Sub gSetLastError(ByVal Error As SNARL_STATUS_41)
+
+    SetProp ghWndMain, "last_error", Error
 
 End Sub
