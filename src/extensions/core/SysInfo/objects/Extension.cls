@@ -50,8 +50,8 @@ Option Explicit
     '
     ' */
 
-Private Const LIB_DATE = "6-Aug-2010"
-Private Const LIB_RELEASE = "1.0"
+Private Const LIB_DATE = "12-Aug-2010"
+Private Const LIB_RELEASE = "1.02"
 Private Const EXT_NAME = "SysInfo"
 Private Const EXT_COMMENT = "Notifies about various system-wide events"
 
@@ -195,8 +195,8 @@ Dim i As Integer
         sn41AddClass .Token, CLASS_NO_MEM, "Physical memory exhausted", False
 '        sn41AddClass .Token, CLASS_HIGH_CPU, "High processor utilisation"
         sn41AddClass .Token, CLASS_LOW_DISK, "Low disk space", False
-        sn41AddClass .Token, CLASS_NIC_CONN, "Network connected", False
-        sn41AddClass .Token, CLASS_NIC_DISC, "Network disconnected", False
+'        sn41AddClass .Token, CLASS_NIC_CONN, "Network connected", False
+'        sn41AddClass .Token, CLASS_NIC_DISC, "Network disconnected", False
         sn41AddClass .Token, CLASS_DUN_CONN, "Dial-up connected", False
         sn41AddClass .Token, CLASS_DUN_DISC, "Dial-up disconnected", False
         sn41AddClass .Token, CLASS_VOL_MNT, "Volume mounted"
@@ -303,30 +303,30 @@ Dim i As Long
 End Sub
 
 Private Sub theNetRoster_Connected(Details As melon4.BTagList)
-Static i As Long
-
-    i = Val(Details.ValueOf("status"))
-    If i <> IF_OPER_STATUS_OPERATIONAL Then _
-        Exit Sub
-
-    i = sn41EZNotify(mSettings.Token, CLASS_NIC_CONN, "Network connected", _
-                     Details.ValueOf("connection") & " is now connected at " & _
-                     uSpeed(Val(Details.ValueOf("speed", "0"))) & _
-                     " using " & Details.ValueOf("name", "<unknown adapter>"), , "!network-connected")
+'Static i As Long
+'
+'    i = Val(Details.ValueOf("status"))
+'    If i <> IF_OPER_STATUS_OPERATIONAL Then _
+'        Exit Sub
+'
+'    i = sn41EZNotify(mSettings.Token, CLASS_NIC_CONN, "Network connected", _
+'                     Details.ValueOf("connection") & " is now connected at " & _
+'                     uSpeed(Val(Details.ValueOf("speed", "0"))) & _
+'                     " using " & Details.ValueOf("name", "<unknown adapter>"), , "!network-connected")
 
 End Sub
 
 Private Sub theNetRoster_Disconnected(Details As melon4.BTagList)
 
-    ' /* was the adapter active at the time it disappeared? */
-
-    If Val(Details.ValueOf("status", "0")) <> IF_OPER_STATUS_OPERATIONAL Then _
-        Exit Sub
-
-Static i As Long
-
-    i = sn41EZNotify(mSettings.Token, CLASS_NIC_DISC, "Network disconnected", _
-                     Details.ValueOf("connection") & " is disconnected", , "!network-disconnected")
+'    ' /* was the adapter active at the time it disappeared? */
+'
+'    If Val(Details.ValueOf("status", "0")) <> IF_OPER_STATUS_OPERATIONAL Then _
+'        Exit Sub
+'
+'Static i As Long
+'
+'    i = sn41EZNotify(mSettings.Token, CLASS_NIC_DISC, "Network disconnected", _
+'                     Details.ValueOf("connection") & " is disconnected", , "!network-disconnected")
 
 End Sub
 
