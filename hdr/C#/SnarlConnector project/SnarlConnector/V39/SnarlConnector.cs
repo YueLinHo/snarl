@@ -90,14 +90,14 @@ namespace Snarl.V39
 		internal const string SNARL_APP_MSG = "SnarlAppMessage";
 
 		/* Global event identifiers
-		    Identifiers marked with a '*' are sent by Snarl in two ways:
-		    1. As a broadcast message (uMsg = 'SNARL_GLOBAL_MSG')
-		    2. To the window registered in snRegisterConfig() or snRegisterConfig2()
-		       (uMsg = reply message specified at the time of registering)
-		    
-		    In both cases these values appear in wParam.
-		    
-		    Identifiers not marked are not broadcast; they are simply sent to the application's registered window.
+			Identifiers marked with a '*' are sent by Snarl in two ways:
+			1. As a broadcast message (uMsg = 'SNARL_GLOBAL_MSG')
+			2. To the window registered in snRegisterConfig() or snRegisterConfig2()
+			   (uMsg = reply message specified at the time of registering)
+			
+			In both cases these values appear in wParam.
+			
+			Identifiers not marked are not broadcast; they are simply sent to the application's registered window.
 		*/
 		public const Int32 SNARL_LAUNCHED = 1;        // Snarl has just started running*
 		public const Int32 SNARL_QUIT = 2;            // Snarl is about to stop running*
@@ -106,8 +106,8 @@ namespace Snarl.V39
 
 
 		/* Message event identifiers
-		    These are sent by Snarl to the window specified in snShowMessage() when the
-		    Snarl Notification raised times out or the user clicks on it.
+			These are sent by Snarl to the window specified in snShowMessage() when the
+			Snarl Notification raised times out or the user clicks on it.
 		*/
 		public const Int32 SNARL_NOTIFICATION_CLICKED = 32; // notification was right-clicked by user
 		public const Int32 SNARL_NOTIFICATION_TIMED_OUT = 33; //
@@ -126,7 +126,7 @@ namespace Snarl.V39
 		private static IntPtr _snarlWindow = IntPtr.Zero;
 		private static UInt32 _snarlGlobalMessage = 0;
 
-        // --------------------------------------------------------------------------
+		// --------------------------------------------------------------------------
 		
 		public enum SNARL_APP_FLAGS
 		{
@@ -163,7 +163,7 @@ namespace Snarl.V39
 		}
 
 		/* ------------------- end of V39 additions ------------------ */
-    
+	
 
 		// --------------------------------------------------------------------------
 
@@ -485,7 +485,7 @@ namespace Snarl.V39
 		}
 
 
-        /* ------------------- V39 implementation ---------------------------------------*/
+		/* ------------------- V39 implementation ---------------------------------------*/
 
 
 		/// <summary>
@@ -493,12 +493,12 @@ namespace Snarl.V39
 		/// </summary>
 		/// <param name="hWndOwner">hWndOwner - the window to be used when registering</param>
 		/// <param name="flags">Flags - features this app supports</param>
-        public static void SetAsSnarlApp(IntPtr hWndOwner, SNARL_APP_FLAGS Flags)
+		public static void SetAsSnarlApp(IntPtr hWndOwner, SNARL_APP_FLAGS Flags)
 		{
 			if (IsWindow(hWndOwner))
 			{
-                SetProp(hWndOwner, "snarl_app", (IntPtr)1);
-                SetProp(hWndOwner, "snarl_app_flags", (IntPtr)Flags);
+				SetProp(hWndOwner, "snarl_app", (IntPtr)1);
+				SetProp(hWndOwner, "snarl_app_flags", (IntPtr)Flags);
 			}
 		}
 
@@ -553,130 +553,130 @@ namespace Snarl.V39
 		{
 			SNARLSTRUCT message = new SNARLSTRUCT();
 			message.Cmd = (short)SNARL_COMMAND.SNARL_UNREGISTER_APP;
-            message.LngData2 = (int)GetCurrentProcessId();
+			message.LngData2 = (int)GetCurrentProcessId();
 			
 			return Send(message, IntPtr.Zero);
 		}
 
-        /// <summary>
-        /// Displays a Snarl notification using registered class  (V39)
-        /// </summary>
-        /// <param name="Class">Class, same as that specified in RegisterAlert()</param>
-        /// <param name="Title">Text to display in title</param>
-        /// <param name="Text">Text to display in body</param>
-        /// <param name="Timeout">Number of seconds to display notification or zero for indefinite (sticky)</param>
-        /// <param name="IconPath">Path to PNG icon to use</param>
-        /// <param name="hWndReply">Handle of window for Snarl to send replies to</param>
-        /// <param name="uReplyMsg">Message for Snarl to send to hWndReply</param>
-        /// <param name="SoundFile">Path to WAV file to play</param>
+		/// <summary>
+		/// Displays a Snarl notification using registered class  (V39)
+		/// </summary>
+		/// <param name="Class">Class, same as that specified in RegisterAlert()</param>
+		/// <param name="Title">Text to display in title</param>
+		/// <param name="Text">Text to display in body</param>
+		/// <param name="Timeout">Number of seconds to display notification or zero for indefinite (sticky)</param>
+		/// <param name="IconPath">Path to PNG icon to use</param>
+		/// <param name="hWndReply">Handle of window for Snarl to send replies to</param>
+		/// <param name="uReplyMsg">Message for Snarl to send to hWndReply</param>
+		/// <param name="SoundFile">Path to WAV file to play</param>
 		/// <returns><c>Message id</c> on success. <see cref="M_RESULT"/> on failure.</returns>
-        public static Int32 ShowNotification(string Class, string Title, string Text, Int32 Timeout, string Icon, IntPtr hWndReply, Int32 uReplyMsg, string Sound)
-        {
-            SNARLSTRUCTEX pss = new SNARLSTRUCTEX();
-            pss.Cmd = (short)SNARL_COMMAND.SNARL_SHOW_NOTIFICATION;
-            pss.Title = StringToUtf8(Title);
-            pss.Text = StringToUtf8(Text);
-            pss.Icon = StringToUtf8(Icon);
-            pss.Timeout = Timeout;
-            pss.LngData2 = hWndReply.ToInt32();
-            pss.Id = uReplyMsg;
-            pss.Extra = StringToUtf8(Sound);
-            pss.Class = StringToUtf8(Class);
-            pss.Reserved1 = (int)GetCurrentProcessId();
+		public static Int32 ShowNotification(string Class, string Title, string Text, Int32 Timeout, string Icon, IntPtr hWndReply, Int32 uReplyMsg, string Sound)
+		{
+			SNARLSTRUCTEX pss = new SNARLSTRUCTEX();
+			pss.Cmd = (short)SNARL_COMMAND.SNARL_SHOW_NOTIFICATION;
+			pss.Title = StringToUtf8(Title);
+			pss.Text = StringToUtf8(Text);
+			pss.Icon = StringToUtf8(Icon);
+			pss.Timeout = Timeout;
+			pss.LngData2 = hWndReply.ToInt32();
+			pss.Id = uReplyMsg;
+			pss.Extra = StringToUtf8(Sound);
+			pss.Class = StringToUtf8(Class);
+			pss.Reserved1 = (int)GetCurrentProcessId();
 
-            return Send(pss, IntPtr.Zero);
-        }
+			return Send(pss, IntPtr.Zero);
+		}
 
-        /// <summary>
-        ///  
-        /// </summary>
-        /// <param name="Id"></param>
-        /// <param name="Attr"></param>
-        /// <param name="Value"></param>
-        /// <returns></returns>
-        public static Int32 ChangeAttribute(Int32 Id, SNARL_ATTRIBUTES Attr, string Value)
-        {
-            SNARLSTRUCT message = new SNARLSTRUCT();
-            message.Cmd = (short)SNARL_COMMAND.SNARL_CHANGE_ATTR;
-            message.Id = Id;
-            message.LngData2 = (Int32)Attr;
-            message.Text = StringToUtf8(Value);
+		/// <summary>
+		///  
+		/// </summary>
+		/// <param name="Id"></param>
+		/// <param name="Attr"></param>
+		/// <param name="Value"></param>
+		/// <returns></returns>
+		public static Int32 ChangeAttribute(Int32 Id, SNARL_ATTRIBUTES Attr, string Value)
+		{
+			SNARLSTRUCT message = new SNARLSTRUCT();
+			message.Cmd = (short)SNARL_COMMAND.SNARL_CHANGE_ATTR;
+			message.Id = Id;
+			message.LngData2 = (Int32)Attr;
+			message.Text = StringToUtf8(Value);
 
-            return Send(message, IntPtr.Zero);
-        }
-
-
-        /// <summary>
-        /// Sets the default value for an alert class  (V39)
-        /// </summary>
-        /// <param name="Application">Application name, same as that used in RegisterConfig(), RegisterConfig2() or RegisterApp()</param>
-        /// <param name="Class">Class name</param>
-        /// <param name="Attr">Class element to change</param>
-        /// <param name="Value">New value</param>
-        /// <returns>Returns M_OK if the alert registered okay, or one of the following if it didn't:
-        ///     M_FAILED - Snarl not running
-        ///     M_TIMED_OUT - Message sending timed out
-        ///     M_NOT_FOUND - Application or Alert Class not found in Snarl's roster
-        ///     M_INVALID_ARGS - Invalid argument specified
-        /// </returns>
-        public static Int32 SetClassDefault(string Class, SNARL_ATTRIBUTES Attr, string Value)
-        {
-            SNARLSTRUCT message = new SNARLSTRUCT();
-            message.Cmd = (short)SNARL_COMMAND.SNARL_SET_CLASS_DEFAULT;
-            message.Text = StringToUtf8(Class);
-            message.LngData2 = (Int32)Attr;
-            message.Icon = StringToUtf8(Value);
-            message.Timeout = (int)GetCurrentProcessId();
-
-            return Send(message, IntPtr.Zero);
-        }
+			return Send(message, IntPtr.Zero);
+		}
 
 
-        /// <summary>
-        /// Gets the current Snarl revision (build) number  (V39)
-        /// </summary>
-        /// <returns>Returns the build version number, or one of the following if it didn't:
-        ///     M_FAILED - Snarl not running
-        ///     M_TIMED_OUT - Message sending timed out
-        /// </returns>
-        public static Int32 GetRevision()
-        {
-            SNARLSTRUCT message = new SNARLSTRUCT();
-            message.Cmd = (short)SNARL_COMMAND.SNARL_GET_REVISION;
-            message.LngData2 = 0xFFFE;                        // COPWAIT ;)
+		/// <summary>
+		/// Sets the default value for an alert class  (V39)
+		/// </summary>
+		/// <param name="Application">Application name, same as that used in RegisterConfig(), RegisterConfig2() or RegisterApp()</param>
+		/// <param name="Class">Class name</param>
+		/// <param name="Attr">Class element to change</param>
+		/// <param name="Value">New value</param>
+		/// <returns>Returns M_OK if the alert registered okay, or one of the following if it didn't:
+		///     M_FAILED - Snarl not running
+		///     M_TIMED_OUT - Message sending timed out
+		///     M_NOT_FOUND - Application or Alert Class not found in Snarl's roster
+		///     M_INVALID_ARGS - Invalid argument specified
+		/// </returns>
+		public static Int32 SetClassDefault(string Class, SNARL_ATTRIBUTES Attr, string Value)
+		{
+			SNARLSTRUCT message = new SNARLSTRUCT();
+			message.Cmd = (short)SNARL_COMMAND.SNARL_SET_CLASS_DEFAULT;
+			message.Text = StringToUtf8(Class);
+			message.LngData2 = (Int32)Attr;
+			message.Icon = StringToUtf8(Value);
+			message.Timeout = (int)GetCurrentProcessId();
 
-            return Send(message, IntPtr.Zero);
-        }
+			return Send(message, IntPtr.Zero);
+		}
 
 
-        /// <summary>
-        /// </summary>
-	    public static Int32 AddClass(string Class, string Description, SNARL_CLASS_FLAGS Flags, string DefaultTitle, string DefaultIcon, Int32 DefaultTimeout)
-	    {
-		    SNARLSTRUCT message = new SNARLSTRUCT();
-		    message.Cmd = (short)SNARL_COMMAND.SNARL_ADD_CLASS;
-            message.Text = StringToUtf8(Class);
-            message.Title = StringToUtf8(Description);
-            message.LngData2 = (Int32)Flags;
-            message.Timeout = (int)GetCurrentProcessId();
-            
-            Int32 result = Send(message, IntPtr.Zero);
-            
-            if (ConvertToMResult(result) == M_RESULT.M_OK) {
-	            SetClassDefault(Class, SNARL_ATTRIBUTES.SNARL_ATTRIBUTE_TITLE, DefaultTitle);
-		        SetClassDefault(Class, SNARL_ATTRIBUTES.SNARL_ATTRIBUTE_ICON, DefaultIcon);
-                if (DefaultTimeout > 0)
-                    SetClassDefault(Class, SNARL_ATTRIBUTES.SNARL_ATTRIBUTE_TIMEOUT, DefaultTimeout.ToString());
-		    }
-            
-            return result;
-	    }
+		/// <summary>
+		/// Gets the current Snarl revision (build) number  (V39)
+		/// </summary>
+		/// <returns>Returns the build version number, or one of the following if it didn't:
+		///     M_FAILED - Snarl not running
+		///     M_TIMED_OUT - Message sending timed out
+		/// </returns>
+		public static Int32 GetRevision()
+		{
+			SNARLSTRUCT message = new SNARLSTRUCT();
+			message.Cmd = (short)SNARL_COMMAND.SNARL_GET_REVISION;
+			message.LngData2 = 0xFFFE;                        // COPWAIT ;)
 
-        /// <summary>
-        /// Converts an returned Int32 to MRESULT
-        /// </summary>
-        /// <param name="result">Value to convert</param>
-        /// <returns>The value cast as a M_RESULT</returns>
+			return Send(message, IntPtr.Zero);
+		}
+
+
+		/// <summary>
+		/// </summary>
+		public static Int32 AddClass(string Class, string Description, SNARL_CLASS_FLAGS Flags, string DefaultTitle, string DefaultIcon, Int32 DefaultTimeout)
+		{
+			SNARLSTRUCT message = new SNARLSTRUCT();
+			message.Cmd = (short)SNARL_COMMAND.SNARL_ADD_CLASS;
+			message.Text = StringToUtf8(Class);
+			message.Title = StringToUtf8(Description);
+			message.LngData2 = (Int32)Flags;
+			message.Timeout = (int)GetCurrentProcessId();
+			
+			Int32 result = Send(message, IntPtr.Zero);
+			
+			if (ConvertToMResult(result) == M_RESULT.M_OK) {
+				SetClassDefault(Class, SNARL_ATTRIBUTES.SNARL_ATTRIBUTE_TITLE, DefaultTitle);
+				SetClassDefault(Class, SNARL_ATTRIBUTES.SNARL_ATTRIBUTE_ICON, DefaultIcon);
+				if (DefaultTimeout > 0)
+					SetClassDefault(Class, SNARL_ATTRIBUTES.SNARL_ATTRIBUTE_TIMEOUT, DefaultTimeout.ToString());
+			}
+			
+			return result;
+		}
+
+		/// <summary>
+		/// Converts an returned Int32 to MRESULT
+		/// </summary>
+		/// <param name="result">Value to convert</param>
+		/// <returns>The value cast as a M_RESULT</returns>
 		public static M_RESULT ConvertToMResult(Int32 result)
 		{
 			return (M_RESULT)((uint)result);

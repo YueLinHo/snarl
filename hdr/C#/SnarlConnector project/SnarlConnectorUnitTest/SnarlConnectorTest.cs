@@ -50,30 +50,33 @@ namespace SnarlConnectorUnitTest
 
 		#region Additional test attributes
 
-		//Use ClassInitialize to run code before running the first test in the class
-		[ClassInitialize()]
-		public static void MyClassInitialize(TestContext testContext)
-		{
-		}
-		
-		// Use ClassCleanup to run code after all tests in a class have run
-		[ClassCleanup()]
-		public static void MyClassCleanup()
-		{
-		}
+		// Use ClassInitialize to run code before running the first test in the class
+		// [ClassInitialize()]
+		// public static void MyClassInitialize(TestContext testContext)
+		// {
+		// }
+		// 
+		// // Use ClassCleanup to run code after all tests in a class have run
+		// [ClassCleanup()]
+		// public static void MyClassCleanup()
+		// {
+		// }
 		
 		// Use TestInitialize to run code before running each test
 		[TestInitialize()]
 		public void MyTestInitialize()
 		{
+			Int32 value = 0;
+			Int32 actual = 0;
+
 			snarlToken = snarl.RegisterApp("CSharpUnitTest", "C# unit test", null, IntPtr.Zero, 0, 0);
 			Assert.AreNotEqual(0, snarlToken);
 
 			// Returns ErrorSystem in 2.3RC1
 			// LastError - Should return success
-			/*value = (Int32)SnarlConnector.SnarlStatus.Success;
-			actual = snarl.GetLastError();
-			Assert.AreEqual(value, actual);*/
+			value = (Int32)SnarlConnector.SnarlStatus.Success;
+			actual = (Int32)snarl.GetLastError();
+			Assert.AreEqual(value, actual);
 		}
 		
 		// Use TestCleanup to run code after each test has run
@@ -89,9 +92,9 @@ namespace SnarlConnectorUnitTest
 
 			// Returns ErrorSystem in 2.3RC1
 			// LastError - Should return success
-			/*value = (Int32)SnarlConnector.SnarlStatus.Success;
-			actual = snarl.GetLastError();
-			Assert.AreEqual(value, actual);*/
+			value = (Int32)SnarlConnector.SnarlStatus.Success;
+			actual = (Int32)snarl.GetLastError();
+			Assert.AreEqual(value, actual);
 		}
 		
 		#endregion
@@ -113,7 +116,7 @@ namespace SnarlConnectorUnitTest
 
 			// LastError - Should return success
 			value = (Int32)SnarlConnector.SnarlStatus.Success;
-			actual = snarl.GetLastError();
+			actual = (Int32)snarl.GetLastError();
 			Assert.AreEqual(value, actual);
 
 			value = -1;
@@ -141,7 +144,7 @@ namespace SnarlConnectorUnitTest
 
 			// LastError - Should return success
 			value = (Int32)SnarlConnector.SnarlStatus.Success;
-			actual = snarl.GetLastError();
+			actual = (Int32)snarl.GetLastError();
 			Assert.AreEqual(value, actual);
 
 			value = 0;
@@ -149,7 +152,7 @@ namespace SnarlConnectorUnitTest
 			Assert.AreEqual(value, actual);
 
 			value = (Int32)SnarlConnector.SnarlStatus.ErrorNotRegistered;
-			actual = snarl.GetLastError();
+			actual = (Int32)snarl.GetLastError();
 			Assert.AreEqual(value, actual);
 
 			value = 0;
@@ -174,7 +177,7 @@ namespace SnarlConnectorUnitTest
 
 			// LastError - Should return success
 			value = (Int32)SnarlConnector.SnarlStatus.Success;
-			actual = snarl.GetLastError();
+			actual = (Int32)snarl.GetLastError();
 			Assert.AreEqual(value, actual);
 
 			value = -1;
@@ -183,7 +186,7 @@ namespace SnarlConnectorUnitTest
 
 			// LastError - Should return success
 			value = (Int32)SnarlConnector.SnarlStatus.Success;
-			actual = snarl.GetLastError();
+			actual = (Int32)snarl.GetLastError();
 			Assert.AreEqual(value, actual);
 
 			// Test error
@@ -192,7 +195,7 @@ namespace SnarlConnectorUnitTest
 			Assert.AreEqual(value, actual);
 
 			value = (Int32)SnarlConnector.SnarlStatus.ErrorClassAlreadyExists;
-			actual = snarl.GetLastError();
+			actual = (Int32)snarl.GetLastError();
 			Assert.AreEqual(value, actual);
 		}
 
@@ -209,22 +212,24 @@ namespace SnarlConnectorUnitTest
 			actual = snarl.EZNotify("id", "title", "text", DefaultMsgTimeout, null, 0, "acknowledge", "value");
 			Assert.AreNotEqual(value, actual);
 
+			Thread.Sleep(1000);
+
 			value = -1;
-			actual = snarl.Hide(snarl.GetLastMsgToken());
+			actual = snarl.Hide(actual);
 			Assert.AreEqual(value, actual);
 
 			// LastError - Should return success
 			value = (Int32)SnarlConnector.SnarlStatus.Success;
-			actual = snarl.GetLastError();
+			actual = (Int32)snarl.GetLastError();
 			Assert.AreEqual(value, actual);
 			
 			// Error test
 			value = 0;
-			actual = snarl.Hide(snarl.GetLastMsgToken());
+			actual = snarl.Hide(actual);
 			Assert.AreEqual(value, actual);
 
-			value = (Int32)SnarlConnector.SnarlStatus.ErrorSystem;
-			actual = snarl.GetLastError();
+			value = (Int32)SnarlConnector.SnarlStatus.ErrorNotificationNotFound;
+			actual = (Int32)snarl.GetLastError();
 			Assert.AreEqual(value, actual);
 		}
 
@@ -252,7 +257,7 @@ namespace SnarlConnectorUnitTest
 
 			// LastError - Should return success
 			value = (Int32)SnarlConnector.SnarlStatus.Success;
-			actual = snarl.GetLastError();
+			actual = (Int32)snarl.GetLastError();
 			Assert.AreEqual(value, actual);
 
 			// Error test
@@ -267,7 +272,7 @@ namespace SnarlConnectorUnitTest
 			Assert.AreEqual(value, actual);
 
 			value = (Int32)SnarlConnector.SnarlStatus.Success;
-			actual = snarl.GetLastError();
+			actual = (Int32)snarl.GetLastError();
 			Assert.AreEqual(value, actual);
 		}
 
@@ -286,7 +291,7 @@ namespace SnarlConnectorUnitTest
 
 			// LastError - Should return success
 			value = (Int32)SnarlConnector.SnarlStatus.Success;
-			actual = snarl.GetLastError();
+			actual = (Int32)snarl.GetLastError();
 			Assert.AreEqual(value, actual);
 		}
 
@@ -310,7 +315,7 @@ namespace SnarlConnectorUnitTest
 
 			// LastError - Should return success
 			value = (Int32)SnarlConnector.SnarlStatus.Success;
-			actual = snarl.GetLastError();
+			actual = (Int32)snarl.GetLastError();
 			Assert.AreEqual(value, actual);
 		}
 
@@ -331,7 +336,7 @@ namespace SnarlConnectorUnitTest
 
 			// LastError - Should return success
 			value = (Int32)SnarlConnector.SnarlStatus.Success;
-			actual = snarl.GetLastError();
+			actual = (Int32)snarl.GetLastError();
 			Assert.AreEqual(value, actual);
 
 			// Error test
@@ -340,7 +345,7 @@ namespace SnarlConnectorUnitTest
 			Assert.AreEqual(value, actual);
 
 			value = (Int32)SnarlConnector.SnarlStatus.ErrorClassNotFound;
-			actual = snarl.GetLastError();
+			actual = (Int32)snarl.GetLastError();
 			Assert.AreEqual(value, actual);
 
 			value = -1;
@@ -365,7 +370,7 @@ namespace SnarlConnectorUnitTest
 
 			// LastError - Should return success
 			value = (Int32)SnarlConnector.SnarlStatus.Success;
-			actual = snarl.GetLastError();
+			actual = (Int32)snarl.GetLastError();
 			Assert.AreEqual(value, actual);
 
 			// Error test
@@ -374,7 +379,7 @@ namespace SnarlConnectorUnitTest
 			Assert.AreEqual(value, actual);
 
 			value = (Int32)SnarlConnector.SnarlStatus.Success;
-			actual = snarl.GetLastError();
+			actual = (Int32)snarl.GetLastError();
 			Assert.AreEqual(value, actual);
 		}
 
@@ -396,20 +401,23 @@ namespace SnarlConnectorUnitTest
 		}*/
 
 		/// <summary>
-		///A test for Update
+		///A test for EZUpdate
 		///</summary>
 		[TestMethod()]
-		public void UpdateTest()
+		public void EZUpdateTest()
 		{
 			Int32 value = 0;
 			Int32 actual = 0;
 
-			// Test without message
+			// Test without message - Returns zero on failure
 			value = 0;
-			actual = snarl.Update(snarl.GetLastMsgToken(), "Updated title", "Updated text", DefaultMsgTimeout * 2, "");
+			actual = snarl.EZUpdate(snarl.GetLastMsgToken(), "Updated title", "Updated text", DefaultMsgTimeout, "");
 			Assert.AreEqual(value, actual);
 
-			// Test LastError
+			// LastError - Should return ErrorFailed
+			value = (Int32)SnarlConnector.SnarlStatus.ErrorNotificationNotFound;
+			actual = (Int32)snarl.GetLastError();
+			Assert.AreEqual(value, actual);
 
 			// Test success case
 			value = 0;
@@ -419,12 +427,50 @@ namespace SnarlConnectorUnitTest
 			Thread.Sleep(1000);
 
 			value = -1;
-			actual = snarl.Update(snarl.GetLastMsgToken(), "Updated title", "Updated text", DefaultMsgTimeout * 2, "");
+			actual = snarl.EZUpdate(snarl.GetLastMsgToken(), "Updated title", "Updated text", DefaultMsgTimeout, "");
 			Assert.AreEqual(value, actual);
 
 			// LastError - Should return success
 			value = (Int32)SnarlConnector.SnarlStatus.Success;
-			actual = snarl.GetLastError();
+			actual = (Int32)snarl.GetLastError();
+			Assert.AreEqual(value, actual);
+		}
+
+		/// <summary>
+		///A test for Update
+		///</summary>
+		[TestMethod()]
+		public void UpdateTest()
+		{
+			Int32 value = 0;
+			Int32 actual = 0;
+
+			String packetData = "title::Updated message#?text::Updated message text#?icon::" + snarl.GetIconsPath() + "snarl-update.png";
+
+			// Test without message - Returns zero on failure
+			value = 0;
+			actual = snarl.Update(snarl.GetLastMsgToken(), packetData);
+			Assert.AreEqual(value, actual);
+
+			// LastError - Should return ErrorFailed
+			value = (Int32)SnarlConnector.SnarlStatus.ErrorNotificationNotFound;
+			actual = (Int32)snarl.GetLastError();
+			Assert.AreEqual(value, actual);
+
+			// Test success case
+			value = 0;
+			actual = snarl.EZNotify("EZNotifyId", "title", "text", DefaultMsgTimeout, null, 0, "acknowledge", "value");
+			Assert.AreNotEqual(value, actual);
+
+			Thread.Sleep(1000);
+
+			value = -1;
+			actual = snarl.Update(snarl.GetLastMsgToken(), packetData);
+			Assert.AreEqual(value, actual);
+
+			// LastError - Should return success
+			value = (Int32)SnarlConnector.SnarlStatus.Success;
+			actual = (Int32)snarl.GetLastError();
 			Assert.AreEqual(value, actual);
 		}
 
@@ -443,7 +489,7 @@ namespace SnarlConnectorUnitTest
 
 			// LastError - Should return success
 			value = (Int32)SnarlConnector.SnarlStatus.Success;
-			actual = snarl.GetLastError();
+			actual = (Int32)snarl.GetLastError();
 			Assert.AreEqual(value, actual);
 		}
 	}

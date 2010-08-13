@@ -18,8 +18,12 @@ namespace Snarl.V41
 	/// </summary>
 	/// 
 	/// Version history:
+	/// 2010-08-13 : Updated to last changes before 2.3 release.
 	/// 2010-07-31 : Initial release of V41 API (for 2.3RC1)
 	/// 
+	/// Todo:
+	///  - Figure out what to do with VB's optional parameters (Check that optional parameters can be null in each function)
+
 	public class SnarlConnector
 	{
 		#region SnarlBase - Shared between versions
@@ -81,7 +85,7 @@ namespace Snarl.V41
 		#endregion
 
 		// Member variables
-		private Int32 token = 0;
+		private Int32 appToken = 0;
 		private Int32 lastMsgToken = 0;
 		private SnarlStatus localError = 0;
 
@@ -100,7 +104,7 @@ namespace Snarl.V41
 			UpdateNotification,
 			HideNotification,
 			IsNotificationVisible,
-			LastError
+			LastError                  // deprecated but retained for backwards compatability
 		}
 
 		[StructLayout(LayoutKind.Sequential, Pack = 4)]
@@ -129,7 +133,8 @@ namespace Snarl.V41
 			ErrorAlreadyRegistered,   // not used yet; RegisterApp() returns existing token
 			ErrorClassAlreadyExists,  // not used yet; AddClass() returns existing token
 			ErrorClassBlocked,
-			ErrorClassNotFound
+			ErrorClassNotFound,
+			ErrorNotificationNotFound
 		}
 
 		[Flags]
@@ -143,47 +148,53 @@ namespace Snarl.V41
 		/// <summary>
 		/// Register application with Snarl.
 		/// </summary>
-		/// <param name="id"></param>
+		/// <param name="signatur"></param>
 		/// <param name="title"></param>
 		/// <param name="icon"></param>
 		/// <param name="hWndReply">Optional</param>
 		/// <param name="msgReply">Optional</param>
 		/// <param name="flags">Optional</param>
 		/// <returns></returns>
-		public Int32 RegisterApp(String id, String title, String icon, IntPtr hWndReply, Int32 msgReply, AppFlags flags)
+		public Int32 RegisterApp(String signatur, String title, String icon, IntPtr hWndReply, Int32 msgReply, AppFlags flags)
 		{
 			SnarlMessage msg;
 			msg.Command = SnarlCommand.RegisterApp;
 			msg.Token = 0;
 			msg.PacketData = StringToUtf8(
-				"id::" + id + 
+				"id::" + signatur + 
 				"#?title::" + title +
 				"#?icon::" + icon +
 				"#?hwnd::" + hWndReply.ToString() + 
 				"#?umsg::" + msgReply.ToString() + 
 				"#?flags::" + ((int)flags).ToString() );
 
-			token = Send(msg);
-			return token;
+			appToken = Send(msg);
+			return appToken;
 		}
 
 		public Int32 UnregisterApp()
 		{
 			SnarlMessage msg;
 			msg.Command = SnarlCommand.UnregisterApp;
-			msg.Token = token;
+			msg.Token = appToken;
 			msg.PacketData = StringToUtf8("");
 
-			token = 0;
+			appToken = 0;
 
 			return Send(msg);
 		}
 
+		/// <summary>
+		/// SetCallback
+		/// </summary>
+		/// <param name="hWnd"></param>
+		/// <param name="replyMsg"></param>
+		/// <returns></returns>
 		public Int32 SetCallback(IntPtr hWnd, Int32 replyMsg)
 		{
 			SnarlMessage msg;
 			msg.Command = SnarlCommand.SetCallback;
-			msg.Token = token;
+			msg.Token = appToken;
 			msg.PacketData = StringToUtf8(
 				"hwnd::" + hWnd.ToString() + 
 				"#?umsg::" + replyMsg.ToString() );
@@ -191,23 +202,26 @@ namespace Snarl.V41
 			return Send(msg);
 		}
 
-		// TODO: Right signature?
-		public Int32 UpdateApp(String notUsed, String icon)
+		/// <summary>
+		/// UpdateApp
+		/// </summary>
+		/// <param name="title">Optional</param>
+		/// <param name="icon">Optional</param>
+		/// <returns></returns>
+		public Int32 UpdateApp(String title, String icon)
 		{
 			SnarlMessage msg;
 			msg.Command = SnarlCommand.UpdateApp;
-			msg.Token = token;
+			msg.Token = appToken;
 
 			String str = "";
-			if (notUsed != "")
-				str += "title::" + notUsed;
+			if (title != null && title.Trim().Length > 0)
+				str += "title::" + title.Trim();
 			
-			if (icon != "")
+			if (icon != null && icon.Trim().Length > 0)
 			{
-				if (str != "")
-					str += "#?";
-				
-				str += "icon::" + icon;
+				str += str.Length > 0 ? "#?" : "";
+				str += icon.Trim();
 			}
 			msg.PacketData = StringToUtf8(str);
 
@@ -215,20 +229,20 @@ namespace Snarl.V41
 		}
 
 		/// <summary>
-		/// 
+		/// AddClass
 		/// </summary>
-		/// <param name="id"></param>
 		/// <param name="name"></param>
+		/// <param name="description"></param>
 		/// <param name="enabled">Optional = true</param>
 		/// <returns></returns>
-		public Int32 AddClass(String id, String name, bool enabled)
+		public Int32 AddClass(String className, String description, bool enabled)
 		{
 			SnarlMessage msg;
 			msg.Command = SnarlCommand.AddClass;
-			msg.Token = token;
+			msg.Token = appToken;
 			msg.PacketData = StringToUtf8(
-				"id::" + id +
-				"#?name::" + name +
+				"id::" + className +
+				"#?name::" + description +
 				"#?enabled::" + (enabled ? "1" : "0") );
 
 			return Send(msg);
@@ -237,16 +251,16 @@ namespace Snarl.V41
 		/// <summary>
 		/// 
 		/// </summary>
-		/// <param name="id"></param>
+		/// <param name="className"></param>
 		/// <param name="forgetSettings">Optional</param>
 		/// <returns></returns>
-		public Int32 RemoveClass(String id, bool forgetSettings)
+		public Int32 RemoveClass(String className, bool forgetSettings)
 		{
 			SnarlMessage msg;
 			msg.Command = SnarlCommand.RemoveClass;
-			msg.Token = token;
+			msg.Token = appToken;
 			msg.PacketData = StringToUtf8(
-				"id::" + id +
+				"id::" + className +
 				"#?forget::" + (forgetSettings ? "1" : "0") );
 
 			return Send(msg);
@@ -260,7 +274,7 @@ namespace Snarl.V41
 		{
 			SnarlMessage msg;
 			msg.Command = SnarlCommand.RemoveClass;
-			msg.Token = token;
+			msg.Token = appToken;
 			msg.PacketData = StringToUtf8(
 				"all::1" +
 				"#?forget::" + (forgetSettings ? "1" : "0") );
@@ -269,9 +283,9 @@ namespace Snarl.V41
 		}
 
 		/// <summary>
-		/// 
+		/// EZNotify
 		/// </summary>
-		/// <param name="id"></param>
+		/// <param name="className"></param>
 		/// <param name="title"></param>
 		/// <param name="text"></param>
 		/// <param name="timeout">Optional (Default -1)</param>
@@ -280,13 +294,13 @@ namespace Snarl.V41
 		/// <param name="acknowledge">Optional</param>
 		/// <param name="value">Optional</param>
 		/// <returns></returns>
-		public Int32 EZNotify(String id, String title, String text, Int32 timeout, String icon, Int32 priority, String acknowledge, String value)
+		public Int32 EZNotify(String className, String title, String text, Int32 timeout, String icon, Int32 priority, String acknowledge, String value)
 		{
 			SnarlMessage msg;
 			msg.Command = SnarlCommand.Notify;
-			msg.Token = token;
+			msg.Token = appToken;
 			msg.PacketData = StringToUtf8(
-				"id::" + id +
+				"id::" + className +
 				"#?title::" + title +
 				"#?text::" + text +
 				"#?timeout::" + timeout.ToString() +
@@ -299,13 +313,19 @@ namespace Snarl.V41
 			return lastMsgToken;
 		}
 
-		public Int32 Notify(String id, String packetData)
+		/// <summary>
+		/// Notify
+		/// </summary>
+		/// <param name="className"></param>
+		/// <param name="packetData"></param>
+		/// <returns></returns>
+		public Int32 Notify(String className, String packetData)
 		{
 			SnarlMessage msg;
 			msg.Command = SnarlCommand.Notify;
-			msg.Token = token;
+			msg.Token = appToken;
 			msg.PacketData = StringToUtf8(
-				"id::" + id +
+				"id::" + className +
 				"#?" + packetData );
 
 			lastMsgToken = Send(msg);
@@ -317,10 +337,10 @@ namespace Snarl.V41
 		/// </summary>
 		/// <param name="title">Optional</param>
 		/// <param name="text">Optional</param>
-		/// <param name="timeout">Optional</param>
+		/// <param name="timeout">Optional - send -1 </param>
 		/// <param name="icon">Optional</param>
 		/// <returns></returns>
-		public Int32 Update(Int32 msgToken, String title, String text, Int32 timeout, String icon)
+		public Int32 EZUpdate(Int32 msgToken, String title, String text, Int32 timeout, String icon)
 		{
 			StringBuilder sb = new StringBuilder();
 
@@ -345,6 +365,17 @@ namespace Snarl.V41
 			return Send(msg);
 		}
 
+		// Todo: Not sure this is correct - SVN rev. 62 seems to be wrong
+		public Int32 Update(Int32 msgToken, String packetData)
+		{
+			SnarlMessage msg;
+			msg.Command = SnarlCommand.UpdateNotification;
+			msg.Token = msgToken;
+			msg.PacketData = StringToUtf8(packetData);
+
+			return Send(msg);
+		}
+
 		public Int32 Hide(Int32 msgToken)
 		{
 			SnarlMessage msg;
@@ -366,14 +397,9 @@ namespace Snarl.V41
 			return Send(msg);
 		}
 
-		public Int32 GetLastError()
+		public SnarlStatus GetLastError()
 		{
-			SnarlMessage msg;
-			msg.Command = SnarlCommand.LastError;
-			msg.Token = 0;
-			msg.PacketData = StringToUtf8("");
-
-			return Send(msg);
+			return localError;
 		}
 
 		public bool IsSnarlRunning()
@@ -409,10 +435,42 @@ namespace Snarl.V41
 		public IntPtr GetSnarlWindow()
 		{
 			IntPtr hwnd = FindWindow(SNARL_WINDOW_CLASS, SNARL_WINDOW_TITLE);
-			if (hwnd == IntPtr.Zero)
-				hwnd = FindWindow(null, SNARL_WINDOW_TITLE);
+			// if (hwnd == IntPtr.Zero)
+			//	hwnd = FindWindow(null, SNARL_WINDOW_TITLE);
 
 			return hwnd;
+		}
+
+		/// <summary>
+		/// Returns a fully qualified path to Snarl's installation folder.
+		/// This is a V39 API method.
+		/// </summary>
+		/// <returns>Path to Snarl's installation folder. Empty string on failure.</returns>
+		public string GetAppPath()
+		{
+			StringBuilder sb = new StringBuilder(512);
+
+			IntPtr hwnd = GetSnarlWindow();
+			if (hwnd != IntPtr.Zero)
+			{
+				IntPtr hWndPath = FindWindowEx(hwnd, IntPtr.Zero, "static", null);
+				if (hWndPath != IntPtr.Zero)
+				{
+					GetWindowText(hWndPath, sb, 512);
+				}
+			}
+
+			return sb.ToString();
+		}
+
+		/// <summary>
+		/// Returns a fully qualified path to Snarl's default icon location.
+		/// This is a V39 API method.
+		/// </summary>
+		/// <returns>Path to Snarl's default icon location. Empty string on failure.</returns>
+		public string GetIconsPath()
+		{
+			return Path.Combine(GetAppPath(), "etc\\icons\\");
 		}
 
 		/// <summary>
@@ -435,11 +493,6 @@ namespace Snarl.V41
 		private Int32 Send(SnarlMessage msg)
 		{
 			Int32 nReturn = 0; // Failure
-
-			if (localError != 0 && msg.Command == SnarlCommand.LastError)
-				return (Int32)localError;
-
-			localError = 0;
 
 			IntPtr hWnd = GetSnarlWindow();
 			if (!IsWindow(hWnd))
@@ -477,8 +530,10 @@ namespace Snarl.V41
 					localError = SnarlStatus.ErrorTimedOut;
 					return 0;
 				}
-
+				
+				// return result and cache LastError
 				nReturn = unchecked((Int32)nSendMessageResult.ToInt64()); // Avoid aritmetic overflow error
+				localError = (SnarlStatus)GetProp(hWnd, "last_error");
 			}
 			finally
 			{
@@ -510,6 +565,12 @@ namespace Snarl.V41
 
 		[DllImport("user32.dll", SetLastError = true)]
 		internal static extern IntPtr FindWindow(string lpClassName, string lpWindowName);
+
+		[DllImport("user32.dll", SetLastError = true)]
+		internal static extern IntPtr FindWindowEx(IntPtr hwndParent, IntPtr hwndChildAfter, string lpszClass, string lpszWindow);
+
+		[DllImport("user32.dll", CharSet = CharSet.Auto)]
+		internal static extern int GetWindowText(IntPtr hWnd, StringBuilder lpString, Int32 nMaxCount);
 
 		[DllImport("user32.dll", SetLastError = true, CharSet = CharSet.Auto)]
 		internal static extern uint RegisterWindowMessage(string lpString);

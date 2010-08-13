@@ -69,7 +69,7 @@ Public Enum SNARL_COMMANDS_41
     SNARL41_HIDE_NOTIFICATION
     SNARL41_IS_NOTIFICATION_VISIBLE
 
-    SNARL41_LAST_ERROR
+    SNARL41_LAST_ERROR              '// deprecated but retained for backwards compatability
 
 End Enum
 
@@ -95,6 +95,7 @@ Public Enum SNARL_STATUS_41
     SNARL41_ERROR_CLASS_ALREADY_EXISTS      '// not used yet; sn41AddClass() returns existing token
     SNARL41_ERROR_CLASS_BLOCKED
     SNARL41_ERROR_CLASS_NOT_FOUND
+    SNARL41_ERROR_NOTIFICATION_NOT_FOUND
 
 End Enum
 
@@ -138,15 +139,6 @@ Private Declare Function WideCharToMultiByte Lib "kernel32" (ByVal CodePage As L
 
 
 Private Function uSend(ByRef pSnarlReq As SNARLMSG) As Long
-
-    If (mLocalErr <> 0) And (pSnarlReq.Command = SNARL41_LAST_ERROR) Then
-        uSend = mLocalErr
-        Exit Function
-
-    End If
-
-    mLocalErr = 0
-
 Dim hWnd As Long
 
     ' /* return zero on failure */
@@ -170,23 +162,27 @@ Dim dw As Long
 
     ' /* return zero on failure */
 
-    If SendMessageTimeout(hWnd, WM_COPYDATA, GetCurrentProcessId(), pcds, SMTO_ABORTIFHUNG, 500, dw) = 0 Then
+    If SendMessageTimeout(hWnd, WM_COPYDATA, GetCurrentProcessId(), pcds, SMTO_ABORTIFHUNG, 500, dw) <> 0 Then
+        ' /* return result and cache LastError */
+        uSend = dw
+        mLocalErr = GetProp(hWnd, "last_error")
+
+    Else
+        ' /* timed out */
+        uSend = 0
         mLocalErr = SNARL41_ERROR_TIMED_OUT
-        Exit Function
 
     End If
 
-    uSend = dw
-
 End Function
 
-Public Function sn41RegisterApp(ByVal Id As String, ByVal Title As String, ByVal Icon As String, Optional ByVal hWndReply As Long, Optional ByVal uMsgReply As Long, Optional ByVal Flags As SNARL41_APP_FLAGS) As Long
+Public Function sn41RegisterApp(ByVal Signature As String, ByVal Title As String, ByVal Icon As String, Optional ByVal hWndReply As Long, Optional ByVal uMsgReply As Long, Optional ByVal Flags As SNARL41_APP_FLAGS) As Long
 Dim pReq As SNARLMSG
 
     With pReq
         .Command = SNARL41_REGISTER_APP
         .Token = 0
-        .PacketData = uToUTF8("id::" & Id & "#?title::" & Title & "#?icon::" & Icon & "#?" & _
+        .PacketData = uToUTF8("id::" & Signature & "#?title::" & Title & "#?icon::" & Icon & "#?" & _
                               "hwnd::" & CStr(hWndReply) & "#?" & _
                               "umsg::" & CStr(uMsgReply) & "#?" & _
                               "flags::" & CStr(Flags) _
@@ -212,12 +208,12 @@ Dim pReq As SNARLMSG
 
 End Function
 
-Public Function sn41UnregisterApp(ByVal Token As Long) As Long
+Public Function sn41UnregisterApp(ByVal AppToken As Long) As Long
 Dim pReq As SNARLMSG
 
     With pReq
         .Command = SNARL41_UNREGISTER_APP
-        .Token = Token
+        .Token = AppToken
         .PacketData = uToUTF8("")
 
     End With
@@ -226,16 +222,16 @@ Dim pReq As SNARLMSG
 
 End Function
 
-Public Function sn41UpdateApp(ByVal Token As Long, Optional ByVal NotUsed As String, Optional ByVal Icon As String) As Long
+Public Function sn41UpdateApp(ByVal AppToken As Long, Optional ByVal Title As String, Optional ByVal Icon As String) As Long
 Dim pReq As SNARLMSG
 Dim sz As String
 
     With pReq
         .Command = SNARL41_UPDATE_APP
-        .Token = Token
+        .Token = AppToken
 
-        If NotUsed <> "" Then _
-            sz = sz & "title::" & NotUsed
+        If Title <> "" Then _
+            sz = sz & "title::" & Title
 
         If Icon <> "" Then
             If sz <> "" Then _
@@ -253,13 +249,13 @@ Dim sz As String
 
 End Function
 
-Public Function sn41AddClass(ByVal Token As Long, ByVal Id As String, ByVal Name As String, Optional ByVal Enabled As Boolean = True) As Long
+Public Function sn41AddClass(ByVal Token As Long, ByVal Name As String, ByVal Description As String, Optional ByVal Enabled As Boolean = True) As Long
 Dim pReq As SNARLMSG
 
     With pReq
         .Command = SNARL41_ADD_CLASS
         .Token = Token
-        .PacketData = uToUTF8("id::" & Id & "#?name::" & Name & "#?enabled::" & IIf(Enabled, "1", "0"))
+        .PacketData = uToUTF8("id::" & Name & "#?name::" & Description & "#?enabled::" & IIf(Enabled, "1", "0"))
 
     End With
 
@@ -267,13 +263,13 @@ Dim pReq As SNARLMSG
 
 End Function
 
-Public Function sn41RemoveClass(ByVal Token As Long, ByVal Id As String, Optional ByVal ForgetSettings As Boolean) As Long
+Public Function sn41RemoveClass(ByVal AppToken As Long, ByVal Class As String, Optional ByVal ForgetSettings As Boolean) As Long
 Dim pReq As SNARLMSG
 
     With pReq
         .Command = SNARL41_REMOVE_CLASS
-        .Token = Token
-        .PacketData = uToUTF8("id::" & Id & IIf(ForgetSettings, "#?forget::1", ""))
+        .Token = AppToken
+        .PacketData = uToUTF8("id::" & Class & IIf(ForgetSettings, "#?forget::1", ""))
 
     End With
 
@@ -281,12 +277,12 @@ Dim pReq As SNARLMSG
 
 End Function
 
-Public Function sn41RemoveAllClasses(ByVal Token As Long, Optional ByVal ForgetSettings As Boolean) As Long
+Public Function sn41RemoveAllClasses(ByVal AppToken As Long, Optional ByVal ForgetSettings As Boolean) As Long
 Dim pReq As SNARLMSG
 
     With pReq
         .Command = SNARL41_REMOVE_CLASS
-        .Token = Token
+        .Token = AppToken
         .PacketData = uToUTF8("all::1" & IIf(ForgetSettings, "#?forget::1", ""))
 
     End With
@@ -295,13 +291,13 @@ Dim pReq As SNARLMSG
 
 End Function
 
-Public Function sn41EZNotify(ByVal Token As Long, ByVal Id As String, ByVal Title As String, ByVal Text As String, Optional ByVal Timeout As Long = -1, Optional ByVal Icon As String, Optional ByVal Priority As Long = 0, Optional ByVal Acknowledge As String, Optional ByVal Value As String) As Long
+Public Function sn41EZNotify(ByVal AppToken As Long, ByVal Class As String, ByVal Title As String, ByVal Text As String, Optional ByVal Timeout As Long = -1, Optional ByVal Icon As String, Optional ByVal Priority As Long = 0, Optional ByVal Acknowledge As String, Optional ByVal Value As String) As Long
 Dim pReq As SNARLMSG
 
     With pReq
         .Command = SNARL41_NOTIFY
-        .Token = Token
-        .PacketData = uToUTF8("id::" & Id & _
+        .Token = AppToken
+        .PacketData = uToUTF8("id::" & Class & _
                               "#?title::" & Title & _
                               "#?text::" & Text & _
                               "#?timeout::" & CStr(Timeout) & _
@@ -317,13 +313,13 @@ Dim pReq As SNARLMSG
 
 End Function
 
-Public Function sn41Notify(ByVal Token As Long, ByVal Id As String, ByVal PacketData As String) As Long
+Public Function sn41Notify(ByVal AppToken As Long, ByVal Class As String, ByVal PacketData As String) As Long
 Dim pReq As SNARLMSG
 
     With pReq
         .Command = SNARL41_NOTIFY
-        .Token = Token
-        .PacketData = uToUTF8("id::" & Id & "#?" & PacketData)
+        .Token = AppToken
+        .PacketData = uToUTF8("id::" & Class & "#?" & PacketData)
 
     End With
 
@@ -331,7 +327,7 @@ Dim pReq As SNARLMSG
 
 End Function
 
-Public Function sn41Update(ByVal Token As Long, Optional ByVal Title As String = "/?", Optional ByVal Text As String = "/?", Optional ByVal Timeout As Long = &H80000000, Optional ByVal Icon As String = "/?") As Long
+Public Function sn41EZUpdate(ByVal Token As Long, Optional ByVal Title As String = "/?", Optional ByVal Text As String = "/?", Optional ByVal Timeout As Long = &H80000000, Optional ByVal Icon As String = "/?") As Long
 Dim pReq As SNARLMSG
 Dim sz As String
 
@@ -370,6 +366,20 @@ Dim sz As String
 
     End With
 
+    sn41EZUpdate = uSend(pReq)
+
+End Function
+
+Public Function sn41Update(ByVal Token As Long, ByVal PacketData As String) As Long
+Dim pReq As SNARLMSG
+
+    With pReq
+        .Command = SNARL41_UPDATE_NOTIFICATION
+        .Token = Token
+        .PacketData = uToUTF8(PacketData)
+
+    End With
+
     sn41Update = uSend(pReq)
 
 End Function
@@ -400,18 +410,24 @@ Dim pReq As SNARLMSG
 
 End Function
 
-Public Function sn41GetLastError() As Long
-Dim pReq As SNARLMSG
+Public Function sn41GetLastError() As SNARL_STATUS_41
 
-    With pReq
-        .Command = SNARL41_LAST_ERROR
-        .PacketData = uToUTF8("")
-
-    End With
-
-    sn41GetLastError = uSend(pReq)
+    sn41GetLastError = mLocalErr
 
 End Function
+
+'Public Function sn41RealGetLastError() As Long
+'Dim pReq As SNARLMSG
+'
+'    With pReq
+'        .Command = SNARL41_LAST_ERROR
+'        .PacketData = uToUTF8("")
+'
+'    End With
+'
+'    sn41RealGetLastError = uSend(pReq)
+'
+'End Function
 
 Public Function sn41IsSnarlRunning() As Boolean
 
