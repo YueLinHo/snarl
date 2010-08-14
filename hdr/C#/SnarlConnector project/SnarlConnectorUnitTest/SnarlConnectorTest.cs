@@ -72,7 +72,6 @@ namespace SnarlConnectorUnitTest
 			snarlToken = snarl.RegisterApp("CSharpUnitTest", "C# unit test", null, IntPtr.Zero, 0, 0);
 			Assert.AreNotEqual(0, snarlToken);
 
-			// Returns ErrorSystem in 2.3RC1
 			// LastError - Should return success
 			value = (Int32)SnarlConnector.SnarlStatus.Success;
 			actual = (Int32)snarl.GetLastError();
@@ -90,7 +89,6 @@ namespace SnarlConnectorUnitTest
 			actual = snarl.UnregisterApp();
 			Assert.AreEqual(value, actual);
 
-			// Returns ErrorSystem in 2.3RC1
 			// LastError - Should return success
 			value = (Int32)SnarlConnector.SnarlStatus.Success;
 			actual = (Int32)snarl.GetLastError();
@@ -123,6 +121,17 @@ namespace SnarlConnectorUnitTest
 			actual = snarl.UnregisterApp();
 			Assert.AreEqual(value, actual);
 
+			// Test invalid parameters
+			value = 0;
+			actual = snarl.RegisterApp("", "C# unit test", null, IntPtr.Zero, 0, 0);
+			Assert.AreEqual(value, actual);
+
+			// LastError
+			value = (Int32)SnarlConnector.SnarlStatus.ErrorArgMissing;
+			actual = (Int32)snarl.GetLastError();
+			Assert.AreEqual(value, actual);
+
+			// Leave registered with Snarl
 			value = 0;
 			actual = snarl.RegisterApp("CSharpUnitTest", "C# unit test", null, IntPtr.Zero, 0, 0);
 			Assert.AreNotEqual(value, actual);

@@ -1,98 +1,137 @@
 using System;
-using System.Runtime.InteropServices;
 using System.IO;
 using System.Text;
-using Snarl;
+using System.Runtime.InteropServices;
+
 
 namespace Snarl.V41
 {
 	/// <summary>
 	/// SnarlConnector
 	/// Implementation of the V41 API.
-	/// Please note the following changes compared to the VB6 (official API) dokumentation:
-	///  - All functions in the VB API takes a token as first parameter. This token is a member variable in C# version,
-	///    so it is omitted from the functions.
-	///  - Functions manipulating messages (Update, Hide etc.) still takes a message token as parameter, but you can
-	///    get the last message token calling GetLastMsgToken();
+	/// 
+	/// Please note the following changes compared to the VB6 (official API) dokumentation:        
+	///  - Naming of constants and variables are generally changed to follow Microsoft C# standard.
+	///    - Grouped variables like SNARL_LAUNCHED, SNARL_QUIT is in enum GlobalEvent.
+	///    - Message events like SNARL_NOTIFICATION_CLICKED, is found in enum MessageEvent.
+	///  - Some functions in the VB API takes an appToken as first parameter. This token is a
+	///    member variable in C# version, so it is omitted from the functions.
+	///    (Always call RegisterApp as first function!)
+	///  - Functions manipulating messages (Update, Hide etc.) still takes a message token as
+	///    parameter, but you can get the last message token calling GetLastMsgToken();
 	///    Example: snarl.Hide(snarl.GetLastMsgToken());
+	///
+	/// Note on optional parameters:
+	///   Since C# 3.0 and prior doesn't have optional parameters, the C# SnarlConnector does not
+	///   use this feature!
+	///   Documentation for the C# functions includes the Optional keyword and a value expected
+	///   passed for default behavior.
+	///   Example:
+	///     <param name="timeout">Optional (-1)</param>
+	///     <param name="icon">Optional ("" or null)</param>
+	///     Means that timeout parameter should be set to -1 and icon to either an empty string or
+	///     null to get the default behavior from Snarl.
+	/// 
+	/// Funtions special to C# V41 API compared to VB version:
+	///   GetLastMsgToken()
+	///   GetAppPath()
+	///   GetIconsPath()
 	/// </summary>
 	/// 
-	/// Version history:
+	/// <VersionHistory>
+	/// 2010-08-14 : Clean-up, more error checking and documentation.
+	///            : Converted global events and message events to enums.
 	/// 2010-08-13 : Updated to last changes before 2.3 release.
 	/// 2010-07-31 : Initial release of V41 API (for 2.3RC1)
-	/// 
-	/// Todo:
-	///  - Figure out what to do with VB's optional parameters (Check that optional parameters can be null in each function)
+	/// </VersionHistory>
 
 	public class SnarlConnector
 	{
-		#region SnarlBase - Shared between versions
+		#region Public constants and enums
 
+		/// <summary>
+		/// Global event identifiers.
+		/// Identifiers marked with a '*' are sent by Snarl in two ways:
+		///   1. As a broadcast message (uMsg = 'SNARL_GLOBAL_MSG')
+		///   2. To the window registered in snRegisterConfig() or snRegisterConfig2()
+		///      (uMsg = reply message specified at the time of registering)
+		/// In both cases these values appear in wParam.
+		///   
+		/// Identifiers not marked are not broadcast; they are simply sent to the application's registered window.
+		/// </summary>
+		public enum GlobalEvent
+		{
+			SnarlLaunched = 1,      // Snarl has just started running*
+			SnarlQuit = 2,          // Snarl is about to stop running*
+			SnarlAskAppletVer = 3,  // (R1.5) Reserved for future use
+			SnarlShowAppUi = 4      // (R1.6) Application should show its UI
+		}
+
+		/// <summary>
+		/// Message event identifiers.
+		/// These are sent by Snarl to the window specified in RegisterApp() when the
+		/// Snarl Notification raised times out or the user clicks on it.
+		/// </summary>
+		public enum MessageEvent
+		{
+			NotificationClicked = 32,      // Notification was right-clicked by user
+			NotificationCancelled = 32,    // Added in V37 (R1.6) -- same value, just improved the meaning of it
+			NotificationTimedOut = 33,     // 
+			NotificationAck = 34,          // Notification was left-clicked by user
+			NotificationMenu = 35,         // Menu item selected (V39)
+			NotificationMiddleButton = 36, // Notification middle-clicked by user (V39)
+			NotificationClosed = 37        // User clicked the close gadget (V39)
+		}
+
+		/// <summary>
+		/// Error values returned by calls to GetLastError().
+		/// </summary>
+		public enum SnarlStatus : short
+		{
+			Success = 0,
+
+			ErrorFailed = 101,        // miscellaneous failure
+			ErrorUnknownCommand,      // specified command not recognised
+			ErrorTimedOut,            // Snarl took too long to respond
+
+			ErrorArgMissing = 109,    // required argument missing
+			ErrorSystem,              // internal system error
+
+			ErrorNotRunning = 201,    // Snarl handling window not found
+			ErrorNotRegistered,       // 
+			ErrorAlreadyRegistered,   // not used yet; RegisterApp() returns existing token
+			ErrorClassAlreadyExists,  // not used yet; AddClass() returns existing token
+			ErrorClassBlocked,
+			ErrorClassNotFound,
+			ErrorNotificationNotFound
+		}
+
+		/// <summary>
+		/// Application flags - features this app supports.
+		/// </summary>
 		[Flags]
-		internal enum SendMessageTimeoutFlags : uint
+		public enum AppFlags
 		{
-			SMTO_NORMAL = 0x0000,
-			SMTO_BLOCK = 0x0001,
-			SMTO_ABORTIFHUNG = 0x0002,
-			SMTO_NOTIMEOUTIFNOTHUNG = 0x0008
+			AppHasPrefs = 1,
+			AppHasAbout = 2,
+			AppIsWindowless = 0x8000
 		}
 
-		[StructLayout(LayoutKind.Sequential)]
-		internal struct COPYDATASTRUCT
-		{
-			public IntPtr dwData;   // DWORD - Needs to IntPtr and not Int32 for some reason to work on Vista 64. Different versions of Win32 SDK might say different things
-			public Int32 cbData;   // DWORD
-			public IntPtr lpData;   // PVOID
-		}
-
-		internal const string SNARL_WINDOW_CLASS = "w>Snarl";
-		internal const string SNARL_WINDOW_TITLE = "Snarl";
-
-		internal const uint WM_SNARLTEST = (uint)WindowsMessage.WM_USER + 237;
-
-		internal const string SNARL_GLOBAL_MSG = "SnarlGlobalEvent";
-		internal const string SNARL_APP_MSG = "SnarlAppMessage";
-
-		/* Global event identifiers
-		    Identifiers marked with a '*' are sent by Snarl in two ways:
-		    1. As a broadcast message (uMsg = 'SNARL_GLOBAL_MSG')
-		    2. To the window registered in snRegisterConfig() or snRegisterConfig2()
-		       (uMsg = reply message specified at the time of registering)
-		    
-		    In both cases these values appear in wParam.
-		    
-		    Identifiers not marked are not broadcast; they are simply sent to the application's registered window.
-		*/
-		public const Int32 SNARL_LAUNCHED = 1;        // Snarl has just started running*
-		public const Int32 SNARL_QUIT = 2;            // Snarl is about to stop running*
-		public const Int32 SNARL_ASK_APPLET_VER = 3;  // (R1.5) Reserved for future use
-		public const Int32 SNARL_SHOW_APP_UI = 4;     // (R1.6) Application should show its UI
-
-
-		/* Message event identifiers
-		    These are sent by Snarl to the window specified in snShowMessage() when the
-		    Snarl Notification raised times out or the user clicks on it.
-		*/
-		public const Int32 SNARL_NOTIFICATION_CLICKED = 32; // notification was right-clicked by user
-		public const Int32 SNARL_NOTIFICATION_TIMED_OUT = 33; //
-		public const Int32 SNARL_NOTIFICATION_ACK = 34; // notification was left-clicked by user
-		public const Int32 SNARL_NOTIFICATION_MENU = 35; // V39 - menu item selected
-		public const Int32 SNARL_NOTIFICATION_MIDDLE_BUTTON = 36; // V39 - notification middle-clicked by user
-		public const Int32 SNARL_NOTIFICATION_CLOSED = 37; // V39 - user clicked the close gadget
-
-		public const Int32 SNARL_NOTIFICATION_CANCELLED = SNARL_NOTIFICATION_CLICKED; // Added in V37 (R1.6) -- same value, just improved the meaning of it
+		public const uint WM_SNARLTEST = (uint)WindowsMessage.WM_USER + 237;
 
 		#endregion
 
-		// Member variables
-		private Int32 appToken = 0;
-		private Int32 lastMsgToken = 0;
-		private SnarlStatus localError = 0;
+		#region Internal constants and enums
 
-		// Constants
-		internal const int SnarlPacketDataSize = 4096;
+		protected const string SnarlWindowClass = "w>Snarl";
+		protected const string SnarlWindowTitle = "Snarl";
 
-		internal enum SnarlCommand: short
+		protected const string SnarlGlobalMsg = "SnarlGlobalEvent";
+		protected const string SnarlAppMsg = "SnarlAppMessage";
+
+		protected const int SnarlPacketDataSize = 4096;
+
+		protected enum SnarlCommand : short
 		{
 			RegisterApp = 1,           // for this command, SNARLMSG->Token is actually the sending app's PID
 			UnregisterApp,
@@ -108,7 +147,7 @@ namespace Snarl.V41
 		}
 
 		[StructLayout(LayoutKind.Sequential, Pack = 4)]
-		internal struct SnarlMessage
+		protected struct SnarlMessage
 		{
 			public SnarlCommand Command;
 			public Int32 Token;
@@ -117,33 +156,18 @@ namespace Snarl.V41
 			public byte[] PacketData;
 		}
 
-		public enum SnarlStatus: short
-		{
-			Success = 0,
-			
-			ErrorFailed = 101,        // miscellaneous failure
-			ErrorUnknownCommand,      // specified command not recognised
-			ErrorTimedOut,            // Snarl took too long to respond
-			
-			ErrorArgMissing = 109,    // required argument missing
-			ErrorSystem,              // internal system error
+		#endregion
 
-			ErrorNotRunning = 201,    // Snarl handling window not found
-			ErrorNotRegistered,       // 
-			ErrorAlreadyRegistered,   // not used yet; RegisterApp() returns existing token
-			ErrorClassAlreadyExists,  // not used yet; AddClass() returns existing token
-			ErrorClassBlocked,
-			ErrorClassNotFound,
-			ErrorNotificationNotFound
-		}
+		#region Member variables
 
-		[Flags]
-		public enum AppFlags
-		{
-			AppHasPrefs = 1,
-			AppHasAbout = 2,
-			AppIsWindowless = 0x8000
-		}
+		private Int32 appToken = 0;
+		private Int32 lastMsgToken = 0;
+		private SnarlStatus localError = 0;
+
+		#endregion
+
+
+		// -------------------------------------------------------------------
 
 		/// <summary>
 		/// Register application with Snarl.
@@ -151,27 +175,33 @@ namespace Snarl.V41
 		/// <param name="signatur"></param>
 		/// <param name="title"></param>
 		/// <param name="icon"></param>
-		/// <param name="hWndReply">Optional</param>
-		/// <param name="msgReply">Optional</param>
-		/// <param name="flags">Optional</param>
+		/// <param name="hWndReply">Optional (IntPtr.Zero)</param>
+		/// <param name="msgReply">Optional (0)</param>
+		/// <param name="flags">Optional (0)</param>
 		/// <returns></returns>
-		public Int32 RegisterApp(String signatur, String title, String icon, IntPtr hWndReply, Int32 msgReply, AppFlags flags)
+		public Int32 RegisterApp(String signature, String title, String icon, IntPtr hWndReply, Int32 msgReply, AppFlags flags)
 		{
 			SnarlMessage msg;
 			msg.Command = SnarlCommand.RegisterApp;
 			msg.Token = 0;
 			msg.PacketData = StringToUtf8(
-				"id::" + signatur + 
+				"id::" + signature + 
 				"#?title::" + title +
-				"#?icon::" + icon +
-				"#?hwnd::" + hWndReply.ToString() + 
-				"#?umsg::" + msgReply.ToString() + 
+				"#?icon::"  + icon +
+				"#?hwnd::"  + hWndReply.ToString() + 
+				"#?umsg::"  + msgReply.ToString() + 
 				"#?flags::" + ((int)flags).ToString() );
 
 			appToken = Send(msg);
+			lastMsgToken = 0;
+
 			return appToken;
 		}
 
+		/// <summary>
+		/// Unregister application.
+		/// </summary>
+		/// <returns></returns>
 		public Int32 UnregisterApp()
 		{
 			SnarlMessage msg;
@@ -180,10 +210,13 @@ namespace Snarl.V41
 			msg.PacketData = StringToUtf8("");
 
 			appToken = 0;
+			lastMsgToken = 0;
 
 			return Send(msg);
 		}
 
+		/*
+		 * Function probably depricated before Snarl 2.3 final - Will remove later
 		/// <summary>
 		/// SetCallback
 		/// </summary>
@@ -200,7 +233,7 @@ namespace Snarl.V41
 				"#?umsg::" + replyMsg.ToString() );
 
 			return Send(msg);
-		}
+		}*/
 
 		/// <summary>
 		/// UpdateApp
@@ -233,7 +266,7 @@ namespace Snarl.V41
 		/// </summary>
 		/// <param name="name"></param>
 		/// <param name="description"></param>
-		/// <param name="enabled">Optional = true</param>
+		/// <param name="enabled"></param>
 		/// <returns></returns>
 		public Int32 AddClass(String className, String description, bool enabled)
 		{
@@ -249,10 +282,10 @@ namespace Snarl.V41
 		}
 
 		/// <summary>
-		/// 
+		/// RemoveClass
 		/// </summary>
 		/// <param name="className"></param>
-		/// <param name="forgetSettings">Optional</param>
+		/// <param name="forgetSettings"></param>
 		/// <returns></returns>
 		public Int32 RemoveClass(String className, bool forgetSettings)
 		{
@@ -267,9 +300,9 @@ namespace Snarl.V41
 		}
 		
 		/// <summary>
-		/// 
+		/// RemoveAllClasses
 		/// </summary>
-		/// <param name="forgetSettings">Optional</param>
+		/// <param name="forgetSettings"></param>
 		public Int32 RemoveAllClasses(bool forgetSettings)
 		{
 			SnarlMessage msg;
@@ -289,10 +322,10 @@ namespace Snarl.V41
 		/// <param name="title"></param>
 		/// <param name="text"></param>
 		/// <param name="timeout">Optional (Default -1)</param>
-		/// <param name="icon">Optional</param>
+		/// <param name="icon">Optional  ("" or null)</param>
 		/// <param name="priority">Optional (Default 0)</param>
-		/// <param name="acknowledge">Optional</param>
-		/// <param name="value">Optional</param>
+		/// <param name="acknowledge">Optional ("" or null)</param>
+		/// <param name="value">Optional ("" or null)</param>
 		/// <returns></returns>
 		public Int32 EZNotify(String className, String title, String text, Int32 timeout, String icon, Int32 priority, String acknowledge, String value)
 		{
@@ -304,10 +337,10 @@ namespace Snarl.V41
 				"#?title::" + title +
 				"#?text::" + text +
 				"#?timeout::" + timeout.ToString() +
-				"#?icon::" + icon +
+				"#?icon::" + ((icon != null) ? icon : "") +
 				"#?priority::" + priority.ToString() +
-				"#?ack::" + acknowledge +
-				"#?value::" + value );
+				"#?ack::" + ((acknowledge != null) ? acknowledge : "") +
+				"#?value::" + ((value != null) ? value : ""));
 
 			lastMsgToken = Send(msg);
 			return lastMsgToken;
@@ -333,12 +366,12 @@ namespace Snarl.V41
 		}
 
 		/// <summary>
-		/// 
+		/// EZUpdate
 		/// </summary>
-		/// <param name="title">Optional</param>
-		/// <param name="text">Optional</param>
-		/// <param name="timeout">Optional - send -1 </param>
-		/// <param name="icon">Optional</param>
+		/// <param name="title">Optional ("" or null)</param>
+		/// <param name="text">Optional ("" or null)</param>
+		/// <param name="timeout">Optional (-1)</param>
+		/// <param name="icon">Optional ("" or null)</param>
 		/// <returns></returns>
 		public Int32 EZUpdate(Int32 msgToken, String title, String text, Int32 timeout, String icon)
 		{
@@ -365,7 +398,12 @@ namespace Snarl.V41
 			return Send(msg);
 		}
 
-		// Todo: Not sure this is correct - SVN rev. 62 seems to be wrong
+		/// <summary>
+		/// Update
+		/// </summary>
+		/// <param name="msgToken"></param>
+		/// <param name="packetData"></param>
+		/// <returns></returns>
 		public Int32 Update(Int32 msgToken, String packetData)
 		{
 			SnarlMessage msg;
@@ -376,6 +414,11 @@ namespace Snarl.V41
 			return Send(msg);
 		}
 
+		/// <summary>
+		/// Hide
+		/// </summary>
+		/// <param name="msgToken"></param>
+		/// <returns></returns>
 		public Int32 Hide(Int32 msgToken)
 		{
 			SnarlMessage msg;
@@ -386,7 +429,13 @@ namespace Snarl.V41
 			return Send(msg);
 		}
 
-		// TODO: Returns 0 on error or if not visible
+		/// <summary>
+		/// IsVisible
+		/// </summary>
+		/// <param name="msgToken"></param>
+		/// <returns>
+		///		Returns -1 if message is visible. 0 if not visible or if an error occured.
+		///	</returns>
 		public Int32 IsVisible(Int32 msgToken)
 		{
 			SnarlMessage msg;
@@ -397,16 +446,28 @@ namespace Snarl.V41
 			return Send(msg);
 		}
 
+		/// <summary>
+		/// GetLastError
+		/// </summary>
+		/// <returns></returns>
 		public SnarlStatus GetLastError()
 		{
 			return localError;
 		}
 
+		/// <summary>
+		/// Returns true if Snarl system was found running.
+		/// </summary>
+		/// <returns></returns>
 		public bool IsSnarlRunning()
 		{
 			return IsWindow(GetSnarlWindow());
 		}
 
+		/// <summary>
+		/// Returns the version of Snarl running.
+		/// </summary>
+		/// <returns></returns>
 		public Int32 GetVersion()
 		{
 			localError = 0;
@@ -422,21 +483,38 @@ namespace Snarl.V41
 			return GetProp(hWnd, "_version").ToInt32();
 		}
 
+		/// <summary>
+		/// Returns the value of Snarl's global registered message.
+		/// Notes:
+		///   Snarl registers SNARL_GLOBAL_MSG during startup which it then uses to communicate
+		///   with all running applications through a Windows broadcast message. This function can
+		///   only fail if for some reason the Windows RegisterWindowMessage() function fails
+		///   - given this, this function *cannnot* be used to test for the presence of Snarl.
+		/// </summary>
+		/// <returns>A 16-bit value (translated to 32-bit) which is the registered Windows message for Snarl.</returns>
 		public uint Broadcast()
 		{
-			return RegisterWindowMessage(SNARL_GLOBAL_MSG);
+			return RegisterWindowMessage(SnarlGlobalMsg);
 		}
 
+		/// <summary>
+		/// Returns the global Snarl Application message  (V39)
+		/// </summary>
+		/// <returns>Snarl Application registered message.</returns>
 		public uint AppMsg()
 		{
-			return RegisterWindowMessage(SNARL_APP_MSG);
+			return RegisterWindowMessage(SnarlAppMsg);
 		}
 
+		/// <summary>
+		/// Returns a handle to the Snarl Dispatcher window  (V37)
+		/// Notes:
+		///   This is now the preferred way to test if Snarl is actually running.
+		/// </summary>
+		/// <returns>Returns handle to Snarl Dispatcher window, or zero if it's not found</returns>
 		public IntPtr GetSnarlWindow()
 		{
-			IntPtr hwnd = FindWindow(SNARL_WINDOW_CLASS, SNARL_WINDOW_TITLE);
-			// if (hwnd == IntPtr.Zero)
-			//	hwnd = FindWindow(null, SNARL_WINDOW_TITLE);
+			IntPtr hwnd = FindWindow(SnarlWindowClass, SnarlWindowTitle);
 
 			return hwnd;
 		}
@@ -489,7 +567,7 @@ namespace Snarl.V41
 		/// Send message to Snarl.
 		/// </summary>
 		/// <param name="msg"></param>
-		/// <returns>Return zero on failure. (Except if Command is LastError)</returns>
+		/// <returns>Return zero on failure.</returns>
 		private Int32 Send(SnarlMessage msg)
 		{
 			Int32 nReturn = 0; // Failure
@@ -561,7 +639,7 @@ namespace Snarl.V41
 
 		#endregion
 
-		#region Interop Imports
+		#region Interop imports and structures
 
 		[DllImport("user32.dll", SetLastError = true)]
 		internal static extern IntPtr FindWindow(string lpClassName, string lpWindowName);
@@ -586,6 +664,23 @@ namespace Snarl.V41
 
 		[DllImport("kernel32.dll")]
 		internal static extern uint GetCurrentProcessId();
+
+		[Flags]
+		internal enum SendMessageTimeoutFlags : uint
+		{
+			SMTO_NORMAL = 0x0000,
+			SMTO_BLOCK = 0x0001,
+			SMTO_ABORTIFHUNG = 0x0002,
+			SMTO_NOTIMEOUTIFNOTHUNG = 0x0008
+		}
+
+		[StructLayout(LayoutKind.Sequential)]
+		internal struct COPYDATASTRUCT
+		{
+			public IntPtr dwData;   // DWORD
+			public Int32  cbData;   // DWORD
+			public IntPtr lpData;   // PVOID
+		}
 
 		#endregion
 

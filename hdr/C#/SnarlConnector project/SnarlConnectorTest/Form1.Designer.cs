@@ -53,6 +53,7 @@ namespace SnarlConnectorTest
 			this.button12 = new System.Windows.Forms.Button();
 			this.button10 = new System.Windows.Forms.Button();
 			this.groupBox4 = new System.Windows.Forms.GroupBox();
+			this.button32 = new System.Windows.Forms.Button();
 			this.button30 = new System.Windows.Forms.Button();
 			this.button21 = new System.Windows.Forms.Button();
 			this.button22 = new System.Windows.Forms.Button();
@@ -64,7 +65,6 @@ namespace SnarlConnectorTest
 			this.button28 = new System.Windows.Forms.Button();
 			this.button29 = new System.Windows.Forms.Button();
 			this.button31 = new System.Windows.Forms.Button();
-			this.button32 = new System.Windows.Forms.Button();
 			this.groupBox1.SuspendLayout();
 			this.groupBox2.SuspendLayout();
 			this.groupBox3.SuspendLayout();
@@ -377,6 +377,17 @@ namespace SnarlConnectorTest
 			this.groupBox4.TabStop = false;
 			this.groupBox4.Text = "V41 API";
 			// 
+			// button32
+			// 
+			this.button32.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left)));
+			this.button32.Location = new System.Drawing.Point(140, 73);
+			this.button32.Name = "button32";
+			this.button32.Size = new System.Drawing.Size(117, 23);
+			this.button32.TabIndex = 20;
+			this.button32.Text = "GetVersion";
+			this.button32.UseVisualStyleBackColor = true;
+			this.button32.Click += new System.EventHandler(this.button32_Click);
+			// 
 			// button30
 			// 
 			this.button30.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left)));
@@ -417,7 +428,7 @@ namespace SnarlConnectorTest
 			this.button23.Name = "button23";
 			this.button23.Size = new System.Drawing.Size(117, 23);
 			this.button23.TabIndex = 15;
-			this.button23.Text = "Notify";
+			this.button23.Text = "EZNotify";
 			this.button23.UseVisualStyleBackColor = true;
 			this.button23.Click += new System.EventHandler(this.button23_Click);
 			// 
@@ -428,7 +439,7 @@ namespace SnarlConnectorTest
 			this.button24.Name = "button24";
 			this.button24.Size = new System.Drawing.Size(117, 23);
 			this.button24.TabIndex = 14;
-			this.button24.Text = "Last error";
+			this.button24.Text = "Notify";
 			this.button24.UseVisualStyleBackColor = true;
 			this.button24.Click += new System.EventHandler(this.button24_Click);
 			// 
@@ -494,20 +505,9 @@ namespace SnarlConnectorTest
 			this.button31.Name = "button31";
 			this.button31.Size = new System.Drawing.Size(117, 23);
 			this.button31.TabIndex = 19;
-			this.button31.Text = "SetCallback";
+			this.button31.Text = "Last error";
 			this.button31.UseVisualStyleBackColor = true;
 			this.button31.Click += new System.EventHandler(this.button31_Click);
-			// 
-			// button32
-			// 
-			this.button32.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left)));
-			this.button32.Location = new System.Drawing.Point(140, 73);
-			this.button32.Name = "button32";
-			this.button32.Size = new System.Drawing.Size(117, 23);
-			this.button32.TabIndex = 20;
-			this.button32.Text = "GetVersion";
-			this.button32.UseVisualStyleBackColor = true;
-			this.button32.Click += new System.EventHandler(this.button32_Click);
 			// 
 			// Form1
 			// 
@@ -570,8 +570,8 @@ namespace SnarlConnectorTest
 		private System.Windows.Forms.Button button28;
 		private System.Windows.Forms.Button button29;
 		private System.Windows.Forms.Button button30;
-		private System.Windows.Forms.Button button31;
 		private System.Windows.Forms.Button button32;
+		private System.Windows.Forms.Button button31;
 
 	}
 }
