@@ -194,19 +194,19 @@ Dim pReq As SNARLMSG
 
 End Function
 
-Public Function sn41SetCallback(ByVal Token As Long, ByVal hWnd As Long, ByVal ReplyMsg As Long) As Long
-Dim pReq As SNARLMSG
-
-    With pReq
-        .Command = SNARL41_SET_CALLBACK
-        .Token = Token
-        .PacketData = uToUTF8("hwnd::" & CStr(hWnd) & "#?umsg::" & CStr(ReplyMsg))
-
-    End With
-
-    sn41SetCallback = uSend(pReq)
-
-End Function
+'Public Function sn41SetCallback(ByVal Token As Long, ByVal hWnd As Long, ByVal ReplyMsg As Long) As Long
+'Dim pReq As SNARLMSG
+'
+'    With pReq
+'        .Command = SNARL41_SET_CALLBACK
+'        .Token = Token
+'        .PacketData = uToUTF8("hwnd::" & CStr(hWnd) & "#?umsg::" & CStr(ReplyMsg))
+'
+'    End With
+'
+'    sn41SetCallback = uSend(pReq)
+'
+'End Function
 
 Public Function sn41UnregisterApp(ByVal AppToken As Long) As Long
 Dim pReq As SNARLMSG
@@ -249,13 +249,13 @@ Dim sz As String
 
 End Function
 
-Public Function sn41AddClass(ByVal Token As Long, ByVal Name As String, ByVal Description As String, Optional ByVal Enabled As Boolean = True) As Long
+Public Function sn41AddClass(ByVal Token As Long, ByVal ClassName As String, ByVal Description As String, Optional ByVal Enabled As Boolean = True) As Long
 Dim pReq As SNARLMSG
 
     With pReq
         .Command = SNARL41_ADD_CLASS
         .Token = Token
-        .PacketData = uToUTF8("id::" & Name & "#?name::" & Description & "#?enabled::" & IIf(Enabled, "1", "0"))
+        .PacketData = uToUTF8("id::" & ClassName & "#?name::" & Description & "#?enabled::" & IIf(Enabled, "1", "0"))
 
     End With
 
@@ -263,13 +263,13 @@ Dim pReq As SNARLMSG
 
 End Function
 
-Public Function sn41RemoveClass(ByVal AppToken As Long, ByVal Class As String, Optional ByVal ForgetSettings As Boolean) As Long
+Public Function sn41RemoveClass(ByVal AppToken As Long, ByVal ClassName As String, Optional ByVal ForgetSettings As Boolean) As Long
 Dim pReq As SNARLMSG
 
     With pReq
         .Command = SNARL41_REMOVE_CLASS
         .Token = AppToken
-        .PacketData = uToUTF8("id::" & Class & IIf(ForgetSettings, "#?forget::1", ""))
+        .PacketData = uToUTF8("id::" & ClassName & IIf(ForgetSettings, "#?forget::1", ""))
 
     End With
 
@@ -291,13 +291,13 @@ Dim pReq As SNARLMSG
 
 End Function
 
-Public Function sn41EZNotify(ByVal AppToken As Long, ByVal Class As String, ByVal Title As String, ByVal Text As String, Optional ByVal Timeout As Long = -1, Optional ByVal Icon As String, Optional ByVal Priority As Long = 0, Optional ByVal Acknowledge As String, Optional ByVal Value As String) As Long
+Public Function sn41EZNotify(ByVal AppToken As Long, ByVal ClassName As String, ByVal Title As String, ByVal Text As String, Optional ByVal Timeout As Long = -1, Optional ByVal Icon As String, Optional ByVal Priority As Long = 0, Optional ByVal Acknowledge As String, Optional ByVal Value As String) As Long
 Dim pReq As SNARLMSG
 
     With pReq
         .Command = SNARL41_NOTIFY
         .Token = AppToken
-        .PacketData = uToUTF8("id::" & Class & _
+        .PacketData = uToUTF8("id::" & ClassName & _
                               "#?title::" & Title & _
                               "#?text::" & Text & _
                               "#?timeout::" & CStr(Timeout) & _
@@ -313,13 +313,13 @@ Dim pReq As SNARLMSG
 
 End Function
 
-Public Function sn41Notify(ByVal AppToken As Long, ByVal Class As String, ByVal PacketData As String) As Long
+Public Function sn41Notify(ByVal AppToken As Long, ByVal ClassName As String, ByVal PacketData As String) As Long
 Dim pReq As SNARLMSG
 
     With pReq
         .Command = SNARL41_NOTIFY
         .Token = AppToken
-        .PacketData = uToUTF8("id::" & Class & "#?" & PacketData)
+        .PacketData = uToUTF8("id::" & ClassName & "#?" & PacketData)
 
     End With
 
@@ -888,7 +888,7 @@ End Function
 ''
 '' */
 '
-'Public Function snRegisterAlert(ByVal AppName As String, ByVal Class As String) As Long
+'Public Function snRegisterAlert(ByVal AppName As String, ByVal ClassName As String) As Long
 'Dim pss As SNARLSTRUCT
 '
 '    With pss
@@ -1034,7 +1034,7 @@ End Function
 ''
 '' */
 '
-'Public Function snShowMessageEx(ByVal Class As String, ByVal Title As String, ByVal Text As String, Optional ByVal Timeout As Long, Optional ByVal IconPath As String, Optional ByVal hWndReply As Long, Optional ByVal uReplyMsg As Long, Optional ByVal SoundFile As String) As Long
+'Public Function snShowMessageEx(ByVal ClassName As String, ByVal Title As String, ByVal Text As String, Optional ByVal Timeout As Long, Optional ByVal IconPath As String, Optional ByVal hWndReply As Long, Optional ByVal uReplyMsg As Long, Optional ByVal SoundFile As String) As Long
 'Dim pss As SNARLSTRUCTEX
 '
 '    With pss
@@ -1284,7 +1284,7 @@ End Function
 ''
 '' */
 '
-'Public Function snShowNotification(ByVal Class As String, Optional ByVal Title As String, Optional ByVal Text As String, Optional ByVal Timeout As Long, Optional ByVal Icon As String, Optional ByVal hWndReply As Long, Optional ByVal uReplyMsg As Long, Optional ByVal Sound As String) As Long
+'Public Function snShowNotification(ByVal ClassName As String, Optional ByVal Title As String, Optional ByVal Text As String, Optional ByVal Timeout As Long, Optional ByVal Icon As String, Optional ByVal hWndReply As Long, Optional ByVal uReplyMsg As Long, Optional ByVal Sound As String) As Long
 'Dim pss As SNARLSTRUCTEX
 '
 '    With pss
@@ -1341,7 +1341,7 @@ End Function
 ''
 '' */
 '
-'Public Function snSetClassDefault(ByVal Class As String, ByVal Attr As SNARL_ATTRIBUTES, ByVal Value As String) As Long
+'Public Function snSetClassDefault(ByVal ClassName As String, ByVal Attr As SNARL_ATTRIBUTES, ByVal Value As String) As Long
 'Dim pss As SNARLSTRUCT
 '
 '    With pss
@@ -1383,7 +1383,7 @@ End Function
 '
 'End Function
 '
-'Public Function snAddClass(ByVal Class As String, Optional ByVal Description As String, Optional ByVal Flags As SNARL_CLASS_FLAGS, Optional ByVal DefaultTitle As String, Optional ByVal DefaultIcon As String, Optional ByVal DefaultTimeout As Long) As Long
+'Public Function snAddClass(ByVal ClassName As String, Optional ByVal Description As String, Optional ByVal Flags As SNARL_CLASS_FLAGS, Optional ByVal DefaultTitle As String, Optional ByVal DefaultIcon As String, Optional ByVal DefaultTimeout As Long) As Long
 'Dim pss As SNARLSTRUCT
 '
 '    With pss
