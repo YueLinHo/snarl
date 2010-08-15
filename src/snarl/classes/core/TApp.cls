@@ -455,6 +455,8 @@ Dim lFlags As E_CLASS_FLAGS
 End Function
 
 Public Function RemClass(ByRef Data As BPackedData) As Long
+Static i As Long
+Static j As Long
 
     ' /* validate some key stuff */
 
@@ -465,6 +467,9 @@ Public Function RemClass(ByRef Data As BPackedData) As Long
 
     End If
 
+    ' /* special case: if the 'all' tag is present and it's set to "1" then
+    '    remove all classes */
+
     If Data.ValueOf("all") = "1" Then
         g_Debug "TApp.RemClass(): removing all classes..."
         mAlerts = 0
@@ -472,44 +477,40 @@ Public Function RemClass(ByRef Data As BPackedData) As Long
         AddAlert "_all", ""
         RemClass = -1
         frmAbout.bUpdateClassList mInfo.Token
+        gSetLastError SNARL41_SUCCESS
 
     ElseIf Not Data.Exists("id") Then
         g_Debug "TApp.RemClass(): required arg 'id' missing", LEMON_LEVEL_CRITICAL
         gSetLastError SNARL41_ERROR_ARG_MISSING
 
-
     ElseIf Data.ValueOf("id") = "_all" Then
         g_Debug "TApp.RemClass(): cannot remove '_all' class", LEMON_LEVEL_CRITICAL
         gSetLastError SNARL41_ERROR_FAILED
-        Exit Function
 
+    Else
+        i = uIndexOf(Data.ValueOf("id"))
+        If i = 0 Then
+            g_Debug "TApp.RemClass(): class '" & Data.ValueOf("id") & "' not found", LEMON_LEVEL_CRITICAL
+            gSetLastError SNARL41_ERROR_CLASS_NOT_FOUND
+
+        Else
+
+            If i < mAlerts Then
+                For j = i To (mAlerts - 1)
+                    Set mAlert(j) = mAlert(j + 1)
+
+                Next j
+
+            End If
+
+            mAlerts = mAlerts - 1
+            ReDim Preserve mAlert(mAlerts)
+            frmAbout.bUpdateClassList mInfo.Token
+            RemClass = -1
+            gSetLastError SNARL41_SUCCESS
+
+        End If
     End If
-
-
-Dim i As Long
-
-    i = uIndexOf(Data.ValueOf("id"))
-    If i = 0 Then
-        g_Debug "TApp.RemClass(): class '" & Data.ValueOf("id") & "' not found", LEMON_LEVEL_CRITICAL
-        gSetLastError SNARL41_ERROR_CLASS_NOT_FOUND
-        Exit Function
-
-    End If
-
-Dim j As Long
-
-    If i < mAlerts Then
-        For j = i To (mAlerts - 1)
-            Set mAlert(j) = mAlert(j + 1)
-
-        Next j
-
-    End If
-
-    mAlerts = mAlerts - 1
-    ReDim Preserve mAlert(mAlerts)
-    frmAbout.bUpdateClassList mInfo.Token
-    RemClass = -1
 
 End Function
 

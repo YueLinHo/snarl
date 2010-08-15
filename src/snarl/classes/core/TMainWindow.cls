@@ -863,7 +863,7 @@ Dim pApp As TApp
     Case SNARL41_REMOVE_CLASS
         If (g_AppRoster Is Nothing) Then
             g_Debug "TMainWindow.uDoV41Request(): SNARL41_REMOVE_CLASS: app roster is not available", LEMON_LEVEL_CRITICAL
-            gSetLastError SNARL41_ERROR_FAILED
+            gSetLastError SNARL41_ERROR_SYSTEM
             Exit Function
 
         End If
@@ -874,7 +874,6 @@ Dim pApp As TApp
 
         End If
 
-        gSetLastError 0
         uDoV41Request = pApp.RemClass(pData)
 
 
@@ -894,10 +893,9 @@ Dim pApp As TApp
 
     Case SNARL41_HIDE_NOTIFICATION
         If (g_NotificationRoster Is Nothing) Then
-            gSetLastError SNARL41_ERROR_FAILED
+            gSetLastError SNARL41_ERROR_SYSTEM
 
         Else
-            gSetLastError 0
             uDoV41Request = CLng(g_NotificationRoster.Hide(pReq.Token))
 
         End If
@@ -905,10 +903,9 @@ Dim pApp As TApp
 
     Case SNARL41_IS_NOTIFICATION_VISIBLE
         If (g_NotificationRoster Is Nothing) Then
-            gSetLastError SNARL41_ERROR_FAILED
+            gSetLastError SNARL41_ERROR_SYSTEM
 
         Else
-            gSetLastError 0
             uDoV41Request = CLng(g_NotificationRoster.IsVisible(pReq.Token))
         
         End If

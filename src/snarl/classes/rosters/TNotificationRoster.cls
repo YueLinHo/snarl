@@ -600,10 +600,12 @@ Dim i As Long
     i = uFind(Id)
     If i Then
         mItem(i).Window.Hide
+        gSetLastError SNARL41_SUCCESS
         Hide = True
 
     Else
         g_Debug "TNotificationRoster.Hide(): id '" & g_HexStr(Id) & " not found", LEMON_LEVEL_WARNING
+        gSetLastError SNARL41_ERROR_NOTIFICATION_NOT_FOUND
 
     End If
 
@@ -611,6 +613,7 @@ End Function
 
 Public Function IsVisible(ByVal Id As Long) As Boolean
 
+    gSetLastError SNARL41_SUCCESS
     IsVisible = (uFind(Id) > 0)
     g_Debug "TNotificationRoster.IsVisible(): id '" & g_HexStr(Id) & "'==" & IsVisible
 
