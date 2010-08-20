@@ -39,6 +39,7 @@ namespace Snarl.V41
 	/// </summary>
 	/// 
 	/// <VersionHistory>
+	/// 2010-08-20 : Fixed not sending correct PackedData string in UpdateApp.
 	/// 2010-08-14 : Clean-up, more error checking and documentation.
 	///            : Converted global events and message events to enums.
 	/// 2010-08-13 : Updated to last changes before 2.3 release.
@@ -215,26 +216,6 @@ namespace Snarl.V41
 			return Send(msg);
 		}
 
-		/*
-		 * Function probably depricated before Snarl 2.3 final - Will remove later
-		/// <summary>
-		/// SetCallback
-		/// </summary>
-		/// <param name="hWnd"></param>
-		/// <param name="replyMsg"></param>
-		/// <returns></returns>
-		public Int32 SetCallback(IntPtr hWnd, Int32 replyMsg)
-		{
-			SnarlMessage msg;
-			msg.Command = SnarlCommand.SetCallback;
-			msg.Token = appToken;
-			msg.PacketData = StringToUtf8(
-				"hwnd::" + hWnd.ToString() + 
-				"#?umsg::" + replyMsg.ToString() );
-
-			return Send(msg);
-		}*/
-
 		/// <summary>
 		/// UpdateApp
 		/// </summary>
@@ -253,7 +234,7 @@ namespace Snarl.V41
 			
 			if (icon != null && icon.Trim().Length > 0)
 			{
-				str += str.Length > 0 ? "#?" : "";
+				str += str.Length > 0 ? "#?icon::" : "icon::";
 				str += icon.Trim();
 			}
 			msg.PacketData = StringToUtf8(str);
