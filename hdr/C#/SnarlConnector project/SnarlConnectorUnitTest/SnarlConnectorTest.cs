@@ -121,6 +121,15 @@ namespace SnarlConnectorUnitTest
 			actual = snarl.UnregisterApp();
 			Assert.AreEqual(value, actual);
 
+			// Test overloaded version
+			value = 0;
+			actual = snarl.RegisterApp("CSharpUnitTest", "C# unit test", null);
+			Assert.AreNotEqual(value, actual);
+
+			value = -1;
+			actual = snarl.UnregisterApp();
+			Assert.AreEqual(value, actual);
+
 			// Test invalid parameters
 			value = 0;
 			actual = snarl.RegisterApp("", "C# unit test", null, IntPtr.Zero, 0, 0);
@@ -295,13 +304,27 @@ namespace SnarlConnectorUnitTest
 			Int32 actual = 0;
 
 			value = 0;
-			actual = snarl.EZNotify("EZNotifyId", "title", "text", DefaultMsgTimeout, null, 0, "acknowledge", "value");
+			actual = snarl.EZNotify("EZNotifyId", "EZNotifyTest", "Full version", DefaultMsgTimeout, null, 0, "acknowledge", "value");
 			Assert.AreNotEqual(value, actual);
 
 			// LastError - Should return success
 			value = (Int32)SnarlConnector.SnarlStatus.Success;
 			actual = (Int32)snarl.GetLastError();
 			Assert.AreEqual(value, actual);
+
+			// Test overloaded functions
+			value = 0;
+			actual = snarl.EZNotify("EZNotifyId", "EZNotifyTest", "5 parameters version", DefaultMsgTimeout, null);
+			Assert.AreNotEqual(value, actual);
+
+			value = 0;
+			actual = snarl.EZNotify("EZNotifyId", "EZNotifyTest", "4 parameters version", DefaultMsgTimeout);
+			Assert.AreNotEqual(value, actual);
+
+			value = 0;
+			actual = snarl.EZNotify("EZNotifyId", "EZNotifyTest", "3 parameters version");
+			Assert.AreNotEqual(value, actual);
+
 		}
 
 		/// <summary>
@@ -391,23 +414,6 @@ namespace SnarlConnectorUnitTest
 			actual = (Int32)snarl.GetLastError();
 			Assert.AreEqual(value, actual);
 		}
-
-		/// <summary>
-		///A test for SetCallback
-		///</summary>
-		/// TODO
-		/*[TestMethod()]
-		public void SetCallbackTest()
-		{
-			SnarlConnector target = new SnarlConnector(); // TODO: Initialize to an appropriate value
-			IntPtr hWnd = new IntPtr(); // TODO: Initialize to an appropriate value
-			int replyMsg = 0; // TODO: Initialize to an appropriate value
-			int expected = 0; // TODO: Initialize to an appropriate value
-			int actual;
-			actual = target.SetCallback(hWnd, replyMsg);
-			Assert.AreEqual(expected, actual);
-			Assert.Inconclusive("Verify the correctness of this test method.");
-		}*/
 
 		/// <summary>
 		///A test for EZUpdate

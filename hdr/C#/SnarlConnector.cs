@@ -39,6 +39,7 @@ namespace Snarl.V41
 	/// </summary>
 	/// 
 	/// <VersionHistory>
+	/// 2010-08-25 : Added overloaded versions of RegisterApp, EZNotify and EZUpdate.
 	/// 2010-08-20 : Fixed not sending correct PackedData string in UpdateApp.
 	/// 2010-08-14 : Clean-up, more error checking and documentation.
 	///            : Converted global events and message events to enums.
@@ -199,6 +200,17 @@ namespace Snarl.V41
 			return appToken;
 		}
 
+		public Int32 RegisterApp(String signature, String title, String icon, IntPtr hWndReply, Int32 msgReply)
+		{
+			return RegisterApp(signature, title, icon, hWndReply, msgReply, 0);
+		}
+
+		public Int32 RegisterApp(String signature, String title, String icon)
+		{
+			return RegisterApp(signature, title, icon, IntPtr.Zero, 0, 0);
+		}
+
+
 		/// <summary>
 		/// Unregister application.
 		/// </summary>
@@ -219,8 +231,8 @@ namespace Snarl.V41
 		/// <summary>
 		/// UpdateApp
 		/// </summary>
-		/// <param name="title">Optional</param>
-		/// <param name="icon">Optional</param>
+		/// <param name="title">Optional (null)</param>
+		/// <param name="icon">Optional (null)</param>
 		/// <returns></returns>
 		public Int32 UpdateApp(String title, String icon)
 		{
@@ -247,7 +259,7 @@ namespace Snarl.V41
 		/// </summary>
 		/// <param name="name"></param>
 		/// <param name="description"></param>
-		/// <param name="enabled"></param>
+		/// <param name="enabled">Optional (true)</param>
 		/// <returns></returns>
 		public Int32 AddClass(String className, String description, bool enabled)
 		{
@@ -262,11 +274,16 @@ namespace Snarl.V41
 			return Send(msg);
 		}
 
+		public Int32 AddClass(String className, String description)
+		{
+			return AddClass(className, description, true);
+		}
+
 		/// <summary>
 		/// RemoveClass
 		/// </summary>
 		/// <param name="className"></param>
-		/// <param name="forgetSettings"></param>
+		/// <param name="forgetSettings">Optional (false)</param>
 		/// <returns></returns>
 		public Int32 RemoveClass(String className, bool forgetSettings)
 		{
@@ -279,11 +296,16 @@ namespace Snarl.V41
 
 			return Send(msg);
 		}
+
+		public Int32 RemoveClass(String className)
+		{
+			return RemoveClass(className, false);
+		}
 		
 		/// <summary>
 		/// RemoveAllClasses
 		/// </summary>
-		/// <param name="forgetSettings"></param>
+		/// <param name="forgetSettings">Optional (false)</param>
 		public Int32 RemoveAllClasses(bool forgetSettings)
 		{
 			SnarlMessage msg;
@@ -294,6 +316,11 @@ namespace Snarl.V41
 				"#?forget::" + (forgetSettings ? "1" : "0") );
 
 			return Send(msg);
+		}
+
+		public Int32 RemoveAllClasses()
+		{
+			return RemoveAllClasses(false);
 		}
 
 		/// <summary>
@@ -327,6 +354,21 @@ namespace Snarl.V41
 			return lastMsgToken;
 		}
 
+		public Int32 EZNotify(String className, String title, String text, Int32 timeout, String icon)
+		{
+			return EZNotify(className, title, text, timeout, icon, 0, "", "");
+		}
+
+		public Int32 EZNotify(String className, String title, String text, Int32 timeout)
+		{
+			return EZNotify(className, title, text, timeout, "", 0, "", "");
+		}
+
+		public Int32 EZNotify(String className, String title, String text)
+		{
+			return EZNotify(className, title, text, -1, "", 0, "", "");
+		}
+
 		/// <summary>
 		/// Notify
 		/// </summary>
@@ -347,8 +389,9 @@ namespace Snarl.V41
 		}
 
 		/// <summary>
-		/// EZUpdate
+		/// 
 		/// </summary>
+		/// <param name="msgToken"></param>
 		/// <param name="title">Optional ("" or null)</param>
 		/// <param name="text">Optional ("" or null)</param>
 		/// <param name="timeout">Optional (-1)</param>
@@ -377,6 +420,16 @@ namespace Snarl.V41
 			msg.PacketData = StringToUtf8(sb.ToString());
 			
 			return Send(msg);
+		}
+
+		public Int32 EZUpdate(Int32 msgToken, String title, String text, Int32 timeout)
+		{
+			return EZUpdate(msgToken, title, text, timeout, null);
+		}
+
+		public Int32 EZUpdate(Int32 msgToken, String title, String text)
+		{
+			return EZUpdate(msgToken, title, text, -1, null);
 		}
 
 		/// <summary>
