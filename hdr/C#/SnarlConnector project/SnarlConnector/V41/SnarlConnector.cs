@@ -1,7 +1,7 @@
 using System;
 using System.IO;
-using System.Text;
 using System.Runtime.InteropServices;
+using System.Text;
 
 
 namespace Snarl.V41
@@ -39,6 +39,7 @@ namespace Snarl.V41
 	/// </summary>
 	/// 
 	/// <VersionHistory>
+	/// 2010-09-12 : Made AppMsg, Broadcast, IsSnarlRunning, GetSnarlWindow static (to be the same as C++ version)
 	/// 2010-08-25 : Added overloaded versions of RegisterApp, EZNotify and EZUpdate.
 	/// 2010-08-20 : Fixed not sending correct PackedData string in UpdateApp.
 	/// 2010-08-14 : Clean-up, more error checking and documentation.
@@ -493,7 +494,7 @@ namespace Snarl.V41
 		/// Returns true if Snarl system was found running.
 		/// </summary>
 		/// <returns></returns>
-		public bool IsSnarlRunning()
+		static public bool IsSnarlRunning()
 		{
 			return IsWindow(GetSnarlWindow());
 		}
@@ -507,7 +508,6 @@ namespace Snarl.V41
 			localError = 0;
 
 			IntPtr hWnd = GetSnarlWindow();
-
 			if (!IsWindow(hWnd))
 			{
 				localError = SnarlStatus.ErrorNotRunning;
@@ -526,7 +526,7 @@ namespace Snarl.V41
 		///   - given this, this function *cannnot* be used to test for the presence of Snarl.
 		/// </summary>
 		/// <returns>A 16-bit value (translated to 32-bit) which is the registered Windows message for Snarl.</returns>
-		public uint Broadcast()
+		static public uint Broadcast()
 		{
 			return RegisterWindowMessage(SnarlGlobalMsg);
 		}
@@ -535,7 +535,7 @@ namespace Snarl.V41
 		/// Returns the global Snarl Application message  (V39)
 		/// </summary>
 		/// <returns>Snarl Application registered message.</returns>
-		public uint AppMsg()
+		static public uint AppMsg()
 		{
 			return RegisterWindowMessage(SnarlAppMsg);
 		}
@@ -546,7 +546,7 @@ namespace Snarl.V41
 		///   This is now the preferred way to test if Snarl is actually running.
 		/// </summary>
 		/// <returns>Returns handle to Snarl Dispatcher window, or zero if it's not found</returns>
-		public IntPtr GetSnarlWindow()
+		static public IntPtr GetSnarlWindow()
 		{
 			IntPtr hwnd = FindWindow(SnarlWindowClass, SnarlWindowTitle);
 
@@ -605,6 +605,7 @@ namespace Snarl.V41
 		private Int32 Send(SnarlMessage msg)
 		{
 			Int32 nReturn = 0; // Failure
+			localError = 0;
 
 			IntPtr hWnd = GetSnarlWindow();
 			if (!IsWindow(hWnd))

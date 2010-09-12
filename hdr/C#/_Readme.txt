@@ -8,12 +8,12 @@ test project, UnitTest project etc.
 
 ================================================================================
 = First version of SnarlConnector and test application written by:
-=  Tim Wilde (http://www.k23productions.com/user.php?id.471)
+=  Tim Wilde
 = Fixes, maintaince, examples since some point late 2007 by:
 =  Toke Noer (toke 'at' noer.it)
 ================================================================================
 
 ================================================================================
-= API reference: http://www.fullphat.net/dev/api.htm
+= API reference: http://www.fullphat.net/dev/api.htm (Not up to date at this point!)
 = VB reference: https://snarlwin.svn.sourceforge.net/svnroot/snarlwin/trunk/
 ================================================================================
