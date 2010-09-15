@@ -44,6 +44,31 @@
 
 	Snarl Change Log
 
+	- Added user-definable acknowledge feature.  (41.39)
+
+	- Released as R2.31d2.  (41.38)
+
+	- Revised system admin functionality.  (41.38)
+
+	- Released as R2.31 b1 (should have been d1).  (41.37)
+
+	- Added system adminstration functionality.  (41.37)
+
+	- Missed Notifications "Acknowledge" button should now function as
+	  expected.  (41.37)
+
+	- Consolidated a couple of internal notification data types (specifically
+	  G_NOTIFICATION_CONTENT and T_NOTIFICATION_INFO).  (41.37)
+
+	- sn41Update() was corrupting notification content.  Now fixed.  (41.36)
+
+	- Fixed broken "run on logon" option.  (41.35)
+
+	- Extension details notification now suppresses version number for
+	  extensions with version and revision of zero.  (41.35)
+
+	- Released as R2.3.  (41.34)
+
 	- Added new status code SNARL41_ERROR_NOTIFICATION_NOT_FOUND'.  (41.32)
 
 	- sn41Update() renamed to sn41EZUpdate() and a new sn41Update() added which
