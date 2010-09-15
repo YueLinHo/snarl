@@ -41,6 +41,9 @@ Public Type T_NOTIFICATION_INFO
                                         '         e.g. 45%, 2.3466, $5.00, etc. it's up to the style to determine
                                         '         how/if it's displayed
     DateStamp As Date                   ' // V41: when it was added to the Notification Roster
+    Icon As mfxBitmap                   ' // V41 (R2.31): note it's an mfxBitmap, not an MImage!
+    Sender As String
+    Class As String
 
 End Type
 
@@ -76,6 +79,18 @@ Public Type T_SNARL_APP
     Flags As SNARL41_APP_FLAGS  ' // V41
 
 End Type
+
+
+Public Type T_SNARL_ADMIN
+    HideIcon As Boolean                 ' // hides the tray icon (over-rules undoc'd setting in .snarl file)
+    InhibitPrefs As Boolean             ' // completely blocks access to prefs panel
+    InhibitQuit As Boolean              ' // can't quit Snarl using menu
+    InhibitMenu As Boolean              ' // right-click tray icon does nothing
+    TreatSettingsAsReadOnly As Boolean  ' // don't write settings
+
+End Type
+
+Public gSysAdmin As T_SNARL_ADMIN
 
 
 Public Type T_SNARL_ICON_THEME
@@ -151,22 +166,25 @@ End Enum
 
     ' /* used by the missed notifications panel - should be consolidated with other similar structs */
 
-Public Type G_NOTIFICATION_CONTENT
-    Title As String
-    Text As String
-    Icon As mfxBitmap
-    Timeout As Long
-    Ack As String
-    Timestamp As Date
-    Sender As String
-    Class As String
-
-End Type
+'Public Type G_NOTIFICATION_CONTENT
+'    Title As String
+'    Text As String
+'    Icon As mfxBitmap
+'    Timeout As Long
+'    Ack As String
+'    Timestamp As Date
+'    Sender As String
+'    Class As String
+'    ' /* R2.31 */
+'    hWndReply As Long
+'    uMsgReply As Long
+'
+'End Type
 
 
 Public Type T_CONFIG
 
-    run_on_logon As Boolean
+'    run_on_logon As Boolean
     font_smoothing As E_FONTSMOOTHING
 '    suppress_delay As Long          ' // in ms
 '    hotkey_prefs As Long            ' // MAKELONG(mods,key)
@@ -179,9 +197,13 @@ Public Type T_CONFIG
     last_update_check As Date
     AgreeBetaUsage As Boolean
 
+    ' /* R2.31 */
+    SnarlConfigPath As String           ' // path (UNC or other) to Snarl config folder (should contain /etc and other folders)
+    SnarlConfigFile As String           ' // not persistent; just a handy copy
+
 End Type
 
-Public g_Prefs As T_CONFIG
+Public gPrefs As T_CONFIG
 
 Dim mSettings As ConfigFile         ' // V40.25 - new way of managing persistent settings
 Dim mConfig As ConfigSection        ' // V40.25 - the actual config section
@@ -397,9 +419,7 @@ Dim pName As String
     SetProp ghWndMain, "_version", App.Major
     SetProp ghWndMain, "_revision", App.Revision
 
-    ' /* now we have the handling window, we can set our console */
-
-'    lemonSetConsole ghWndMain
+    ' /* load up some required bits and bobs */
 
     load_image g_MakePath(App.Path) & "etc\icons\close.png", bm_Close
 
@@ -418,51 +438,87 @@ Dim pName As String
 
     gForwarderUID = &HE0
 
+    ' /* R2.31 - pre-set our config folder */
+
+    gPrefs.SnarlConfigPath = App.Path                ' // fail-safe
+
+Dim sz As String
+
+    If g_GetUserFolderPath(sz) Then
+        gPrefs.SnarlConfigPath = sz                  ' // standard location
+
+    Else
+        g_Debug "uSetConfigFile(): %APP_DATA% path not found", LEMON_LEVEL_CRITICAL
+
+    End If
+
+    ' /* R2.31 - look for a local sysconfig.ssl and get its target  */
+
+Dim pSysConfig As CConfFile
+
+    Set pSysConfig = New CConfFile
+    With pSysConfig
+        If .SetTo(g_MakePath(App.Path) & "sysconfig.ssl", True) Then
+            g_Debug "Main: local sysconfig.ssl exists, querying..."
+            sz = g_RemoveQuotes(.ValueOf("target"))
+
+            ' /* R2.31 - quick check on folder structure */
+
+            If g_IsFolder(g_MakePath(sz) & "etc") Then
+                gPrefs.SnarlConfigPath = sz
+
+            Else
+                g_Debug "Main: config path '" & sz & "' is invalid", LEMON_LEVEL_CRITICAL
+
+            End If
+        End If
+    End With
+
+    gPrefs.SnarlConfigPath = g_MakePath(gPrefs.SnarlConfigPath)
+    g_Debug "Main: config path is '" & gPrefs.SnarlConfigPath & "'"
+
+    ' /* fix up the .snarl path */
+
+    gPrefs.SnarlConfigFile = gPrefs.SnarlConfigPath & "etc\config41.snarl"
+    g_Debug "Main: .snarl path is '" & gPrefs.SnarlConfigFile & "'"
+
+    ' /* do we have a snarl.admin file to load? */
+
+Dim szName As String
+Dim szData As String
+
+    Set pSysConfig = New CConfFile
+    If pSysConfig.SetTo(gPrefs.SnarlConfigPath & "etc\snarl.admin", True) Then
+
+        g_Debug "Main: loaded admin settings from '" & gPrefs.SnarlConfigPath & "snarl.admin" & "'"
+
+        With pSysConfig
+            .Rewind
+            Do While .GetEntry(szName, szData)
+                g_Debug "Main: '" & szName & "'='" & szData & "'"
+
+            Loop
+
+        End With
+
+        With gSysAdmin
+            .HideIcon = (pSysConfig.ValueOf("HideIcon") = "1")
+            .InhibitPrefs = (pSysConfig.ValueOf("InhibitPrefs") = "1")
+            .TreatSettingsAsReadOnly = (pSysConfig.ValueOf("TreatSettingsAsReadOnly") = "1")
+            .InhibitMenu = (pSysConfig.ValueOf("InhibitMenu") = "1")
+            .InhibitQuit = (pSysConfig.ValueOf("InhibitQuit") = "1")
+
+        End With
+
+    Else
+        g_Debug "Main: no admin settings file"
+
+    End If
+
     ' /* get settings */
 
     If Not g_ConfigInit() Then
-
         g_Debug "main(): new/clean installation..."
-
-'        MsgBox "As this is the first time Snarl has been run, I need to test the drawing" & vbCrLf & _
-'               "speed of your PC.  This test will only take a few seconds, if that.", _
-'               vbOKOnly Or vbInformation, "Snarl Graphics Test"
-'
-'        l = GetTickCount()
-'        g_Debug "main(): GFXCHK: starting graphics test (tick_count=" & CStr(l) & ")"
-'
-'Dim pInfo As T_NOTIFICATION_INFO
-'
-'        With pInfo
-'            .Title = "Snarl Graphics Test"
-'            .Text = "Test Message"
-'            .Timeout = 1
-'            .StyleToUse = ""            ' // the scheme
-'
-'        End With
-'
-'        With New CSnarlWindow
-'            .Create New TAlert, pInfo, New TInternalStyle, 0, ""
-'            '"Snarl Graphics Test", "Test message", 1, "", 0, 0, 0, "", New TInternalStyle, "", 0
-'            .Quit
-'
-'        End With
-'
-'Dim dStep As Double
-'
-'        l = GetTickCount() - l
-'        g_Debug "main(): GFXCHK: completed graphics test (tick_count=" & CStr(GetTickCount()) & ")"
-'
-'        dStep = l / 422#
-'
-'        If dStep < 1# Then _
-'            dStep = 1#
-'
-'        g_Debug "main(): GFXCHK: delta=" & l & " actual=" & CStr(l / 422#) & " step=" & dStep
-'
-'        MsgBox "Graphics test complete.  Snarl has calculated a factor of " & Format$(dStep, "0.00") & vbCrLf & _
-'               "to use when displaying messages.", vbOKOnly Or vbInformation, "Test Complete"
-
         g_ConfigSet "step_size", "1"
 
     End If
@@ -488,7 +544,7 @@ Dim pName As String
     melonLibOpen g_AppRoster
 
     g_Debug "Main(): Setting auto-run state..."
-    g_SetAutoRun g_Prefs.run_on_logon
+    g_SetAutoRun2
 
     ' /* get style packs */
 
@@ -523,7 +579,7 @@ Dim pName As String
 
 Dim pBetaPanel As TBetaPanel
 
-    If (Not g_Prefs.AgreeBetaUsage) Then
+    If (Not gPrefs.AgreeBetaUsage) Then
         Set pBetaPanel = New TBetaPanel
         pBetaPanel.Go
 
@@ -627,8 +683,8 @@ Public Function g_ConfigInit() As Boolean
 
     On Error Resume Next
 
-    With g_Prefs
-        .run_on_logon = True
+    With gPrefs
+'        .run_on_logon = True
         .font_smoothing = E_MELONTYPE
 '        .suppress_delay = 2000
 '        If g_GetSystemFolder(CSIDL_PERSONAL, sz) Then _
@@ -695,27 +751,20 @@ Public Function g_ConfigInit() As Boolean
 
     ' /* attempt to load the config file */
 
-Dim sz As String
-
-    If Not g_GetUserFolderPath(sz) Then
-        g_Debug "g_ConfigInit(): %APP_DATA% path not found", LEMON_LEVEL_CRITICAL
-        Exit Function
-
-    End If
-
-    sz = g_MakePath(sz) & "etc"
+'    MsgBox gSysAdmin.RemoteSnarlFile
 
 Dim i As Long
 
     Set mSettings = New ConfigFile
     With mSettings
-        .File = sz & "\config41.snarl"
+        .File = gPrefs.SnarlConfigFile
         .Load
 
         i = .FindSection("general")
         If i = 0 Then
             Set mConfig = .AddSectionObj("general")
-            .Save
+            If Not gSysAdmin.TreatSettingsAsReadOnly Then _
+                .Save
 
         Else
             Set mConfig = .SectionAt(i)
@@ -725,7 +774,8 @@ Dim i As Long
         i = .FindSection("remote_computers")
         If i = 0 Then
             Set gRemoteComputers = .AddSectionObj("remote_computers")
-            .Save
+            If Not gSysAdmin.TreatSettingsAsReadOnly Then _
+                .Save
 
         Else
             Set gRemoteComputers = .SectionAt(i)
@@ -776,8 +826,16 @@ Public Sub g_WriteConfig()
 
     End If
 
-    g_Debug "g_WriteConfig(): writing to " & mSettings.File & "..."
-    mSettings.Save
+    ' /* R2.31: only if admin says we can... */
+
+    If gSysAdmin.TreatSettingsAsReadOnly Then
+        g_Debug "g_WriteConfig(): configuration as been set as read only by system administrator", LEMON_LEVEL_WARNING
+
+    Else
+        g_Debug "g_WriteConfig(): writing to " & mSettings.File & "..."
+        mSettings.Save
+
+    End If
 
 End Sub
 
@@ -844,17 +902,18 @@ Dim dw As Long
 
 End Sub
 
-Public Sub g_SetAutoRun(ByVal AutoRun As Boolean)
+Public Sub g_SetAutoRun2()
+Dim bAutoRun As Boolean
 
-    If AutoRun Then
+    bAutoRun = CBool(g_ConfigGet("run_on_logon"))
+
+    If bAutoRun Then
         add_registry_startup_item "Snarl", g_MakePath(App.Path) & LCase$(App.EXEName) & ".exe"
 
     Else
         rem_registry_startup_item "Snarl", g_MakePath(App.Path) & LCase$(App.EXEName) & ".exe"
 
     End If
-
-    g_Prefs.run_on_logon = AutoRun
 
 End Sub
 
@@ -960,7 +1019,7 @@ Dim dw As Long
 
     aView.SetHighColour TextColour
 
-    Select Case g_Prefs.font_smoothing
+    Select Case gPrefs.font_smoothing
     Case E_MELONTYPE
         If SmoothingColour = 0 Then
             ' /* calculate it (only really works for dark colours at present) */
@@ -1175,16 +1234,16 @@ End Function
 
 Public Sub g_AddDNDLock()
 
-    g_Prefs.SysDnDCount = g_Prefs.SysDnDCount + 1
+    gPrefs.SysDnDCount = gPrefs.SysDnDCount + 1
 
     If (g_IsDNDModeEnabled) And (Not (g_NotificationRoster Is Nothing)) Then _
-        g_Prefs.MissedCountOnDnD = g_NotificationRoster.CountMissed
+        gPrefs.MissedCountOnDnD = g_NotificationRoster.CountMissed
 
 End Sub
 
 Public Sub g_RemDNDLock()
 
-    g_Prefs.SysDnDCount = g_Prefs.SysDnDCount - 1
+    gPrefs.SysDnDCount = gPrefs.SysDnDCount - 1
     g_CheckMissed
 
 End Sub
@@ -1199,7 +1258,7 @@ Dim iToken As Long
     ' /* if DnD mode is now disabled and there were some missed notifications, show notification
     '    explaining this */
 
-    iMissed = g_NotificationRoster.CountMissed - g_Prefs.MissedCountOnDnD
+    iMissed = g_NotificationRoster.CountMissed - gPrefs.MissedCountOnDnD
 
     If (Not g_IsDNDModeEnabled()) And (iMissed > 0) Then
         iToken = snShowMessageEx("", "While you were away...", _
@@ -1217,11 +1276,11 @@ End Sub
 Public Function g_IsDNDModeEnabled() As Boolean
 
     ' /* DND mode is considered enabled if:
-    '       1. the user has enabled it (g_Prefs.do_not_disturb is True)
-    '       2. an app has enabled it (g_Prefs.SysDnDCount > 0)
+    '       1. the user has enabled it (gPrefs.do_not_disturb is True)
+    '       2. an app has enabled it (gPrefs.SysDnDCount > 0)
     ' */
 
-    If (g_Prefs.UserDnD) Or (g_Prefs.SysDnDCount > 0) Then _
+    If (gPrefs.UserDnD) Or (gPrefs.SysDnDCount > 0) Then _
         g_IsDNDModeEnabled = True
 
 End Function
@@ -1496,3 +1555,44 @@ Public Sub gSetLastError(ByVal Error As SNARL_STATUS_41)
     SetProp ghWndMain, "last_error", Error
 
 End Sub
+
+
+'        MsgBox "As this is the first time Snarl has been run, I need to test the drawing" & vbCrLf & _
+'               "speed of your PC.  This test will only take a few seconds, if that.", _
+'               vbOKOnly Or vbInformation, "Snarl Graphics Test"
+'
+'        l = GetTickCount()
+'        g_Debug "main(): GFXCHK: starting graphics test (tick_count=" & CStr(l) & ")"
+'
+'Dim pInfo As T_NOTIFICATION_INFO
+'
+'        With pInfo
+'            .Title = "Snarl Graphics Test"
+'            .Text = "Test Message"
+'            .Timeout = 1
+'            .StyleToUse = ""            ' // the scheme
+'
+'        End With
+'
+'        With New CSnarlWindow
+'            .Create New TAlert, pInfo, New TInternalStyle, 0, ""
+'            '"Snarl Graphics Test", "Test message", 1, "", 0, 0, 0, "", New TInternalStyle, "", 0
+'            .Quit
+'
+'        End With
+'
+'Dim dStep As Double
+'
+'        l = GetTickCount() - l
+'        g_Debug "main(): GFXCHK: completed graphics test (tick_count=" & CStr(GetTickCount()) & ")"
+'
+'        dStep = l / 422#
+'
+'        If dStep < 1# Then _
+'            dStep = 1#
+'
+'        g_Debug "main(): GFXCHK: delta=" & l & " actual=" & CStr(l / 422#) & " step=" & dStep
+'
+'        MsgBox "Graphics test complete.  Snarl has calculated a factor of " & Format$(dStep, "0.00") & vbCrLf & _
+'               "to use when displaying messages.", vbOKOnly Or vbInformation, "Test Complete"
+
