@@ -47,5 +47,6 @@ Public Sub Add(ByVal Text As String)
 
     List1.AddItem Text
     List1.ListIndex = List1.ListCount - 1
+    g_Debug Text
 
 End Sub

@@ -10,19 +10,19 @@ Private Declare Function FindWindow Lib "user32" Alias "FindWindowA" (ByVal lpCl
 Private Declare Function IsWindow Lib "user32" (ByVal hWnd As Long) As Long
 
 Private Const WM_CLOSE = &H10
-Public Const WM_TEST = &H400 + 1
-Public Const WM_NOTIFICATION = &H400 + 2
+'Public Const WM_TEST = &H400 + 1
+'Public Const WM_NOTIFICATION = &H400 + 2
 'Public Const WM_RELOAD = &H400 + 3
 Public Declare Function SendMessage Lib "user32" Alias "SendMessageA" (ByVal hWnd As Long, ByVal wMsg As Long, ByVal wParam As Long, lParam As Any) As Long
 
 Public Type T_CONFIG
-    Timeout As Long
-    UseFeedIcon As Boolean
-    FeedRefresh As Long
+    RefreshInterval As Long
+'    UseFeedIcon As Boolean
+'    FeedRefresh As Long
 
 End Type
 
-Public g_Config As T_CONFIG
+Public gConfig As T_CONFIG
 
 Public gDebugMode As Boolean
 Public gToken As Long
@@ -60,6 +60,9 @@ Dim hWndExisting As Long
 
     End If
 
+    l3OpenLog "%APPDATA%\snaRSS.log", True
+    g_Debug "Main()", LEMON_LEVEL_PROC_ENTER
+
     gDebugMode = (InStr(Command$, "-debug") <> 0)
 
     If gDebugMode Then _
@@ -73,10 +76,14 @@ Dim hWnd As Long
     frmMain.List1.AddItem "window: " & g_HexStr(hWnd)
     frmMain.Tag = CStr(hWnd)
 
+    g_Debug "startup complete"
+
     With New BMsgLooper
         .Run
 
     End With
+
+    g_Debug "stopping..."
 
     If Not (gPanel Is Nothing) Then _
         gPanel.Quit
@@ -84,6 +91,9 @@ Dim hWnd As Long
     EZRemoveWindow hWnd
     EZUnregisterClass CLASS_NAME
     Unload frmMain
+
+    g_Debug "", LEMON_LEVEL_PROC_EXIT
+    g_Debug "ended"
 
 End Sub
 

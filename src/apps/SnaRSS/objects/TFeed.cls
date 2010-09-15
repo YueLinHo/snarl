@@ -41,10 +41,21 @@ Public Function Init(ByVal URL As String, Optional ByVal Enabled As Boolean = Tr
     Set theFeed = New BRSSFeed
     Init = Refresh()
 
-    ' /* on success, start a 1 minute timer with a +/- 2 second offset */
+    ' /* on success, start the timer with a +/- 2 second offset */
 
-    If Init Then _
-        Set theTimer = new_BTimer(60000 + ((Rnd * 4000) - 2000))
+Dim i As Long
+
+    If Init Then
+        Randomize Timer
+        i = (gConfig.RefreshInterval + (CInt(Rnd * 4) - 2)) * 1000
+        g_Debug "TFeed.Init(): feed timer is " & CStr(i)
+        frmMain.Add "feed timer is " & CStr(i)
+        Set theTimer = new_BTimer(i)
+
+    Else
+        g_Debug "TFeed.Init(): error getting feed", LEMON_LEVEL_CRITICAL
+
+    End If
 
 End Function
 
@@ -121,6 +132,8 @@ Dim pList As BControl
 
     On Error Resume Next
 
+    g_Debug "theFeed.Completed()", LEMON_LEVEL_PROC_ENTER
+
     mLastAttempt = Now()
     mSuccess = WasSuccessful
     mRefreshing = False
@@ -136,39 +149,45 @@ Dim pList As BControl
 
     End If
 
-    If Not theFeed.IsValid Then
-        frmMain.Add "FAIL: " & g_SafeRightStr(mURL, 80, True)
-        Exit Sub
-
-    ElseIf theFeed.CountItems < 1 Then
-        frmMain.Add "EMPTY: " & g_SafeRightStr(mURL, 80, True)
-        Exit Sub
-
-    End If
-
 Static szLastEntry As String
 Static szEntry As String
 
-    With theFeed.ItemAt(1)
-        szEntry = .Description '//  .Title & "+" & .Description
-        If szEntry <> szLastEntry Then
-            ' /* top story has changed */
-            frmMain.Add "UPDATED: " & g_SafeRightStr(mURL, 80, True)
-            szLastEntry = szEntry
-            If Not mFirstRun Then
-                ShowHeadline
+    frmMain.Add g_SafeRightStr(mURL, 40, True)
 
-            Else
-                mFirstRun = False
+    If Not theFeed.IsValid Then
+        frmMain.Add "failed: feed content is not valid"
 
+    ElseIf theFeed.CountItems < 1 Then
+        frmMain.Add "failed: feed content is valid but has no entries"
+
+    Else
+        frmMain.Add "success"
+
+        With theFeed.ItemAt(1)
+            szEntry = .Description '//  .Title & "+" & .Description
+            If szEntry <> szLastEntry Then
+                ' /* top story has changed */
+                frmMain.Add "first entry has changed"
+                szLastEntry = szEntry
+                If Not mFirstRun Then
+                    ShowHeadline
+
+                Else
+                    g_Debug "first run, not showing headline"
+                    mFirstRun = False
+
+                End If
             End If
-        End If
-    End With
+        End With
+    End If
+
+    g_Debug "", LEMON_LEVEL_PROC_EXIT
 
 End Sub
 
 Private Sub theTimer_Pulse()
 
+    g_Debug "timer_pulse: " & mURL & " (" & uTitle() & ")"
     Refresh
 
 End Sub
@@ -216,21 +235,34 @@ End Function
 Public Sub ShowHeadline()
 Static i As Long
 
-    If (theFeed Is Nothing) Then _
-        Exit Sub
+    g_Debug "TFeed.ShowHeadline()", LEMON_LEVEL_PROC_ENTER
 
-    If theFeed.CountItems < 1 Then _
-        Exit Sub
+    If Not (theFeed Is Nothing) Then
+        If theFeed.CountItems > 0 Then
 
-    With theFeed.ItemAt(1)
-        i = sn41EZNotify(gToken, "", _
-                         .Title, _
-                         IIf(.Description <> "", .Description, "<no entry>") & vbCrLf & vbCrLf & theFeed.Channel.Title, _
-                         , _
-                         theFeed.Channel.ImageUrl, , _
-                         .Link)
+            With theFeed.ItemAt(1)
+                i = sn41EZNotify(gToken, "", _
+                                 .Title, _
+                                 IIf(.Description <> "", .Description, "<no entry>") & vbCrLf & vbCrLf & theFeed.Channel.Title, _
+                                 , _
+                                 theFeed.Channel.ImageUrl, , _
+                                 .Link)
 
-    End With
+                g_Debug "sz41EZNotify() returned " & CStr(i) & " (lasterror=" & sn41GetLastError() & ")"
+
+            End With
+
+        Else
+            g_Debug "feed has no entries", LEMON_LEVEL_CRITICAL
+
+        End If
+
+    Else
+        g_Debug "feed isn't valid", LEMON_LEVEL_CRITICAL
+
+    End If
+
+    g_Debug "", LEMON_LEVEL_PROC_EXIT
 
 End Sub
 
@@ -263,9 +295,13 @@ End Sub
 
 Public Function Refresh() As Boolean
 
-    If mRefreshing Then _
+    If mRefreshing Then
+        g_Debug "TFeed.Refresh(): called but busy"
         Exit Function
 
+    End If
+
+    g_Debug "TFeed.Refresh(): asking '" & mURL & "' to refresh"
     Refresh = (theFeed.GetContent(mURL) = B_OK)
     mRefreshing = True
 
@@ -322,14 +358,19 @@ End Sub
 
 Public Function TitleOrURL() As String
 
-    If Not (theFeed Is Nothing) Then
-        If theFeed.IsValid Then _
-            TitleOrURL = Replace$(theFeed.Channel.Title, "|", ":")
-
-    End If
-
+    TitleOrURL = uTitle()
     If TitleOrURL = "" Then _
         TitleOrURL = mURL
+
+End Function
+
+Private Function uTitle() As String
+
+    If Not (theFeed Is Nothing) Then
+        If theFeed.IsValid Then _
+            uTitle = Replace$(theFeed.Channel.Title, "|", ":")
+
+    End If
 
 End Function
 

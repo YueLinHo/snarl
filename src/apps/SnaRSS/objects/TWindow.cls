@@ -100,69 +100,6 @@ Private Function BWndProcSink_WndProc(ByVal hWnd As Long, ByVal uMsg As Long, By
         End Select
 
 
-    Case WM_NOTIFICATION
-        frmMain.Add "NOTIFICATION: " & g_HexStr(wParam) & " " & CStr(lParam)
-'        n = LoWord(wParam)
-
-'        Select Case n
-'        Case SNARL_NOTIFICATION_ACK, SNARL_NOTIFICATION_MENU
-'            If Not uFind(lParam, pObj) Then _
-'                Exit Function
-'
-'            frmmain.Add "item found: " & pObj.Class
-'
-'            If n = SNARL_NOTIFICATION_ACK Then
-'                pObj.Display
-'
-'            ElseIf n = SNARL_NOTIFICATION_MENU Then
-'
-'                sn41Hide lParam
-'                pObj.UnRead = False
-'
-'                Select Case HiWord(wParam)
-'                Case 1
-'                    pObj.Display
-'
-'                Case 2
-'                    pObj.Reply.Display
-'
-'                Case 3
-'                    pObj.ReplyAll.Display
-'
-'                Case 4
-'                    pObj.Forward.Display
-'
-'                End Select
-'
-'            End If
-'
-'
-''        snChangeAttribute hr, SNARL_ATTRIBUTE_MENU, "Open#?1||Reply#?2|Reply All#?3|Forward#?4||Delete#?5"
-'
-'        End Select
-
-
-    Case WM_TEST
-        frmMain.Add "TEST: " & wParam
-
-'        If wParam = 0 Then
-'            uNotifyMail Nothing
-'
-'        ElseIf wParam = 1 Then
-'            uNotifyMail myItems.Item(1)
-'
-'        ElseIf wParam = 2 Then
-'            uFindFirst olMeetingRequest, pObj
-'            Debug.Print VarType(pObj)
-'            Err.Clear
-'            uNotifyAppointment pObj
-'            Debug.Print Err.Description
-'
-'        End If
-
-'    Case Else
-'        frmmain.add "WM_" & g_HexStr(uMsg)
-
     End Select
 
 End Function
@@ -171,7 +108,9 @@ Private Sub uRegisterWithSnarl()
 
     On Error Resume Next
 
-    gToken = sn41RegisterApp(App.ProductName, App.Title, g_MakePath(App.Path) & IIf(g_IsIDE(), "bin\", "") & "icon.png", mhWnd, WM_NOTIFICATION, SNARL41_APP_IS_WINDOWLESS Or SNARL41_APP_HAS_ABOUT Or SNARL41_APP_HAS_PREFS)
+    gToken = sn41RegisterApp(App.ProductName, App.Title, g_MakePath(App.Path) & IIf(g_IsIDE(), "bin\", "") & "icon.png", _
+                             mhWnd, 0, SNARL41_APP_IS_WINDOWLESS Or SNARL41_APP_HAS_ABOUT Or SNARL41_APP_HAS_PREFS)
+
     If gToken Then
         frmMain.List1.Tag = CStr(gToken)
         frmMain.Add "Registered with Snarl (token=" & CStr(gToken) & ")"
@@ -189,6 +128,7 @@ End Sub
 
 Private Sub uStart()
 Dim pFeedInfo As CConfSection
+Dim i As Long
 
     ' /* set up */
 
@@ -196,16 +136,50 @@ Dim pFeedInfo As CConfSection
 
     ' /* read config */
 
+    gConfig.RefreshInterval = 60
+
     With New CConfFile3
+
         .SetFile g_MakePath(App.Path) & "snaRSS.conf"
+
         If .Load Then
             .Rewind
+
+            ' /* general settings */
+
+            i = .IndexOf("settings")
+            If i > 0 Then
+                With .SectionAt(i)
+                    gConfig.RefreshInterval = g_SafeLong(.GetValueWithDefault("RefreshInterval", "60"))
+                
+                End With
+
+            Else
+                g_Debug "TWindow.uStart(): settings section not in config"
+
+            End If
+
+            With gConfig
+                ' /* can't be less than 3 seconds as we could end up with a -ve or 0 timeout */
+                If .RefreshInterval < 3 Then _
+                    .RefreshInterval = 3
+
+            End With
+
+            frmMain.Add "refresh interval: " & gConfig.RefreshInterval
+
+            ' /* feeds */
+
             Do While .GetNextSection(pFeedInfo)
-                mFeedRoster.AddFeed pFeedInfo.GetValueWithDefault("URL"), ""
+                If pFeedInfo.Name = "feed" Then _
+                    mFeedRoster.AddFeed pFeedInfo.GetValueWithDefault("URL"), ""
 
             Loop
         End If
     End With
+
+
+
 
 '        mFeedRoster.AddFeed "http://newsrss.bbc.co.uk/rss/newsonline_uk_edition/sci/tech/rss.xml", ""
 '        mFeedRoster.AddFeed "http://newsrss.bbc.co.uk/rss/newsonline_uk_edition/england/rss.xml", ""
