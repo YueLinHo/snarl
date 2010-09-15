@@ -304,7 +304,7 @@ Static f As Boolean
                     ' /* V38.94 - if an ACK string has been specified, launch it now */
     
                     If mInfo.DefaultAck <> "" Then _
-                            g_processack mInfo.DefaultAck
+                        g_ProcessAck mInfo.DefaultAck
 
                     uNotify SNARL_NOTIFICATION_ACK
                     bPaused = False
@@ -1198,18 +1198,18 @@ Private Sub uUpdateStyleContent(ByRef Info As T_NOTIFICATION_INFO)
 
         ' /* take into consideration and "do not change" markers */
         
-        If .Title = "-" Then _
+        If .Title = Chr$(255) Then _
             .Title = mInfo.Title
 
-        If .Text = "-" Then _
+        If .Text = Chr$(255) Then _
             .Text = mInfo.Text
 
-        If .IconPath = "-" Then _
+        If .IconPath = Chr$(255) Then _
             .IconPath = mInfo.IconPath
 
         ' /* this actually only contains the scheme name */
 
-        If .StyleToUse = "-" Then _
+        If .StyleToUse = Chr$(255) Then _
             .StyleToUse = mInfo.StyleToUse
 
     End With
@@ -1271,7 +1271,7 @@ Private Function uDrawDropshadow() As Boolean
 
     ' /* styles can veto the system drop shadow */
 
-    uDrawDropshadow = (g_Prefs.use_dropshadow) And ((mStyleFlags And S_STYLE_NO_DROPSHADOW) = 0)
+    uDrawDropshadow = (gPrefs.use_dropshadow) And ((mStyleFlags And S_STYLE_NO_DROPSHADOW) = 0)
 
 End Function
 

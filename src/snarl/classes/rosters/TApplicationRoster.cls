@@ -321,7 +321,7 @@ Dim bShow As Boolean
 
     ' /* don't show if it's us or we're locked */
 
-'Debug.Print "(): " & g_Prefs.notify_on_first_register & " >> " & g_IgnoreLock
+'Debug.Print "(): " & gPrefs.notify_on_first_register & " >> " & g_IgnoreLock
 
     If (theApp.Name = App.Title) Or (g_IgnoreLock) > 0 Then
         bShow = False

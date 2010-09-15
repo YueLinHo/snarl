@@ -88,20 +88,20 @@ Dim i As Long
 
         mPage.Add new_BPrefsControl("label", "", "Shadow:")
 
-'        mPage.Add new_BPrefsControl("fancytoggle2", "ft>use_dropshadow", "Add dropshadow to notifications?", "", IIf(g_Prefs.use_dropshadow, "1", "0"), pm)
+'        mPage.Add new_BPrefsControl("fancytoggle2", "ft>use_dropshadow", "Add dropshadow to notifications?", "", IIf(gPrefs.use_dropshadow, "1", "0"), pm)
     
         Set pm = New CTempMsg
         pm.Add "min", 0&
         pm.Add "max", 100&
         pm.Add "freq", 10&
         pm.Add "suffix", "%"
-        mPage.Add new_BPrefsControl("fancyslider", "dropshadow_strength", "", "Strength:", g_ConfigGet("dropshadow_strength"), pm, g_Prefs.use_dropshadow)
+        mPage.Add new_BPrefsControl("fancyslider", "dropshadow_strength", "", "Strength:", g_ConfigGet("dropshadow_strength"), pm, gPrefs.use_dropshadow)
     
         Set pm = New CTempMsg
         pm.Add "min", 0&
         pm.Add "max", 20&
         pm.Add "freq", 2&
-        mPage.Add new_BPrefsControl("fancyslider", "dropshadow_size", "", "Size:", g_ConfigGet("dropshadow_size"), pm, g_Prefs.use_dropshadow)
+        mPage.Add new_BPrefsControl("fancyslider", "dropshadow_size", "", "Size:", g_ConfigGet("dropshadow_size"), pm, gPrefs.use_dropshadow)
 
 
 
@@ -166,14 +166,14 @@ Dim i As Long
         ' /* font smoothing */
 
 '        mPage.Add new_BPrefsControl("banner", "", "Font Smoothing")
-'        mPage.Add new_BPrefsControl("fancycycle", "font_smoothing", "MelonType#?0|None#?1|Antialiased#?2|ClearType#?3|Windows Default#?4", "Mode:", CStr(g_Prefs.font_smoothing + 1))
+'        mPage.Add new_BPrefsControl("fancycycle", "font_smoothing", "MelonType#?0|None#?1|Antialiased#?2|ClearType#?3|Windows Default#?4", "Mode:", CStr(gPrefs.font_smoothing + 1))
 '
 '        Set pm = New CTempMsg
 '        pm.Add "min", 1&
 '        pm.Add "max", 100&
 '        pm.Add "freq", 10&
 '        pm.Add "suffix", "%"
-'        mPage.Add new_BPrefsControl("fancyslider", "melontype_contrast", "", "Contrast:", CStr(g_Prefs.melontype_contrast), pm)
+'        mPage.Add new_BPrefsControl("fancyslider", "melontype_contrast", "", "Contrast:", CStr(gPrefs.melontype_contrast), pm)
 
 
 
@@ -181,7 +181,7 @@ Dim i As Long
 
 '        ' /* class defaults */
 '
-'        i = g_Prefs.default_duration
+'        i = gPrefs.default_duration
 '        i = i \ 5
 '        i = i * 5
 '
@@ -217,7 +217,7 @@ Dim i As Long
 '        pm.Add "label_size", 50&
 '        mPage.Add new_BPrefsControl("fancyslider", "default_duration", "", "Duration:", CStr(-1), pm)
 '
-'        mPage.Add new_BPrefsControl("fancycycle", "default_position", "Top Left#?0|Top Right#?1|Bottom Left#?2|Bottom Right#?3", "Position:", CStr(g_Prefs.default_position + 1))
+'        mPage.Add new_BPrefsControl("fancycycle", "default_position", "Top Left#?0|Top Right#?1|Bottom Left#?2|Bottom Right#?3", "Position:", CStr(gPrefs.default_position + 1))
 
 
     End Select
@@ -239,7 +239,7 @@ Dim i As Long
     ' /* notification settings */
 
     Case "font_smoothing"
-        g_Prefs.font_smoothing = Val(Control.GetValue()) - 1
+        gPrefs.font_smoothing = Val(Control.GetValue()) - 1
         If mPage.Find("melontype_contrast", pc) Then _
             pc.SetEnabled (Val(Value) = 1)
 
@@ -247,7 +247,7 @@ Dim i As Long
 
 
     Case "ft>use_dropshadow"
-        g_Prefs.use_dropshadow = (Val(Value) <> 0)
+        gPrefs.use_dropshadow = (Val(Value) <> 0)
         If mPage.Find("dropshadow_strength", pc) Then _
             pc.SetEnabled (Val(Value) <> 0)
 
@@ -399,7 +399,7 @@ End Sub
 '
 '    If gIconThemes Then
 '        For i = 1 To gIconThemes
-'            If LCase$(gIconTheme(i).Name) = LCase$(g_Prefs.icon_theme) Then _
+'            If LCase$(gIconTheme(i).Name) = LCase$(gPrefs.icon_theme) Then _
 '                n = i
 '
 '            sz = sz & gIconTheme(i).Name & "|"

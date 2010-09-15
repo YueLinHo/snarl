@@ -388,8 +388,15 @@ Dim lDur As E_NOTIFICATION_DURATION
     If Info.SndFile = "" Then _
         Info.SndFile = Me.DefaultSound
 
-    If Info.DefaultAck = "" Then _
+    ' /* R2.31d3: custom ack */
+
+    If Me.GetValue("use_custom_ack") = "1" Then
+        Info.DefaultAck = Me.GetValue("custom_ack")
+
+    ElseIf Info.DefaultAck = "" Then
         Info.DefaultAck = Me.DefaultAck
+
+    End If
 
     ' /* V40.25: custom priority */
 

@@ -38,7 +38,7 @@ Public Function Check(ByVal OverrideLastCheck As Boolean) As Boolean
 Dim n As Long
 
     If Not OverrideLastCheck Then
-        n = Abs(DateDiff("d", g_Prefs.last_update_check, Now))
+        n = Abs(DateDiff("d", gPrefs.last_update_check, Now))
         If n < 1 Then
             g_Debug "TAutoUpdate.Check(): last check was less than a day ago"
             Exit Function

@@ -660,7 +660,11 @@ Public Sub ShowDetails()
 Dim sz As String
 
     With mInfo
-        sz = "Version: " & CStr(.Version) & "." & CStr(.Revision) & "\nDate: " & .Date
+        ' /* R2.4 */
+        If (.Version <> 0) And (.Revision <> 0) Then _
+            sz = "Version: " & CStr(.Version) & "." & CStr(.Revision) & "\n"
+
+        sz = sz & "Date: " & .Date
 
         If .Author <> "" Then _
             sz = sz & "\nAuthor: " & .Author

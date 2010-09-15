@@ -322,8 +322,8 @@ Dim pc As BControl
 '            szScheme = szScheme & "/" & LCase$(mStyle.Scheme(dw))
 '
 '
-'        g_Prefs.default_style = szScheme
-'        g_Debug "TStylePage.ControlInvoked(): default style is now '" & g_Prefs.default_style & "'"
+'        gPrefs.default_style = szScheme
+'        g_Debug "TStylePage.ControlInvoked(): default style is now '" & gPrefs.default_style & "'"
 '        g_WriteConfig
 
 '    Case "restart_style_roster"

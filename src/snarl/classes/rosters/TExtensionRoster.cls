@@ -453,7 +453,9 @@ Dim i As Long
             End If
         End With
 
-        .Save
+        ' /* R2.31: only if not blocked */
+        If Not gSysAdmin.TreatSettingsAsReadOnly Then _
+            .Save
 
     End With
 
@@ -648,7 +650,10 @@ Dim sz As String
     If Not mVersions.FindEntry(LCase$(Extension.Class), sz) Then
         ' /* new */
         mVersions.Add LCase$(Extension.Class), szNewVer
-        mVersions.Save
+
+        ' /* R2.31: only if not blocked */
+        If Not gSysAdmin.TreatSettingsAsReadOnly Then _
+            mVersions.Save
 
         If CheckVersion Then _
             snShowMessage Extension.Name & " Installed", _
@@ -667,7 +672,10 @@ Dim sz As String
         End If
 
         mVersions.Update LCase$(Extension.Class), sz
-        mVersions.Save
+
+        ' /* R2.31: only if not blocked */
+        If Not gSysAdmin.TreatSettingsAsReadOnly Then _
+            mVersions.Save
 
     End If
 

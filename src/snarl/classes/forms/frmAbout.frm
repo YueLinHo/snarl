@@ -341,7 +341,7 @@ Dim n As Integer
 '        .AddItem .CreateItem("sticky", "Sticky Notifications")
 '        .AddSeparator
 '
-'        .AddItem .CreateItem("dnd", "Do Not Disturb", , , g_Prefs.do_not_disturb)
+'        .AddItem .CreateItem("dnd", "Do Not Disturb", , , gPrefs.do_not_disturb)
 '        .AddItem .CreateItem("missed", "Missed Notifications...")
 '
 '        .AddSeparator
@@ -560,8 +560,16 @@ Dim dw As Long
 
 End Function
 
-
 Private Sub uDoMainMenu()
+
+    ' /* R2.31: only if admin says so */
+
+    If gSysAdmin.InhibitMenu Then
+        g_Debug "frmAbout.uDoMainMenu(): blocked by admin", LEMON_LEVEL_WARNING
+        Exit Sub
+
+    End If
+
 Dim pi      As OMMenuItem
 Dim i       As Long
 Dim sz      As String
@@ -591,10 +599,10 @@ Dim update_config   As Boolean
             .AddItem .CreateItem("start", "Start Snarl")
 
         End If
-        
-        .AddItem .CreateItem("quit", "Quit Snarl")
+
+        .AddItem .CreateItem("quit", "Quit Snarl", , Not gSysAdmin.InhibitQuit)
         .AddSeparator
-        .AddItem .CreateItem("prefs", "Settings...")
+        .AddItem .CreateItem("prefs", "Settings...", , Not gSysAdmin.InhibitPrefs)
 '        .AddItem .CreateItem("app_mgr", "App Manager...")
         .AddItem .CreateItem("", "Snarl Apps", , , , , , g_AppRoster.SnarlAppsMenu())
         .AddSeparator
@@ -638,11 +646,11 @@ Dim update_config   As Boolean
             g_ConfigSet "sticky_snarls", IIf(g_ConfigGet("sticky_snarls") = "1", "0", "1")
 
         Case "dnd"
-            g_Prefs.UserDnD = Not g_Prefs.UserDnD
+            gPrefs.UserDnD = Not gPrefs.UserDnD
 
-            If g_Prefs.UserDnD Then
+            If gPrefs.UserDnD Then
                 If Not (g_NotificationRoster Is Nothing) Then _
-                    g_Prefs.MissedCountOnDnD = g_NotificationRoster.CountMissed
+                    gPrefs.MissedCountOnDnD = g_NotificationRoster.CountMissed
 
             Else
                 g_CheckMissed
@@ -680,6 +688,15 @@ Dim update_config   As Boolean
 End Sub
 
 Public Sub NewDoPrefs(Optional ByVal PageToSelect As Integer)
+
+    ' /* R2.31: only if admin says we can... */
+
+    If gSysAdmin.InhibitPrefs Then
+        g_Debug "frmAbout.NewDoPrefs(): access blocked by admin", LEMON_LEVEL_WARNING
+        MsgBox "Access to Snarl's preferences has been blocked by your system administrator.", vbInformation Or vbOKOnly, App.Title
+        Exit Sub
+
+    End If
 
     If (mPanel Is Nothing) Then
 
@@ -747,7 +764,7 @@ Dim i As Long
 Dim px As TStyle
 Dim j As Long
 
-'    Debug.Print g_Prefs.default_style
+'    Debug.Print gPrefs.default_style
 
     If Not (g_StyleRoster Is Nothing) Then
         i = g_StyleRoster.IndexOf(style_GetStyleName(g_ConfigGet("default_style")))
@@ -768,7 +785,7 @@ Dim j As Long
     End If
 
     If mPanel.Find("melontype_contrast", pc) Then _
-        pc.SetEnabled (g_Prefs.font_smoothing = E_MELONTYPE)
+        pc.SetEnabled (gPrefs.font_smoothing = E_MELONTYPE)
 
 End Sub
 
@@ -819,7 +836,7 @@ End Sub
 Private Sub uAddTrayIcon()
 Dim hIcon As Long
 
-    If (mTrayIcon Is Nothing) Or (g_ConfigGet("show_tray_icon") = "0") Then _
+    If (mTrayIcon Is Nothing) Or (g_ConfigGet("show_tray_icon") = "0") Or (gSysAdmin.HideIcon) Then _
         Exit Sub
 
     hIcon = LoadImage(App.hInstance, 1&, IMAGE_ICON, 16, 16, 0)
@@ -1045,7 +1062,7 @@ End Sub
 '        Exit Sub
 '
 '    lii.dwTime = GetTickCount() - lii.dwTime
-''    g_Debug "_theIdleTimer.Pulse(): idle time is now " & CStr(lii.dwTime) & " needs to be " & CStr(g_Prefs.idle_timeout * 1000)
+''    g_Debug "_theIdleTimer.Pulse(): idle time is now " & CStr(lii.dwTime) & " needs to be " & CStr(gPrefs.idle_timeout * 1000)
 '
 'Static b As Boolean
 '

@@ -436,7 +436,7 @@ Private Function uManageSnarl(ByVal wParam As Long, ByVal lParam As Long) As Lon
 
         End If
 
-'        snShowMessage "DND mode changed", CStr(g_Prefs.do_not_disturb)
+'        snShowMessage "DND mode changed", CStr(gPrefs.do_not_disturb)
 
 
     Case Else

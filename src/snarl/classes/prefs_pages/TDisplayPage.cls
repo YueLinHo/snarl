@@ -59,7 +59,7 @@ Dim pdsp As TDisplaySubPage
 '    pm.Add "max", 100&
 '    pm.Add "freq", 10&
 '    pm.Add "suffix", "%"
-'    mPage.Add new_BPrefsControl("fancyslider", "global_opacity", "", "Opacity:", CStr(g_Prefs.global_opacity), pm)
+'    mPage.Add new_BPrefsControl("fancyslider", "global_opacity", "", "Opacity:", CStr(gPrefs.global_opacity), pm)
 '
 '    ' /* spacing */
 '
@@ -67,17 +67,17 @@ Dim pdsp As TDisplaySubPage
 '    pm.Add "min", -20&
 '    pm.Add "max", 20&
 '    pm.Add "freq", 5&
-'    mPage.Add new_BPrefsControl("fancyslider", "margin_spacing", "", "Spacing:", CStr(g_Prefs.margin_spacing), pm)
+'    mPage.Add new_BPrefsControl("fancyslider", "margin_spacing", "", "Spacing:", CStr(gPrefs.margin_spacing), pm)
 '
 '    ' /* dropshadow */
 '
-'    mPage.Add new_BPrefsControl("fancytoggle2", "ft>use_dropshadow", "Add dropshadow to notifications?", "", IIf(g_Prefs.use_dropshadow, "1", "0"), pm)
+'    mPage.Add new_BPrefsControl("fancytoggle2", "ft>use_dropshadow", "Add dropshadow to notifications?", "", IIf(gPrefs.use_dropshadow, "1", "0"), pm)
 '
 '    Set pm = New CTempMsg
 '    pm.Add "min", 1&
 '    pm.Add "max", 8&
 '    pm.Add "freq", 1&
-'    mPage.Add new_BPrefsControl("fancyslider", "dropshadow_strength", "", "Shadow Strength:", CStr(g_Prefs.dropshadow_strength), pm)
+'    mPage.Add new_BPrefsControl("fancyslider", "dropshadow_strength", "", "Shadow Strength:", CStr(gPrefs.dropshadow_strength), pm)
 '
 '    ' /* icon theme */
 '
@@ -89,14 +89,14 @@ Dim pdsp As TDisplaySubPage
 '    ' /* font smoothing */
 '
 '    mPage.Add new_BPrefsControl("banner", "", "Font Smoothing")
-'    mPage.Add new_BPrefsControl("fancycycle", "font_smoothing", "MelonType#?0|None#?1|Antialiased#?2|ClearType#?3|Windows Default#?4", "Mode:", CStr(g_Prefs.font_smoothing + 1))
+'    mPage.Add new_BPrefsControl("fancycycle", "font_smoothing", "MelonType#?0|None#?1|Antialiased#?2|ClearType#?3|Windows Default#?4", "Mode:", CStr(gPrefs.font_smoothing + 1))
 '
 '    Set pm = New CTempMsg
 '    pm.Add "min", 1&
 '    pm.Add "max", 100&
 '    pm.Add "freq", 10&
 '    pm.Add "suffix", "%"
-'    mPage.Add new_BPrefsControl("fancyslider", "melontype_contrast", "", "Contrast:", CStr(g_Prefs.melontype_contrast), pm)
+'    mPage.Add new_BPrefsControl("fancyslider", "melontype_contrast", "", "Contrast:", CStr(gPrefs.melontype_contrast), pm)
 '
 '
 '    ' /* class defaults */
@@ -122,45 +122,45 @@ Private Sub KPrefsPage_ControlChanged(Control As BControl, ByVal Value As String
 '    Select Case Control.GetName()
 '
 ''    Case "default_position"
-''        g_Prefs.default_position = Val(Control.GetValue()) - 1
+''        gPrefs.default_position = Val(Control.GetValue()) - 1
 '
 '    Case "font_smoothing"
-'        g_Prefs.font_smoothing = Val(Control.GetValue()) - 1
+'        gPrefs.font_smoothing = Val(Control.GetValue()) - 1
 '        If mPage.Find("melontype_contrast", pc) Then _
 '            pc.SetEnabled (Val(Value) = 1)
 '
 '        fUpdate = True
 '
 '    Case "melontype_contrast"
-'        g_Prefs.melontype_contrast = Val(Control.GetValue())
+'        gPrefs.melontype_contrast = Val(Control.GetValue())
 '        fUpdate = True
 '
 '    Case "global_opacity"
-'        g_Prefs.global_opacity = Val(Value)
+'        gPrefs.global_opacity = Val(Value)
 '        fUpdate = True
 '
 '    Case "margin_spacing"
-'        g_Prefs.margin_spacing = Val(Value)
+'        gPrefs.margin_spacing = Val(Value)
 '        fUpdate = True
 '
 '    Case "ft>use_dropshadow"
-'        g_Prefs.use_dropshadow = (Val(Value) <> 0)
+'        gPrefs.use_dropshadow = (Val(Value) <> 0)
 '        If mPage.Find("dropshadow_strength", pc) Then _
 '            pc.SetEnabled (Val(Value) <> 0)
 '
 '        fUpdate = True
 '
 '    Case "dropshadow_strength"
-'        g_Prefs.dropshadow_strength = Val(Value)
+'        gPrefs.dropshadow_strength = Val(Value)
 '        fUpdate = True
 '
 '    Case "c>icon_theme"
 '        i = Val(Value)
 '        If i = 1 Then
-'            g_Prefs.icon_theme = ""
+'            gPrefs.icon_theme = ""
 '
 '        Else
-'            g_Prefs.icon_theme = gIconTheme(i - 1).Name
+'            gPrefs.icon_theme = gIconTheme(i - 1).Name
 '
 '        End If
 '        fUpdate = True
@@ -235,7 +235,7 @@ End Sub
 '
 '    If gIconThemes Then
 '        For i = 1 To gIconThemes
-'            If LCase$(gIconTheme(i).Name) = LCase$(g_Prefs.icon_theme) Then _
+'            If LCase$(gIconTheme(i).Name) = LCase$(gPrefs.icon_theme) Then _
 '                n = i
 '
 '            sz = sz & gIconTheme(i).Name & "|"

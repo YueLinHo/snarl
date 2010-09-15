@@ -67,7 +67,7 @@ Dim pm As CTempMsg
 
 '        .Add new_BPrefsSeparator
 '        .Add new_BPrefsControl("banner", "", "Snarl Update")
-'        .Add new_BPrefsControl("label", "lbl_updates", Format$(g_Prefs.last_update_check, "long date"), "Last Checked:")
+'        .Add new_BPrefsControl("label", "lbl_updates", Format$(gPrefs.last_update_check, "long date"), "Last Checked:")
 '        .Add new_BPrefsControl("fancybutton2", "check_update", "Check now", , , , uHasXML())
 
         

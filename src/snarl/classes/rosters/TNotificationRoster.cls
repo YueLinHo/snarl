@@ -44,7 +44,8 @@ Dim mItems As Long
 Dim mToken As Long
 Dim mRefs As Long
 
-Dim mMissed() As G_NOTIFICATION_CONTENT
+'Dim mMissed() As G_NOTIFICATION_CONTENT
+Dim mMissed() As T_NOTIFICATION_INFO
 Dim mMissedCount As Long
 
 Dim mMissedPanel As TMissedNotificationsPanel
@@ -238,6 +239,11 @@ Friend Function Add(ByRef Class As TAlert, ByRef Info As T_NOTIFICATION_INFO) As
 
     gSetLastError SNARL41_SUCCESS
 
+    ' /* R2.31 - copy these across from the class object */
+
+    Info.Sender = Class.App.Name
+    Info.Class = Class.Description
+
     ' /* R2.3: convert \n's into CR/LFs */
 
     Info.Title = Replace$(Info.Title, "\n", vbCrLf)
@@ -311,17 +317,23 @@ Dim pIcon As mfxBitmap
     If (g_IsDNDModeEnabled()) And (Info.Priority < 1) Then
         mMissedCount = mMissedCount + 1
         ReDim Preserve mMissed(mMissedCount)
-        With mMissed(mMissedCount)
-            .Title = Info.Title
-            .Text = Info.Text
-            Set .Icon = style_MakeSquareImage(load_image_obj(uTranslateIconPath(Info.IconPath, "")))
-            .Timeout = Info.Timeout
-            .Ack = Info.DefaultAck
-            .Timestamp = Now()
-            .Sender = Class.App.Name
-            .Class = Class.Description
+        LSet mMissed(mMissedCount) = Info
+        Set mMissed(mMissedCount).Icon = style_MakeSquareImage(load_image_obj(uTranslateIconPath(Info.IconPath, "")))
 
-        End With
+'        With mMissed(mMissedCount)
+'            .Title = Info.Title
+'            .Text = Info.Text
+'            Set .Icon = style_MakeSquareImage(load_image_obj(uTranslateIconPath(Info.IconPath, "")))
+'            .Timeout = Info.Timeout
+'            .Ack = Info.DefaultAck
+'            .Timestamp = Now()
+'            .Sender = Class.App.Name
+'            .Class = Class.Description
+'            ' /* R2.3 */
+'            .hWndReply = Info.hWndReply
+'            .uMsgReply = Info.uReplyMsg
+'
+'        End With
 
         If Not (mMissedPanel Is Nothing) Then _
             mMissedPanel.UpdateList
@@ -920,7 +932,17 @@ Public Function CountMissed() As Long
 
 End Function
 
-Friend Function MissedAt(ByVal Index As Long, ByRef Info As G_NOTIFICATION_CONTENT) As Boolean
+'Friend Function MissedAt(ByVal Index As Long, ByRef Info As G_NOTIFICATION_CONTENT) As Boolean
+'
+'    If (Index > 0) And (Index <= mMissedCount) Then
+'        LSet Info = mMissed(Index)
+'        MissedAt = True
+'
+'    End If
+'
+'End Function
+
+Friend Function MissedAt(ByVal Index As Long, ByRef Info As T_NOTIFICATION_INFO) As Boolean
 
     If (Index > 0) And (Index <= mMissedCount) Then
         LSet Info = mMissed(Index)

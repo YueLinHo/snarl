@@ -62,22 +62,16 @@ Dim f As Boolean
 
     Set mSettings = New ConfigFile
     With mSettings
-        If g_GetUserFolderPath(sz) Then
-            ' /* TO DO: we should probably check the resulting path for validity here */
-            .File = g_MakePath(sz) & "etc\" & g_MakeFilename(Info.Signature) & ".class"
-            .Load
-
-        Else
-            g_Debug "couldn't find Snarl user folder - settings will not be saved", LEMON_LEVEL_WARNING
-
-        End If
+        ' /* R2.31: we know that SnarlConfigPath is valid */
+        .File = gPrefs.SnarlConfigPath & "etc\" & g_MakeFilename(Info.Signature) & ".class"
+        .Load
 
         ' /* V40.25: must have a "_cfg" section */
 
         i = .FindSection("_cfg")
         If i = 0 Then
             Set mAppConfig = .AddSectionObj("_cfg")
-            .Save
+            uWriteSettings
 
         Else
             Set mAppConfig = .SectionAt(i)
@@ -90,7 +84,7 @@ Dim f As Boolean
 
         If IsNew Then
             .AddSection "_all"
-            .Save
+            uWriteSettings
 
         End If
 
@@ -132,7 +126,7 @@ Dim i As Long
         If i = 0 Then
             g_Debug "no config for '" & Class & "', creating section now..."
             Set pClassSettings = .AddSectionObj(Class)
-            .Save
+            uWriteSettings
 
         Else
             g_Debug "got settings for '" & Class & "'"
@@ -197,23 +191,7 @@ End Function
 
 Public Sub WriteConfig()
 
-'    Debug.Print mSettings.File
-
-    If Not (mSettings Is Nothing) Then _
-        mSettings.Save
-
-'Dim i As Long
-'
-'    If Not (mConfig Is Nothing) Then _
-'        mConfig.Update "_use_same_settings_for_all_classes", IIf(mInfo.UseSameSettingsForAllClasses, "1", "0")
-'
-'    If mAlerts Then
-'        For i = 1 To mAlerts
-'            mAlert(i).UpdateConfig
-'
-'        Next i
-'
-'    End If
+    uWriteSettings
 
 End Sub
 
@@ -278,7 +256,7 @@ Public Sub SetUseSameSettingsForAllClasses(ByVal Enabled As Boolean)
     If Not (mAppConfig Is Nothing) Then
         mAppConfig.Update "use_same_settings_for_all_classes", IIf(Enabled, "1", "0")
         If Not (mSettings Is Nothing) Then _
-            mSettings.Save
+            uWriteSettings
 
     End If
 
@@ -563,3 +541,18 @@ Dim i As Long
     Next i
 
 End Function
+
+Private Sub uWriteSettings()
+
+    If (mSettings Is Nothing) Then _
+        Exit Sub
+
+    If gSysAdmin.TreatSettingsAsReadOnly Then
+        g_Debug "TApp.uWriteSettings(): blocked by admin setting"
+
+    Else
+        mSettings.Save
+
+    End If
+
+End Sub

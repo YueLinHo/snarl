@@ -37,7 +37,7 @@ Dim pm As CTempMsg
         pm.Add "text", "Start at login?"
         pm.Add "align", 1
         pm.Add "inset_by", 0
-        .Add new_BPrefsControl("fullphat/fancytoggle", "run_on_logon", , "", IIf(g_Prefs.run_on_logon, "1", "0"), pm)
+        .Add new_BPrefsControl("fullphat/fancytoggle", "run_on_logon", , "", g_ConfigGet("run_on_logon"), pm)
         .Add new_BPrefsControl("fancybutton2", "start", "Stop Snarl", "")
         .Add new_BPrefsControl("label", "lbl_running", "Snarl is running", "")
 '        .Add new_BPrefsControl("separator", "")
@@ -71,9 +71,9 @@ Dim pm As CTempMsg
 ''
 ''        .Add new_BPrefsControl("banner", "", "Hotkeys")
 ''
-''        .Add new_BPrefsControl("fancytoggle2", "use_hotkey", "Use a hotkey to activate Snarl's Preferences?", "", IIf(g_Prefs.use_hotkey, "1", "0"), pm)
+''        .Add new_BPrefsControl("fancytoggle2", "use_hotkey", "Use a hotkey to activate Snarl's Preferences?", "", IIf(gPrefs.use_hotkey, "1", "0"), pm)
 ''
-''        .Add new_BPrefsControl("key_picker", "hotkey_prefs", , , CStr(MOD_CONTROL) & "," & CStr(g_Prefs.hotkey_prefs), , g_Prefs.use_hotkey)
+''        .Add new_BPrefsControl("key_picker", "hotkey_prefs", , , CStr(MOD_CONTROL) & "," & CStr(gPrefs.hotkey_prefs), , gPrefs.use_hotkey)
 ''        .Add new_BPrefsControl("label", "", "Press the key you want to use in the box the above.  Note that while you can select the key which activates Snarl, the modifiers (the combination of SHIFT and CTRL keys) used are automatically set.                            ")
 
 
@@ -98,17 +98,17 @@ End Sub
 
 Private Sub KPrefsPage_ControlChanged(Control As BControl, ByVal Value As String)
 Dim pc As BControl
-'Dim dw As Long
 
     Debug.Print "[" & mPage.GetName() & "]: ControlChanged '" & Control.GetName() & "' >> '" & Value & "'"
 
     Select Case Control.GetName()
-    Case "run_on_logon"
-        g_Prefs.run_on_logon = CBool(Value)
 
-
-    Case "auto_sticky_on_screensaver", "notify_on_first_register", "auto_update", "sticky_snarls", "log_only", "show_msg_on_start"
+    Case "auto_sticky_on_screensaver", "notify_on_first_register", "auto_update", "sticky_snarls", "log_only", "show_msg_on_start", "run_on_logon"
         g_ConfigSet Control.GetName, Value
+        
+        If Control.GetName = "run_on_logon" Then _
+            g_SetAutoRun2
+
         Exit Sub
 
 

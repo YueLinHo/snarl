@@ -56,17 +56,20 @@ Dim sz As String
     ' /* update values */
 
     Select Case Control.GetName
-    Case "show_on_screen", "use_style", "custom_timeout", "use_custom_icon", "custom_icon", "use_custom_sound", "custom_sound", "ignore_input"
+    Case "show_on_screen", "use_style", "custom_timeout", "use_custom_icon", "custom_icon", _
+         "use_custom_sound", "custom_sound", "ignore_input", "use_custom_ack", "custom_ack"
+
         gSelectedClass.SetValue Control.GetName, Value
 
         Debug.Print Control.GetName
 
-        If Control.GetName = "custom_timeout" Then _
+        If Control.GetName = "custom_timeout" Then
             Control.SetText IIf(Value = "0", "Sticky", Value & " second" & IIf(Value = "1", "", "s"))
 
-        If (Control.GetName = "use_style") And (Value = "1") Then _
+        ElseIf (Control.GetName = "use_style") And (Value = "1") Then
             gSelectedClass.SetStyleAndScheme uSelectedItem("style_name"), uSelectedItem("scheme_name")
 
+        End If
 
     Case "duration", "position", "duplicates"
         gSelectedClass.SetValue Control.GetName, CStr(Val(Value) - 1)
@@ -260,8 +263,12 @@ Dim pm As CTempMsg
             .Add new_BPrefsControl("fancycycle", "priority", "App Decides|Low|Normal|High", "Priority:")
 
             ' /* R2.3: custom sound */
-            .Add new_BPrefsControl("fancytoggle2", "use_custom_sound", "Play custom sound?", "Sound:")
-            .Add new_BPrefsControl("fancyfilepicker", "custom_sound", , , "")
+            .Add new_BPrefsControl("fancytoggle2", "use_custom_sound", "Play custom sound?", "")
+            .Add new_BPrefsControl("fancyfilepicker", "custom_sound", , "Sound:")
+
+            ' /* R2.31: custom ack */
+            .Add new_BPrefsControl("fancytoggle2", "use_custom_ack", "Custom acknowledge?", "")
+            .Add new_BPrefsControl("fancyedit", "custom_ack", , "File:")
 
             ' /* duplicates */
             .Add new_BPrefsControl("fancycycle", "duplicates", "Allow|Block|Delay", "Flooding:")
@@ -598,6 +605,11 @@ Dim j As Long
         uSafeSetValue "use_custom_sound", .GetValue("use_custom_sound")
         uSafeSetText "custom_sound", .GetValue("custom_sound")
 
+        ' /* R2.31d3 */
+
+        uSafeSetValue "use_custom_ack", .GetValue("use_custom_ack")
+        uSafeSetText "custom_ack", .GetValue("custom_ack")
+
         ' /* forwarding */
 
 Dim pc As BControl
@@ -685,6 +697,18 @@ Dim b As Boolean
         End If
 
         uSafeEnable "custom_sound", b2
+
+        ' /* custom ack */
+
+        uSafeEnable "use_custom_ack", b
+        b2 = b
+        If b2 Then
+            If mPanel.Find("use_custom_ack", pc) Then _
+                b2 = (pc.GetValue = "1")
+
+        End If
+
+        uSafeEnable "custom_ack", b2
 
     End If
 

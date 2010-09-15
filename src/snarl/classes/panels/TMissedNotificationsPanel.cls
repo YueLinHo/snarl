@@ -15,7 +15,8 @@ Option Explicit
 
 Dim mPanel As BPrefsPanel
 
-Dim mSelected As G_NOTIFICATION_CONTENT
+'Dim mSelected As G_NOTIFICATION_CONTENT
+Dim mSelected As T_NOTIFICATION_INFO
 Dim mSelIndex As Long
 
 Implements KPrefsPanel
@@ -37,7 +38,7 @@ Dim pc As BControl
 
         prefskit_SafeSetText mPanel, "the_title", Replace$(mSelected.Title, vbCrLf, " \n ")
         prefskit_SafeSetText mPanel, "the_text", Replace$(mSelected.Text, vbCrLf, " \n ")
-        prefskit_SafeEnable mPanel, "fb>ack", (mSelected.Ack <> "")
+        prefskit_SafeEnable mPanel, "fb>ack", (mSelected.DefaultAck <> "")
 
 '        prefskit_SafeSetText mPanel, "sending_app", "Sent from " & mSelected.Sender & " using class '" & mSelected.Class & "'"
 '        prefskit_SafeSetText mPanel, "sending_class", mSelected.Class
@@ -59,6 +60,25 @@ Dim pc As BControl
             prefskit_SafeSetText mPanel, "the_text", ""
             prefskit_SafeSetText mPanel, "sending_app", ""
 
+        End If
+
+
+    Case "fb>ack"
+        If mSelected.DefaultAck <> "" Then
+            g_ProcessAck mSelected.DefaultAck
+
+        ElseIf IsWindow(mSelected.hWndReply) <> 0 Then
+            If mSelected.uReplyMsg <> 0 Then
+                PostMessage mSelected.hWndReply, mSelected.uReplyMsg, SNARL_NOTIFICATION_ACK, ByVal mSelected.Token
+
+            Else
+                Debug.Print "TMissedNotificationsPanel.fb>ack(): bad reply message"
+
+            End If
+
+        Else
+            Debug.Print "TMissedNotificationsPanel.fb>ack(): no ack or reply window"
+        
         End If
 
     End Select
@@ -170,7 +190,7 @@ Dim pc As BControl
     If Not mPanel.Find("lb>missed", pc) Then _
         Exit Sub
 
-Dim pInfo As G_NOTIFICATION_CONTENT
+Dim pInfo As T_NOTIFICATION_INFO
 Dim pm As CTempMsg
 Dim sz As String
 Dim i As Long
@@ -188,7 +208,7 @@ Dim n As Long
 
             For i = 1 To .CountMissed
                 .MissedAt i, pInfo
-                sz = sz & g_FormattedMidStr(Replace$(pInfo.Title, "|", ":"), 54) & "#?0#?" & "From " & pInfo.Sender & " (" & pInfo.Class & ") at " & Format$(pInfo.Timestamp, "hh:mm:ss") & "|"
+                sz = sz & g_FormattedMidStr(Replace$(pInfo.Title, "|", ":"), 54) & "#?0#?" & "From " & pInfo.Sender & " (" & pInfo.Class & ") at " & Format$(pInfo.DateStamp, "hh:mm:ss") & "|"
 
             Next i
 
