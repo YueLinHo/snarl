@@ -78,55 +78,16 @@ Dim i As Integer
     pt.SetTo Now()
 
     If Config.format_type = 1 Then
-
-        ' /* format is either:
-        '       hh o'clock
-        '       mm minute(s) past hh o'clock
-        '       mm minute(s) to hh o'clock
-        '       quarter past/half past/quarter to hh o'clock
-        ' */
-
-        If Config.use_12_hour_clock Then
-            Select Case pt.Minutes()
-            Case 0
-                ' /* on the hour */
-                txt = LCase$(pt.HourText(False)) & " o'clock"
-
-            Case 15
-                txt = "quarter past " & LCase$(pt.HourText(False))
-
-            Case 30
-                txt = "half past " & LCase$(pt.HourText(False))
-            
-            Case 45
-                txt = "quarter to " & LCase$(pt.NumberToText(pt.Hour12 + 1))
-
-            Case Is > 30
-                txt = LCase$(pt.NumberToText(60 - pt.Minutes())) & " minute" & IIf(pt.Minutes = 59, "", "s") & " to " & LCase$(pt.NumberToText(pt.Hour12 + 1)) & " o'clock"
-
-            Case Else
-                txt = LCase$(pt.MinuteText()) & " minute" & IIf(pt.Minutes = 1, "", "s") & " past " & LCase$(pt.HourText(False)) & " o'clock"
-            
-            End Select
-
-        Else
-            txt = pt.HourText(True) & " " & pt.MinuteText()
-
-            If Config.show_seconds Then _
-                txt = txt & " and " & pt.SecondsText & " second" & IIf(pt.Seconds = 1, "", "s")
-
-            txt = LCase$(txt)
-
-        End If
+        ' /* as text */
+        txt = LCase$(pt.AsText(Not Config.use_12_hour_clock, Config.show_seconds))
 
     ElseIf Config.format_type = 2 Then
-        ' /* YYYYMMDDHHMMSS */
+        ' /* special "YYYYMMDDHHMMSS" format */
         txt = Format$(pt.Year, "0000") & Format$(pt.Month, "00") & Format$(pt.Day, "00") & _
               Format$(pt.Hour, "00") & Format$(pt.Minutes, "00") & IIf(HoursOnly, "XX", Format$(pt.Seconds, "00"))
 
     Else
         ' /* numerically */
-
         If Config.use_12_hour_clock Then
             i = pt.Hour12
 

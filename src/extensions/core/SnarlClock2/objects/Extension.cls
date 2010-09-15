@@ -30,8 +30,8 @@ Option Explicit
     ' /* our constants */
 
 Const EXT_NAME = "Clock+"
-Const EXT_DATE = "15-Jun-2010"
-Const EXT_REL = "2.0 RC"
+Const EXT_DATE = "15-Sep-2010"
+Const EXT_REL = "2.02"
 
 Const CLASS_HOUR_CHIME = "hrch"
 Const CLASS_COUNTDOWN_COMPLETE = "ccom"
@@ -418,7 +418,8 @@ Static dTemp As Date
                                 CLASS_HOUR_CHIME, _
                                 "Hourly reminder", _
                                 IIf(gConfig.format_type = 2, "", "It's now ") & g_GetTimeString(gConfig, True), _
-                                -1)
+                                -1, _
+                                g_MakePath(App.Path) & "hourly.png")
 
         mLastHour = Hour(Now)
 
@@ -733,9 +734,9 @@ Static i As Long
 
         Case Is < 10
             If gConfig.timer_10sec_warning Then _
-                sn41Update mTimerId, _
-                           CStr(Second(mTimer)) & " second" & IIf(Second(mTimer) = 1, "", "s") & " to go", _
-                           IIf(gConfig.show_meter, CStr(Second(mTimer) * 10), "")
+                sn41EZUpdate mTimerId, _
+                             CStr(Second(mTimer)) & " second" & IIf(Second(mTimer) = 1, "", "s") & " to go", _
+                             IIf(gConfig.show_meter, CStr(Second(mTimer) * 10), "")
 
         End Select
 
@@ -743,31 +744,35 @@ Static i As Long
 
 Static pc As BControl
 
-    ' /* update the panel controls */
+    If Not (mPanel Is Nothing) Then
+
+        ' /* update the panel controls */
 
 '    g_Debug "uUpdateTimerControls(): " & CStr(mTimer)
-    If (Hour(mTimer) = 0) And (Minute(mTimer) = 0) And (Second(mTimer) = 0) Then
-        ' /* countdown completed: update toggle */
-        If mPanel.Find("start_stop_timer", pc) Then
-            pc.SetValue "0"
-            pc.SetEnabled False
+        If (Hour(mTimer) = 0) And (Minute(mTimer) = 0) And (Second(mTimer) = 0) Then
+            ' /* countdown completed: update toggle */
+            If mPanel.Find("start_stop_timer", pc) Then
+                pc.SetValue "0"
+                pc.SetEnabled False
 
+            End If
         End If
+
+        ' /* update minute slider */
+
+        If mPanel.Find("timer_mins", pc) Then _
+            pc.SetValue CStr(Minute(mTimer))
+
+        ' /* update hours slider */
+
+        If mPanel.Find("timer_hours", pc) Then _
+            pc.SetValue CStr(Hour(mTimer))
+
+        ' /* label */
+
+        If mPanel.Find("timer_current", pc) Then _
+            pc.SetText Format$(mTimer, "hh:mm:ss")
+
     End If
-
-    ' /* update minute slider */
-
-    If mPanel.Find("timer_mins", pc) Then _
-        pc.SetValue CStr(Minute(mTimer))
-
-    ' /* update hours slider */
-
-    If mPanel.Find("timer_hours", pc) Then _
-        pc.SetValue CStr(Hour(mTimer))
-
-    ' /* label */
-
-    If mPanel.Find("timer_current", pc) Then _
-        pc.SetText Format$(mTimer, "hh:mm:ss")
 
 End Sub

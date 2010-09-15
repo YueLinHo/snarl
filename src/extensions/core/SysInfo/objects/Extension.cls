@@ -50,8 +50,8 @@ Option Explicit
     '
     ' */
 
-Private Const LIB_DATE = "12-Aug-2010"
-Private Const LIB_RELEASE = "1.02"
+Private Const LIB_DATE = "13-Sep-2010"
+Private Const LIB_RELEASE = "1.1"
 Private Const EXT_NAME = "SysInfo"
 Private Const EXT_COMMENT = "Notifies about various system-wide events"
 
@@ -81,7 +81,6 @@ Private Type T_SETTINGS
 
 End Type
 
-Dim mVolRoster As TVolumeRoster
 Dim mVolsDone As BTagList
 
 Dim mSettings As T_SETTINGS
@@ -110,7 +109,7 @@ Dim WithEvents theNetRoster As TNetRoster
 Attribute theNetRoster.VB_VarHelpID = -1
 Dim WithEvents theDUNRoster As TDUNRoster
 Attribute theDUNRoster.VB_VarHelpID = -1
-Dim WithEvents theVolRoster As TVolumeRoster
+Dim WithEvents theVolRoster As TSimpleVolRoster
 Attribute theVolRoster.VB_VarHelpID = -1
 
 'Implements MVersionInfo             ' // optional: allows the SDOS version command to query the object
@@ -144,7 +143,7 @@ Private Function ISnarlExtension_Initialize() As Long
 
     On Error Resume Next
 
-    l3OpenLog "%APPDATA%\" & EXT_NAME & ".log"
+    l3OpenLog "%APPDATA%\" & EXT_NAME & ".log", True
     g_Debug "pwd: " & g_MakePath(App.Path)
 
     If sn41GetVersion = 0 Then
@@ -214,9 +213,9 @@ Dim i As Integer
 
     End With
 
-    Set mVolRoster = New TVolumeRoster
-'    mVolRoster.ExcludeFloppies = True
-    Set mVolsDone = new_BTagList()
+'    Set mVolRoster = New TSimpleVolRoster
+''    mVolRoster.ExcludeFloppies = True
+'    Set mVolsDone = new_BTagList()
 
     Set mAdapterList = new_BTagList()
 
@@ -239,7 +238,7 @@ Dim i As Integer
 
     End With
 
-    Set theVolRoster = New TVolumeRoster
+    Set theVolRoster = New TSimpleVolRoster
     With theVolRoster
         .LockRoster
         .Refresh
@@ -359,6 +358,8 @@ Private Sub theNICTimer_Pulse()
     theDUNRoster.Refresh
     theVolRoster.Refresh
 
+    uCheckDiskSpace
+
 End Sub
 
 Private Sub theTimer_Pulse()
@@ -411,35 +412,49 @@ Dim l As Long
 '    n = uGetAvgCPU()
 '    l = sn41EZNotify(mSettings.Token, CLASS_HIGH_CPU, "High processor utilisation", CStr(n) & " / " & CStr(processor_count), , "!system-info")
 
-    ' /* Disk */
 
+End Sub
+
+Private Sub uCheckDiskSpace()
 Const DISK_LIMIT = 90
-Dim pDisk As CVolume
+Dim szPath As String
+Dim szLabel As String
+Dim lType As Long
+Dim l As Long
 
-'    With mVolRoster
-'        .Refresh False, False
-'        .Rewind
-'
-'        Do While .GetNextVolume(pDisk)
+Dim pv As CVolume
+
+    With theVolRoster
+        .Rewind
+
+        Do While .GetNextVolume(szPath, szLabel, lType)
 '            With pDisk
-'                If (.VolumeType And &HF) = DRIVE_FIXED Then
-'                    If (mVolsDone.IndexOf(.Path) = 0) And (.PercentUsed >= DISK_LIMIT) Then
-'                        l = sn41EZNotify(mSettings.Token, CLASS_LOW_DISK, "The " & g_SafeLeftStr(.Path, 2) & " drive is nearly full", _
-'                                         g_FileSizeToStringEx2(.Available) & " of " & g_FileSizeToStringEx2(.Capacity) & " remaining", , "!system-info")
-'
-'                        mVolsDone.Add new_BTagItem(.Path, "")
-'
-'                    ElseIf mVolsDone.IndexOf(.Path) Then
-'                        ' /* have we dropped below the limit? */
-'                        If .PercentUsed < DISK_LIMIT Then _
-'                            mVolsDone.Remove mVolsDone.IndexOf(.Path)
-'
-'                    End If
-'                End If
-'            End With
-'        Loop
-'
-'    End With
+
+            If (lType = DRIVE_FIXED) Or (lType = DRIVE_REMOVABLE) Then
+                Set pv = New CVolume
+                If pv.SetTo(szPath) Then
+                    If (mVolsDone.IndexOf(szPath) = 0) And (pv.PercentUsed >= DISK_LIMIT) Then
+
+                        l = sn41EZNotify(mSettings.Token, CLASS_LOW_DISK, uLabel(szLabel, szPath) & " is nearly full", _
+                                         g_FileSizeToStringEx2(pv.Available) & " of " & g_FileSizeToStringEx2(pv.Capacity) & " remaining", , "!system-info")
+
+                        mVolsDone.Add new_BTagItem(szPath, "")
+
+                    ElseIf mVolsDone.IndexOf(szPath) Then
+                        ' /* have we dropped below the limit? */
+                        If pv.PercentUsed < DISK_LIMIT Then _
+                            mVolsDone.Remove mVolsDone.IndexOf(szPath)
+
+                    End If
+                
+                Else
+                    g_Debug "Extension.uCheckDiskSpace(): can't create CVolume for '" & szPath & "'", LEMON_LEVEL_CRITICAL
+
+                End If
+            End If
+        Loop
+
+    End With
 
 End Sub
 
@@ -497,20 +512,30 @@ End Function
 '
 'End Function
 
-Private Sub theVolRoster_VolumeMounted(Volume As CVolume)
+Private Sub theVolRoster_VolumeMounted(ByVal Path As String, ByVal Label As String, ByVal VolType As Long)
 Dim i As Long
 
     i = sn41EZNotify(mSettings.Token, CLASS_VOL_MNT, _
                      "Voume mounted", _
-                     IIf(Volume.Label = "", "<untitled>", Volume.Label) & " (" & Volume.Path & ")", , "!vol-mounted", , Volume.Path)
+                     uLabel(Label, Path), , "!vol-mounted", , Path)
 
 End Sub
 
-Private Sub theVolRoster_VoulmeUnmounted(Volume As CVolume)
+Private Sub theVolRoster_VolumeUnmounted(ByVal Path As String, ByVal Label As String, ByVal VolType As Long)
 Dim i As Long
 
     i = sn41EZNotify(mSettings.Token, CLASS_VOL_UMNT, _
                      "Volume unmounted", _
-                     IIf(Volume.Label = "", "<untitled>", Volume.Label) & " (" & Volume.Path & ")", , "!vol-unmounted")
+                     uLabel(Label, Path), , "!vol-unmounted")
 
 End Sub
+
+Private Function uLabel(ByVal Label As String, Optional ByVal Path As String, Optional ByVal AddPath As Boolean = True) As String
+
+    uLabel = IIf(Label = "", "<untitled>", Label)
+
+    If AddPath Then _
+        uLabel = uLabel & " (" & Path & ")"
+
+End Function
+
