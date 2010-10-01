@@ -4,6 +4,8 @@ with Snarl from C#.
 
 The "SnarlConnector project" folder contains the older V39 version, along with
 test project, UnitTest project etc.
+https://snarlwin.svn.sourceforge.net/svnroot/snarlwin/trunk/hdr/C%23/
+
 
 
 ================================================================================
@@ -14,6 +16,7 @@ test project, UnitTest project etc.
 ================================================================================
 
 ================================================================================
+= Home of this file: https://snarlwin.svn.sourceforge.net/svnroot/snarlwin/trunk/hdr/C%23/
 = API reference: http://www.fullphat.net/dev/api.htm (Not up to date at this point!)
 = VB reference: https://snarlwin.svn.sourceforge.net/svnroot/snarlwin/trunk/
 ================================================================================
