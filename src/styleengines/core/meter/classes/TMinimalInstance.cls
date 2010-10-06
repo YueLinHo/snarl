@@ -100,7 +100,7 @@ End Sub
 '
 '        ' /* should be a percentage */
 '
-'        If g_IsNumeric(mInfo.Text) Then
+'        If g_ispercent(mInfo.Text) Then
 '            n = g_safelong(minfo.text)
 '            If n > 100 Then
 '                n = 100
@@ -285,7 +285,7 @@ End Sub
 ''
 ''        ' /* meter bar */
 ''
-''        If g_IsNumeric(mInfo.Text) Then
+''        If g_ispercent(mInfo.Text) Then
 ''            n = g_safelong(minfo.text)
 ''            If n > 100 Then
 ''                g_Debug "StyleInstance.uDrawGraph(): value '" & mInfo.Text & "' constrained to 100", LEMON_LEVEL_WARNING
@@ -632,7 +632,7 @@ Dim pi As MImage
 
     End If
 
-    mDrawBar = (g_IsNumeric(NotificationInfo.Text)) And (Val(mStyle.ReadSetting("show_graphically")) <> 0)
+    mDrawBar = (g_IsPercent(NotificationInfo.Text)) And (Val(mStyle.ReadSetting("show_graphically")) <> 0)
 
     ' /* pre-configuration */
 

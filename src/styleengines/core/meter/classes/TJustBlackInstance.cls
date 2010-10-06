@@ -111,7 +111,7 @@ Dim pi As MImage
 Dim szMeterType As String
 
     mIconOnly = ((mInfo.Title = "") And (mInfo.Text = "")) 'Or (InStr(mInfo.Scheme, "icon only") > 0))
-    mIsNumeric = (g_IsNumeric(mInfo.Text) And (Val(mStyle.ReadSetting("show_graphically"))))
+    mIsNumeric = (g_IsPercent(mInfo.Text) And (Val(mStyle.ReadSetting("show_graphically"))))
 
     szMeterType = LCase$(mStyle.MeterType(Val(mStyle.ReadSetting("meter_type"))))
     mIsBar = CBool(InStr(szMeterType, "bar"))

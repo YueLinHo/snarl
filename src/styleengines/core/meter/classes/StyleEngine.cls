@@ -204,7 +204,8 @@ Private Function IStyleEngine_Initialize() As melon.M_RESULT
 
     uAdd STYLE_NAME_CLOCK, _
          "Displays notification text formatted as 'YYYYMMDDHHMMSS' as a time", S_STYLE_MULTI_INSTANCE, _
-         "", 0, 1, uCreatePackedStr(""), E_METER_STYLE_LOAD_SCHEMES_FROM_FILE Or E_METER_STYLE_HAS_OWN_PAGE, , , New TClockPage
+         "", _
+         0, 3, uCreatePackedStr(""), E_METER_STYLE_LOAD_SCHEMES_FROM_FILE Or E_METER_STYLE_HAS_OWN_PAGE, , , New TClockPage
 
 
     uAdd STYLE_NAME_MUSIC, _

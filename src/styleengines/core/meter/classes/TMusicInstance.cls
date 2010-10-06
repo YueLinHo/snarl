@@ -99,7 +99,7 @@ Dim pi As MImage
     ' /* pre-configuration */
 
     mIconOnly = ((mInfo.Title = "") And (mInfo.Text = "")) 'Or (InStr(mInfo.Scheme, "icon only") > 0))
-    mIsNumeric = (g_IsNumeric(mInfo.Text) And (Val(mStyle.ReadSetting("show_graphically"))))
+    mIsNumeric = (g_IsPercent(mInfo.Text) And (Val(mStyle.ReadSetting("show_graphically"))))
     Set mTitleRect = new_BRect(0, 0, 0, 0)
     Set mTextRect = new_BRect(0, 0, 0, 0)
 

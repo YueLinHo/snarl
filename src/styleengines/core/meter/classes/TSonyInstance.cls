@@ -114,7 +114,7 @@ Dim pi As MImage
     ' /* pre-configuration */
 
     mIconOnly = ((mInfo.Title = "") And (mInfo.Text = "")) 'Or (InStr(mInfo.Scheme, "icon only") > 0))
-    mIsNumeric = (g_IsNumeric(mInfo.Text) And (Val(mStyle.ReadSetting("show_graphically"))))
+    mIsNumeric = (g_IsPercent(mInfo.Text) And (Val(mStyle.ReadSetting("show_graphically"))))
 
     ' /* calculate notifcation size and internal measurements */
 
@@ -402,7 +402,7 @@ Dim pr As BRect
 '
 '            ' /* if text is non-numeric (during a Scheme Preview
 '            '    notification for example), treat as 50% */
-'            If Not g_IsNumeric(mInfo.Text) Then
+'            If Not g_ispercent(mInfo.Text) Then
 '                dw = 50
 '
 '            Else
