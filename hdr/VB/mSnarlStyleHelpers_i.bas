@@ -1,6 +1,26 @@
 Attribute VB_Name = "mSnarlStyleHelpers_i"
 Option Explicit
 
+    ' /*
+    '
+    '   mSnarlStyleHelpers_i.bas -- Snarl Visual Basic 5/6 style engine helpers
+    '
+    '   © 2010 full phat products.  All Rights Reserved.
+    '
+    '        Version: 41 (R2.31)
+    '       Revision: 1
+    '        Created: 20-Sep-2010
+    '   Last Updated:
+    '         Author: C. Peel (aka Cheekiemunkie)
+    '        Licence: Simplified BSD License (http://www.opensource.org/licenses/bsd-license.php)
+    '
+    '   Notes
+    '   -----
+    '
+    '   Simple style engine helpers
+    '
+    ' */
+
 Private Const CSIDL_APPDATA = &H1A
 Private Declare Function SHGetSpecialFolderPath Lib "SHELL32.DLL" Alias "SHGetSpecialFolderPathA" (ByVal hWndOwner As Long, ByVal lpszPath As String, ByVal nFolder As Long, ByVal fCreate As Boolean) As Long
 
