@@ -50,7 +50,7 @@ Option Explicit
     '
     ' */
 
-Private Const LIB_DATE = "13-Sep-2010"
+Private Const LIB_DATE = "6-Oct-2010"
 Private Const LIB_RELEASE = "1.1"
 Private Const EXT_NAME = "SysInfo"
 Private Const EXT_COMMENT = "Notifies about various system-wide events"
@@ -75,37 +75,29 @@ Private Type T_SETTINGS
     NotifiedLowRAM As Boolean
     NotifiedNoRAM As Boolean
 
-    LastCheckCPU As Long
+    DiskThreshold As Integer        ' // % free
+    CPUThreshold As Integer         ' // % utilisation
+    CPUHitDuration As Integer       ' // number of seconds
+    CPUHitMonitoring As Long        ' // tick count when CPU first hit threshold
+    TellMeWhenMonitoringStarts As Boolean
+    TellMeWhenMonitoringStops As Boolean
     NotifiedHighCPU As Boolean
-    'CPU() As BCPU
 
 End Type
-
-Dim mVolsDone As BTagList
 
 Dim mSettings As T_SETTINGS
 
-Private Type T_ADAPTER
-    pif As MIB_IFROW
-    pai As IP_ADAPTER_INFO
-    bHasAdapterInfo As Boolean
-'    AdapterName As String
-'    ConnectionName As String
-
-End Type
-
-Dim mIFBufferLen As Long        ' // length of MIB_IFROW buffer
-Dim mIFBuffer() As Byte         ' // MIB_IFROW buffer
-Dim mIFCount As Long            ' // number of MIB_IFROWs in buffer
-
+Dim mVolsDone As BTagList
 Dim mAdapterList As BTagList
 
 Dim WithEvents theTimer As BTimer
 Attribute theTimer.VB_VarHelpID = -1
 Dim WithEvents theNICTimer As BTimer
 Attribute theNICTimer.VB_VarHelpID = -1
+Dim WithEvents theCPUTimer As BTimer
+Attribute theCPUTimer.VB_VarHelpID = -1
 
-Dim WithEvents theNetRoster As TNetRoster
+Dim WithEvents theNetRoster As TNetRoster2
 Attribute theNetRoster.VB_VarHelpID = -1
 Dim WithEvents theDUNRoster As TDUNRoster
 Attribute theDUNRoster.VB_VarHelpID = -1
@@ -176,13 +168,39 @@ Private Sub ISnarlExtension_Pulse()
 End Sub
 
 Private Sub ISnarlExtension_Start()
+Dim pConfig As CConfFile
+Dim szPath As String
 Dim i As Integer
+
+    On Error Resume Next
 
     With mSettings
         .CurrentRAM = 0
         .NotifiedLowRAM = False
         .NotifiedNoRAM = False
         .Token = 0
+
+        .CPUThreshold = 95          ' // 95%
+        .CPUHitDuration = 30        ' // for 30 seconds...
+        .DiskThreshold = 90         ' // 90% full
+
+        ' /* does snarl's /etc/ path exist? */
+
+        If snext_getuserpath(szPath) Then
+
+            Set pConfig = New CConfFile
+            If pConfig.SetTo(szPath & "etc\sysinfo.config", True) Then
+                .CPUThreshold = Val(pConfig.ValueOf("CPUThreshold"))
+                .CPUHitDuration = Val(pConfig.ValueOf("CPUHitDuration"))
+                .DiskThreshold = Val(pConfig.ValueOf("DiskThreshold"))
+                .TellMeWhenMonitoringStarts = (pConfig.ValueOf("TellMeWhenMonitoringStarts") = "1")
+                .TellMeWhenMonitoringStops = (pConfig.ValueOf("TellMeWhenMonitoringStops") = "1")
+
+            End If
+
+        End If
+
+'        MsgBox "cpu: " & .CPUThreshold & " for " & .CPUHitDuration
 
         ' /* register */
 
@@ -192,37 +210,24 @@ Dim i As Integer
 
         sn41AddClass .Token, CLASS_LOW_MEM, "Physical memory low", False
         sn41AddClass .Token, CLASS_NO_MEM, "Physical memory exhausted", False
-'        sn41AddClass .Token, CLASS_HIGH_CPU, "High processor utilisation"
+        sn41AddClass .Token, CLASS_HIGH_CPU, "High processor utilisation"
         sn41AddClass .Token, CLASS_LOW_DISK, "Low disk space", False
-'        sn41AddClass .Token, CLASS_NIC_CONN, "Network connected", False
-'        sn41AddClass .Token, CLASS_NIC_DISC, "Network disconnected", False
+        sn41AddClass .Token, CLASS_NIC_CONN, "Network connected", False
+        sn41AddClass .Token, CLASS_NIC_DISC, "Network disconnected", False
         sn41AddClass .Token, CLASS_DUN_CONN, "Dial-up connected", False
         sn41AddClass .Token, CLASS_DUN_DISC, "Dial-up disconnected", False
         sn41AddClass .Token, CLASS_VOL_MNT, "Volume mounted"
         sn41AddClass .Token, CLASS_VOL_UMNT, "Volume unmounted"
 
-'        If processor_count Then
-'            ReDim .CPU(processor_count - 1)
-'            For i = 0 To processor_count - 1
-'                Set .CPU(i) = New BCPU
-'                .CPU(i).SetTo i
-'                .CPU(i).OpenQuery i
-'
-'            Next i
-'        End If
-
     End With
-
-'    Set mVolRoster = New TSimpleVolRoster
-''    mVolRoster.ExcludeFloppies = True
-'    Set mVolsDone = new_BTagList()
 
     Set mAdapterList = new_BTagList()
 
     Set theTimer = new_BTimer(5000)
     Set theNICTimer = new_BTimer(2000)
+    Set theCPUTimer = new_BTimer(1000)
 
-    Set theNetRoster = New TNetRoster
+    Set theNetRoster = New TNetRoster2
     With theNetRoster
         .LockRoster
         .Refresh
@@ -246,12 +251,18 @@ Dim i As Integer
 
     End With
 
+    ' /* call once to get baseline */
+
+    krnl_GetSystemInfo
+    krnl_GetCurrentTotalCPUPercent
+
 End Sub
 
 Private Sub ISnarlExtension_Stop()
 
     Set theTimer = Nothing
     Set theNICTimer = Nothing
+    Set theCPUTimer = Nothing
 
     Set theDUNRoster = Nothing
     Set theNetRoster = Nothing
@@ -264,22 +275,51 @@ End Sub
 Private Sub ISnarlExtension_TidyUp()
 End Sub
 
-Private Function uGetAvgCPU() As Double
+Private Sub theCPUTimer_Pulse()
+Dim dCurrentCPU As Double
+Dim t As Long
+Dim l As Long
 
-'    If processor_count < 1 Then _
-'        Exit Function
-'
-'Dim i As Long
-'Dim c As Double
-'
-'    For i = 0 To processor_count - 1
-'        c = c + mSettings.CPU(i).CurrentLoad
-'
-'    Next i
+    dCurrentCPU = krnl_GetCurrentTotalCPUPercent()
 
-'    uGetAvgCPU = c '/ processor_count
+    If dCurrentCPU > mSettings.CPUThreshold Then
+        ' /* over the threshold */
 
-End Function
+        If mSettings.CPUHitMonitoring = 0 Then
+            ' /* first time (not tracking) */
+            If mSettings.TellMeWhenMonitoringStarts Then _
+                l = sn41EZNotify(mSettings.Token, CLASS_HIGH_CPU, "High processor utilisation", "Started monitoring" & vbCrLf & _
+                                 "Current utilization: " & CStr(dCurrentCPU) & "%", , "!system-info")
+
+            mSettings.CPUHitMonitoring = GetTickCount()
+
+        ElseIf Not mSettings.NotifiedHighCPU Then
+            ' /* already tracking */
+
+            t = GetTickCount() - mSettings.CPUHitMonitoring
+            If t > (mSettings.CPUHitDuration * 1000) Then
+                ' /* and past the cut-off duration */
+                l = sn41EZNotify(mSettings.Token, CLASS_HIGH_CPU, "High processor utilisation", _
+                                 "Total processor utilization has been over " & mSettings.CPUThreshold & "% for " & CStr(t \ 1000) & " seconds", , "!system-info")
+
+                mSettings.NotifiedHighCPU = True
+
+            End If
+
+        End If
+
+    ElseIf mSettings.CPUHitMonitoring > 0 Then
+        ' /* we were monitoring so stop */
+        If mSettings.TellMeWhenMonitoringStops Then _
+            l = sn41EZNotify(mSettings.Token, CLASS_HIGH_CPU, "High processor utilisation", "Stopped monitoring" & vbCrLf & _
+                             "Current utilization: " & CStr(dCurrentCPU) & "%", , "!system-info")
+
+        mSettings.CPUHitMonitoring = 0
+        mSettings.NotifiedHighCPU = False
+
+    End If
+
+End Sub
 
 Private Sub theDUNRoster_Connected(ByVal Name As String, Details As melon4.BTagList)
 Dim i As Long
@@ -301,54 +341,78 @@ Dim i As Long
 
 End Sub
 
-Private Sub theNetRoster_Connected(Details As melon4.BTagList)
+'Private Sub theNetRoster_Connected(Details As melon4.BTagList)
 'Static i As Long
 '
-'    i = Val(Details.ValueOf("status"))
-'    If i <> IF_OPER_STATUS_OPERATIONAL Then _
-'        Exit Sub
+'    If Details.ValueOf("active") = "1" Then _
+'        i = sn41EZNotify(mSettings.Token, CLASS_NIC_CONN, "Network connected", _
+'                         Details.ValueOf("connection") & " is now connected at " & _
+'                         uSpeed(Val(Details.ValueOf("speed", "0"))) & _
+'                         " using " & Details.ValueOf("name", "<unknown adapter>"), , "!network-connected")
 '
-'    i = sn41EZNotify(mSettings.Token, CLASS_NIC_CONN, "Network connected", _
-'                     Details.ValueOf("connection") & " is now connected at " & _
-'                     uSpeed(Val(Details.ValueOf("speed", "0"))) & _
-'                     " using " & Details.ValueOf("name", "<unknown adapter>"), , "!network-connected")
-
-End Sub
-
-Private Sub theNetRoster_Disconnected(Details As melon4.BTagList)
-
+'End Sub
+'
+'Private Sub theNetRoster_Disconnected(Details As melon4.BTagList)
+'Static i As Long
+'
 '    ' /* was the adapter active at the time it disappeared? */
 '
-'    If Val(Details.ValueOf("status", "0")) <> IF_OPER_STATUS_OPERATIONAL Then _
-'        Exit Sub
+'    If Details.ValueOf("active") = "1" Then _
+'        i = sn41EZNotify(mSettings.Token, CLASS_NIC_DISC, "Network disconnected", _
+'                         Details.ValueOf("connection") & " is disconnected", , "!network-disconnected")
 '
+'End Sub
+'
+'Private Sub theNetRoster_StatusChanged(Details As melon4.BTagList, ByVal PreviousState As Long, ByVal NewState As Long)
 'Static i As Long
 '
-'    i = sn41EZNotify(mSettings.Token, CLASS_NIC_DISC, "Network disconnected", _
-'                     Details.ValueOf("connection") & " is disconnected", , "!network-disconnected")
+'    If (PreviousState = IF_OPER_STATUS_OPERATIONAL) And (NewState = IF_OPER_STATUS_NON_OPERATIONAL) Then
+'        ' /* gone from connected to disconnected */
+'        i = sn41EZNotify(mSettings.Token, CLASS_NIC_DISC, "Network disconnected", _
+'                         Details.ValueOf("connection") & " is disconnected", , "!network-disconnected")
+'
+'    ElseIf (PreviousState = IF_OPER_STATUS_NON_OPERATIONAL) And (NewState = IF_OPER_STATUS_OPERATIONAL) Then
+'        ' /* gone from disconnected to connected */
+'        i = sn41EZNotify(mSettings.Token, CLASS_NIC_CONN, "Network connected", _
+'                         Details.ValueOf("connection") & " is now connected at " & _
+'                         uSpeed(Val(Details.ValueOf("speed", "0"))) & _
+'                         " using " & Details.ValueOf("name", "<unknown adapter>"), , "!network-connected")
+'
+'    Else
+'        i = sn41EZNotify(mSettings.Token, CLASS_NIC_CONN, "Network status changed", _
+'                         Details.ValueOf("connection") & " status changed from " & CStr(PreviousState) & " to " & CStr(NewState), , "")
+'
+'    End If
+'
+'End Sub
+
+Private Sub theNetRoster_Connected(ByVal Name As String, Device As melon4.BTagList)
+Dim sz As String
+Dim i As Long
+
+'    sz = Device.ValueOf("name")
+
+    If mSettings.Token Then _
+        i = sn41EZNotify(mSettings.Token, CLASS_NIC_CONN, "Network connected", _
+                         Name & " is now connected" & vbCrLf & _
+                         "Speed: " & Device.ValueOf("formatted_speed", "0") & _
+                         IIf(sz <> "", vbCrLf & "Device: " & sz, ""), , "!network-connected")
+
+'        sn41EZNotify mToken, "", "Connected", _
+'                     Name & vbCrLf & _
+'                     "Speed: " & Details.ValueOf("formatted_speed") & vbCrLf & _
+'                     "Type: " & Details.ValueOf("type") & vbCrLf & _
+'                     "Media: " & Details.ValueOf("media_type"), , _
+'                     "!network-connected"
 
 End Sub
 
-Private Sub theNetRoster_StatusChanged(Details As melon4.BTagList, ByVal PreviousState As Long, ByVal NewState As Long)
-Static i As Long
+Private Sub theNetRoster_Disconnected(ByVal Name As String, ByVal DeviceType As Long)
+Dim i As Long
 
-    If (PreviousState = IF_OPER_STATUS_OPERATIONAL) And (NewState = IF_OPER_STATUS_NON_OPERATIONAL) Then
-        ' /* gone from connected to disconnected */
+    If mSettings.Token Then _
         i = sn41EZNotify(mSettings.Token, CLASS_NIC_DISC, "Network disconnected", _
-                         Details.ValueOf("connection") & " is disconnected", , "!network-disconnected")
-    
-    ElseIf (PreviousState = IF_OPER_STATUS_NON_OPERATIONAL) And (NewState = IF_OPER_STATUS_OPERATIONAL) Then
-        ' /* gone from disconnected to connected */
-        i = sn41EZNotify(mSettings.Token, CLASS_NIC_CONN, "Network connected", _
-                         Details.ValueOf("connection") & " is now connected at " & _
-                         uSpeed(Val(Details.ValueOf("speed", "0"))) & _
-                         " using " & Details.ValueOf("name", "<unknown adapter>"), , "!network-connected")
-
-    Else
-        i = sn41EZNotify(mSettings.Token, CLASS_NIC_CONN, "Network status changed", _
-                         Details.ValueOf("connection") & " status changed from " & CStr(PreviousState) & " to " & CStr(NewState), , "")
-
-    End If
+                         Name & " is disconnected", , "!network-disconnected")
 
 End Sub
 
@@ -365,9 +429,7 @@ End Sub
 Private Sub theTimer_Pulse()
 Const WARNING_LIMIT = 20
 Const ZERO_LIMIT = 0
-Const CPU_LIMIT = 1
 
-Dim n As Double
 Dim l As Long
 
     ' /* check RAM */
@@ -405,55 +467,43 @@ Dim l As Long
         End If
     End If
 
-
-
-    ' /* CPU */
-
-'    n = uGetAvgCPU()
-'    l = sn41EZNotify(mSettings.Token, CLASS_HIGH_CPU, "High processor utilisation", CStr(n) & " / " & CStr(processor_count), , "!system-info")
-
-
 End Sub
 
 Private Sub uCheckDiskSpace()
-Const DISK_LIMIT = 90
+'Const DISK_LIMIT = 90
 Dim szPath As String
 Dim szLabel As String
 Dim lType As Long
 Dim l As Long
 
-Dim pv As CVolume
-
     With theVolRoster
         .Rewind
 
         Do While .GetNextVolume(szPath, szLabel, lType)
-'            With pDisk
-
             If (lType = DRIVE_FIXED) Or (lType = DRIVE_REMOVABLE) Then
-                Set pv = New CVolume
-                If pv.SetTo(szPath) Then
-                    If (mVolsDone.IndexOf(szPath) = 0) And (pv.PercentUsed >= DISK_LIMIT) Then
+                With New TSimpleVolume
+                    If .SetTo(szPath) Then
+                        If (mVolsDone.IndexOf(szPath) = 0) And (.PercentUsed >= mSettings.DiskThreshold) Then
 
-                        l = sn41EZNotify(mSettings.Token, CLASS_LOW_DISK, uLabel(szLabel, szPath) & " is nearly full", _
-                                         g_FileSizeToStringEx2(pv.Available) & " of " & g_FileSizeToStringEx2(pv.Capacity) & " remaining", , "!system-info")
+                            l = sn41EZNotify(mSettings.Token, CLASS_LOW_DISK, uLabel(szLabel, szPath) & " is nearly full", _
+                                             g_FileSizeToStringEx2(.Available) & " of " & g_FileSizeToStringEx2(.Capacity) & " remaining", , "!system-info")
 
-                        mVolsDone.Add new_BTagItem(szPath, "")
+                            mVolsDone.Add new_BTagItem(szPath, "")
 
-                    ElseIf mVolsDone.IndexOf(szPath) Then
-                        ' /* have we dropped below the limit? */
-                        If pv.PercentUsed < DISK_LIMIT Then _
-                            mVolsDone.Remove mVolsDone.IndexOf(szPath)
+                        ElseIf mVolsDone.IndexOf(szPath) Then
+                            ' /* have we dropped below the limit? */
+                            If .PercentUsed < mSettings.DiskThreshold Then _
+                                mVolsDone.Remove mVolsDone.IndexOf(szPath)
+
+                        End If
+
+                    Else
+                        g_Debug "Extension.uCheckDiskSpace(): can't create CVolume for '" & szPath & "'", LEMON_LEVEL_CRITICAL
 
                     End If
-                
-                Else
-                    g_Debug "Extension.uCheckDiskSpace(): can't create CVolume for '" & szPath & "'", LEMON_LEVEL_CRITICAL
-
-                End If
+                End With
             End If
         Loop
-
     End With
 
 End Sub
@@ -462,7 +512,7 @@ Private Function uSpeed(ByVal Speed As Long) As String
 
     If Speed > 999999999 Then
         uSpeed = CStr(Speed / 1000000000) & "Gbps"
-    
+
     ElseIf Speed > 999999 Then
         uSpeed = CStr(Speed / 1000000) & "Mbps"
 
@@ -476,18 +526,18 @@ Private Function uSpeed(ByVal Speed As Long) As String
 
 End Function
 
-Private Function uIsConnected(ByVal OperStatus As Long) As String
-
-    Select Case OperStatus
-    Case IF_OPER_STATUS_OPERATIONAL
-        uIsConnected = "1"
-
-    Case Else
-        uIsConnected = "0"
-
-    End Select
-
-End Function
+'Private Function uIsConnected(ByVal OperStatus As Long) As String
+'
+'    Select Case OperStatus
+'    Case IF_OPER_STATUS_OPERATIONAL
+'        uIsConnected = "1"
+'
+'    Case Else
+'        uIsConnected = "0"
+'
+'    End Select
+'
+'End Function
 
 'Private Function uFind(ByVal dwIndex As Long) As Long
 '
@@ -517,7 +567,7 @@ Dim i As Long
 
     i = sn41EZNotify(mSettings.Token, CLASS_VOL_MNT, _
                      "Voume mounted", _
-                     uLabel(Label, Path), , "!vol-mounted", , Path)
+                     uLabel(Label, Path) & uCapacityInfo(Path), , uIcon(Path), , Path)
 
 End Sub
 
@@ -539,3 +589,30 @@ Private Function uLabel(ByVal Label As String, Optional ByVal Path As String, Op
 
 End Function
 
+Private Function uCapacityInfo(ByVal Path As String) As String
+Dim pv As TSimpleVolume
+
+    Set pv = New TSimpleVolume
+    If pv.SetTo(Path) Then _
+        uCapacityInfo = vbCrLf & g_FileSizeToStringEx2(pv.Capacity) & ", " & g_FileSizeToStringEx2(pv.Used) & " (" & CStr(pv.PercentUsed) & "%) used"
+
+End Function
+
+Private Function uIcon(ByVal Path As String) As String
+
+    Select Case GetDriveType(Path)
+    Case DRIVE_FIXED
+        uIcon = "!dev-hd"
+
+    Case DRIVE_CDROM
+        uIcon = "!dev-cd"
+
+    Case DRIVE_REMOVABLE
+        uIcon = "!dev-fd"
+
+    Case Else
+        uIcon = "!vol-mounted"
+
+    End Select
+
+End Function
