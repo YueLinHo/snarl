@@ -50,8 +50,8 @@ Option Explicit
     '
     ' */
 
-Private Const LIB_DATE = "15-Jul-2010"
-Private Const LIB_REL = "1.7 RC1"
+Private Const LIB_DATE = "21-Sep-2010"
+Private Const LIB_REL = "1.8"
 
 Private Const WINDOW_CLASS = "w>audiomon_extension"
 
@@ -125,7 +125,7 @@ Dim i As Long
             ' /* if there's an existing volume changed notification, update that */
 
             If sn41IsVisible(mVolId) Then
-                sn41Update mVolId, , IIf(bMeterMode, CStr(i), ""), , uGetIcon(i)
+                sn41EZUpdate mVolId, , IIf(bMeterMode, CStr(i), ""), , uGetIcon(i)
 
             Else
                 mVolId = sn41EZNotify(mAppToken, CLASS_AUDIO_LEVEL_CHANGED, "", IIf(bMeterMode, CStr(i), ""), -1, uGetIcon(i))
@@ -137,7 +137,7 @@ Dim i As Long
             ' /* single notification mode */
 
             If sn41IsVisible(mVolId) Then
-                sn41Update mVolId, , IIf(bMeterMode, CStr(i), ""), , uGetIcon(i)
+                sn41EZUpdate mVolId, , IIf(bMeterMode, CStr(i), ""), , uGetIcon(i)
 
             Else
                 mVolId = sn41EZNotify(mAppToken, CLASS_AUDIO_CHANGE, "", IIf(bMeterMode, CStr(i), ""), -1, uGetIcon(i))
@@ -184,7 +184,7 @@ Dim i As Long
             ' /* single notification mode */
 
             If sn41IsVisible(mVolId) Then
-                sn41Update mVolId, _
+                sn41EZUpdate mVolId, _
                            , _
                            IIf(Value = 1, "", IIf(bMeterMode, CStr(mVol), "")), _
                            , _
@@ -609,7 +609,7 @@ End Function
 Private Sub uSetClasses()
 Dim bMultiNotify As Boolean
 
-    sn41RemAllClasses mAppToken
+    sn41RemoveAllClasses mAppToken
 
     bMultiNotify = (mSettings.GetValueWithDefault("MultiNotificationMode", "1") = "1")
 
