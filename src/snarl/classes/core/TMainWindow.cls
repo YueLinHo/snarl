@@ -446,17 +446,17 @@ Private Function uManageSnarl(ByVal wParam As Long, ByVal lParam As Long) As Lon
 
 End Function
 
-Private Function uCopyData(ByVal lpStruct As Long, ByVal hWndFrom As Long) As Long
+Private Function uCopyData(ByVal lpStruct As Long, ByVal hwndFrom As Long) As Long
 Dim pcds As COPYDATASTRUCT
 
     ' /* handle WM_COPYDATA */
 
     CopyMemory pcds, ByVal lpStruct, Len(pcds)
-    g_Debug "TMainWindow.uCopyData(): dwData=" & CStr(pcds.dwData) & " hWndFrom=" & g_HexStr(hWndFrom)
+    g_Debug "TMainWindow.uCopyData(): dwData=" & CStr(pcds.dwData) & " hWndFrom=" & g_HexStr(hwndFrom)
 
     If (pcds.dwData <> 2) And (pcds.dwData <> &H534E4C02) Then
         ' /* not from Snarl */
-        g_Debug "TMainWindow.uCopyData(): Unknown COPYDATASTRUCT->dwData value '" & CStr(pcds.dwData) & "' from 0x" & g_HexStr(hWndFrom)
+        g_Debug "TMainWindow.uCopyData(): Unknown COPYDATASTRUCT->dwData value '" & CStr(pcds.dwData) & "' from 0x" & g_HexStr(hwndFrom)
         Exit Function
 
     End If
@@ -469,7 +469,7 @@ Dim pss As SNARLSTRUCTI
 
         If pcds.dwData = &H534E4C02 Then
             ' /* V41 API request */
-            uCopyData = uDoV41Request(pcds.lpData, hWndFrom)
+            uCopyData = uDoV41Request(pcds.lpData, hwndFrom)
 
         Else
 
@@ -480,11 +480,11 @@ Dim pss As SNARLSTRUCTI
 
             If pss.Cmd >= SNARL_EX_SHOW Then
                 ' /* extended command */
-                uCopyData = uDoCmdEx(pcds.lpData, hWndFrom)
+                uCopyData = uDoCmdEx(pcds.lpData, hwndFrom)
 
             Else
                 ' /* standard command */
-                uCopyData = uDoCmd(pss, hWndFrom)
+                uCopyData = uDoCmd(pss, hwndFrom)
 
             End If
         End If
@@ -499,7 +499,7 @@ Dim pss As SNARLSTRUCTI
 
 End Function
 
-Private Function uDoCmd(ByRef pss As SNARLSTRUCTI, ByVal hWndFrom As Long) As Long
+Private Function uDoCmd(ByRef pss As SNARLSTRUCTI, ByVal hwndFrom As Long) As Long
 Dim pa As TApp
 Dim i As Long
 Dim j As Long
@@ -728,7 +728,7 @@ Dim sz As String
 
 End Function
 
-Private Function uDoCmdEx(ByVal lpData As Long, ByVal hWndFrom As Long) As Long
+Private Function uDoCmdEx(ByVal lpData As Long, ByVal hwndFrom As Long) As Long
 Dim pssex As SNARLSTRUCTEXI
 Dim pa As TApp
 
@@ -737,7 +737,7 @@ Dim pa As TApp
     Select Case pssex.Cmd
 
     Case SNARL_EX_SHOW
-        If hWndFrom = 0 Then
+        If hwndFrom = 0 Then
             g_Debug "uDoCmdEx(): [SNARL_EX_SHOW] hWndFrom not provided - can't determine sender", LEMON_LEVEL_CRITICAL
             uDoCmdEx = M_BAD_HANDLE
             Exit Function
@@ -746,14 +746,14 @@ Dim pa As TApp
 
         ' /* find the registered application - for SNARL_EX_SHOW the app must be registered */
 
-        If g_AppRoster.FindByWindow(hWndFrom, pa) Then
+        If g_AppRoster.FindByWindow(hwndFrom, pa) Then
             ' /* found */
             uDoCmdEx = pa.Show(g_UTF8(pssex.Class), g_UTF8(pssex.Title), g_UTF8(pssex.Text), pssex.Timeout, _
                                g_UTF8(pssex.Icon), pssex.LngData2, pssex.Id, g_UTF8(pssex.Extra))
 
         Else
             ' /* not found */
-            g_Debug "SNARL_EX_SHOW: app (window) " & g_HexStr(hWndFrom) & " not found", LEMON_LEVEL_CRITICAL
+            g_Debug "SNARL_EX_SHOW: app (window) " & g_HexStr(hwndFrom) & " not found", LEMON_LEVEL_CRITICAL
             uDoCmdEx = M_NOT_FOUND
 
         End If

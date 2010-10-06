@@ -57,7 +57,7 @@ Dim sz As String
 
     Select Case Control.GetName
     Case "show_on_screen", "use_style", "custom_timeout", "use_custom_icon", "custom_icon", _
-         "use_custom_sound", "custom_sound", "ignore_input", "use_custom_ack", "custom_ack"
+         "use_custom_sound", "custom_sound", "ignore_input", "use_custom_ack", "custom_ack", "log_during_dnd", "block_spam"
 
         gSelectedClass.SetValue Control.GetName, Value
 
@@ -268,15 +268,17 @@ Dim pm As CTempMsg
 
             ' /* R2.31: custom ack */
             .Add new_BPrefsControl("fancytoggle2", "use_custom_ack", "Custom acknowledge?", "")
-            .Add new_BPrefsControl("fancyedit", "custom_ack", , "File:")
-
-            ' /* duplicates */
-            .Add new_BPrefsControl("fancycycle", "duplicates", "Allow|Block|Delay", "Flooding:")
+            .Add new_BPrefsControl("fancyedit", "custom_ack", , "Command:")
 
             ' /* view-only */
             .Add new_BPrefsControl("fancytoggle2", "ignore_input", "Ignore mouse and other input events?", "Interaction:")
 
+            ' /* R2.31: test button here too */
+            .Add new_BPrefsSeparator
+            .Add new_BPrefsControl("fancybutton2", "test", "Test")
+
         End With
+
         .AddPage pp
 
 '                .Add new_BPrefsControl("fancycycle", "fc>fwd.when", "Never|Always|Away|Do Not Disturb Set", "When:")
@@ -284,16 +286,31 @@ Dim pm As CTempMsg
 
 
 
-        Set pp = new_BPrefsPage("Forwarding", load_image_obj(g_MakePath(App.Path) & "etc\icons\class-ext.png"), Me)
+        Set pp = new_BPrefsPage("Extras", load_image_obj(g_MakePath(App.Path) & "etc\icons\class-ext.png"), Me)
         With pp
-            .SetMargin 0
+            .SetMargin 90
             .SetWidth 300
 
             ' /* forwarding */
             Set pm = New CTempMsg
             pm.Add "checkboxes", 1
-            .Add new_BPrefsControl("listbox", "lb>notify", g_StyleRoster.GetNonWindowStyleList(), "", "1", pm)
+            .Add new_BPrefsControl("listbox", "lb>notify", g_StyleRoster.GetNonWindowStyleList(), "Forwarding:", "1", pm)
             mCurrentForward = 1
+
+            ' /* duplicates */
+'            .Add new_BPrefsControl("fancycycle", "duplicates", "Allow|Block|Delay", "Flooding:")
+
+            ' /* R2.31: duplicates renamed to spamming */
+            .Add new_BPrefsControl("fancytoggle2", "block_spam", "Attempt to stop notification flooding?", "Other:")
+
+            ' /* R2.31: log during DnD */
+            .Add new_BPrefsControl("fancytoggle2", "log_during_dnd", "Log when Do Not Disturb is enabled?", "")
+            .Add new_BPrefsControl("label", "", " ")
+
+
+            ' /* R2.31: test button here too */
+            .Add new_BPrefsSeparator
+            .Add new_BPrefsControl("fancybutton2", "test", "Test")
 
         End With
 
@@ -609,6 +626,9 @@ Dim j As Long
 
         uSafeSetValue "use_custom_ack", .GetValue("use_custom_ack")
         uSafeSetText "custom_ack", .GetValue("custom_ack")
+
+        uSafeSetValue "log_during_dnd", .GetValue("log_during_dnd")
+        uSafeSetValue "block_spam", .GetValue("block_spam")
 
         ' /* forwarding */
 

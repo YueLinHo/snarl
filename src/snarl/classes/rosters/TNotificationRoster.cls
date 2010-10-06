@@ -33,8 +33,10 @@ Private Type T_NOTIFICATION
     Window As CSnarlWindow
     Column As Integer           ' // used to help determine placement of other notifications
     pid As Long
-    Class As String
-    Style As String             ' // V39.23: style name
+'    Class As String
+    ClassObj As TAlert          ' // R2.31: object is saved
+    StyleName As String         ' // R2.31: expanded
+    SchemeName As String        ' // R2.31: expanded
     AppToken As Long            ' // V40.47: creating app - all registered apps should now have a token
 
 End Type
@@ -44,10 +46,8 @@ Dim mItems As Long
 Dim mToken As Long
 Dim mRefs As Long
 
-'Dim mMissed() As G_NOTIFICATION_CONTENT
 Dim mMissed() As T_NOTIFICATION_INFO
 Dim mMissedCount As Long
-
 Dim mMissedPanel As TMissedNotificationsPanel
 
 Dim mDelayed() As TDelayedNotification
@@ -237,6 +237,37 @@ Friend Function Add(ByRef Class As TAlert, ByRef Info As T_NOTIFICATION_INFO) As
 
     End If
 
+    ' /* R2.31: log last time a notification was generated */
+
+    glastnotification = Now()
+
+    ' /* R2.31: 'duplicates' is now a simple 'stop spam' toggle - what we do with the potential
+    '    spam is for future releases; for now we just discard it */
+
+Dim lQuantum As Long
+
+    lQuantum = g_SafeLong(g_ConfigGet("flood_quantum"))
+    If lQuantum < 100 Then _
+        lQuantum = 750
+
+    If (Class.GetValue("block_spam") = "1") And ((GetTickCount() - Class.LastNotificationGeneratedTick) < lQuantum) Then
+        Debug.Print "!!! SPAM !!! " & CStr(lQuantum)
+
+        ' /* R2.31 - for now, block and return a failure code.  For the future, it would be lovely to
+        '    allow more functionality (e.g. update notification, append to notification, send to missed log, etc. */
+
+        gSetLastError SNARL41_ERROR_FLOODING
+        Exit Function
+
+    End If
+
+    ' /* only record the tick of the last _generated_ notification */
+
+    Class.LastNotificationGeneratedTick = GetTickCount()
+
+    Debug.Print ">>>>>>>>>>> " & Info.StyleName & " > " & Info.SchemeName
+
+
     gSetLastError SNARL41_SUCCESS
 
     ' /* R2.31 - copy these across from the class object */
@@ -266,7 +297,8 @@ Dim itemName As String
             .Rewind
             Do While .GetNextItem(itemName, "")
                 LSet pCopyInfo = Info
-                pCopyInfo.StyleToUse = itemName
+                pCopyInfo.StyleName = style_GetStyleName(itemName)
+                pCopyInfo.SchemeName = style_GetSchemeName(itemName)
                 uCopyTo pCopyInfo, Class
 
             Loop
@@ -314,7 +346,9 @@ Dim pDelayed As TDelayedNotification
 
 Dim pIcon As mfxBitmap
 
-    If (g_IsDNDModeEnabled()) And (Info.Priority < 1) Then
+    ' /* R2.31: only add if "Log During DND" is enabled for the notification class */
+
+    If (g_IsDNDModeEnabled()) And (Info.Priority < 1) And (Class.GetValue("log_during_dnd") = "1") Then
         mMissedCount = mMissedCount + 1
         ReDim Preserve mMissed(mMissedCount)
         LSet mMissed(mMissedCount) = Info
@@ -363,10 +397,13 @@ Dim pIcon As mfxBitmap
 
     Info.Text = uTrimLines(Info.Text)
 
+    ' /* no style name?  that's okay, use the default */
 
-    If Info.StyleToUse = "" Then _
-        Info.StyleToUse = g_ConfigGet("default_style")
+    If Info.StyleName = "" Then
+        Info.StyleName = style_GetStyleName(g_ConfigGet("default_style"))
+        Info.SchemeName = style_GetSchemeName(g_ConfigGet("default_style"))
 
+    End If
 
 Dim psw As CSnarlWindow
 Dim ar As BRect
@@ -381,7 +418,7 @@ Dim pStyle As TStyle
 
     ' /* get the style from the roster here - this is guaranteed to return a usable TStyle */
 
-    uSafeGetStyle Info.StyleToUse, pStyle
+    uSafeGetStyle Info.StyleName & "/" & Info.SchemeName, pStyle
 
     ' /* get the path to the style - we need this for style-provided icons and sounds */
 
@@ -406,7 +443,7 @@ Dim psi As IStyleInstance
 
     If (pStyle.Flags And S_STYLE_IS_WINDOWLESS) Then
         g_Debug "TNotificationRoster.Add(): style is handling notification display"
-        psi.UpdateContent pStyle.CreateNotificationInfo(Info.Title, Info.Text, Info.IconPath, style_GetSchemeName(Info.StyleToUse), IIf(Info.Priority > 0, S_NOTIFICATION_IS_PRIORITY, 0))
+        psi.UpdateContent pStyle.CreateNotificationInfo(Info.Title, Info.Text, Info.IconPath, Info.SchemeName, IIf(Info.Priority > 0, S_NOTIFICATION_IS_PRIORITY, 0))
         Add = -1                ' // TEMPORARY while we figure out what best to return here
         Exit Function
 
@@ -416,12 +453,17 @@ Dim psi As IStyleInstance
     '    a notification of this style on-screen */
 
     If (pStyle.Flags And S_STYLE_SINGLE_INSTANCE) Then
-        p = uIndexOf(Info.StyleToUse)
+'        MsgBox Info.StyleToUse
+
+        p = uFindbyStyleName(Info.StyleName)
         If p Then
+
+'            MsgBox p, , Info.StyleName
+
             ' /* notification found, so decide what to do next... */
             If (pStyle.Flags And S_STYLE_DONT_QUEUE) Then
                 ' /* don't queue notifications - so update and return the existing id */
-                Info.StyleToUse = style_GetSchemeName(Info.StyleToUse)
+'                Info.StyleToUse = style_GetSchemeName(Info.StyleToUse)
                 mItem(p).Window.Update2 Info
                 Add = mItem(p).Window.Id
                 Exit Function
@@ -492,10 +534,18 @@ Dim dwStyleFlags As S_STYLE_FLAGS
     If Not (pStyle Is Nothing) Then _
         dwStyleFlags = pStyle.Flags
 
-    Info.StyleToUse = style_GetSchemeName(Info.StyleToUse)
+
+
+
+'    Info.StyleToUse = style_GetSchemeName(Info.StyleToUse)
+
+
 
     Set psw = New CSnarlWindow
     hr = psw.Create(Class, Info, psi, dwStyleFlags, pStyle.Path)
+    
+'MsgBox Info.StyleToUse
+    
     If hr <> M_OK Then
         ' /* TO-DO: Create() should probably return a more useful set of errors rather than just M_OK */
         g_Debug "TNotificationRoster.Add(): couldn't create window", LEMON_LEVEL_CRITICAL
@@ -529,13 +579,19 @@ Dim i As Long
         .pid = Info.pid
 
         If Not (Class Is Nothing) Then
-            .Class = Class.Name
+            Set .ClassObj = Class
             .AppToken = Class.App.Token
 
         End If
 
+'        MsgBox "added: " & Info.StyleToUse
+
         ' /* V39.23 */
-        .Style = style_GetStyleName(Info.StyleToUse)
+'        .Style = style_GetStyleName(Info.StyleToUse)
+
+        ' /* R2.31 */
+        .StyleName = Info.StyleName
+        .SchemeName = Info.SchemeName
 
         .Window.Window.MoveTo ar.Left, ar.Top
         .Window.Show
@@ -652,7 +708,9 @@ Dim pInfo As T_NOTIFICATION_INFO
         .Text = Text
         ' /* R2.3: get the correct icon taking the current style into consideration */
         .IconPath = uTranslateIconPath(IconPath, mItem(i).Window.StylePath)
-        .StyleToUse = "-"
+        .SchemeName = Chr$(255)         ' // means "use existing"
+
+'        .StyleToUse = "-"
 
     End With
 
@@ -900,11 +958,11 @@ Dim i As Long
 
     For i = 1 To mItems
 
-        g_Debug ">> " & CStr(mItem(i).pid) & " >> " & mItem(i).Class
+        g_Debug ">> " & CStr(mItem(i).pid) & " >> " & mItem(i).ClassObj.Name
 
         If mItem(i).pid = pid Then
             If ByClass Then
-                If Class = mItem(i).Class Then _
+                If Class = mItem(i).ClassObj.Name Then _
                     GetCount = GetCount + 1
 
             Else
@@ -1111,20 +1169,25 @@ Dim pIcon As BIcon
 
 End Function
 
-Private Function uIndexOf(ByVal Style As String) As Long
-Dim i As Long
+Private Function uFindbyStyleName(ByVal Style As String) As Long
 
-    Style = style_GetStyleName(Style)
+    If (mItems = 0) Or (Style = "") Then _
+        Exit Function
 
-    If mItems Then
-        For i = 1 To mItems
-            If mItem(i).Style = Style Then
-                uIndexOf = i
-                Exit Function
+Static i As Long
 
-            End If
-        Next i
-    End If
+    ' /* case insensitive */
+
+    Style = LCase$(Style)
+
+    For i = 1 To mItems
+'        Debug.Print "#" & CStr(i) & " >> " & mItem(i).StyleName
+        If LCase$(mItem(i).StyleName) = Style Then
+            uFindbyStyleName = i
+            Exit Function
+
+        End If
+    Next i
 
 End Function
 
@@ -1365,7 +1428,7 @@ Dim pStyle As TStyle
 
     ' /* get the style from the roster here - this is guaranteed to return a usable TStyle */
 
-    uSafeGetStyle Info.StyleToUse, pStyle
+    uSafeGetStyle Info.StyleName & "/" & Info.SchemeName, pStyle
 
     ' /* get the path to the style - we need this for style-provided icons and sounds */
 
@@ -1398,7 +1461,7 @@ Dim psi As IStyleInstance
 
     g_Debug "TNotificationRoster.uCopyTo(): sending to '" & pStyle.Name & "'"
     psi.UpdateContent pStyle.CreateNotificationInfo(Info.Title, Info.Text, Info.IconPath, _
-                                                    style_GetSchemeName(Info.StyleToUse), _
+                                                    Info.SchemeName, _
                                                     IIf(Info.Priority > 0, S_NOTIFICATION_IS_PRIORITY, 0))
 
 End Sub

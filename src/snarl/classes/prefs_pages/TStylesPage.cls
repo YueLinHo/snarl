@@ -182,10 +182,10 @@ Dim szText As String
     
             If mStyle.SchemeAt(dw) <> "<Default>" Then
                 szText = " using the " & mStyle.SchemeAt(dw) & " scheme"
-                szScheme = "/" & LCase$(mStyle.SchemeAt(dw))
-    
+                szScheme = mStyle.SchemeAt(dw)
+
             End If
-    
+
             If Val(Value) = 3 Then
                 szText = "This is a preview of a priority notification using the " & mStyle.Name & " style" & szText
 
@@ -194,7 +194,7 @@ Dim szText As String
 
             End If
 
-            szScheme = LCase$(mStyle.Name) & szScheme
+'            szScheme = LCase$(mStyle.Name) & szScheme
     
     '        MsgBox "*****> " & mStyle.Info.Path
 
@@ -203,7 +203,8 @@ Dim szText As String
                 .Text = szText
                 .Timeout = E_DURATION_DEFAULT
                 .IconPath = IIf(mStyle.IconPath = "", g_MakePath(App.Path) & "etc\icons\style_preview.png", mStyle.IconPath)
-                .StyleToUse = szScheme
+                .StyleName = mStyle.Name
+                .SchemeName = szScheme
                 .Position = E_START_DEFAULT_POS
                 .Priority = IIf(Val(Value) = 3, 1, 0)
 
@@ -545,7 +546,8 @@ Dim pInfo As T_NOTIFICATION_INFO
         .Text = mScheme
         .Timeout = 10
         .IconPath = mStyle.IconPath
-        .StyleToUse = LCase$(mScheme)
+        .StyleName = mStyle.Name
+        .SchemeName = LCase$(mScheme)
 
     End With
 
@@ -553,7 +555,7 @@ Dim pw As CSnarlWindow
 
     Set pw = New CSnarlWindow
     If pw.Create(New TAlert, pInfo, mStyle.CreateInstance(), mStyle.Flags, g_GetStylePath(mStyle.Name)) = M_OK Then
-        pw.CaptureToFile uMakePreviewName
+        pw.CaptureToFile uMakePreviewName()
         pw.Zap
         uCreatePreviewImage = True
 

@@ -202,6 +202,9 @@ Private Const REG_SZ = 1
 Private Declare Function RegOpenKey Lib "advapi32.dll" Alias "RegOpenKeyA" (ByVal hKey As Long, ByVal lpSubKey As String, phkResult As Long) As Long
 Private Declare Function RegQueryValueEx Lib "advapi32.dll" Alias "RegQueryValueExA" (ByVal hKey As Long, ByVal lpValueName As Any, ByVal lpReserved As Long, lpType As Long, lpData As Any, lpcbData As Long) As Long
 
+Private Declare Function GetCurrentProcess Lib "kernel32" () As Long
+Private Declare Function EmptyWorkingSet Lib "psapi.dll" (ByVal hProcess As Long) As Long
+
 Dim mSysKeyPrefs As Long
 Dim mSysKeyTest As Long
 
@@ -243,6 +246,8 @@ Dim mRemoteNotifications As Long
 
 'Dim WithEvents theIdleTimer As BTimer
 
+Dim WithEvents theReadyTimer As BTimer
+Attribute theReadyTimer.VB_VarHelpID = -1
 
 Implements MMessageSink
 Implements KPrefsPanel
@@ -989,6 +994,10 @@ Dim hKey As Long
 Dim dw As Long
 Dim cb As Long
 
+    ' /* empty working set */
+
+    EmptyWorkingSet GetCurrentProcess()
+
     ' /* read melon version from registry */
 
     If RegOpenKey(HKEY_LOCAL_MACHINE, "SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\melon", hKey) = ERROR_SUCCESS Then
@@ -1077,6 +1086,15 @@ End Sub
 '
 'End Sub
 
+Private Sub theReadyTimer_Pulse()
+
+    ' /* tell everyone we're open for business */
+
+    g_Debug "Notifying ready to run..."
+    PostMessage HWND_BROADCAST, snGetGlobalMsg(), SNARL_LAUNCHED, ByVal CLng(App.Major)
+
+End Sub
+
 Private Sub Timer1_Timer()
 Dim pWindow As CSnarlWindow
 Dim pt As POINTAPI
@@ -1119,6 +1137,14 @@ Dim i As Long
         End If
 
     End If
+
+    ' /* R2.31 - purge unused memory pages if we appear to be idle */
+
+'    If Abs(DateDiff("n", Now, gLastNotification)) > 5 Then
+'        EmptyWorkingSet GetCurrentProcess()
+'        gLastNotification = Now()           ' // fix timestamp so we don't constant do this...
+'
+'    End If
 
 End Sub
 
@@ -1362,5 +1388,11 @@ Public Sub DoAppConfig(ByVal AppName As String)
 
     If Not (g_AppRoster Is Nothing) Then _
         prefskit_SetValue mPanel, "cb>apps", CStr(g_AppRoster.IndexOf(AppName))
+
+End Sub
+
+Friend Sub bReadyToRun()
+
+    Set theReadyTimer = new_BTimer(2000, True)
 
 End Sub

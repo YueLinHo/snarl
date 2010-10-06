@@ -31,7 +31,9 @@ Public Type T_NOTIFICATION_INFO
     hWndReply As Long
     uReplyMsg As Long
     SndFile As String
-    StyleToUse As String
+'    StyleToUse As String
+    StyleName As String                 ' // Split
+    SchemeName As String                ' // Split
     DefaultAck As String
     Position As E_START_POSITIONS
     Token As Long
@@ -215,14 +217,11 @@ Dim mWriteConfigOnUnlock As Boolean
 Dim m_Alerts As ConfigSection
 
 Public g_IgnoreLock As Long         ' // if >0 don't alert when app registers - overrides class setting
-
-
 Public gSelectedClass As TAlert
-
 Public gDebugMode As Boolean
+'Public gIsIdle As Boolean
 
-'Public gAwayModeEnabled As Boolean
-Public gIsIdle As Boolean
+Public gLastNotification As Date    ' // V41.47 - last notification timestamp
 
 Public Type G_REMOTE_COMPUTER
     IsHostName As Boolean
@@ -419,6 +418,21 @@ Dim pName As String
     SetProp ghWndMain, "_version", App.Major
     SetProp ghWndMain, "_revision", App.Revision
 
+    ' /* R2.31: set our flags */
+
+Dim dwFlags As Long
+
+    If gDebugMode Then _
+        dwFlags = dwFlags Or &H80000000
+    
+
+    SetProp ghWndMain, "_flags", dwFlags
+
+    ' /* R2.31: init last notification timestamp */
+    
+    gLastNotification = Now()
+
+
     ' /* load up some required bits and bobs */
 
     load_image g_MakePath(App.Path) & "etc\icons\close.png", bm_Close
@@ -481,6 +495,10 @@ Dim pSysConfig As CConfFile
 
     gPrefs.SnarlConfigFile = gPrefs.SnarlConfigPath & "etc\config41.snarl"
     g_Debug "Main: .snarl path is '" & gPrefs.SnarlConfigFile & "'"
+
+    ' /* R2.31: register our config path as a global atom and store the atom as a window property */
+
+    SetProp ghWndMain, "_config_path", RegisterWindowMessage(gPrefs.SnarlConfigPath)
 
     ' /* do we have a snarl.admin file to load? */
 
@@ -598,10 +616,9 @@ Dim pBetaPanel As TBetaPanel
 
     End If
 
-    ' /* tell everyone we're open for business */
+    ' /* done */
 
-    g_Debug "Notifying ready to run..."
-    PostMessage HWND_BROADCAST, snGetGlobalMsg(), SNARL_LAUNCHED, ByVal CLng(App.Major)
+    frmAbout.bReadyToRun
 
     g_Debug "Main(): startup complete"
     With New BMsgLooper
@@ -1418,7 +1435,8 @@ Dim pInfo As T_NOTIFICATION_INFO
         .Text = szText
         .Timeout = Timeout
         .IconPath = IIf(pStyle.IconPath = "", g_MakePath(App.Path) & "etc\icons\style_preview.png", pStyle.IconPath)
-        .StyleToUse = pStyle.Name & "/" & LCase$(Scheme)
+        .StyleName = pStyle.Name
+        .SchemeName = LCase$(Scheme)
         .Position = E_START_DEFAULT_POS
         .Priority = (Flags And 1)
 
@@ -1483,7 +1501,7 @@ End Sub
 
 Public Function g_IsSticky() As Boolean
 
-    g_IsSticky = (g_ConfigGet("sticky_snarls") = "1") Or (gIsIdle)
+    g_IsSticky = (g_ConfigGet("sticky_snarls") = "1") 'Or (gIsIdle)
 
 End Function
 

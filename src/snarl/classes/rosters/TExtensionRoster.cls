@@ -22,7 +22,7 @@ Dim mCount As Long
 Dim mIndex As Long
 
 Dim mRefs As Long
-Dim mExcluded As ConfigSection      ' // list of extensions *not* to start
+Dim mExcluded As CConfFile          ' // list of extensions *not* to start  (R2.31, now a CConfFile)
 Dim mVersions As CConfFile          ' // R2.2: list of extensions and the installed version
 
 Dim WithEvents thePulseTimer As BTimer
@@ -122,6 +122,12 @@ Dim pFolder As storage_kit.Node
 Dim i As Long
 
         g_AddIgnoreLock         ' // we don't want loads of 'xxx registered with Snarl' notifications...
+
+        ' /* R2.31: configure our exclude list */
+
+        Set mExcluded = New CConfFile
+        mExcluded.SetTo gPrefs.SnarlConfigPath & "extensions\exclude"
+
         uGetExcludeList
         uGetVersionList         ' // R2.2: keep a record of which versions are installed
 
@@ -342,7 +348,7 @@ Dim px As TExtension
     ' /* set enabled state */
 
     If (Not (mExcluded Is Nothing)) Or (Not gDebugMode) Then
-        px.SetEnabled Not mExcluded.Find(g_RemoveExtension(Folder.Filename), "")
+        px.SetEnabled Not mExcluded.Exists(g_RemoveExtension(Folder.Filename))
 
         ' /* we return TRUE here even if the extension is disabled or failed to initialise */
 
@@ -434,28 +440,27 @@ Public Function ItemAt(ByVal Index As Long) As TExtension
 End Function
 
 Public Sub WriteExcludeList()
-Dim pn As Node
 
-    If (Not g_GetUserFolder(pn)) Or (gDebugMode) Then _
+    ' /* R2.31: only if not blocked */
+
+    If (gDebugMode) Or (gSysAdmin.TreatSettingsAsReadOnly) Then _
         Exit Sub
 
 Dim i As Long
 
-    With New ConfigFile
-        .File = g_MakePath(pn.File) & "extensions\exclude"
-        With .AddSectionObj("exclude")
-            If mCount Then
-                For i = 1 To mCount
-                    If Not mExt(i).IsEnabled Then _
-                        .Add mExt(i).Class
+    With mExcluded
+        .MakeEmpty
+        .Add "[exclude]"    ' // backwards compatability
 
-                Next i
-            End If
-        End With
+        If mCount Then
+            For i = 1 To mCount
+                If Not mExt(i).IsEnabled Then _
+                    .Add mExt(i).Class
 
-        ' /* R2.31: only if not blocked */
-        If Not gSysAdmin.TreatSettingsAsReadOnly Then _
-            .Save
+            Next i
+        End If
+
+        .Save
 
     End With
 
@@ -465,36 +470,8 @@ End Sub
 
 Private Sub uGetExcludeList()
 
-    With New storage_kit.ConfigFile
-        ' /* default in case config doesn't exist! */
-        Set mExcluded = .AddSectionObj("exclude")
-
-    End With
-
-Dim sz As String
-
-    If Not g_GetUserFolderPath(sz) Then
-        g_Debug "TExtensionRoster.uGetExcludeList(): user folder doesn't exist", LEMON_LEVEL_CRITICAL
-        Exit Sub
-
-    End If
-
-    With New storage_kit.ConfigFile
-        .File = g_MakePath(sz) & "extensions\exclude"
-        If .Load() Then
-            If .CountSections > 0 Then
-                Set mExcluded = .SectionAt(1)
-
-            Else
-                g_Debug "TExtensionRoster.uGetExcludeList(): bad file format", LEMON_LEVEL_WARNING
-        
-            End If
-        Else
-            g_Debug "TExtensionRoster.uGetExcludeList(): couldn't open file", LEMON_LEVEL_WARNING
-
-        End If
-
-    End With
+    If Not (mExcluded Is Nothing) Then _
+        mExcluded.Reload
 
 End Sub
 

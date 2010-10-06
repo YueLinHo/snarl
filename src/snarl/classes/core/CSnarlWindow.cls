@@ -71,6 +71,8 @@ Friend Function Create(ByRef Class As TAlert, ByRef Info As T_NOTIFICATION_INFO,
 
     End If
 
+'    Info.StyleToUse = style_GetSchemeName(Info.StyleToUse)
+
     mClickThru = Class.IsClickThru
     mStylePath = StylePath
     Set mClass = Class
@@ -247,6 +249,12 @@ Static f As Boolean
                 MWndProcSink_WndProc = True
 
             End Select
+
+        ElseIf Not mCloseButtonVisible Then
+            mCloseButtonVisible = True
+            uDrawContent mCurrent
+            SetTimer hWnd, TIMER_TRACK_POINTER, 100, 0
+
         End If
 
 
@@ -440,6 +448,8 @@ Debug.Print "SNARL_NOTIFICATION_TIMED_OUT " & mTick
 
         ElseIf (wParam = TIMER_TRACK_POINTER) And (Not f) And (Not mMenuOpen) Then
             GetCursorPos pt
+'            Debug.Print pt.x & "," & pt.y
+
             If Not theWindow.Frame.Contains(nto_NewPoint(pt.x, pt.y)) Then
                 KillTimer hWnd, wParam
                 mCloseButtonVisible = False
@@ -452,10 +462,15 @@ Debug.Print "SNARL_NOTIFICATION_TIMED_OUT " & mTick
 
         End If
 
-    Case WM_NCHITTEST
-        mCloseButtonVisible = True
-        uDrawContent mCurrent
-        SetTimer hWnd, TIMER_TRACK_POINTER, 100, 0
+
+'    Case WM_NCHITTEST
+'
+'        Debug.Print "NCHITTEST"
+'
+'        mCloseButtonVisible = True
+'        uDrawContent mCurrent
+'        SetTimer hWnd, TIMER_TRACK_POINTER, 100, 0
+
 
     Case WM_CAPTURECHANGED
         f = False
@@ -573,6 +588,16 @@ End Property
 
 Friend Function Update(ByRef Info As T_NOTIFICATION_INFO) As M_RESULT
 
+'    MsgBox Info.StyleName & " > " & Info.SchemeName, , "Update"
+
+    ' /* pre-set these if they're missing */
+
+'    If Info.StyleName = "" Then _
+'        Info.StyleName = mInfo.StyleName
+'
+'    If Info.SchemeName = "" Then _
+'        Info.SchemeName = mInfo.SchemeName
+
     ' /* tell the style handler to update its content */
 
     uUpdateStyleContent Info
@@ -680,10 +705,13 @@ Private Sub uDrawContent(Optional ByVal Alpha As Long = -1, Optional ByVal x As 
         End If
     End If
 
+Dim lSize As Long
 Dim pr As BRect
 
     With theView
         .Clear
+
+        lSize = MIN(bm_Close.Height, .Height)
 
 '        .SetHighColour rgba(255, 0, 0, 190)
 '        .FillRect .Bounds
@@ -691,7 +719,8 @@ Dim pr As BRect
         .DrawScaledImage theBitmap, new_BPoint(OFFSET_ICON, OFFSET_ICON)
         If (mCloseButtonVisible) And (Not mClickThru) Then _
             .DrawScaledImage bm_Close, _
-                             IIf(uDrawDropshadow(), new_BPoint(Val(g_ConfigGet("dropshadow_size")), Val(g_ConfigGet("dropshadow_size"))), new_BPoint(0, 0))
+                             IIf(uDrawDropshadow(), new_BPoint(Val(g_ConfigGet("dropshadow_size")), Val(g_ConfigGet("dropshadow_size"))), new_BPoint(0, 0)), _
+                             new_BPoint(lSize, lSize)
 
         If g_ConfigGet("show_timestamp") = "1" Then
             If ((mCloseButtonVisible) And (Not mClickThru)) Or (mFuzzy) Then
@@ -740,15 +769,23 @@ Dim pm As OMMenu
         .AddItem .CreateItem(" ", "Details", , , , , , uDetailsMenu())          ' // R2.3
         .AddSeparator
 
+        If mClass.App.HasConfig Then _
+            .AddItem .CreateItem("acfg", mClass.App.Name & " Settings...", , mClass.App.HasConfig)
+
+        .AddItem .CreateItem("$" & mClass.App.Name, "Notification Settings...")
+
+        .AddSeparator
+
         .AddItem .CreateItem("wlog", "Write content to Log")
         .AddItem .CreateItem("copy", "Copy content to Clipboard")
 
         Set pm = g_GetRemoteComputersMenu()
-        .AddItem .CreateItem(" ", "Send Content to", , Not (pm Is Nothing), , , , pm)
+        If Not (pm Is Nothing) Then _
+            .AddItem .CreateItem(" ", "Send Content to", , Not (pm Is Nothing), , , , pm)
 
         .AddSeparator
-
         .AddItem .CreateItem("clse", "Close")
+        .AddSeparator
         .AddItem .CreateItem("capp", "Close all from " & mClass.App.Name)
         .AddItem .CreateItem("call", "Close all")
 
@@ -788,6 +825,9 @@ Dim pm As OMMenu
 
         Case "copy"
             Clipboard.SetText mInfo.Title & vbCrLf & mInfo.Text
+
+        Case "acfg"
+            mClass.App.DoSettings
 
         Case Else
             
@@ -1209,8 +1249,8 @@ Private Sub uUpdateStyleContent(ByRef Info As T_NOTIFICATION_INFO)
 
         ' /* this actually only contains the scheme name */
 
-        If .StyleToUse = Chr$(255) Then _
-            .StyleToUse = mInfo.StyleToUse
+        If .SchemeName = Chr$(255) Then _
+            .SchemeName = mInfo.SchemeName
 
     End With
 
@@ -1220,7 +1260,7 @@ Private Sub uUpdateStyleContent(ByRef Info As T_NOTIFICATION_INFO)
         .Title = Info.Title
         .Text = Info.Text
         .IconPath = Info.IconPath
-        .StyleToUse = Info.StyleToUse
+        .SchemeName = Info.SchemeName
 
     End With
 
@@ -1229,10 +1269,15 @@ Private Sub uUpdateStyleContent(ByRef Info As T_NOTIFICATION_INFO)
 Dim pInfo As notification_info
 
     With pInfo
+'        .Title = Replace$(Info.Title, Chr$(255), "")
+'        .Text = Replace$(Info.Text, Chr$(255), "")
+'        .Icon = Replace$(Info.IconPath, Chr$(255), "")
+'        .Scheme = Replace$(LCase$(Info.SchemeName), Chr$(255), "")
+
         .Title = Info.Title
         .Text = Info.Text
         .Icon = Info.IconPath
-        .Scheme = Info.StyleToUse
+        .Scheme = LCase$(Info.SchemeName)
 
         If Info.Priority > 0 Then _
             .Flags = .Flags Or S_NOTIFICATION_IS_PRIORITY
@@ -1337,8 +1382,7 @@ Dim szClass As String
             szClass = "<Other Notifications>"
 
         .AddItem .CreateItem("", "Class: " & szClass)
-        .AddSeparator
-        .AddItem .CreateItem("$" & mClass.App.Name, mClass.App.Name & " Settings...")
+'        .AddSeparator
 
     End With
 

@@ -56,6 +56,10 @@ End Type
 
 Dim mContent As T_ALERT
 
+    ' /* R2.31 */
+
+Public LastNotificationGeneratedTick As Long
+
 Implements MObject
 
 Private Sub Class_Initialize()
@@ -108,7 +112,9 @@ Dim bEnabled As Boolean
                         "custom_icon::#?" & _
                         "duplicates::" & CStr(E_CLASS_DUPLICATES_ALLOW) & "#?" & _
                         "use_custom_sound::0#?" & _
-                        "custom_sound::"
+                        "custom_sound::#?" & _
+                        "log_during_dnd::1#?" & _
+                        "block_spam::0"
 
         Set .Forward = New BPackedData
 
@@ -410,8 +416,16 @@ Dim lDur As E_NOTIFICATION_DURATION
 
     Info.Position = Val(Me.GetValue("position"))
 
-    If Me.GetValue("use_style") = "1" Then _
-        Info.StyleToUse = Me.GetValue("style")
+'    MsgBox Me.GetValue("use_style"), , Me.Name & " > " & Me.Description
+
+    If Me.GetValue("use_style") = "1" Then
+
+        Info.StyleName = style_GetStyleName(Me.GetValue("style"))
+        Info.SchemeName = style_GetSchemeName(Me.GetValue("style"))
+
+'        MsgBox Info.StyleName & " + " & Info.SchemeName
+
+    End If
 
     ' /* send it to the notification roster */
 

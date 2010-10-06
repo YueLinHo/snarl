@@ -42,7 +42,50 @@
 	- Extensions - V40 extensions don't display name correctly
 
 
+
+	Release Notes
+
+	[ R2.31 d3 ]
+
+	- The Clock style's supporting configuration folder wasn't included in the
+	  R2.3 release.  Now fixed.
+
+	- Banner style engine now included and features new and improved styles.
+
+
+
+
+
 	Snarl Change Log
+
+	- Notification close button is now sized according to the smaller of the close
+	  bitmap itself and the notification height.  (41.47)
+
+	- EmptyWorkingSet() is now called whenever the system information notification
+	  is displayed and also after 5 minutes if no notifications have been created
+	  in that time.  (41.47)
+
+	- R2.31 d4.  (41.45)
+
+	- Bug fixes and more code tidying up within the notification roster.  (41.39)
+
+	- Extension exclude file internal object changed although this should be
+	  completely transparent to everything.  (41.39)
+
+	- Snarl's config path is now registered as a global atom and the atom is
+	  stored as a window property.  This is so apps, style engines and extensions
+	  can use it to store their settings in a sysadmin-friendly manner.  (41.39)
+
+	- Extension roster's 'exclude' file now obeys the variable Snarl config folder
+	  location.  (41.39)
+
+	- 'Duplicates' cycle button replaced with 'Prevent Spam' toggle switch.
+	  (41.39)
+
+	- Juggled class configuration panel content around again.  (41.39)
+
+	- Added per-class option to not have notification logged as missed while
+	  Do Not Disturb is enabled.  (41.39)
 
 	- Added user-definable acknowledge feature.  (41.39)
 

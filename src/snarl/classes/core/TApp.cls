@@ -306,7 +306,8 @@ Dim pInfo As T_NOTIFICATION_INFO
         .Timeout = Timeout
         .IconPath = Icon
         .SndFile = SoundFile
-        .StyleToUse = Style
+        .StyleName = style_GetStyleName(Style)
+        .SchemeName = style_GetSchemeName(Style)
         .DefaultAck = Ack
 
     End With
@@ -508,6 +509,16 @@ Public Function IsSnarlApp() As Boolean
 
     If IsWindow(mInfo.hWnd) <> 0 Then _
         IsSnarlApp = (GetProp(mInfo.hWnd, "snarl_app") = 1) Or ((mInfo.Flags And SNARL41_APP_IS_WINDOWLESS) <> 0)
+
+End Function
+
+Public Function HasConfig() As Boolean
+
+    If Not IsSnarlApp() Then _
+        Exit Function
+
+    If IsWindow(mInfo.hWnd) <> 0 Then _
+        HasConfig = ((mInfo.Flags And SNARL41_APP_HAS_PREFS) <> 0)
 
 End Function
 
