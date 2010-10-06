@@ -1,0 +1,16 @@
+
+
+	Snarl Core Extensions DLL Base Addresses
+	========================================
+
+
+	Banner			0x2f000000
+	EZ			0x2f100000
+	Meter			0x2f080000
+	Prowl			0x11000000		!!!
+				0x
+				0x2f180000
+
+
+
+
