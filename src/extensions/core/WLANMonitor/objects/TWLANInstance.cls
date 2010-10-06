@@ -64,7 +64,7 @@ Dim i As Long
 
         If i >= Val(gConfig.ValueOf("sensitivity")) Then
             If sn41IsVisible(mNotifyToken) Then
-                sn41Update mNotifyToken, , CStr(mStrength * 20), , uIcon(mStrength)
+                sn41EZUpdate mNotifyToken, , CStr(mStrength * 20), , uIcon(mStrength)
 
             Else
                 mNotifyToken = sn41EZNotify(gAppToken, "", mName, CStr(mStrength * 20), , uIcon(mStrength))
