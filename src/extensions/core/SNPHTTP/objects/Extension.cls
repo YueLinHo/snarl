@@ -50,8 +50,8 @@ Option Explicit
     '
     ' */
 
-Private Const LIB_DATE = "27-Jul-2010"
-Private Const LIB_RELEASE = "alpha 1"
+Private Const LIB_DATE = "23-Oct-2010"
+Private Const LIB_RELEASE = "1.1"
 Private Const EXT_NAME = "SNP/HTTP"
 Private Const EXT_COMMENT = "Provides support for SNP 2.0 over HTTP"
 
@@ -67,6 +67,9 @@ Dim mPanel As BPrefsPanel           ' // our prefs panel
 Dim mConn() As TConnection
 Dim mCount As Long
 
+Dim mPortChanged As Boolean
+Dim mPortIsBad As Boolean
+
 Implements KPrefsPanel              ' // we're a panel handler
 Implements KPrefsPage               ' // we're also a page handler
 
@@ -80,7 +83,6 @@ End Function
 Private Function ISnarlExtension_GetConfigWindow() As Long
 Dim pPage As BPrefsPage
 Dim pCtl As BControl
-
 
     If (mPanel Is Nothing) Then
 
@@ -97,11 +99,18 @@ Dim pCtl As BControl
                 .SetWidth 356
                 .Add new_BPrefsControl("label", "", "This extension manages applications that register with Snarl using SNP 2.0 sent via HTTP.")
 
-                Set pCtl = new_BPrefsControl("fancyedit", "port", "80", "Port:")
+                Set pCtl = new_BPrefsControl("fancyedit", "port", mConfig.GetValueWithDefault("port", "80"), "Port:")
                 pCtl.SizeTo 64, pCtl.GetSize.y
                 .Add pCtl
 
                 .Add new_BPrefsControl("label", "", "The standard port for HTTP traffic is 80.  You can change this if it conflicts with an existing application (e.g. a web server).")
+
+                If mPortIsBad Then
+                    .Add new_BPrefsSeparator
+                    .Add new_BPrefsControl("label", "", "SNP/HTTP was unable to bind to port to " & mConfig.GetValueWithDefault("port", "80") & ".  It's possible that another service is using this port.")
+
+                End If
+
 
 '                .Add new_BPrefsControl("fancytoggle2", "when_idle", "After the following period of inactivity:", , mConfig.GetValueWithDefault("when_idle", "0"))
 '                Set pCtl = new_BPrefsControl("fancycycle", "idle_time", "5 mins|10 mins|15 mins|30 mins|1 hour", , mConfig.GetValueWithDefault("idle_time", "1"), , mConfig.GetValueWithDefault("when_idle", "0") = "1")
@@ -163,7 +172,7 @@ Private Function ISnarlExtension_Initialize() As Long
 
     On Error Resume Next
 
-    l3OpenLog "%APPDATA%\" & EXT_NAME & ".log"
+    l3OpenLog "%APPDATA%\" & EXT_NAME & ".log", True
     g_Debug "pwd: " & g_MakePath(App.Path)
 
     If sn41GetVersion = 0 Then
@@ -179,30 +188,15 @@ Private Function ISnarlExtension_Initialize() As Long
 Dim szUser As String
 
     Set mConfig = New CConfFile
-
-    If snext_getuserpath(szUser) Then
-        If mConfig.SetTo(g_MakePath(szUser) & ".snphttp") Then
-
-
-        End If
-
-    End If
-
-Dim nPort As Long
-
-    nPort = Val(mConfig.GetValueWithDefault("port", "80"))
-    If nPort = 0 Then _
-        nPort = 80
+    mConfig.SetTo sn41GetConfigPath() & ".snphttp"
 
     Set theSocket = New CSocket
-    If Not theSocket.Bind(nPort) Then
-        mLastErr = "Could not create listener on port " & CStr(nPort)
+
+    If Not uStartListener Then
+        mLastErr = "Couldn't create listener on port " & mConfig.GetValueWithDefault("port", "80")
         ISnarlExtension_Initialize = -1
-        Exit Function
 
     End If
-
-    theSocket.Listen
 
 End Function
 
@@ -235,9 +229,19 @@ Private Sub KPrefsPanel_Quit()
 
     Set mPanel = Nothing
 
+    If mPortChanged Then
+        If Not uStartListener Then
+    
+        End If
+    
+    End If
+
 End Sub
 
 Private Sub KPrefsPanel_Ready()
+
+    mPortChanged = False
+
 End Sub
 
 Private Sub KPrefsPanel_Selected(ByVal Command As String)
@@ -290,12 +294,18 @@ Private Sub KPrefsPage_ControlChanged(Control As BControl, ByVal Value As String
 
 '    g_Debug "[" & mPage.GetName() & "]: ControlChanged '" & Control.GetName() & "' >> '" & Value & "'"
 
+
+'    MsgBox Control.GetName & " > " & Value
+
     mConfig.Update Control.GetName, Value
     mConfig.Save
 
     Select Case Control.GetName
     Case "when_idle"
         prefskit_SafeEnable mPanel, "idle_time", (Value = "1")
+
+    Case "port"
+        mPortChanged = True
 
     End Select
 
@@ -384,3 +394,35 @@ Private Sub theSocket_OnConnectionRequest(ByVal requestID As Long)
     mConn(mCount).Accept requestID
 
 End Sub
+
+Private Function uStartListener() As Boolean
+
+    mPortIsBad = True
+
+    If (mConfig Is Nothing) Or (theSocket Is Nothing) Then _
+        Exit Function
+
+Dim n As Long
+
+    n = Val(mConfig.GetValueWithDefault("port", "80"))
+
+    If n = 0 Then
+        g_Debug "uStartListener(): invalid port 0 corrected to 80", LEMON_LEVEL_WARNING
+        n = 80
+
+    End If
+
+    If theSocket.State = sckListening Then _
+        theSocket.CloseSocket
+
+    If theSocket.Bind(n) Then
+        theSocket.Listen
+        uStartListener = True
+        mPortIsBad = False
+
+    Else
+        g_Debug "uStartListener(): couldn't bind socket", LEMON_LEVEL_CRITICAL
+
+    End If
+
+End Function
