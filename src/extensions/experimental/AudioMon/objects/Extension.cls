@@ -50,8 +50,8 @@ Option Explicit
     '
     ' */
 
-Private Const LIB_DATE = "21-Sep-2010"
-Private Const LIB_REL = "1.8"
+Private Const LIB_DATE = "15-Oct-2010"
+Private Const LIB_REL = "1.81"
 
 Private Const WINDOW_CLASS = "w>audiomon_extension"
 
@@ -265,7 +265,15 @@ Private Sub ISnarlExtension_GetInfo(Info As libSnarlExtn.extension_info)
         .Copyright = App.LegalCopyright
         .Date = LIB_DATE
         .Description = "Notifies when the master volume changes state"
-        .Flags = SNARL_EXTN_IS_CONFIGURABLE
+
+        If g_IsWinVistaOrBetter() Then
+            .flags = 0
+
+        Else
+            .flags = SNARL_EXTN_IS_CONFIGURABLE
+
+        End If
+
         .IconPath = g_MakePath(App.Path) & "icon.png"
         .Name = App.Title
         .Path = g_MakePath(App.Path)
@@ -335,26 +343,10 @@ Dim i As Long
         End With
     Next i
 
-    ' /* does snarl's /etc/ path exist? */
-
-    g_Debug "checking settings folder..."
-
-Dim szPath As String
-
-    If Not snext_getuserpath(szPath) Then
-        g_Debug "no mixers", LEMON_LEVEL_CRITICAL Or LEMON_LEVEL_PROC_EXIT
-        mLastErr = "Settings folder missing"
-        ISnarlExtension_Initialize = 204
-        Exit Function
- 
-    End If
-
-    g_Debug "ok"
-
     ' /* all tests passed */
 
     Set mConfigFile = New ConfigFile
-    mConfigFile.File = g_MakePath(szPath) & "etc\.audiomon"
+    mConfigFile.File = sn41GetConfigPath() & ".audiomon"
 
 
 
