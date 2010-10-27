@@ -53,6 +53,15 @@ Dim mMissedPanel As TMissedNotificationsPanel
 Dim mDelayed() As TDelayedNotification
 Dim mDelayedCount As Long
 
+Private Type T_QUEUED
+    Detail As T_NOTIFICATION_INFO
+    Class As TAlert
+
+End Type
+
+Dim mQueue() As T_QUEUED
+Dim mQueueCount As Long
+
 Implements MLibrary
 Implements MRoster
 Implements MVersionInfo
@@ -239,7 +248,7 @@ Friend Function Add(ByRef Class As TAlert, ByRef Info As T_NOTIFICATION_INFO) As
 
     ' /* R2.31: log last time a notification was generated */
 
-    glastnotification = Now()
+    gLastNotification = Now()
 
     ' /* R2.31: 'duplicates' is now a simple 'stop spam' toggle - what we do with the potential
     '    spam is for future releases; for now we just discard it */
@@ -265,9 +274,6 @@ Dim lQuantum As Long
 
     Class.LastNotificationGeneratedTick = GetTickCount()
 
-    Debug.Print ">>>>>>>>>>> " & Info.StyleName & " > " & Info.SchemeName
-
-
     gSetLastError SNARL41_SUCCESS
 
     ' /* R2.31 - copy these across from the class object */
@@ -275,7 +281,7 @@ Dim lQuantum As Long
     Info.Sender = Class.App.Name
     Info.Class = Class.Description
 
-    ' /* R2.3: convert \n's into CR/LFs */
+    ' /* R2.3: CRLF replacement */
 
     Info.Title = Replace$(Info.Title, "\n", vbCrLf)
     Info.Text = Replace$(Info.Text, "\n", vbCrLf)
@@ -354,30 +360,52 @@ Dim pIcon As mfxBitmap
         LSet mMissed(mMissedCount) = Info
         Set mMissed(mMissedCount).Icon = style_MakeSquareImage(load_image_obj(uTranslateIconPath(Info.IconPath, "")))
 
-'        With mMissed(mMissedCount)
-'            .Title = Info.Title
-'            .Text = Info.Text
-'            Set .Icon = style_MakeSquareImage(load_image_obj(uTranslateIconPath(Info.IconPath, "")))
-'            .Timeout = Info.Timeout
-'            .Ack = Info.DefaultAck
-'            .Timestamp = Now()
-'            .Sender = Class.App.Name
-'            .Class = Class.Description
-'            ' /* R2.3 */
-'            .hWndReply = Info.hWndReply
-'            .uMsgReply = Info.uReplyMsg
-'
-'        End With
-
         If Not (mMissedPanel Is Nothing) Then _
             mMissedPanel.UpdateList
+
+        frmAbout.bMissedNotificationsChanged
 
         Add = -1                    ' // V40.7 - changed from M_OK to -1 (indicates success but no token available)
         Exit Function               ' // TO-DO: we should probably return zero here and set last_error to something like "BLOCKED"
 
+
+    ElseIf Info.Priority < 0 Then
+        ' /* R2.4: if the notification's priority is low, we may need to queue it */
+
+        If sn41IsVisible(gCurrentLowPriorityId) Then
+
+            ' /* we need to queue it */
+
+            mQueueCount = mQueueCount + 1
+            ReDim Preserve mQueue(mQueueCount)
+
+            ' /* if the token hasn't been pre-allocated set it here so the sender
+            '    can still manipulate the content */
+
+            If Info.Token = 0 Then
+                mToken = mToken + 1
+                Info.Token = mToken
+
+            End If
+
+            ' /* queue it */
+
+            With mQueue(mQueueCount)
+                Set .Class = Class
+                LSet .Detail = Info
+
+            End With
+
+            ' /* update the count badge on the existing notification */
+
+            uUpdateQueueCount
+
+            Add = Info.Token
+            Exit Function
+
+        End If
+
     End If
-
-
 
     ' /* if we're here we need to create an on-screen instance of the notification */
 
@@ -391,10 +419,9 @@ Dim pIcon As mfxBitmap
 
     End If
 
+    ' /* R2.4: overflow trimming */
 
-    ' /* experimental: determine how many lines the text will take up (based on CR/LF's
-    '    only) and trim it down if necessary */
-
+    Info.Title = uTrimLines(Info.Title)
     Info.Text = uTrimLines(Info.Text)
 
     ' /* no style name?  that's okay, use the default */
@@ -600,6 +627,11 @@ Dim i As Long
 
     End With
 
+    ' /* R2.4: if this was a low priority notification, record its token */
+
+    If Info.Priority < 0 Then _
+        gCurrentLowPriorityId = Add
+
 End Function
 
 Public Function Remove(ByVal Id As Long) As Boolean
@@ -704,18 +736,23 @@ Dim pInfo As T_NOTIFICATION_INFO
     ' /* don't do any special pre-processing here - this is handled by CSnarlWindow->uUupdateStyleContent() */
 
     With pInfo
-        .Title = Title
-        .Text = Text
+
+        ' /* R2.4: process text and title */
+
+        Title = Replace$(Title, "\+", mItem(i).Window.Title)        ' // specific to Update() only
+        Text = Replace$(Text, "\+", mItem(i).Window.Text)           ' // sepcific to Update() only
+
+        .Title = uTrimLines(Title)
+        .Text = uTrimLines(Text)
+
         ' /* R2.3: get the correct icon taking the current style into consideration */
         .IconPath = uTranslateIconPath(IconPath, mItem(i).Window.StylePath)
         .SchemeName = Chr$(255)         ' // means "use existing"
 
-'        .StyleToUse = "-"
-
     End With
 
     gSetLastError SNARL41_SUCCESS
-    Update = mItem(i).Window.Update(pInfo)
+    Update = mItem(i).Window.Update2(pInfo)
 
 End Function
 
@@ -1014,6 +1051,7 @@ Public Sub ClearMissed()
 
     mMissedCount = 0
     ReDim mMissed(0)
+    frmAbout.bMissedNotificationsChanged
 
 End Sub
 
@@ -1394,27 +1432,44 @@ Dim pStyle As TStyle
     If g_StyleRoster.Find(style_GetStyleName(StyleToUse), pStyle) Then _
         Set Style = pStyle
 
-
 End Sub
 
 Private Function uTrimLines(ByVal Text As String) As String
-Dim sz() As String
-Dim c As Long
 
-Dim max_num_lines As Long
+    Text = Replace$(Text, "\n", vbCrLf)
 
-    max_num_lines = 3
-
-    sz() = Split(Text, vbCrLf)
-    c = UBound(sz) + 1
-    Debug.Print "uTrimLines(): text is " & c & " line(s)"
-
-    If c > max_num_lines Then
-        ' /* first line /n ... /n last line */
-
-    End If
+    ' /* pre-set default */
 
     uTrimLines = Text
+
+Dim n As Long
+
+    n = g_SafeLong(g_ConfigGet("style.overflow_limit"))
+    If (n < 4) Or (n > 12) Then _
+        n = 12                  ' // must be at least 5 lines to make it meaningful to
+                                ' // take up a line with the ellipsis
+                                ' // i.e. line 1
+                                ' //      ...
+                                ' //      line 3
+                                ' //      line 4
+                                ' // is pointless as only line 2 is replaced
+
+Dim sz() As String
+Dim c As Long
+Dim i As Long
+
+    sz() = Split(Text, vbCrLf)
+    c = UBound(sz)
+
+    If (c + 1) > n Then
+        ' /* <first line> \n <...> \n <remaining lines> */
+        uTrimLines = sz(0) & vbCrLf & "…"
+        For i = c - (n - 3) To c
+            uTrimLines = uTrimLines & vbCrLf & sz(i)
+
+        Next i
+
+    End If
 
 End Function
 
@@ -1465,5 +1520,44 @@ Dim psi As IStyleInstance
                                                     IIf(Info.Priority > 0, S_NOTIFICATION_IS_PRIORITY, 0))
 
 End Sub
+
+Private Sub uUpdateQueueCount()
+Dim i As Long
+
+    i = uFind(gCurrentLowPriorityId)
+    If i Then _
+        mItem(i).Window.QueueCountChanged
+
+End Sub
+
+Public Sub QueueNext()
+Dim pq As T_QUEUED
+Dim i As Long
+
+    If mQueueCount > 0 Then
+        LSet pq = mQueue(1)
+
+        If mQueueCount > 1 Then
+            For i = 1 To mQueueCount - 1
+                LSet mQueue(i) = mQueue(i + 1)
+
+            Next i
+
+        End If
+
+        mQueueCount = mQueueCount - 1
+        ReDim Preserve mQueue(mQueueCount)
+
+        Me.Add pq.Class, pq.Detail
+
+    End If
+
+End Sub
+
+Public Function QueueCount() As Long
+
+    QueueCount = mQueueCount
+
+End Function
 
 

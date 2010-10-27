@@ -332,13 +332,16 @@ Dim bShow As Boolean
 
     End If
 
-Debug.Print ">> " & bShow
+Dim i As Long
 
-    If bShow Then _
-        snShowNotification SNARL_CLASS_APP_REG, "Application Registered", _
-                            theApp.Name & " registered successfully with Snarl", 10, _
-                            IIf(theApp.LargeIcon = "", g_MakePath(App.Path) & "etc\icons\snarl.png", theApp.LargeIcon)
+    If bShow Then
+        i = snShowNotification(SNARL_CLASS_APP_REG, "Application Registered", _
+                               theApp.Name & " registered successfully with Snarl", 10, _
+                               IIf(theApp.LargeIcon = "", g_MakePath(App.Path) & "etc\icons\snarl.png", theApp.LargeIcon))
+        If i Then _
+            snChangeAttribute i, SNARL_ATTRIBUTE_ACK, "!cfg " & theApp.Signature
 
+    End If
 
     frmAbout.bUpdateAppList
 
@@ -642,6 +645,22 @@ Dim i As Long
         For i = 1 To mCount
             If mApp(i).Name = Title Then
                 IndexOf = i
+                Exit Function
+
+            End If
+        Next i
+    End If
+
+End Function
+
+Public Function IndexOfSig(ByVal Signature As String) As Long
+Dim i As Long
+
+    If mCount Then
+        For i = 1 To mCount
+'            MsgBox mApp(i).Signature & " / " & Signature
+            If mApp(i).Signature = Signature Then
+                IndexOfSig = i
                 Exit Function
 
             End If

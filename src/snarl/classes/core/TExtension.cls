@@ -311,7 +311,7 @@ End Sub
 
 Private Sub uDisable(ByVal UnloadNow As Boolean)
 
-    If Not mEnabled Then _
+'    If Not mEnabled Then _
         Exit Sub
 
     If Not (mObj2 Is Nothing) Then

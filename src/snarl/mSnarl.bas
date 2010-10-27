@@ -242,6 +242,8 @@ Dim myUpdateCheck As TAutoUpdate
 
 'Public gLastErr As SNARL_STATUS_41      ' // V41 api
 
+Public gCurrentLowPriorityId As Long
+
 Private Declare Function WinExec Lib "kernel32" (ByVal lpCmdLine As String, ByVal nCmdShow As Long) As Long
 Public Declare Sub CoFreeUnusedLibrariesEx Lib "ole32" (ByVal dwUnloadDelay As Long, ByVal dwReserved As Long)
 Private Declare Function RegisterClipboardFormat Lib "user32" Alias "RegisterClipboardFormatA" (ByVal lpString As String) As Long
@@ -541,6 +543,12 @@ Dim szData As String
 
     End If
 
+'    ' /* R2.4: managed style settings */
+'
+'    Set gStyleSettings = New CConfFile
+'    gStyleSettings.SetTo gPrefs.SnarlConfigPath & "etc\.stylesettings"
+
+
     ' /* main start */
 
     SendMessage ghWndMain, WM_SNARL_INIT, 0, ByVal 0&
@@ -763,6 +771,10 @@ Public Function g_ConfigInit() As Boolean
         .Add "use_style_icons", "1"
         .Add "auto_sticky_on_screensaver", "1"
         .Add "show_timestamp", "0"
+
+        ' /* R2.4: style-usable settings are prefixed with 'style.' */
+        
+        .Add "style.overflow_limit", "7"
 
     End With
 
@@ -1547,16 +1559,19 @@ Dim argC As Long
     If Left$(Ack, 1) = "!" Then
         ' /* bang command */
 
-        arg = Split(Right$(LCase$(Ack), Len(Ack) - 1), " ")
+        arg = Split(Right$(Ack, Len(Ack) - 1), " ")
         argC = UBound(arg) + 1
 
         Debug.Print "g_ProcessAck(): " & Ack & " == " & argC
 
-        Select Case arg(0)
+        Select Case LCase$(arg(0))
         Case "show_missed_panel"
             If Not (g_NotificationRoster Is Nothing) Then _
                 g_NotificationRoster.ShowMissedPanel
 
+        Case "cfg"
+            If argC > 0 Then _
+                frmAbout.DoAppConfigBySignature arg(1)
 
         End Select
 
@@ -1613,4 +1628,30 @@ End Sub
 '
 '        MsgBox "Graphics test complete.  Snarl has calculated a factor of " & Format$(dStep, "0.00") & vbCrLf & _
 '               "to use when displaying messages.", vbOKOnly Or vbInformation, "Test Complete"
+
+'Public Function g_StyleConfigGet(ByVal Name As String, Optional ByVal Default As String) As String
+'
+'    ' /* pre-set with default */
+'
+'    g_StyleConfigGet = mDefaults.ValueOf(Name)
+'
+'Dim sz As String
+'
+'    If Not (mConfig Is Nothing) Then
+'        If mConfig.Find(Name, sz) Then _
+'            g_ConfigGet = sz
+'
+'    End If
+'
+'End Function
+'
+''Public Sub g_ConfigSet(ByVal Name As String, ByVal Value As String)
+''
+''    If (mConfig Is Nothing) Then _
+''        Exit Sub
+''
+''    mConfig.Update Name, Value
+''    g_WriteConfig
+''
+''End Sub
 

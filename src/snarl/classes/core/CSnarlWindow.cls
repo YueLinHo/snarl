@@ -61,6 +61,8 @@ Dim mStylePath As String
 Dim mClass As TAlert
 Dim mMenuOpen As Boolean
 
+    ' /* R2.4 */
+
 Implements MWndProcSink
 
 Friend Function Create(ByRef Class As TAlert, ByRef Info As T_NOTIFICATION_INFO, ByRef Instance As IStyleInstance, ByVal StyleFlags As S_STYLE_FLAGS, ByVal StylePath As String) As M_RESULT
@@ -253,6 +255,7 @@ Static f As Boolean
         ElseIf Not mCloseButtonVisible Then
             mCloseButtonVisible = True
             uDrawContent mCurrent
+            SetWindowPos hWnd, HWND_TOP, 0, 0, 0, 0, SWP_NOSIZE Or SWP_NOMOVE
             SetTimer hWnd, TIMER_TRACK_POINTER, 100, 0
 
         End If
@@ -422,10 +425,16 @@ Debug.Print "SNARL_NOTIFICATION_TIMED_OUT " & mTick
                         KillTimer hWnd, TIMER_PULSE
                         nto_DestroyWindow theWindow
                         Set theView = Nothing
+                        
+                        ' /* R2.4: if this was a low priority notification, check the queue */
+                        
+                        If mInfo.Priority < 0 Then _
+                            g_NotificationRoster.QueueNext
 
                     End If
+
                     Exit Function
-                
+
                 End If
 
             Else
@@ -586,31 +595,37 @@ Public Property Get Id() As Long
 
 End Property
 
-Friend Function Update(ByRef Info As T_NOTIFICATION_INFO) As M_RESULT
-
-'    MsgBox Info.StyleName & " > " & Info.SchemeName, , "Update"
-
-    ' /* pre-set these if they're missing */
-
-'    If Info.StyleName = "" Then _
-'        Info.StyleName = mInfo.StyleName
+'Friend Function Update(ByRef Info As T_NOTIFICATION_INFO) As M_RESULT
+''
+'''    MsgBox Info.StyleName & " > " & Info.SchemeName, , "Update"
+''
+''    ' /* pre-set these if they're missing */
+''
+'''    If Info.StyleName = "" Then _
+'''        Info.StyleName = mInfo.StyleName
+'''
+'''    If Info.SchemeName = "" Then _
+'''        Info.SchemeName = mInfo.SchemeName
+''
+''    ' /* tell the style handler to update its content */
+''
+''    uUpdateStyleContent Info
+''
+''    ' /* view is already set - don't bother resizing */
+''
+''    Set theBitmap = uGetContent2()
+''    uDrawContent mCurrent
+''
+''
+''
+''    SetTimeout mOriginalTimeout                 ' // V37.80 - reset timeout value
+''    Update = M_OK
 '
-'    If Info.SchemeName = "" Then _
-'        Info.SchemeName = mInfo.SchemeName
-
-    ' /* tell the style handler to update its content */
-
-    uUpdateStyleContent Info
-
-    ' /* view is already set - don't bother resizing */
-
-    Set theBitmap = uGetContent2()
-    uDrawContent mCurrent
-
-    SetTimeout mOriginalTimeout                 ' // V37.80 - reset timeout value
-    Update = M_OK
-
-End Function
+'    Update2 Info
+'
+'    Update = M_OK
+'
+'End Function
 
 Public Sub uSetTargetAlpha(ByVal Alpha As Long)
 
@@ -736,6 +751,44 @@ Dim pr As BRect
                 .DrawString uDateStamp(), pr, MFX_ALIGN_BOTTOM Or MFX_ALIGN_RIGHT
 
             End If
+        End If
+
+Const RX = 12
+
+Dim n As Long
+
+        If mInfo.Priority < 0 Then _
+            n = g_NotificationRoster.QueueCount
+
+        If n > 0 Then
+            .SetFont "Arial", 9, True
+            .TextMode = MFX_TEXT_ANTIALIAS
+
+            Set pr = new_BRect(0, 0, MAX(.StringWidth(CStr(n)), .StringHeight("A")), .StringHeight("A"))
+            pr.ExpandBy 11, 11
+            pr.OffsetBy .Width - pr.Width, 0
+
+            If uDrawDropshadow() Then _
+                pr.OffsetBy -Val(g_ConfigGet("dropshadow_size")), Val(g_ConfigGet("dropshadow_size"))
+
+            .SetHighColour rgba(132, 165, 191)
+            .FillRoundRect pr, RX, RX
+
+            .SetHighColour rgba(0, 0, 0, 48)
+            .SetLowColour rgba(0, 0, 0, 0)
+            .FillRoundRect pr, RX, RX, MFX_VERT_GRADIENT
+
+            .SetHighColour rgba(255, 255, 255)
+            .DrawString CStr(n), pr, MFX_ALIGN_H_CENTER Or MFX_ALIGN_V_CENTER
+
+            .SetHighColour rgba(255, 255, 255)
+            .StrokeRoundRect pr, RX, RX, 2
+
+'            .SetHighColour rgba(255, 255, 255, 150)
+'            .SetLowColour rgba(255, 255, 255, 32)
+'            pr.Bottom = Fix(pr.Height / 2)
+'            .FillRoundRect pr, RX, RX, MFX_VERT_GRADIENT
+
         End If
 
     End With
@@ -1075,7 +1128,7 @@ End Sub
 '
 ' ---------------------------------------------------------------------------------------*/
 
-Friend Sub Update2(ByRef Info As T_NOTIFICATION_INFO)
+Friend Function Update2(ByRef Info As T_NOTIFICATION_INFO) As M_RESULT
 
     ' /* ask our style instance to update */
 
@@ -1087,7 +1140,7 @@ Dim pb As mfxBitmap
 
     Set pb = uGetContent2()
     If (pb Is Nothing) Then _
-        Exit Sub
+        Exit Function
 
     ' /* ask the instance if it wants to change the notification's position */
 
@@ -1111,7 +1164,9 @@ Dim pt As POINTAPI
     g_MoveWindow theWindow.hWnd, pt.x, pt.y
     uDrawContent mCurrent
 
-End Sub
+    Update2 = M_OK
+
+End Function
 
 Public Function NotificationOnlyMode() As Boolean
 
@@ -1133,6 +1188,10 @@ Static bmOld As mfxBitmap
         Set bmOld = theBitmap.Duplicate
         theBitmap.MakeGreyscale
         uDrawContent
+
+        ' /* R2.4: bring window to front - required? */
+
+        SetWindowPos theWindow.hWnd, HWND_TOP, 0, 0, 0, 0, SWP_NOSIZE Or SWP_NOMOVE
 
         iPrevAlpha = mCurrent
         uSetTargetAlpha MIN(102, Fix(mCurrent / 2))
@@ -1198,6 +1257,8 @@ End Sub
 
 Private Function uGetContent2() As mfxBitmap
 
+    On Error Resume Next
+
     If (mInstance Is Nothing) Then _
         Exit Function
 
@@ -1207,12 +1268,19 @@ Dim pbm As mfxBitmap
     If (pbm Is Nothing) Then _
         Exit Function
 
+    ' /* R2.4: apply scaling */
+
 Dim pv As mfxView
+Dim s As Single
+
+    s = Val(g_ConfigGet("scaling"))
+    If s <= 0 Then _
+        s = 1               ' // must NOT be zero!
 
     If uDrawDropshadow() Then
         Set pv = New mfxView
-        pv.SizeTo pbm.Width, pbm.Height
-        pv.DrawScaledImage pbm
+        pv.SizeTo pbm.Width * s, pbm.Height * s
+        pv.DrawScaledImage pbm, , new_BPoint(pv.Width, pv.Height)
         Set uGetContent2 = create_dropshadow(pv, , Val(g_ConfigGet("dropshadow_size")) * 2, Fix((Val(g_ConfigGet("dropshadow_strength")) / 100) * 255))
 
     Else
@@ -1233,8 +1301,8 @@ Private Sub uUpdateStyleContent(ByRef Info As T_NOTIFICATION_INFO)
 
         ' /* translate special markers */
 
-        .Title = Replace$(.Title, "\n", vbCrLf)
-        .Text = Replace$(.Text, "\n", vbCrLf)
+'        .Title = Replace$(.Title, "\n", vbCrLf)
+'        .Text = Replace$(.Text, "\n", vbCrLf)
 
         ' /* take into consideration and "do not change" markers */
         
@@ -1387,3 +1455,21 @@ Dim szClass As String
     End With
 
 End Function
+
+Public Function Title() As String
+
+    Title = mInfo.Title
+
+End Function
+
+Public Function Text() As String
+
+    Text = mInfo.Text
+
+End Function
+
+Public Sub QueueCountChanged()
+
+    uDrawContent
+
+End Sub

@@ -104,7 +104,7 @@ Begin VB.Form frmAbout
          Italic          =   0   'False
          Strikethrough   =   0   'False
       EndProperty
-      Height          =   315
+      Height          =   375
       Index           =   0
       Left            =   1980
       TabIndex        =   3
@@ -127,7 +127,7 @@ Begin VB.Form frmAbout
       Index           =   1
       Left            =   1980
       TabIndex        =   2
-      Top             =   540
+      Top             =   600
       Width           =   3255
    End
    Begin VB.Label Label3 
@@ -165,7 +165,7 @@ Begin VB.Form frmAbout
       Index           =   3
       Left            =   1980
       TabIndex        =   0
-      Top             =   780
+      Top             =   840
       Width           =   3435
    End
    Begin VB.Shape Shape1 
@@ -583,6 +583,10 @@ Dim rc      As RECT
 Dim hIcon   As Long
 Dim update_config   As Boolean
 
+Dim nMissed As Long
+
+    nMissed = g_NotificationRoster.CountMissed
+
     ' /* track the menu */
 
     SetForegroundWindow Me.hWnd
@@ -592,8 +596,7 @@ Dim update_config   As Boolean
         .AddSeparator
 
         .AddItem .CreateItem("dnd", "Do Not Disturb", , , g_IsDNDModeEnabled())
-        .AddItem .CreateItem("missed", "Missed Notifications...")
-        
+        .AddItem .CreateItem("missed", IIf(nMissed > 0, CStr(nMissed) & " ", "") & "Missed Notification" & IIf(nMissed = 1, "", "s") & "...")
         .AddSeparator
         .AddItem .CreateItem("restart", "Restart Snarl", , g_IsRunning)
 
@@ -849,6 +852,25 @@ Dim hIcon As Long
         hIcon = Me.Icon.Handle
 
     mTrayIcon.Add "tray_icon", hIcon, "Snarl"
+
+End Sub
+
+Friend Sub bMissedNotificationsChanged()
+
+    If (mTrayIcon Is Nothing) Then _
+        Exit Sub
+
+Dim n As Long
+
+    n = g_NotificationRoster.CountMissed
+
+    If n > 0 Then
+        mTrayIcon.Update "tray_icon", , "Snarl - " & CStr(n) & " missed notification" & IIf(n = 1, "", "s")
+
+    Else
+        mTrayIcon.Update "tray_icon", , "Snarl"
+
+    End If
 
 End Sub
 
@@ -1388,6 +1410,39 @@ Public Sub DoAppConfig(ByVal AppName As String)
 
     If Not (g_AppRoster Is Nothing) Then _
         prefskit_SetValue mPanel, "cb>apps", CStr(g_AppRoster.IndexOf(AppName))
+
+End Sub
+
+Public Sub DoAppConfigBySignature(ByVal Signature As String)
+
+    On Error Resume Next
+
+    If (g_AppRoster Is Nothing) Then _
+        Exit Sub
+
+Dim i As Long
+
+    i = Val(g_AppRoster.IndexOfSig(Signature))
+    If i = 0 Then
+        g_Debug "frmAbout.DoAppConfigBySignature(): '" & Signature & "' not in app roster"
+        Exit Sub
+
+    End If
+
+    ' /* show the apps page */
+
+    NewDoPrefs 2
+
+    ' /* select the app */
+
+    prefskit_SetValue mPanel, "cb>apps", CStr(g_AppRoster.IndexOfSig(Signature))
+
+    ' /* do a configure... */
+
+Dim pc As BControl
+
+    If mPanel.Find("fb>cfg_class", pc) Then _
+        mPanel.PageAt(2).ControlInvoked pc
 
 End Sub
 

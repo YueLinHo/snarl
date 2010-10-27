@@ -790,7 +790,6 @@ Dim pApp As TApp
 '    snShowMessage "V41 Request", "Command " & CStr(pReq.Command) & " from PID " & CStr(SenderPID) & vbCrLf & _
                     g_UTF8(pReq.PacketData)
 
-
     Set pData = New BPackedData
     pData.SetTo g_UTF8(pReq.PacketData)
 

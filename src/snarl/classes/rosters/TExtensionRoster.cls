@@ -598,6 +598,9 @@ Dim i As Long
 
     End With
 
+    If g_IsWinXPOrBetter() Then _
+        CoFreeUnusedLibrariesEx 0, 0
+
 End Sub
 
 Public Sub SendSnarlState(ByVal Running As Boolean)

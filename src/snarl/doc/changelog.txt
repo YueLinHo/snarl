@@ -58,6 +58,40 @@
 
 	Snarl Change Log
 
+	- Number of missed notifications (if there are any) is now displayed in the
+	  tray tooltip and in the Missed Notifications... menu item.  (41.55)
+
+	- Clicking the "<appliction> registered" notification will now launch the
+	  application's class configuration panel.  (41.54)
+
+	- Notification scaling implemented.  This is a bit rudimentary as it's only
+	  applied to the incoming notification content and not to the final displayed
+	  notification (the upshot being that the close and timestamp gadgets are not
+	  scaled).  Also worthy of note is that scaling will most likely break (or
+	  seriously upset) styles which position and/or size the notification
+	  themseleves.  (41.53)
+
+	- Added a further escape sequence ("\+") which can be used in either the title
+	  or text of a notification, however it only applies to updated notifications.
+	  The sequence is replaced with the current notification text so, for example,
+	  "\+\nHello world!" would append a CRLF and "Hello World!" to the existing
+	  notification's content.  (41.53)
+
+	- Basic line overflow implemented.  This simply breaks the incoming title and
+	  text on each CRLF pair and counts the resulting "lines".  If the number of
+	  lines is greater than the specified overflow amount (max of 12 lines) then
+	  the second line is replaced with an ellipsis and only the last n-2 lines
+	  are displayed.  (41.52)
+
+	- Extensions not set to start up were not being released correctly.  Now fixed.
+	  (41.52)
+
+	- R2.31.  (41.51)
+
+	- We now do COM garbage collection after loading extensions from a folder.  (41.50)
+
+	- Built as R2.31 beta 1.  (41.49)
+
 	- Notification close button is now sized according to the smaller of the close
 	  bitmap itself and the notification height.  (41.47)
 
