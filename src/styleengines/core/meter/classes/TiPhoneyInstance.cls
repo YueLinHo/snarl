@@ -111,7 +111,7 @@ Private Sub IStyleInstance_UpdateContent(NotificationInfo As libSnarlStyles.noti
     ' /* pre-configuration */
 
     mIconOnly = ((mInfo.Title = "") And (mInfo.Text = ""))
-    mIsNumeric = ((g_ispercent(mInfo.Text)) And (Val(mStyle.ReadSetting("show_graphically")) <> 0))
+    mIsNumeric = ((g_IsPercent(mInfo.Text)) And (Val(mStyle.ReadSetting("show_graphically")) <> 0))
 
     ' /* calculate notifcation size and internal measurements */
 
@@ -213,6 +213,9 @@ Const RX = 20
 
             Case "original"
                 .SetHighColour rgba(39, 51, 76)
+
+            Case "glass"
+                .SetHighColour rgba(0, 0, 0, 32)
 
             Case "psp"
                 .SetHighColour g_GetPSPColour()

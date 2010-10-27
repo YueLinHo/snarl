@@ -152,7 +152,7 @@ Private Function IStyleEngine_Initialize() As melon.M_RESULT
          "Mimics the Apple iPhone alert.  Inspired by 'iPhonesque' for Growl by mattrobs", _
          S_STYLE_IS_CONFIGURABLE Or S_STYLE_MULTI_INSTANCE Or S_STYLE_PULSE_NEEDED, _
          "Custom|Black|Original|PSP", _
-         1, 0, _
+         1, 1, _
          uCreatePackedStr("title_font::Arial#?title_size::10#?text_font::Arial#?text_size::9#?fg_alpha::70#?background::" & CStr(rgba(56, 89, 131)) & "#?foreground::" & CStr(rgba(255, 255, 255)) & "#?show_graphically::1#?show_icon::1#?icon_align::1#?show_percent::0"), _
          E_METER_STYLE_CAN_CHANGE_FONT Or E_METER_STYLE_CAN_CHANGE_BKGND Or E_METER_STYLE_CAN_SET_FG_ALPHA
 
