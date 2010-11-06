@@ -50,8 +50,8 @@ Option Explicit
     '
     ' */
 
-Private Const LIB_DATE = "23-Oct-2010"
-Private Const LIB_RELEASE = "1.1"
+Private Const LIB_DATE = "6-Nov-2010"
+Private Const LIB_RELEASE = "1.2"
 Private Const EXT_NAME = "SNP/HTTP"
 Private Const EXT_COMMENT = "Provides support for SNP 2.0 over HTTP"
 
@@ -111,25 +111,7 @@ Dim pCtl As BControl
 
                 End If
 
-
-'                .Add new_BPrefsControl("fancytoggle2", "when_idle", "After the following period of inactivity:", , mConfig.GetValueWithDefault("when_idle", "0"))
-'                Set pCtl = new_BPrefsControl("fancycycle", "idle_time", "5 mins|10 mins|15 mins|30 mins|1 hour", , mConfig.GetValueWithDefault("idle_time", "1"), , mConfig.GetValueWithDefault("when_idle", "0") = "1")
-'
-'                Set pt = New TPoint
-''                pt.SetTo 32, 0
-'                pt.SetFrom pCtl.Position
-'                pt.OffsetBy 32
-'                pCtl.SetPosition pt
-'
-'                .Add pCtl
-'
-'                .Add new_BPrefsControl("fancytoggle2", "when_fullscreen", "When the foreground application is full-screen", , mConfig.GetValueWithDefault("when_fullscreen", "0"))
-''                .Add new_BPrefsControl("fancybutton2", "fullscreen_settings", "Settings...")
-'
-'                .Add new_BPrefsControl("fancytoggle2", "when_screensaver", "When the Screen Saver starts", , mConfig.GetValueWithDefault("when_screensaver", "0"))
-'                .Add new_BPrefsControl("fancytoggle2", "when_locked", "When the computer is locked", , mConfig.GetValueWithDefault("when_locked", "0"))
-'                .Add new_BPrefsControl("fancytoggle2", "when_standby", "When the computer enters standby mode", , mConfig.GetValueWithDefault("when_standby", "0"))
-'                .Add new_BPrefsControl("fancytoggle2", "when_lid_shut", "When the lid on my computer is shut", , mConfig.GetValueWithDefault("when_lid_shut", "0"))
+                .Add new_BPrefsControl("fancytoggle2", "reply_with_html", "Include HTML in response?", , mConfig.GetValueWithDefault("reply_with_html", "1"))
 
             End With
             
@@ -301,8 +283,8 @@ Private Sub KPrefsPage_ControlChanged(Control As BControl, ByVal Value As String
     mConfig.Save
 
     Select Case Control.GetName
-    Case "when_idle"
-        prefskit_SafeEnable mPanel, "idle_time", (Value = "1")
+'    Case "when_idle"
+'        prefskit_SafeEnable mPanel, "idle_time", (Value = "1")
 
     Case "port"
         mPortChanged = True
@@ -391,7 +373,7 @@ Private Sub theSocket_OnConnectionRequest(ByVal requestID As Long)
     mCount = mCount + 1
     ReDim Preserve mConn(mCount)
     Set mConn(mCount) = New TConnection
-    mConn(mCount).Accept requestID
+    mConn(mCount).Accept requestID, (mConfig.GetValueWithDefault("reply_with_html", "1") = "1")
 
 End Sub
 

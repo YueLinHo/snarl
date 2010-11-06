@@ -16,9 +16,11 @@ Option Explicit
 Dim mId As Long
 Dim WithEvents myConnection As CSocket
 Attribute myConnection.VB_VarHelpID = -1
+Dim mIncludeHTML As Boolean
 
-Public Sub Accept(ByVal Id As Long)
+Public Sub Accept(ByVal Id As Long, ByVal IncludeHTML As Boolean)
 
+    mIncludeHTML = IncludeHTML
     Set myConnection = New CSocket
     myConnection.Accept Id
 
@@ -32,9 +34,19 @@ End Sub
 
 Private Sub myConnection_OnDataArrival(ByVal bytesTotal As Long)
 Dim sz As String
+Dim sReply As String
 
     myConnection.GetData sz
-    myConnection.SendData "HTTP/1.0 200 OK" & vbCrLf & vbCrLf & "<html><body>SNP/2.0/" & uDecode(sz) & "</body></html>" & vbCrLf & vbCrLf
+
+    If mIncludeHTML Then _
+        sReply = "HTTP/1.0 200 OK" & vbCrLf & vbCrLf & "<html><body>"
+
+    sReply = sReply & "SNP/2.0/" & uDecode(sz)
+
+    If mIncludeHTML Then _
+        sReply = sReply & "</body></html>" & vbCrLf & vbCrLf
+
+    myConnection.SendData sReply
     myConnection.CloseSocket
 
 End Sub
@@ -185,7 +197,7 @@ Dim hr As Long
         End If
 
     Case "test"
-        hr = snShowMessage("SNP/HTTP", "Test Message", -1, g_MakePath(App.Path) & "icon.png")
+        hr = sn41EZNotify(0, "", "SNP/HTTP", "Test Message", -1, g_MakePath(App.Path) & "icon.png")
         If hr = 0 Then
             uDecode = CStr(sn41GetLastError) & "/" & uErr(sn41GetLastError)
 
@@ -215,6 +227,53 @@ End Function
 
 Private Function uErr(ByVal Error As Long) As String
 
-    uErr = "undefined"
+    Select Case Error
+
+    Case SNARL41_SUCCESS
+        uErr = "Success"
+
+    Case SNARL41_ERROR_FAILED
+        uErr = "Unspecified failure"
+
+    Case SNARL41_ERROR_UNKNOWN_COMMAND
+        uErr = "Unknown command"
+
+    Case SNARL41_ERROR_TIMED_OUT
+        uErr = "Timed out"
+
+    Case SNARL41_ERROR_ARG_MISSING
+        uErr = "Required argument missing"
+
+    Case SNARL41_ERROR_SYSTEM
+        uErr = "System error"
+
+    Case SNARL41_ERROR_NOT_RUNNING
+        uErr = "Not running"
+
+    Case SNARL41_ERROR_NOT_REGISTERED
+        uErr = "App is not registered"
+
+    Case SNARL41_ERROR_ALREADY_REGISTERED
+        uErr = "App is already registered"
+
+    Case SNARL41_ERROR_CLASS_ALREADY_EXISTS
+        uErr = "Class already exists"
+
+    Case SNARL41_ERROR_CLASS_BLOCKED
+        uErr = "Class blocked"
+
+    Case SNARL41_ERROR_CLASS_NOT_FOUND
+        uErr = "Class not found"
+
+    Case SNARL41_ERROR_NOTIFICATION_NOT_FOUND
+        uErr = "Notification not found"
+
+    Case SNARL41_ERROR_FLOODING
+        uErr = "Flooding detect"
+
+    Case Else
+        uErr = "Undefined error"
+
+    End Select
 
 End Function
