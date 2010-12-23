@@ -25,20 +25,20 @@ Private Const CSIDL_APPDATA = &H1A
 Private Const CSIDL_COMMONAPPDATA = &H23
 Public Declare Function SHGetSpecialFolderPath Lib "SHELL32.DLL" Alias "SHGetSpecialFolderPathA" (ByVal hWndOwner As Long, ByVal lpszPath As String, ByVal nFolder As Long, ByVal fCreate As Boolean) As Long
 
-Public Function snext_getuserpath(ByRef Path As String, Optional ByVal AllUsers As Boolean) As Boolean
-Dim dwFlags As Long
-Dim sz As String
-
-    dwFlags = IIf(AllUsers, CSIDL_COMMONAPPDATA, CSIDL_APPDATA)
-
-    sz = String$(4096, 0)
-    If SHGetSpecialFolderPath(0, sz, dwFlags, False) Then
-        Path = uMakePath(uTrimStr(sz)) & "full phat\snarl\"
-        snext_getuserpath = True
-
-    End If
-
-End Function
+'Public Function snext_getuserpath(ByRef Path As String, Optional ByVal AllUsers As Boolean) As Boolean
+'Dim dwFlags As Long
+'Dim sz As String
+'
+'    dwFlags = IIf(AllUsers, CSIDL_COMMONAPPDATA, CSIDL_APPDATA)
+'
+'    sz = String$(4096, 0)
+'    If SHGetSpecialFolderPath(0, sz, dwFlags, False) Then
+'        Path = uMakePath(uTrimStr(sz)) & "full phat\snarl\"
+'        snext_getuserpath = True
+'
+'    End If
+'
+'End Function
 
 Private Function uTrimStr(ByVal sz As String) As String
 Dim i As Integer

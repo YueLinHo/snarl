@@ -60,6 +60,11 @@ End Enum
 
 'Public Const SNARL_GET_REVISION = 9     '// private (V38.128) NOTE: Same as unused SNARL_REVOKE_ALERT
 
+Public Enum SNRL_NOTIFICATION_FLAGS
+    SNRL_NOTIFICATION_REMOTE = &H80000000
+    SNRL_NOTIFICATION_SECURE = &H40000000
+
+End Enum
 
     ' /* internal declares */
 

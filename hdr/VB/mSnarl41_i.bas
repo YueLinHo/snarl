@@ -1,50 +1,59 @@
 Attribute VB_Name = "mSnarl41_i"
 Option Explicit
 
-        ' /* new V41 api */
+    ' /*
+    '
+    '   mSnarl41_i.bas -- Snarl V41 Visual Basic 5/6 header file
+    '
+    '   Include this module to let your VB5 or VB6 application to talk to Snarl.
+    '
+    '   © 2004-2010 full phat products.  All Rights Reserved.
+    '
+    '        Version: 42 (R2.4)
+    '       Revision: 1
+    '        Created: 6-Dec-2004
+    '   Last Updated: 23-Dec-2010
+    '         Author: full phat products
+    '        Licence: Simplified BSD License (http://www.opensource.org/licenses/bsd-license.php)
+    '
+    '   Notes
+    '   -----
+    '
+    '   This include file can be used in conjunction with the Snarl API documentation
+    '   (http://www.fullphat.net/dev/api.htm) when porting Snarl support to a different
+    '   programming language.  This include file is always the most up-to-date of any
+    '   of them as Snarl is natively coded in Visual Basic 6.  (An important point to
+    '   note here is that if you're reading this because you downloaded this file as
+    '   part of the Snarl CVS then you should use the include file that came with the
+    '   latest release of Snarl as that will be the current *supported* one).
+    '
+    '   As best as possible all functions are documented here, including the local and
+    '   supporting ones which are VB-specific.
+    '
+    '
+    '   Revision History
+    '   ----------------
+    '
+    '
+    ' */
 
-'    ' /*
-'    '
-'    '   mSnarl_i.bas -- Snarl Visual Basic 5/6 include
-'    '
-'    '   © 2004-2008 full phat products.  All Rights Reserved.
-'    '
-'    '   Include this module if you want your Visual Basic 5 or 6 application to talk to Snarl.
-'    '
-'    '        Version: 39 (R2.1)
-'    '       Revision: 20
-'    '        Created: 6-Dec-2004
-'    '   Last Updated: 17-Dec-2008
-'    '         Author: C. Peel (aka Cheekiemunkie)
-'    '        Licence: Simplified BSD License (http://www.opensource.org/licenses/bsd-license.php)
-'    '
-'    '   Notes
-'    '   -----
-'    '
-'    '   This include file can be used in conjunction with the Snarl API documentation
-'    '   (http://www.fullphat.net/dev/api.htm) when porting Snarl support to a different
-'    '   programming language.  This include file is always the most up-to-date of any
-'    '   of them as Snarl is natively coded in Visual Basic 6.  (An important point to
-'    '   note here is that if you're reading this because you downloaded this file as
-'    '   part of the Snarl CVS then you should use the include file that came with the
-'    '   latest release of Snarl as that will be the current *supported* one).
-'    '
-'    '   As best as possible all functions are documented here, including the local and
-'    '   supporting ones which are VB-specific.
-'    '
-'    '
-'    '   Revision History
-'    '   ----------------
-'    '
-'    '
-'    ' */
 
-Private Declare Function GetCurrentProcessId Lib "kernel32" () As Long
+    ' /* some win32 declares */
+
 Private Declare Function FindWindow Lib "user32" Alias "FindWindowA" (ByVal lpClassName As String, ByVal lpWindowName As String) As Long
-Private Declare Function IsWindow Lib "user32" (ByVal hWnd As Long) As Long
+Private Declare Function GetClipboardFormatName Lib "user32" Alias "GetClipboardFormatNameA" (ByVal wFormat As Long, ByVal lpString As String, ByVal nMaxCount As Long) As Long
+Private Declare Function GetCurrentProcessId Lib "kernel32" () As Long
 Private Declare Function GetProp Lib "user32" Alias "GetPropA" (ByVal hWnd As Long, ByVal lpString As String) As Long
+Private Declare Function IsWindow Lib "user32" (ByVal hWnd As Long) As Long
+Private Declare Function RegisterWindowMessage Lib "user32" Alias "RegisterWindowMessageA" (ByVal lpString As String) As Long
+Private Declare Function SendMessageTimeout Lib "user32" Alias "SendMessageTimeoutA" (ByVal hWnd As Long, ByVal Msg As Long, ByVal wParam As Long, lParam As Any, ByVal fuFlags As Long, ByVal uTimeout As Long, lpdwResult As Long) As Long
+Private Declare Function SetProp Lib "user32" Alias "SetPropA" (ByVal hWnd As Long, ByVal lpString As String, ByVal hData As Long) As Long
+Private Declare Function WideCharToMultiByte Lib "kernel32" (ByVal CodePage As Long, ByVal dwFlags As Long, ByVal lpWideCharStr As Long, ByVal cchWideChar As Long, ByVal lpMultiByteStr As Long, ByVal cchMultiByte As Long, ByVal lpDefaultChar As Long, lpUsedDefaultChar As Long) As Long
 
+Private Const SMTO_ABORTIFHUNG = 2
+Private Const CP_UTF8 = 65001
 Private Const WM_COPYDATA = &H4A
+
 Private Type COPYDATASTRUCT
     dwData As Long
     cbData As Long
@@ -52,10 +61,13 @@ Private Type COPYDATASTRUCT
 
 End Type
 
-Private Const SMTO_ABORTIFHUNG = 2
-Private Declare Function SendMessageTimeout Lib "user32" Alias "SendMessageTimeoutA" (ByVal hWnd As Long, ByVal Msg As Long, ByVal wParam As Long, lParam As Any, ByVal fuFlags As Long, ByVal uTimeout As Long, lpdwResult As Long) As Long
+    ' /* local variables */
 
 Dim mLocalErr As Long
+
+
+
+    ' /* command constants */
 
 Public Enum SNARL_COMMANDS_41
     SNARL41_REGISTER_APP = 1        '// for this command, SNARLMSG->Token is actually the sending app's PID
@@ -68,10 +80,15 @@ Public Enum SNARL_COMMANDS_41
     SNARL41_UPDATE_NOTIFICATION
     SNARL41_HIDE_NOTIFICATION
     SNARL41_IS_NOTIFICATION_VISIBLE
-
     SNARL41_LAST_ERROR              '// deprecated but retained for backwards compatability
+    SNARL42_ADD_ACTION
+    SNARL42_CLEAR_ACTIONS
+    SNARL42_SHOW_REQUEST
+    SNARL42_PARSE
 
 End Enum
+
+    ' /* V41 message packet */
 
 Public Type SNARLMSG
     Command As SNARL_COMMANDS_41
@@ -80,27 +97,57 @@ Public Type SNARLMSG
 
 End Type
 
+    ' /* status codes */
+
 Public Enum SNARL_STATUS_41
     SNARL41_SUCCESS = 0
+
+    ' /* critical errors */
+
     SNARL41_ERROR_FAILED = 101              '// miscellaneous failure
     SNARL41_ERROR_UNKNOWN_COMMAND           '// specified command not recognised
     SNARL41_ERROR_TIMED_OUT                 '// Snarl took too long to respond
 
+    SNARL41_ERROR_BAD_PACKET = 107          '// SNP only
+
     SNARL41_ERROR_ARG_MISSING = 109         '// required argument missing
     SNARL41_ERROR_SYSTEM                    '// internal system error
+
+    ' /* warnings */
 
     SNARL41_ERROR_NOT_RUNNING = 201         '// Snarl handling window not found
     SNARL41_ERROR_NOT_REGISTERED
     SNARL41_ERROR_ALREADY_REGISTERED        '// not used yet; sn41RegisterApp() returns existing token
-    SNARL41_ERROR_CLASS_ALREADY_EXISTS      '// not used yet; sn41AddClass() returns existing token
+    SNARL41_ERROR_CLASS_ALREADY_EXISTS      '// not used yet
     SNARL41_ERROR_CLASS_BLOCKED
     SNARL41_ERROR_CLASS_NOT_FOUND
     SNARL41_ERROR_NOTIFICATION_NOT_FOUND
     SNARL41_ERROR_FLOODING                  '// notification generated by same class within quantum
+    SNARL42_ERROR_DO_NOT_DISTURB            '// DnD mode is in effect and class is not being logged
+    SNARL42_ERROR_COULD_NOT_DISPLAY         '// not enough space on-screen to display notification
+    SNARL42_ERROR_AUTH_FAILURE              '// password mismatch
+
+    ' /* informational */
+
+    SNARL42_WAS_MERGED = 251                '// notification was merged, returned token is the merger
+
+    ' /* feedback events */
+
+    ' /* these are currently specific to SNP 2.0 and are effectively the
+    '    Win32 SNARL_NOTIFICATION_x constants with 270 added to them */
+
+    SNARL42_NOTIFY_CLICK = 302              '// indicates notification was right-clicked (deprecated as of V42)
+    SNARL42_NOTIFY_TIMED_OUT
+    SNARL42_NOTIFY_ACK                      '// notification was left-clicked
+    SNARL42_NOTIFY_MENU_SELECTED            '// indicates an item was selected from user-defined menu (deprecated as of V42)
+    SNARL42_NOTIFY_EX_CLICK                 '// user clicked the middle mouse button (deprecated as of V42)
+    SNARL42_NOTIFY_CLOSED                   '// user clicked the notification's close gadget
+    SNARL42_NOTIFY_ACTION                   '// user picked an action from the pop-up
 
 End Enum
 
-Private Declare Function SetProp Lib "user32" Alias "SetPropA" (ByVal hWnd As Long, ByVal lpString As String, ByVal hData As Long) As Long
+
+    ' /* application flags */
 
 Public Enum SNARL41_APP_FLAGS
     SNARL41_APP_HAS_PREFS = 1
@@ -112,33 +159,59 @@ End Enum
 Public Const SNARL41_APP_PREFS = 1
 Public Const SNARL41_APP_ABOUT = 2
 
+
+    ' /*
+    '
+    '   Global event identifiers
+    '   these values appear in wParam.
+    '
+    ' */
+
 Private Const SNARL41_GLOBAL_MSG = "SnarlGlobalEvent"
+
+Public Const SNARL_BROADCAST_LAUNCHED = 1       ' // Snarl has just started running
+Public Const SNARL_BROADCAST_QUIT = 2           ' // Snarl is about to stop running
+Public Const SNARL_BROADCAST_STOPPED = 3        ' // sent when stopped by user
+Public Const SNARL_BROADCAST_STARTED = 4        ' // sent when started by user
+
 Private Const SNARL41_APP_MSG = "SnarlAppMessage"
-Private Declare Function RegisterWindowMessage Lib "user32" Alias "RegisterWindowMessageA" (ByVal lpString As String) As Long
-Private Declare Function GetClipboardFormatName Lib "user32" Alias "GetClipboardFormatNameA" (ByVal wFormat As Long, ByVal lpString As String, ByVal nMaxCount As Long) As Long
 
-'Private Declare Function lstrcpyW2 Lib "kernel32" Alias "lstrcpyW" (ByVal str1 As Long, ByVal str2 As Long) As Long
-'Private Declare Function FindWindow Lib "user32" Alias "FindWindowA" (ByVal lpClassName As String, ByVal lpWindowName As String) As Long
-'Private Declare Function IsWindow Lib "user32" (ByVal hWnd As Long) As Long
-'Private Const SMTO_ABORTIFHUNG = 2
-'Private Declare Function SendMessageTimeout Lib "user32" Alias "SendMessageTimeoutA" (ByVal hWnd As Long, ByVal Msg As Long, ByVal wParam As Long, lParam As Any, ByVal fuFlags As Long, ByVal uTimeout As Long, lpdwResult As Long) As Long
-'Private Declare Sub CopyMemory Lib "kernel32" Alias "RtlMoveMemory" (Destination As Any, Source As Any, ByVal cbBytes As Long)
-'Private Declare Function GetWindowText Lib "user32" Alias "GetWindowTextA" (ByVal hWnd As Long, ByVal lpString As String, ByVal cch As Long) As Long
-'Private Declare Function FindWindowEx Lib "user32" Alias "FindWindowExA" (ByVal hWnd1 As Long, ByVal hWnd2 As Long, ByVal lpsz1 As String, ByVal lpsz2 As String) As Long
-'Private Declare Function SetProp Lib "user32" Alias "SetPropA" (ByVal hWnd As Long, ByVal lpString As String, ByVal hData As Long) As Long
+Public Enum SNARL41_NOTIFICATION_FLAGS
+    SNARL41_NOTIFICATION_ALLOWS_MERGE = 1
+    SNARL41_NOTIFICATION_AUTO_DISMISS = 2
 
-Private Const CP_UTF8 = 65001
-Private Declare Function WideCharToMultiByte Lib "kernel32" (ByVal CodePage As Long, ByVal dwFlags As Long, ByVal lpWideCharStr As Long, ByVal cchWideChar As Long, ByVal lpMultiByteStr As Long, ByVal cchMultiByte As Long, ByVal lpDefaultChar As Long, lpUsedDefaultChar As Long) As Long
-'Private Declare Function GetCurrentProcessId Lib "kernel32" () As Long
+End Enum
 
-    ' /* SNP1.1 notification values */
-'Public Const SNP_NOTIFY_CANCELLED = 302
-'Public Const SNP_NOTIFY_TIMED_OUT = 303
-'Public Const SNP_NOTIFY_ACK = 304
-'Public Const SNP_NOTIFY_MENU = 305
-'Public Const SNP_NOTIFY_MIDDLE_BUTTON = 306
-'Public Const SNP_NOTIFY_CLOSED = 307
+    ' /*
+    '
+    '   feedback event codes (Win32 api only)
+    '
+    '   These are sent by Snarl to the window specified in snShowMessage() when the
+    '   Snarl Notification raised times out or the user clicks on it.
+    '
+    ' */
 
+Private Const SNARL41_NOTIFICATION_CLICKED = 32         ' // notification was right-clicked by user
+Private Const SNARL41_NOTIFICATION_TIMED_OUT = 33
+Private Const SNARL41_NOTIFICATION_ACK = 34             ' // notification was left-clicked by user
+Private Const SNARL41_NOTIFICATION_MENU = 35            ' // V39 - menu item selected
+Private Const SNARL41_NOTIFICATION_MIDDLE_BUTTON = 36   ' // V39 - notification middle-clicked by user
+Private Const SNARL41_NOTIFICATION_CLOSED = 37          ' // V39 - user clicked the close gadget
+Public Const SNARL_NOTIFICATION_ACTION = 38             ' // V42 - user selected an action (high word of wParam contains action index)
+
+    ' /* Added in V37 (R1.6) -- same value, just improved the meaning of it */
+
+Private Const SNARL41_NOTIFICATION_CANCELLED = SNARL41_NOTIFICATION_CLICKED
+
+
+' /****************************************************************************************
+' /*
+' /*
+' /*                                Internal helper functions
+' /*
+' /*
+' /*
+' /****************************************************************************************/
 
 Private Function uSend(ByRef pSnarlReq As SNARLMSG) As Long
 Dim hWnd As Long
@@ -164,7 +237,7 @@ Dim dw As Long
 
     ' /* return zero on failure */
 
-    If SendMessageTimeout(hWnd, WM_COPYDATA, GetCurrentProcessId(), pcds, SMTO_ABORTIFHUNG, 500, dw) <> 0 Then
+    If SendMessageTimeout(hWnd, WM_COPYDATA, GetCurrentProcessId(), pcds, SMTO_ABORTIFHUNG, 1000, dw) <> 0 Then
         ' /* return result and cache LastError */
         uSend = dw
         mLocalErr = GetProp(hWnd, "last_error")
@@ -178,7 +251,39 @@ Dim dw As Long
 
 End Function
 
-Public Function sn41RegisterApp(ByVal Signature As String, ByVal Title As String, ByVal Icon As String, Optional ByVal hWndReply As Long, Optional ByVal uMsgReply As Long, Optional ByVal Flags As SNARL41_APP_FLAGS) As Long
+Public Function uToUTF8(ByVal str As String) As String
+Dim stBuffer As String
+Dim cwch As Long
+Dim pwz As Long
+Dim pwzBuffer As Long
+
+    On Error GoTo ex
+
+    If str = "" Then _
+        Exit Function
+
+    pwz = StrPtr(str)
+    cwch = WideCharToMultiByte(CP_UTF8, 0, pwz, -1, 0&, 0&, ByVal 0&, ByVal 0&)
+    stBuffer = String$(cwch + 1, vbNullChar)
+    pwzBuffer = StrPtr(stBuffer)
+    cwch = WideCharToMultiByte(CP_UTF8, 0, pwz, -1, pwzBuffer, Len(stBuffer), ByVal 0&, ByVal 0&)
+    uToUTF8 = Left$(stBuffer, cwch - 1)
+
+ex:
+End Function
+
+
+
+' /****************************************************************************************
+' /*
+' /*
+' /*                                Public Win32 API
+' /*
+' /*
+' /*
+' /****************************************************************************************/
+
+Public Function sn41RegisterApp(ByVal Signature As String, ByVal Title As String, ByVal Icon As String, Optional ByVal hWndReply As Long, Optional ByVal uMsgReply As Long, Optional ByVal Flags As SNARL41_APP_FLAGS, Optional ByVal Password As String) As Long
 Dim pReq As SNARLMSG
 
     With pReq
@@ -187,7 +292,8 @@ Dim pReq As SNARLMSG
         .PacketData = uToUTF8("id::" & Signature & "#?title::" & Title & "#?icon::" & Icon & "#?" & _
                               "hwnd::" & CStr(hWndReply) & "#?" & _
                               "umsg::" & CStr(uMsgReply) & "#?" & _
-                              "flags::" & CStr(Flags) _
+                              "flags::" & CStr(Flags) & _
+                              IIf(Password <> "", "#?password::" & Password, "") _
                               )
 
     End With
@@ -293,21 +399,34 @@ Dim pReq As SNARLMSG
 
 End Function
 
-Public Function sn41EZNotify(ByVal AppToken As Long, ByVal ClassName As String, ByVal Title As String, ByVal Text As String, Optional ByVal Timeout As Long = -1, Optional ByVal Icon As String, Optional ByVal Priority As Long = 0, Optional ByVal Acknowledge As String, Optional ByVal Value As String) As Long
+Public Function sn41EZNotify(ByVal AppToken As Long, ByVal ClassName As String, ByVal Title As String, ByVal Text As String, Optional ByVal Timeout As Long = -1, Optional ByVal Icon As String, Optional ByVal Priority As Long = 0, Optional ByVal Acknowledge As String, Optional ByVal Value As String, Optional ByVal Flags As SNARL41_NOTIFICATION_FLAGS, Optional ByVal AdditionalData As String, Optional ByVal Password As String) As Long
 Dim pReq As SNARLMSG
+Dim sz As String
+
+    sz = "id::" & ClassName & _
+         "#?title::" & Title & _
+         "#?text::" & Text & _
+         "#?timeout::" & CStr(Timeout) & _
+         "#?icon::" & Icon & _
+         "#?priority::" & CStr(Priority) & _
+         "#?ack::" & Acknowledge & _
+         "#?value::" & Value
+
+    sz = sz & "#?flags::" & Hex$(Flags)
+
+    If Password <> "" Then _
+        sz = sz & "#?password::" & Password
+
+'    If (Flags And SNARL41_NOTIFICATION_ALLOWS_MERGE) Then _
+'        sz = sz & "#?merge::1"
+
+    If AdditionalData <> "" Then _
+        sz = sz & "#?" & AdditionalData
 
     With pReq
         .Command = SNARL41_NOTIFY
         .Token = AppToken
-        .PacketData = uToUTF8("id::" & ClassName & _
-                              "#?title::" & Title & _
-                              "#?text::" & Text & _
-                              "#?timeout::" & CStr(Timeout) & _
-                              "#?icon::" & Icon & _
-                              "#?priority::" & CStr(Priority) & _
-                              "#?ack::" & Acknowledge & _
-                              "#?value::" & Value _
-                              )
+        .PacketData = uToUTF8(sz)
 
     End With
 
@@ -329,13 +448,15 @@ Dim pReq As SNARLMSG
 
 End Function
 
-Public Function sn41EZUpdate(ByVal Token As Long, Optional ByVal Title As String = "/?", Optional ByVal Text As String = "/?", Optional ByVal Timeout As Long = &H80000000, Optional ByVal Icon As String = "/?") As Long
+Public Function sn41EZUpdate(ByVal Token As Long, Optional ByVal Title As String = "/?", Optional ByVal Text As String = "/?", Optional ByVal Timeout As Long = &H80000000, Optional ByVal Icon As String = "/?", Optional ByVal AdditionalData As String) As Long
 Dim pReq As SNARLMSG
 Dim sz As String
 
     With pReq
         .Command = SNARL41_UPDATE_NOTIFICATION
         .Token = Token
+
+        ' /* only add the following if they were explicitly provided */
 
         If Title <> "/?" Then _
             sz = sz & "title::" & Title
@@ -363,6 +484,11 @@ Dim sz As String
             sz = sz & "timeout::" & CStr(Timeout)
 
         End If
+
+        If AdditionalData <> "" Then _
+            sz = sz & "#?" & AdditionalData
+
+
 
         .PacketData = uToUTF8(sz)
 
@@ -417,19 +543,6 @@ Public Function sn41GetLastError() As SNARL_STATUS_41
     sn41GetLastError = mLocalErr
 
 End Function
-
-'Public Function sn41RealGetLastError() As Long
-'Dim pReq As SNARLMSG
-'
-'    With pReq
-'        .Command = SNARL41_LAST_ERROR
-'        .PacketData = uToUTF8("")
-'
-'    End With
-'
-'    sn41RealGetLastError = uSend(pReq)
-'
-'End Function
 
 Public Function sn41IsSnarlRunning() As Boolean
 
@@ -577,889 +690,79 @@ Dim sz As String
     sz = String$(1024, 0)
     h = GetClipboardFormatName(lAtom, sz, Len(sz))
     If h > 0 Then _
-        sn41GetConfigPath = Left$(sz, h)
+        sn41GetConfigPath = Left$(sz, h) & "etc\"
 
 End Function
 
-'
-'
-'                        ' /* constants */
-'
-'
-'
-'
-'    ' /* SNARLSTRUCT and SNARLSTRUCTEX string length maximums */
-'
-''Public Const SNARL_STRING_LENGTH = 1024
-''Public Const SNARL_UNICODE_LENGTH = SNARL_STRING_LENGTH / 2
-'
-'
-''    ' /*
-''    '
-''    '   Global event identifiers
-''    '
-''    '   Identifiers marked with a '*' are sent by Snarl in two ways:
-''    '       1. As a broadcast message (uMsg = 'SNARL_GLOBAL_MSG')
-''    '       2. To the window registered in snRegisterConfig() or snRegisterConfig2()
-''    '          (uMsg = reply message specified at the time of registering)
-''    '
-''    '   In both cases these values appear in wParam.
-''    '
-''    '   Identifiers not marked are not broadcast; they are simply sent to the application's
-''    '   registered window.
-''    '
-''    ' */
-''
-''Public Const SNARL_LAUNCHED = 1         ' // Snarl has just started running*
-''Public Const SNARL_QUIT = 2             ' // Snarl is about to stop running*
-''Public Const SNARL_ASK_APPLET_VER = 3   ' // (R1.5) Reserved for future use
-''Public Const SNARL_SHOW_APP_UI = 4      ' // (R1.6) Application should show its UI
-'
-'
-'    ' /*
-'    '
-'    '   Message event identifiers
-'    '
-'    '   These are sent by Snarl to the window specified in snShowMessage() when the
-'    '   Snarl Notification raised times out or the user clicks on it.
-'    '
-'    ' */
-'
-''Public Const SNARL_NOTIFICATION_CLICKED = 32        ' // notification was right-clicked by user
-''Public Const SNARL_NOTIFICATION_TIMED_OUT = 33
-''Public Const SNARL_NOTIFICATION_ACK = 34            ' // notification was left-clicked by user
-''Public Const SNARL_NOTIFICATION_MENU = 35           ' // V39 - menu item selected
-''Public Const SNARL_NOTIFICATION_MIDDLE_BUTTON = 36  ' // V39 - notification middle-clicked by user
-''Public Const SNARL_NOTIFICATION_CLOSED = 37         ' // V39 - user clicked the close gadget
-''
-''    ' /* Added in V37 (R1.6) -- same value, just improved the meaning of it */
-''
-''Public Const SNARL_NOTIFICATION_CANCELLED = SNARL_NOTIFICATION_CLICKED
-'
-'
-'    ' /*
-'    '
-'    '   SNARL_COMMANDS Enumeration
-'    '
-'    ' */
-'
-'Public Enum SNARL_COMMANDS
-'
-'    ' /* -------------------------------------------------------------------
-'    '
-'    '    Standard commands -- all use a SNARLSTRUCT
-'    '
-'    '    -----------------------------------------------------------------*/
-'
-'    SNARL_SHOW = 1
-'    SNARL_HIDE
-'    SNARL_UPDATE
-'    SNARL_IS_VISIBLE
-'    SNARL_GET_VERSION
-'    SNARL_REGISTER_CONFIG_WINDOW
-'    SNARL_REVOKE_CONFIG_WINDOW
-'
-'    ' /* following introduced in Snarl V37 (R1.6) */
-'
-'    SNARL_REGISTER_ALERT
-'    SNARL_REVOKE_ALERT                          '// for future use
-'    SNARL_GET_REVISION = SNARL_REVOKE_ALERT     '// note dual-use of command value!
-'    SNARL_REGISTER_CONFIG_WINDOW_2
-'    SNARL_GET_VERSION_EX
-'    SNARL_SET_TIMEOUT
-'
-'    ' /* following introduced in Snarl V39 (R2.1) */
-'
-'    SNARL_SET_CLASS_DEFAULT
-'    SNARL_CHANGE_ATTR
-'    SNARL_REGISTER_APP
-'    SNARL_UNREGISTER_APP
-'    SNARL_ADD_CLASS
-'
-'    ' /* -------------------------------------------------------------------
-'    '
-'    '    Extended commands -- all use a SNARLSTRUCTEX
-'    '
-'    '    -----------------------------------------------------------------*/
-'
-'    SNARL_EX_SHOW = &H20
-'    SNARL_SHOW_NOTIFICATION                '// V39
-'
-'End Enum
+Public Function sn42GetConfigPath(ByRef Path As String) As Boolean
 
+    Path = sn41GetConfigPath()
+    sn42GetConfigPath = (Path <> "")
 
-
-'
-'
-'    ' /* --------------- V39 additions --------------- */
-'
-'
-''    ' /* snAddClass() flags */
-''Public Enum SNARL_CLASS_FLAGS
-''    SNARL_CLASS_ENABLED = 0
-''    SNARL_CLASS_DISABLED = 1
-''    SNARL_CLASS_NO_DUPLICATES = 2           '// means Snarl will suppress duplicate notifications
-''    SNARL_CLASS_DELAY_DUPLICATES = 4        '// means Snarl will suppress duplicate notifications within a pre-set time period
-''
-''End Enum
-''
-''    ' /* Class attributes */
-''Public Enum SNARL_ATTRIBUTES
-''    SNARL_ATTRIBUTE_TITLE = 1
-''    SNARL_ATTRIBUTE_TEXT
-''    SNARL_ATTRIBUTE_ICON
-''    SNARL_ATTRIBUTE_TIMEOUT
-''    SNARL_ATTRIBUTE_SOUND
-''    SNARL_ATTRIBUTE_ACK               '// file to run on ACK
-''    SNARL_ATTRIBUTE_MENU
-''
-''End Enum
-'
-'    ' /* ------------------- end of ------------------ */
-'    ' /* --------------- V39 additions --------------- */
-'
-'
-'
-'                        ' /* structures */
-'
-'
-'
-'    ' /*
-'    '
-'    '   SNARLSTRUCT
-'    '   This is an internal structure used to pass information between Snarl and
-'    '   registered applications - do not attempt to craft your own messages
-'    '   using this structure; use the standard sn... api methods instead.
-'    '
-'    ' */
-'
-'
-'Public Type SNARLSTRUCT
-'    Cmd As SNARL_COMMANDS       ' // what to do...
-'    Id As Long                  ' // snarl message id (returned by snShowMessage())
-'    Timeout As Long             ' // timeout in seconds (0=sticky)
-'    LngData2 As Long            ' // reserved
-'    Title As String * 512
-'    Text As String * 512        ' // VB defines these as wide so they're actually 1024 bytes
-'    Icon As String * 512
-'
-'End Type
-'
-'Public Type SNARLSTRUCTEX
-'    Cmd As SNARL_COMMANDS       ' // what to do...
-'    Id As Long                  ' // snarl message id (returned by snShowMessage())
-'    Timeout As Long             ' // timeout in seconds (0=sticky)
-'    LngData2 As Long            ' // reserved
-'    Title As String * 512
-'    Text As String * 512        ' // VB defines these as wide so they're actually 1024 bytes
-'    Icon As String * 512
-'    Class As String * 512
-'    Extra As String * 512
-'    Extra2 As String * 512
-'    Reserved1 As Long
-'    Reserved2 As Long
-'
-'End Type
-'
-'
-'
-'    ' /* internal declares */
-'
-'
-'
-'Dim m_hwndFrom As Long      ' // set during snRegisterConfig() or snRegisterConfig2()
-'
-
-
-'Private Declare Function lstrcpyW2 Lib "kernel32" Alias "lstrcpyW" (ByVal str1 As Long, ByVal str2 As Long) As Long
-'Private Declare Sub CopyMemory Lib "kernel32" Alias "RtlMoveMemory" (Destination As Any, Source As Any, ByVal cbBytes As Long)
-'Private Declare Function GetWindowText Lib "user32" Alias "GetWindowTextA" (ByVal hWnd As Long, ByVal lpString As String, ByVal cch As Long) As Long
-'Private Declare Function FindWindowEx Lib "user32" Alias "FindWindowExA" (ByVal hWnd1 As Long, ByVal hWnd2 As Long, ByVal lpsz1 As String, ByVal lpsz2 As String) As Long
-'
-'Private Const CP_UTF8 = 65001
-'Private Declare Function WideCharToMultiByte Lib "kernel32" (ByVal CodePage As Long, ByVal dwFlags As Long, ByVal lpWideCharStr As Long, ByVal cchWideChar As Long, ByVal lpMultiByteStr As Long, ByVal cchMultiByte As Long, ByVal lpDefaultChar As Long, lpUsedDefaultChar As Long) As Long
-'
-'Public Function snShowMessage(ByVal Title As String, ByVal Text As String, Optional ByVal Timeout As Long, Optional ByVal IconPath As String, Optional ByVal hWndReply As Long, Optional ByVal uReplyMsg As Long) As Long
-'Dim pss As SNARLSTRUCT
-'
-'    With pss
-'        .Cmd = SNARL_SHOW
-'        .Title = uToUTF8(Title)
-'        .Text = uToUTF8(Text)
-'        .Icon = uToUTF8(IconPath)
-'        .Timeout = Timeout
-'        ' /* R0.3 */
-'        .LngData2 = hWndReply
-'        .Id = uReplyMsg
-'    End With
-'
-'    snShowMessage = uSend(pss)
-'
-'End Function
-'
-'Public Function snHideMessage(ByVal Id As Long) As Boolean
-'Dim pss As SNARLSTRUCT
-'
-'    pss.Cmd = SNARL_HIDE
-'    pss.Id = Id
-'    snHideMessage = CBool(uSend(pss))
-'
-'End Function
-'
-'Public Function snIsMessageVisible(ByVal Id As Long) As Boolean
-'Dim pss As SNARLSTRUCT
-'
-'    pss.Cmd = SNARL_IS_VISIBLE
-'    pss.Id = Id
-'    snIsMessageVisible = CBool(uSend(pss))
-'
-'End Function
-'
-'Public Function snUpdateMessage(ByVal Id As Long, ByVal Title As String, ByVal Text As String, Optional ByVal IconPath As String) As Long
-'Dim pss As SNARLSTRUCT
-'
-'    With pss
-'        .Cmd = SNARL_UPDATE
-'        .Id = Id
-'        .Title = uToUTF8(Title)
-'        .Text = uToUTF8(Text)
-'        ' /* 1.6 Beta 4 */
-'        .Icon = uToUTF8(IconPath)
-'
-'    End With
-'
-'    snUpdateMessage = uSend(pss)
-'
-'End Function
-'
-'Public Function snRegisterConfig(ByVal hWnd As Long, ByVal AppName As String, ByVal ReplyMsg As Long) As Long
-'Dim pss  As SNARLSTRUCT
-'
-'    m_hwndFrom = hWnd
-'
-'    With pss
-'        .Cmd = SNARL_REGISTER_CONFIG_WINDOW
-'        .LngData2 = hWnd
-'        .Id = ReplyMsg
-'        .Title = uToUTF8(AppName)
-'
-'    End With
-'
-'    snRegisterConfig = uSend(pss)
-'
-'End Function
-'
-'Public Function snRevokeConfig(ByVal hWnd As Long) As Long
-'Dim pss As SNARLSTRUCT
-'
-'    With pss
-'        .Cmd = SNARL_REVOKE_CONFIG_WINDOW
-'        .LngData2 = hWnd
-'
-'    End With
-'
-'    snRevokeConfig = uSend(pss)
-'    m_hwndFrom = 0
-'
-'End Function
-'
-'
-'Public Function snGetVersion(ByRef Major As Integer, ByRef Minor As Integer) As Boolean
-'Dim pss As SNARLSTRUCT
-'Dim hr As Long
-'
-'    pss.Cmd = SNARL_GET_VERSION
-'    hr = uSend(pss)
-'    If (hr And &H80000000) = 0 Then         ' // FIXED: uSend() returns an M_RESULT on error
-'        Major = uHIWORD(hr)
-'        Minor = uLOWORD(hr)
-'        snGetVersion = True
-'
-'    End If
-'
-'End Function
-'
-
-'
-'Private Function uLOWORD(ByVal dw As Long) As Integer
-'Dim i As Integer
-'
-'    CopyMemory i, ByVal VarPtr(dw), 2
-'    uLOWORD = i
-'
-'End Function
-'
-'Private Function uHIWORD(ByVal dw As Long) As Integer
-'Dim i As Integer
-'
-'    CopyMemory i, ByVal VarPtr(dw) + 2, 2
-'    uHIWORD = i
-'
-'End Function
-'
-'
-'
-'
-'    ' /*
-'    '
-'    '       V37 (R1.6) Additions
-'    '
-'    ' */
-'
-'
-'' /*
-''   snRegisterAlert() -- registers a specific application notification  (V37)
-''
-''   Inputs
-''       AppName - Application name, same as that used in snRegisterConfig() or snRegisterConfig2()
-''       Class - Alert class name
-''
-''   Results
-''       Returns M_OK if the alert registered okay, or one of the following if it didn't:
-''           M_FAILED - Snarl not running
-''           M_TIMED_OUT - Message sending timed out
-''           M_NOT_FOUND - Application not found in Snarl's roster
-''           M_ALREADY_EXISTS - Alert is already registered
-''
-'' */
-'
-'Public Function snRegisterAlert(ByVal AppName As String, ByVal ClassName As String) As Long
-'Dim pss As SNARLSTRUCT
-'
-'    With pss
-'        .Cmd = SNARL_REGISTER_ALERT
-'        .Title = uToUTF8(AppName)
-'        .Text = uToUTF8(Class)
-'
-'    End With
-'
-'    snRegisterAlert = uSend(pss)
-'
-'End Function
-'
-'' /*
-''   snRegisterConfig2() -- registers a configuration handler with Snarl  (V37)
-''
-''   Inputs
-''       hWnd - Application name, same as that used in snRegisterConfig() or snRegisterConfig2()
-''       AppName - Name of application to register
-''       ReplyMsg - Message Snarl will send to hWnd to notify it of something
-''       Icon - Path to PNG icon to use
-''
-''   Results
-''       Returns M_OK if the handler registered okay, or one of the following if it didn't:
-''           M_FAILED - Snarl not running
-''           M_TIMED_OUT - Message sending timed out
-''           M_ALREADY_EXISTS - Application is already registered
-''           M_ABORTED - Internal problem registering the handler
-''
-'' */
-'
-'Public Function snRegisterConfig2(ByVal hWnd As Long, ByVal AppName As String, ByVal ReplyMsg As Long, ByVal Icon As String, Optional ByVal LargeIcon As String) As Long
-'Dim pss As SNARLSTRUCT
-'
-'    m_hwndFrom = hWnd
-'
-'    With pss
-'        .Cmd = SNARL_REGISTER_CONFIG_WINDOW_2
-'        .LngData2 = hWnd
-'        .Id = ReplyMsg
-'        .Title = uToUTF8(AppName)
-'        .Icon = uToUTF8(Icon)
-'        ' /* added for R2.2 (V39.50) although R2.1 does support this as well */
-'        .Text = uToUTF8(LargeIcon)
-'
-'    End With
-'
-'    snRegisterConfig2 = uSend(pss)
-'
-'End Function
-'
-'' /*
-''   snGetIconsPath() -- returns a path to Snarl's default icon location  (V37)
-''
-''   Synopsis
-''
-''       str snGetIconsPath()
-''
-''   Inputs
-''       None
-''
-''   Results
-''       A fully-qualified path to Snarl's default icon location
-''
-''   Notes
-''       The easiest way to create this function is as below; simply return the
-''       result of snGetAppPath() and tag "etc\icons\" to the end of it.
-''
-''       Starting with R2.0 (V38) Snarl now makes better use of per-user settings
-''       by storing configuration data in %APPDATA%.  Consequently the use of this
-''       function is now very limited.
-''
-'' */
-'
-'Public Function snGetIconsPath() As String
-'
-'    snGetIconsPath = snGetAppPath() & "etc\icons\"
-'
-'End Function
-'
-'' /*
-''   snGetAppPath() -- returns a path to Snarl's installed location  (V37)
-''
-''   Synopsis
-''
-''       str snGetAppPath()
-''
-''   Inputs
-''       None
-''
-''   Results
-''       A fully-qualified path to the location of the *running* instance of Snarl
-''       or an empty string if an error occurred (mostly likely Snarl isn't running)
-''
-''   Notes
-''       Snarl creates a static control within its dispatcher window, the label of
-''       which is set to the path the executable is run from.  This function simply
-''       finds the dispatcher window, then finds the static control and retrieves
-''       the control's title.
-''
-''       Starting with R2.0 (V38) Snarl now makes better use of per-user settings
-''       by storing configuration data in %APPDATA%.  Consequently the use of this
-''       function is now very limited.
-''
-'' */
-'Public Function snGetAppPath() As String
-'Dim hWnd As Long
-'Dim hWndPath As Long
-'Dim sz As String
-'Dim i As Long
-'
-'    hWnd = sn41GetSnarlWindow()
-'    If hWnd <> 0 Then
-'        hWndPath = FindWindowEx(hWnd, 0, "static", vbNullString)
-'        If hWndPath <> 0 Then
-'            sz = String$(1024, 0)
-'            i = GetWindowText(hWndPath, sz, Len(sz))
-'            If i > 0 Then _
-'                snGetAppPath = Left$(sz, i)
-'
-'        End If
-'    End If
-'
-'End Function
-'
-'
-'
-'' /*
-''   snShowMessageEx() -- displays a Snarl notification using registered class  (V37)
-''
-''   Inputs
-''       Class - Notification class, same as that specified in snRegisterAlert()
-''       Title - Text to display in title
-''       Text - Text to display in body
-''       Timeout - Number of seconds to display notification or zero for indefinite (sticky)
-''       IconPath - Path to PNG icon to use
-''       hWndReply - Handle of window for Snarl to send replies to
-''       uReplyMsg - Message for Snarl to send to hWndReply
-''       SoundFile - Path to WAV file to play
-''
-''   Results
-''       Returns an M_RESULT indicating success or failure
-''
-'' */
-'
-'Public Function snShowMessageEx(ByVal ClassName As String, ByVal Title As String, ByVal Text As String, Optional ByVal Timeout As Long, Optional ByVal IconPath As String, Optional ByVal hWndReply As Long, Optional ByVal uReplyMsg As Long, Optional ByVal SoundFile As String) As Long
-'Dim pss As SNARLSTRUCTEX
-'
-'    With pss
-'        .Cmd = SNARL_EX_SHOW
-'        .Title = uToUTF8(Title)
-'        .Text = uToUTF8(Text)
-'        .Icon = uToUTF8(IconPath)
-'        .Timeout = Timeout
-'        .LngData2 = hWndReply
-'        .Id = uReplyMsg
-'        .Extra = uToUTF8(SoundFile)
-'        .Class = uToUTF8(Class)
-'
-'    End With
-'
-'    snShowMessageEx = uSendEx(pss)
-'
-'End Function
-'
-'Private Function uSendEx(pss As SNARLSTRUCTEX) As Long
-'Dim hWnd As Long
-'Dim pcds As COPYDATASTRUCT
-'Dim dw As Long
-'
-'    hWnd = sn41GetSnarlWindow()
-'    If IsWindow(hWnd) <> 0 Then
-'        pcds.dwData = 2
-'        pcds.cbData = LenB(pss)
-'        pcds.lpData = VarPtr(pss)
-'        If SendMessageTimeout(hWnd, WM_COPYDATA, m_hwndFrom, pcds, SMTO_ABORTIFHUNG, 500, dw) > 0 Then
-'            ' /* worked! */
-'            uSendEx = dw
-'
-'        Else
-'            ' /* timed-out or failed */
-'            #If USE_LEMON Then
-''            g_Debug "uSendEx(): failed (" & g_ApiError() & ")", LEMON_LEVEL_WARNING
-'            #End If
-'            uSendEx = &H8000000A        '// M_TIMED_OUT
-'
-'        End If
-'
-'    Else
-'        #If USE_LEMON Then
-'        g_Debug "uSendEx(): Snarl window not found", LEMON_LEVEL_WARNING
-'        #End If
-'        uSendEx = &H80000008            '// M_FAILED
-'
-'    End If
-'
-'End Function
-'
-'' /*
-''   sn41GetSnarlWindow() -- returns a handle to the Snarl Dispatcher window  (V37)
-''
-''   Synopsis
-''
-''       int32 sn41GetSnarlWindow()
-''
-''   Inputs
-''       None
-''
-''   Results
-''       Returns handle to Snarl Dispatcher window, or zero if it's not found
-''
-''   Notes
-''       This is now the preferred way to test if Snarl is actually running
-''
-'' */
-'Public Function sn41GetSnarlWindow() As Long
-'
-'    sn41GetSnarlWindow = FindWindow("w>Snarl", "Snarl")
-'    If sn41GetSnarlWindow = 0 Then _
-'        sn41GetSnarlWindow = FindWindow(vbNullString, "Snarl")
-'
-'End Function
-'
-'' /*
-''   snGetVersionEx() -- returns the Snarl system version number  (V37)
-''
-''   Synopsis
-''
-''   int32 snGetVersionEx()
-''
-''   Inputs
-''       None
-''
-''   Results
-''       Returns Snarl system version number or one of the following:
-''           M_FAILED - Snarl not running
-''           M_TIMED_OUT - Message sending timed out
-''           0 or M_NOT_IMPLEMENTED - Pre-V37 version of Snarl
-''
-'' */
-'Public Function snGetVersionEx() As Long
-'Dim pss As SNARLSTRUCT
-'
-'    pss.Cmd = SNARL_GET_VERSION_EX
-'    snGetVersionEx = uSend(pss)
-'
-'End Function
-'
-'' /*
-''   snSetTimeout() -- changes the timeout of an active notification  (V37)
-''
-''   Inputs
-''       Id - Notification identifier, returned after a successful snShowMessage() or snShowMessageEx()
-''       Timeout - Updated timeout in seconds, zero means display indefinately
-''
-''   Results
-''       M_OK - Succeeded
-''       M_FAILED - Snarl not running
-''       M_TIMED_OUT - Message sending timed out
-''       M_NOT_FOUND - Notification wasn't found
-''
-''   Notes
-''       Timeout cannot be less than zero or greater than 65535 (18.2 hours)
-''
-'' */
-'Public Function snSetTimeout(ByVal Id As Long, ByVal Timeout As Long) As Long
-'Dim pss As SNARLSTRUCT
-'
-'    pss.Cmd = SNARL_SET_TIMEOUT
-'    pss.Id = Id
-'    pss.LngData2 = Timeout
-'    snSetTimeout = CBool(uSend(pss))
-'
-'End Function
-'
-'Public Function uToUTF8(ByVal str As String) As String
-'Dim stBuffer As String
-'Dim cwch As Long
-'Dim pwz As Long
-'Dim pwzBuffer As Long
-'
-'    On Error GoTo ex
-'
-'    If str = "" Then _
-'        Exit Function
-'
-'    pwz = StrPtr(str)
-'    cwch = WideCharToMultiByte(CP_UTF8, 0, pwz, -1, 0&, 0&, ByVal 0&, ByVal 0&)
-'    stBuffer = String$(cwch + 1, vbNullChar)
-'    pwzBuffer = StrPtr(stBuffer)
-'    cwch = WideCharToMultiByte(CP_UTF8, 0, pwz, -1, pwzBuffer, Len(stBuffer), ByVal 0&, ByVal 0&)
-'    uToUTF8 = Left$(stBuffer, cwch - 1)
-'
-'ex:
-'End Function
-'
-'    ' /* THIS DOES NOT NEED TO BE RECREATED - IT'S PURELY FOR INTERNAL SNARL TESTING */
-'Public Sub bsnSet(ByVal l As Long)
-'    m_hwndFrom = l
-'End Sub
-'
-
-'
-'
-'' /*
-''   snRegisterApp() -- registers an application with Snarl  (V39)
-''
-''   Inputs
-''       Application - Name of application to register
-''       ReplyMsg - Message Snarl will send to hWnd to notify it of something
-''       SmallIcon - Path to PNG icon to use in Snarl's preferences
-''       LargeIcon - Path to PNG icon to use in Registered/Unregistered notifications
-''
-''   Results
-''       Returns M_OK if the handler registered okay, or one of the following if it didn't:
-''           M_FAILED - Snarl not running
-''           M_TIMED_OUT - Message sending timed out
-''           M_ALREADY_EXISTS - Application is already registered
-''           M_ABORTED - Internal problem registering the handler
-''
-'' */
-'
-'Public Function snRegisterApp(ByVal Application As String, ByVal SmallIcon As String, ByVal LargeIcon As String, Optional ByVal hWnd As Long, Optional ByVal ReplyMsg As Long) As Long
-'Dim pss As SNARLSTRUCT
-'
-'    m_hwndFrom = hWnd
-'
-'    With pss
-'        .Cmd = SNARL_REGISTER_APP
-'        .Title = uToUTF8(Application)
-'        .Icon = uToUTF8(SmallIcon)
-'        .Text = uToUTF8(LargeIcon)
-'        .LngData2 = hWnd
-'        .Id = ReplyMsg
-'        .Timeout = GetCurrentProcessId()
-'
-'    End With
-'
-'    snRegisterApp = uSend(pss)
-'
-'End Function
-'
-'
-'' /*
-''   snUnregisterApp() -- unregisters an application with Snarl  (V39)
-''
-''   PRIVATE FUNCTION: due for documentation in V39.  For now should only be used
-''   under direct guidance from application developers.
-''
-''   Inputs
-''       None
-''
-''   Results
-''       Returns M_OK if the handler registered okay, or one of the following if it didn't:
-''           M_FAILED - Snarl not running
-''           M_TIMED_OUT - Message sending timed out
-''           M_ALREADY_EXISTS - Application is already registered
-''           M_ABORTED - Internal problem registering the handler
-''
-'' */
-'
-'Public Function snUnregisterApp() As Long
-'Dim pss As SNARLSTRUCT
-'
-'    With pss
-'        .Cmd = SNARL_UNREGISTER_APP
-'        .LngData2 = GetCurrentProcessId()
-'
-'    End With
-'
-'    snUnregisterApp = uSend(pss)
-'    m_hwndFrom = 0
-'
-'End Function
-'
-'
-'' /*
-''   snShowNotification() -- displays a Snarl notification using registered class  (V39)
-''
-''   Inputs
-''       Application - name of application
-''       Class - Class, same as that specified in snRegisterAlert()
-''       Title - Text to display in title
-''       Text - Text to display in body
-''       Timeout - Number of seconds to display notification or zero for indefinite (sticky)
-''       IconPath - Path to PNG icon to use
-''       hWndReply - Handle of window for Snarl to send replies to
-''       uReplyMsg - Message for Snarl to send to hWndReply
-''       SoundFile - Path to WAV file to play
-''
-''   Results
-''       Returns handle to Snarl Dispatcher window, or zero if it's not found
-''
-'' */
-'
-'Public Function snShowNotification(ByVal ClassName As String, Optional ByVal Title As String, Optional ByVal Text As String, Optional ByVal Timeout As Long, Optional ByVal Icon As String, Optional ByVal hWndReply As Long, Optional ByVal uReplyMsg As Long, Optional ByVal Sound As String) As Long
-'Dim pss As SNARLSTRUCTEX
-'
-'    With pss
-'        .Cmd = SNARL_SHOW_NOTIFICATION
-'        .Title = uToUTF8(Title)
-'        .Text = uToUTF8(Text)
-'        .Icon = uToUTF8(Icon)
-'        .Timeout = Timeout
-'        .LngData2 = hWndReply
-'        .Id = uReplyMsg
-'        .Extra = uToUTF8(Sound)
-'        .Class = uToUTF8(Class)
-'        .Reserved1 = GetCurrentProcessId()
-'
-'    End With
-'
-'    snShowNotification = uSendEx(pss)
-'
-'End Function
-'
-'Public Function snChangeAttribute(ByVal Id As Long, ByVal Attr As SNARL_ATTRIBUTES, ByVal Value As String) As Long
-'Dim pss As SNARLSTRUCT
-'
-'    With pss
-'        .Cmd = SNARL_CHANGE_ATTR
-'        .Id = Id
-'        .LngData2 = Attr
-'        .Text = uToUTF8(Value)
-'
-'    End With
-'
-'    snChangeAttribute = uSend(pss)
-'
-'End Function
-'
-'' /*
-''   snSetClassDefault() -- sets the default value for an alert class  (V39)
-''
-''   PRIVATE FUNCTION: due for documentation in V39.  For now should only be used
-''   under direct guidance from the application developers.
-''
-''   Inputs
-''       Application - Application name, same as that used in snRegisterConfig(), snRegisterConfig2() or snRegisterApp()
-''       Class - Class name
-''       Attr - Class element to change
-''       Value - New value
-''
-''   Results
-''       Returns M_OK if the alert registered okay, or one of the following if it didn't:
-''           M_FAILED - Snarl not running
-''           M_TIMED_OUT - Message sending timed out
-''           M_NOT_FOUND - Application or Alert Class not found in Snarl's roster
-''           M_INVALID_ARGS - Invalid argument specified
-''
-'' */
-'
-'Public Function snSetClassDefault(ByVal ClassName As String, ByVal Attr As SNARL_ATTRIBUTES, ByVal Value As String) As Long
-'Dim pss As SNARLSTRUCT
-'
-'    With pss
-'        .Cmd = SNARL_SET_CLASS_DEFAULT
-'        .Text = uToUTF8(Class)
-'        .LngData2 = Attr
-'        .Icon = uToUTF8(Value)
-'        .Timeout = GetCurrentProcessId()
-'
-'    End With
-'
-'    snSetClassDefault = uSend(pss)
-'
-'End Function
-'
-'' /*
-''   snGetRevision() -- gets the current Snarl revision (build) number  (V39)
-''
-''   Inputs
-''       None
-''
-''   Results
-''       Returns the build version number, or one of the following if it didn't:
-''           M_FAILED - Snarl not running
-''           M_TIMED_OUT - Message sending timed out
-''
-'' */
-'
-'Public Function snGetRevision() As Long
-'Dim pss As SNARLSTRUCT
-'
-'    With pss
-'        .Cmd = SNARL_GET_REVISION
-'        .LngData2 = &HFFFE&             ' // COPWAIT ;)
-'
-'    End With
-'
-'    snGetRevision = uSend(pss)
-'
-'End Function
-'
-'Public Function snAddClass(ByVal ClassName As String, Optional ByVal Description As String, Optional ByVal Flags As SNARL_CLASS_FLAGS, Optional ByVal DefaultTitle As String, Optional ByVal DefaultIcon As String, Optional ByVal DefaultTimeout As Long) As Long
-'Dim pss As SNARLSTRUCT
-'
-'    With pss
-'        .Cmd = SNARL_ADD_CLASS
-'        .Text = uToUTF8(Class)
-'        .Title = uToUTF8(Description)
-'        .LngData2 = Flags
-'        .Timeout = GetCurrentProcessId()
-'
-'    End With
-'
-'    snAddClass = uSend(pss)
-'
-'    If snAddClass = 0 Then
-'        ' /* succeeded */
-'        snSetClassDefault Class, SNARL_ATTRIBUTE_TITLE, DefaultTitle
-'        snSetClassDefault Class, SNARL_ATTRIBUTE_ICON, DefaultIcon
-'        If DefaultTimeout > 0 Then _
-'            snSetClassDefault Class, SNARL_ATTRIBUTE_TIMEOUT, CStr(DefaultTimeout)
-'
-'    End If
-'
-'End Function
-
-Public Function uToUTF8(ByVal str As String) As String
-Dim stBuffer As String
-Dim cwch As Long
-Dim pwz As Long
-Dim pwzBuffer As Long
-
-    On Error GoTo ex
-
-    If str = "" Then _
-        Exit Function
-
-    pwz = StrPtr(str)
-    cwch = WideCharToMultiByte(CP_UTF8, 0, pwz, -1, 0&, 0&, ByVal 0&, ByVal 0&)
-    stBuffer = String$(cwch + 1, vbNullChar)
-    pwzBuffer = StrPtr(stBuffer)
-    cwch = WideCharToMultiByte(CP_UTF8, 0, pwz, -1, pwzBuffer, Len(stBuffer), ByVal 0&, ByVal 0&)
-    uToUTF8 = Left$(stBuffer, cwch - 1)
-
-ex:
 End Function
+
+Public Function sn42AddAction(ByVal Token As Long, ByVal Label As String, Optional ByVal Command As String) As Long
+Dim pReq As SNARLMSG
+
+    With pReq
+        .Command = SNARL42_ADD_ACTION
+        .Token = Token
+        .PacketData = uToUTF8("label::" & Label & IIf(Command <> "", "#?cmd::" & Command, ""))
+
+    End With
+
+    sn42AddAction = uSend(pReq)
+
+End Function
+
+Public Function sn42ClearActions(ByVal Token As Long) As Long
+Dim pReq As SNARLMSG
+
+    With pReq
+        .Command = SNARL42_CLEAR_ACTIONS
+        .Token = Token
+
+    End With
+
+    sn42ClearActions = uSend(pReq)
+
+End Function
+
+Public Function sn42ShowRequester(ByVal hWndReplyTo As Long, ByVal ReplyMsg As Long, ByVal Text As String, Optional ByVal SubText As String, Optional ByVal IconPath As String, Optional ByVal Duration As Long = -1, Optional ByVal Actions As String)
+Dim pReq As SNARLMSG
+
+    With pReq
+        .Command = SNARL42_SHOW_REQUEST
+        .Token = GetCurrentProcessId()
+        .PacketData = uToUTF8("hwnd::" & CStr(hWndReplyTo) & "#?reply::" & CStr(ReplyMsg) & "#?text::" & Text & "#?subtext::" & SubText & "#?icon::" & IconPath & "#?duration::" & Duration & "#?actions::" & Actions)
+
+    End With
+
+    sn42ShowRequester = uSend(pReq)
+
+End Function
+
+Public Function sn42Send(ByVal Action As String, ByVal Args As String) As Long
+Dim pReq As SNARLMSG
+
+    ' /* 'Args' should be in SNP2.0 format (i.e. arg=value&arg=value) */
+
+    If Args <> "" Then
+        Args = Replace$(Args, "=", "::")
+        Args = Replace$(Args, "&", "#?")
+        Args = "#?" & Args
+
+    End If
+
+    With pReq
+        .Command = SNARL42_PARSE
+        .Token = GetCurrentProcessId()
+        .PacketData = uToUTF8("action::" & Action & Args)
+
+    End With
+
+    sn42Send = uSend(pReq)
+
+End Function
+
+
