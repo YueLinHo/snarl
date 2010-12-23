@@ -15,6 +15,8 @@ typedef enum S_STYLE_FLAGS {
     S_STYLE_WILL_RESIZE		= 0x00000100,	// will change size during custom show and hide stages
     S_STYLE_CLICK_THROUGH	= 0x00000200,	// style is always click-through irrespective of Snarl config
     S_STYLE_WANT_APP_NAME	= 0x00000400,	// UpdateContent() will include sending app name in the Title
+	S_STYLE_V42_CONTENT		= 0x00000800,	// Title not used, Text contains unabridged notification content 
+
 
     S_STYLE_PULSE_NEEDED	= 0x80000000	// wants a regular pulse
 

@@ -30,8 +30,8 @@ Option Explicit
     ' /* our constants */
 
 Const EXT_NAME = "Clock+"
-Const EXT_DATE = "15-Sep-2010"
-Const EXT_REL = "2.02"
+Const EXT_DATE = "20-Dec-2010"
+Const EXT_REL = "2.05"
 
 Const CLASS_HOUR_CHIME = "hrch"
 Const CLASS_COUNTDOWN_COMPLETE = "ccom"
@@ -270,7 +270,7 @@ Dim szPath As String
 
     ' /* does snarl's /etc/ path exist? */
 
-    If Not snext_getuserpath(szPath) Then
+    If Not sn42GetConfigPath(szPath) Then
         mLastErr = "Couldn't get Snarl user path"
         ISnarlExtension_Initialize = 201
         Exit Function
@@ -419,7 +419,7 @@ Static dTemp As Date
                                 "Hourly reminder", _
                                 IIf(gConfig.format_type = 2, "", "It's now ") & g_GetTimeString(gConfig, True), _
                                 -1, _
-                                g_MakePath(App.Path) & "hourly.png")
+                                g_MakePath(App.Path) & "hourly.png", -1)
 
         mLastHour = Hour(Now)
 

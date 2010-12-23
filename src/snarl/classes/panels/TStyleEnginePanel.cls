@@ -132,12 +132,12 @@ Dim szEngine As String
             szEngine = InputBox("Style Engine to install?", App.Title)
             If szEngine = "" Then _
                 Exit Sub
-    
+
             If g_GetExtension(szEngine) = "" Then _
                 szEngine = szEngine & ".styleengine"
     
             If g_StyleRoster.Load(szEngine, sz, True) Then
-                snShowMessage szEngine & " installed ok", "", -1, g_MakePath(App.Path) & "etc\icons\style_engine.png"
+                g_PrivateNotify "", "", szEngine & " installed ok", -1, g_MakePath(App.Path) & "etc\icons\style_engine.png"
                 uUpdateList
     
                 If g_GetUserFolderPath(sz) Then

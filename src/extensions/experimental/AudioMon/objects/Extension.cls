@@ -50,14 +50,14 @@ Option Explicit
     '
     ' */
 
-Private Const LIB_DATE = "15-Oct-2010"
-Private Const LIB_REL = "1.81"
+Private Const LIB_DATE = "17-Dec-2010"
+Private Const LIB_REL = "2.0"
 
-Private Const WINDOW_CLASS = "w>audiomon_extension"
+'Private Const WINDOW_CLASS = "w>audiomon_extension"
 
-Private Const CLASS_AUDIO_LEVEL_CHANGED = "audc"
-Private Const CLASS_AUDIO_MUTED = "audm"
-Private Const CLASS_AUDIO_UNMUTED = "audu"
+'Private Const CLASS_AUDIO_LEVEL_CHANGED = "audc"
+'Private Const CLASS_AUDIO_MUTED = "audm"
+'Private Const CLASS_AUDIO_UNMUTED = "audu"
 Private Const CLASS_AUDIO_CHANGE = "audx"
 
 Dim mLastErr As String
@@ -72,135 +72,41 @@ Dim WithEvents InputMixer As BAudioMixer
 Attribute InputMixer.VB_VarHelpID = -1
 'Dim WithEvents VistaMixer As TVistaMixer
 
-Dim mVolId As Long
-Dim mMuteId As Long
+'Dim mVolId As Long
+'Dim mMuteId As Long
+
+
 
 Dim mVol As Long
+Dim mCurrentId As Long
+
+Private Const CLASS_NAME = "w>audiomon"
+Dim mhWnd As Long
 
 Implements KPrefsPanel              ' // we're a panel handler
 Implements KPrefsPage               ' // we're also a page handler
 Implements ISnarlExtension
+Implements MWndProcSink
 
 Private Sub InputMixer_ControlChanged(Control As audio_resource.BMixerLineControl, ByVal Value As Long)
-Dim bMeterMode As Boolean
-Dim bMultiMode As Boolean
-Dim i As Long
 
-    bMeterMode = (mSettings.GetValueWithDefault("MeterStyleMode", "0") = "1")
-    bMultiMode = (mSettings.GetValueWithDefault("MultiNotificationMode", "0") = "1")
+    If mAppToken = 0 Then
+        g_Debug "InputMixer.ControlChanged(): not registered with Snarl", LEMON_LEVEL_CRITICAL
+        Exit Sub
+
+    End If
 
     Select Case LCase$(Control.Name)
     Case "master volume"
-
-        ' /* bounds check */
-
-        If Control.Maximum < 1 Then
-            g_Debug "InputMixer.ControlChanged(): bad max setting '" & Control.Maximum & "'", LEMON_LEVEL_CRITICAL
-            Exit Sub
-
-        End If
-
-        ' /* has it changed enough to make a difference? */
-
-        i = Fix((Value / Control.Maximum) * 100)
-        If i = mVol Then _
-            Exit Sub
-
-        mVol = i
-
-        ' /* if volume is muted don't both notifying */
-
-        If current_master_mute() Then _
-            Exit Sub
-
-'        g_Debug "volume: " & CStr(Value)
-
-        If bMultiMode Then
-
-            ' /* remove any muted/unmuted notification first */
-
-            If sn41IsVisible(mMuteId) Then _
-                sn41Hide mMuteId
-
-            ' /* if there's an existing volume changed notification, update that */
-
-            If sn41IsVisible(mVolId) Then
-                sn41EZUpdate mVolId, , IIf(bMeterMode, CStr(i), ""), , uGetIcon(i)
-
-            Else
-                mVolId = sn41EZNotify(mAppToken, CLASS_AUDIO_LEVEL_CHANGED, "", IIf(bMeterMode, CStr(i), ""), -1, uGetIcon(i))
-
-            End If
-
-        Else
-
-            ' /* single notification mode */
-
-            If sn41IsVisible(mVolId) Then
-                sn41EZUpdate mVolId, , IIf(bMeterMode, CStr(i), ""), , uGetIcon(i)
-
-            Else
-                mVolId = sn41EZNotify(mAppToken, CLASS_AUDIO_CHANGE, "", IIf(bMeterMode, CStr(i), ""), -1, uGetIcon(i))
-
-            End If
-
-        End If
-
+        If mSettings.GetValueWithDefault("show_mute", "1") = "1" Then _
+            uVolChanged Control, Value, g_SafeLong(mSettings.GetValueWithDefault("vol_detail", "2"))
 
     Case "master mute"
+        If mSettings.GetValueWithDefault("show_vol", "1") = "1" Then _
+            uMuteChanged Value, g_SafeLong(mSettings.GetValueWithDefault("mute_detail", "2"))
 
-        If bMultiMode Then
-
-            ' /* remove any 'volume changed' notification first */
-
-            If sn41IsVisible(mVolId) Then _
-                sn41Hide mVolId
-
-            If sn41IsVisible(mMuteId) Then _
-                sn41Hide mMuteId
-
-            If Value = 0 Then
-                ' /* unmuted */
-                mMuteId = sn41EZNotify(mAppToken, _
-                                       CLASS_AUDIO_UNMUTED, _
-                                       "", _
-                                       "", _
-                                       -1, _
-                                       uGetIcon(mVol))
-
-            Else
-                ' /* muted */
-                mMuteId = sn41EZNotify(mAppToken, _
-                                       CLASS_AUDIO_MUTED, _
-                                       "", _
-                                       "", _
-                                       -1, _
-                                       "!audio-volume-mute")
-
-            End If
-
-
-        Else
-            ' /* single notification mode */
-
-            If sn41IsVisible(mVolId) Then
-                sn41EZUpdate mVolId, _
-                           , _
-                           IIf(Value = 1, "", IIf(bMeterMode, CStr(mVol), "")), _
-                           , _
-                           IIf(Value = 1, "!audio-volume-mute", uGetIcon(mVol))
-
-            Else
-                mVolId = sn41EZNotify(mAppToken, _
-                                      CLASS_AUDIO_CHANGE, _
-                                      "", _
-                                      IIf(Value = 1, "", IIf(bMeterMode, CStr(mVol), "")), _
-                                      -1, _
-                                      IIf(Value = 1, "!audio-volume-mute", uGetIcon(mVol)))
-
-            End If
-
-        End If
+    Case Else
+        g_Debug "InputMixer.ControlChanged(): unrecognised control '" & Control.Name & "'", LEMON_LEVEL_WARNING
 
     End Select
 
@@ -221,23 +127,26 @@ Dim pPage As BPrefsPage
             Set pPage = new_BPrefsPage("", Nothing, Me)
 
             With pPage
-                .SetMargin 32
+                .SetMargin 68
 
-                .Add new_BPrefsControl("banner", "", "Appearance")
-'                .Add new_BPrefsControl("fancytoggle2", "ft>IncludeTitle", "Include title in notification?", , IIf(mSettings.IncludeTitle, "1", "0"))
-'                .Add new_BPrefsControl("fancytoggle2", "ft>IncludeText", "Include text in notification?", , IIf(mSettings.IncludeText, "1", "0"))
+                .Add new_BPrefsControl("banner", "", "General")
+'                .Add new_BPrefsControl("fancytoggle2", "MultiNotificationMode", "Use separate mute and volume change classes?", , mSettings.GetValueWithDefault("MultiNotificationMode", "1"))
+                .Add new_BPrefsControl("fancytoggle2", "MeterStyleMode", "Show volume as a meter?", , mSettings.GetValueWithDefault("MeterStyleMode", "0"))
 
-'                .Add new_BPrefsControl("banner", "", "Other")
 
-                .Add new_BPrefsControl("fancytoggle2", "MultiNotificationMode", "Use multi notification mode?", , mSettings.GetValueWithDefault("MultiNotificationMode", "1"))
-'                .Add new_BPrefsControl("label", "", "Enabling this mode causes all notifications to be generated using the 'Master volume changed' class.")
+                .Add new_BPrefsControl("banner", "", "Volume Mute/Unmute")
+                .Add new_BPrefsControl("fancytoggle2", "show_mute", "Notify when muted/unmuted?", , mSettings.GetValueWithDefault("show_mute", "1"))
+                .Add new_BPrefsControl("fancycycle", "mute_detail", "None (Icon Only)|Simple|Detailed", "Content:", mSettings.GetValueWithDefault("mute_detail", "2"))
 
-                .Add new_BPrefsControl("fancytoggle2", "MeterStyleMode", "Display meter when volume changes?", , mSettings.GetValueWithDefault("MeterStyleMode", "0"))
-                .Add new_BPrefsControl("label", "", "Note that not all styles support this feature.  If you see a number appear in the notification instead of a bar, graph or other meter you should disable this setting.")
+                .Add new_BPrefsControl("banner", "", "Volume Level Change")
+                .Add new_BPrefsControl("fancytoggle2", "show_vol", "Notify when volume changes?", , mSettings.GetValueWithDefault("show_vol", "1"))
+                .Add new_BPrefsControl("fancycycle", "vol_detail", "None (Icon Only)|Simple|Detailed", "Content:", mSettings.GetValueWithDefault("vol_detail", "2"))
+'                .Add new_BPrefsControl("fancytoggle2", "xxxxx", "Show title?", , mSettings.GetValueWithDefault("xxxx", "0"), , False)
+'                .Add new_BPrefsControl("fancytoggle2", "xxxxx", "Show current volume?", , mSettings.GetValueWithDefault("xxxx", "0"), , False)
+'                .Add new_BPrefsControl("fancytoggle2", "xxxxx", "Show volume as meter?", , mSettings.GetValueWithDefault("xxxx", "0"), , False)
 
                 .Add new_BPrefsControl("separator", "")
-
-                .Add new_BPrefsControl("banner", "", "About " & App.Title & " " & LIB_REL)
+                .Add new_BPrefsControl("label", "", App.Title & " " & LIB_REL)
                 .Add new_BPrefsControl("label", "", "V" & CStr(App.Major) & "." & CStr(App.Revision) & " (" & LIB_DATE & ")", "")
                 .Add new_BPrefsControl("label", "", App.LegalCopyright)
                 .Add new_BPrefsControl("fancybutton2", "go_website", "www.fullphat.net", "")
@@ -267,10 +176,10 @@ Private Sub ISnarlExtension_GetInfo(Info As libSnarlExtn.extension_info)
         .Description = "Notifies when the master volume changes state"
 
         If g_IsWinVistaOrBetter() Then
-            .flags = 0
+            .Flags = 0
 
         Else
-            .flags = SNARL_EXTN_IS_CONFIGURABLE
+            .Flags = SNARL_EXTN_IS_CONFIGURABLE
 
         End If
 
@@ -420,8 +329,15 @@ Dim i As Long
             ' /* alpha one had 'SingleNotificationMode' - we now default
             '    to this and use 'MultiNotificationMode' instead */
 
-            If .IndexOf("MultiNotificationMode") = 0 Then _
+'            If .IndexOf("MultiNotificationMode") = 0 Then _
                 .Add "MultiNotificationMode", "0"              ' // 1.7 Alpha 2
+
+            If .IndexOf("mute_detail") = 0 Then _
+                .Add "mute_detail", "2"
+
+            If .IndexOf("vol_detail") = 0 Then _
+                .Add "vol_detail", "2"
+
 
         End With
 
@@ -429,10 +345,22 @@ Dim i As Long
 
     End With
 
+    ' /* create handler window (for forthcoming Vista/Win7 notifier) */
+
+    EZRegisterClass CLASS_NAME
+    mhWnd = EZAddWindow(CLASS_NAME, Me, CLASS_NAME)
+
     ' /* register */
 
     mAppToken = sn41RegisterApp(App.ProductName, App.Title, g_MakePath(App.Path) & "icon.png")
-    uSetClasses
+
+    If mAppToken Then
+        sn41AddClass mAppToken, CLASS_AUDIO_CHANGE, "Master volume"
+
+    Else
+        g_Debug "failed to register with Snarl (" & CStr(sn41GetLastError()) & ")", LEMON_LEVEL_CRITICAL
+
+    End If
 
     g_Debug "", LEMON_LEVEL_PROC_EXIT
 
@@ -440,7 +368,14 @@ End Sub
 
 Private Sub ISnarlExtension_Stop()
 
+    ' /* unregister */
+
     sn41UnregisterApp mAppToken
+
+    ' /* zap window */
+
+    EZRemoveWindow mhWnd
+    EZUnregisterClass CLASS_NAME
 
 End Sub
 
@@ -481,7 +416,7 @@ Private Sub KPrefsPage_ControlChanged(Control As BControl, ByVal Value As String
     mSettings.Update Control.GetName, Value
     mConfigFile.Save
 
-    If Control.GetName = "MultiNotificationMode" Then _
+'    If Control.GetName = "MultiNotificationMode" Then _
         uSetClasses
 
     g_Debug "'" & Control.GetName & "' was set to '" & Value & "'", LEMON_LEVEL_PROC_EXIT
@@ -598,20 +533,134 @@ End Function
 '
 'End Sub
 
-Private Sub uSetClasses()
-Dim bMultiNotify As Boolean
+'Private Sub uSetClasses()
+''Dim bMultiNotify As Boolean
+'
+''    sn41RemoveAllClasses mAppToken
+'
+''    bMultiNotify = (mSettings.GetValueWithDefault("MultiNotificationMode", "1") = "1")
+''
+''    If bMultiNotify Then
+''        sn41AddClass mAppToken, CLASS_AUDIO_LEVEL_CHANGED, "Master volume changed"
+''        sn41AddClass mAppToken, CLASS_AUDIO_MUTED, "Audio muted"
+''        sn41AddClass mAppToken, CLASS_AUDIO_UNMUTED, "Audio unmuted"
+''
+''    Else
+'        sn41AddClass mAppToken, CLASS_AUDIO_CHANGE, "Master volume "
+''
+''    End If
+'
+'End Sub
 
-    sn41RemoveAllClasses mAppToken
+Private Function MWndProcSink_WndProc(ByVal hWnd As Long, ByVal uMsg As Long, ByVal wParam As Long, ByVal lParam As Long, ByVal PrevWndProc As Long, ReturnValue As Long) As Boolean
 
-    bMultiNotify = (mSettings.GetValueWithDefault("MultiNotificationMode", "1") = "1")
+End Function
 
-    If bMultiNotify Then
-        sn41AddClass mAppToken, CLASS_AUDIO_LEVEL_CHANGED, "Master volume changed"
-        sn41AddClass mAppToken, CLASS_AUDIO_MUTED, "Audio muted"
-        sn41AddClass mAppToken, CLASS_AUDIO_UNMUTED, "Audio unmuted"
+Private Sub uVolChanged(Control As audio_resource.BMixerLineControl, ByVal Value As Long, ByVal Detail As Long)
+
+    ' /* bounds check */
+
+    If Control.Maximum < 1 Then
+        g_Debug "Extension.uVolChanged(): bad maximum setting '" & Control.Maximum & "'", LEMON_LEVEL_CRITICAL
+        Exit Sub
+
+    End If
+
+Dim i As Long
+
+    ' /* has it changed enough to make a difference? */
+
+    i = Fix((Value / Control.Maximum) * 100)
+    If i = mVol Then _
+        Exit Sub
+
+    ' /* yes */
+
+    mVol = i
+
+    ' /* if volume is muted don't bother notifying */
+
+    If current_master_mute() Then _
+        Exit Sub
+
+    ' /* notify */
+
+Dim szTitle As String
+Dim szText As String
+
+    Select Case Detail
+    Case 1
+        ' /* icon only */
+
+    Case 2
+        If mSettings.GetValueWithDefault("MeterStyleMode", "0") = "1" Then
+            szText = CStr(mVol)
+
+        Else
+            szTitle = CStr(mVol) & "%"
+
+        End If
+
+    Case 3
+        szTitle = "Volume changed"
+
+        If mSettings.GetValueWithDefault("MeterStyleMode", "0") = "1" Then
+            szText = CStr(mVol)
+
+        Else
+            szText = "Current volume is " & CStr(mVol) & "%"
+
+        End If
+
+    End Select
+
+    If sn41IsVisible(mCurrentId) Then
+        sn41EZUpdate mCurrentId, szTitle, szText, , uGetIcon(mVol)
 
     Else
-        sn41AddClass mAppToken, CLASS_AUDIO_CHANGE, "Master volume changes"
+        mCurrentId = sn41EZNotify(mAppToken, CLASS_AUDIO_CHANGE, szTitle, szText, -1, uGetIcon(mVol))
+
+    End If
+
+End Sub
+
+Private Sub uMuteChanged(ByVal Value As Long, ByVal Detail As Long)
+Dim szTitle As String
+Dim szText As String
+
+    Select Case Detail
+    Case 1
+        ' /* icon only */
+
+    Case 2
+        If mSettings.GetValueWithDefault("MeterStyleMode", "0") = "1" Then
+            szText = CStr(mVol)
+
+        Else
+            szTitle = IIf(Value = 1, "Muted", "Unmuted")
+
+        End If
+
+    Case 3
+        szTitle = IIf(Value = 1, "Muted", "Unmuted")
+
+        If mSettings.GetValueWithDefault("MeterStyleMode", "0") = "1" Then
+            szText = CStr(mVol)
+
+        Else
+            szText = "Current volume is " & CStr(mVol) & "%"
+
+        End If
+
+    End Select
+
+    Debug.Print "uMuteChanged(): title=" & szTitle & " text=" & szText
+
+    If sn41IsVisible(mCurrentId) Then
+        sn41EZUpdate mCurrentId, szTitle, szText, , IIf(Value = 1, "!audio-volume-mute", uGetIcon(mVol))
+
+    Else
+        mCurrentId = sn41EZNotify(mAppToken, CLASS_AUDIO_CHANGE, szTitle, szText, , IIf(Value = 1, "!audio-volume-mute", uGetIcon(mVol)))
 
     End If
 

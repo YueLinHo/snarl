@@ -210,6 +210,8 @@ Dim szText As String
 
             End With
 
+            g_KludgeNotificationInfo pInfo
+
             g_NotificationRoster.Add New TAlert, pInfo
 
 
@@ -551,6 +553,9 @@ Dim pInfo As T_NOTIFICATION_INFO
 
     End With
 
+    If (mStyle.Flags And S_STYLE_V42_CONTENT) Then _
+        g_KludgeNotificationInfo pInfo
+
 Dim pw As CSnarlWindow
 
     Set pw = New CSnarlWindow
@@ -571,7 +576,7 @@ Private Function uMakePreviewName() As String
     If (mStyle Is Nothing) Then _
         Exit Function
 
-    uMakePreviewName = g_MakePath(mStyle.Path) & mStyle.Name & "-" & mScheme & ".prvw"
+    uMakePreviewName = g_MakeValidPath(g_MakePath(mStyle.Path) & mStyle.Name & "-" & mScheme & ".prvw")
  
 End Function
 

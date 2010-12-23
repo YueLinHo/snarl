@@ -114,6 +114,158 @@ End Function
 
 Private Function IStyleEngine_GetConfigWindow(ByVal StyleName As String) As Long
 
+    If StyleName <> "Tiny" Then _
+        Exit Function
+
+Dim pp As BPrefsPage
+Dim sz As String
+
+    If (mPanel Is Nothing) Then
+
+        Set mPanel = New BPrefsPanel
+        With mPanel
+            .SetHandler Me
+            .SetTitle StyleName & " Preferences"
+            .SetWidth 300
+            .SetWindow 1
+
+            Set pp = new_BPrefsPage("", Nothing, New TTinyPage)
+
+            With pp
+
+                .Add new_BPrefsControl("banner", "", "Appearance")
+                .Add new_BPrefsControl("fancycycle", "tiny.size", "Small|Medium|Large", "Size:", gSettings.GetValueWithDefault("tiny.size", "1"))
+                
+                sz = uCreatePackedFontStr("Tahoma", 7)
+                .Add new_BPrefsControl("fancyfontpicker", "tiny.font", "", "Font:", gSettings.GetValueWithDefault("tiny.font", sz))
+
+                .Add new_BPrefsControl("fancytoggle2", "tiny.cleartype", "Use ClearType™ font aliasing", "", gSettings.GetValueWithDefault("tiny.cleartype", "0"))
+
+                .Add new_BPrefsControl("fancycolourpicker", "tiny.background", "", "Background:", gSettings.GetValueWithDefault("tiny.background", CStr(rgba(0, 0, 0))))
+                .Add new_BPrefsControl("fancycolourpicker", "tiny.foreground", "", "Text:", gSettings.GetValueWithDefault("tiny.foreground", CStr(rgba(255, 255, 255))))
+
+
+                ' /* test and reset buttons - all */
+        
+                .Add new_BPrefsControl("separator", "", "")
+                .Add new_BPrefsControl("fancybutton2", "test", "Test")
+                .Add new_BPrefsControl("separator", "", "")
+                .Add new_BPrefsControl("fancybutton2", "reset", "Reset to Factory Settings")
+
+
+'        If (mCurrent.Flags And E_METER_STYLE_CAN_CHANGE_FONT) Then
+'            .Add new_BPrefsControl("fancyfontpicker", "text", "", "Text font:", uCreatePackedFontStr(mCurrent.ReadSetting("text_font"), mCurrent.ReadSetting("text_size")))
+'
+'        End If
+'
+'        ' /* icon */
+'
+'        If (mCurrent.Flags And E_METER_STYLE_CAN_HIDE_SHOW_ICON) Then
+'            .Add new_BPrefsControl("fancytoggle2", "show_icon", "Show icon?", "Icon:", mCurrent.ReadSetting("show_icon"))
+'
+'            If (mCurrent.Flags And E_METER_STYLE_CAN_SET_ICON_POS) Then
+'                Set pm = New CTempMsg
+'                pm.Add "text", "Position:"
+'                pm.Add "align", 1&
+'                .Add new_BPrefsControl("fancytoggle", "icon_align", "Left|Right", " ", mCurrent.ReadSetting("icon_align"), pm)
+'
+'            End If
+'        End If
+'
+'        ' /* background colour picker */
+'
+'Dim f As Boolean
+'
+'        f = ((mCurrent.Name = STYLE_NAME_JUST_BLACK) And (g_IsPressed(VK_LCONTROL)))
+'
+'        If (mCurrent.Flags And E_METER_STYLE_CAN_CHANGE_BKGND) Or (f) Then _
+'            .Add new_BPrefsControl("fancycolourpicker", "background", "", IIf(f, "Not just black:", "Background:"), mCurrent.ReadSetting("background"))
+'
+'        ' /* foreground colour picker */
+'
+'        If (mCurrent.Flags And E_METER_STYLE_CAN_CHANGE_FGND) Then _
+'            .Add new_BPrefsControl("fancycolourpicker", "foreground", "", "Text:", mCurrent.ReadSetting("foreground"))
+'
+'        ' /* border colour picker */
+'
+'        If (mCurrent.Flags And E_METER_STYLE_CAN_CHANGE_BORDER) Then _
+'            .Add new_BPrefsControl("fancycolourpicker", "border", "", "Border:", mCurrent.ReadSetting("border"))
+'
+'        ' /* foreground opacity */
+'
+'        If (mCurrent.Flags And E_METER_STYLE_CAN_SET_FG_ALPHA) Then
+'            Set pm = New CTempMsg
+'            pm.Add "min", 0&
+'            pm.Add "max", 100&
+'            pm.Add "freq", 10&
+'            pm.Add "suffix", "%"
+'            .Add new_BPrefsControl("fancyslider", "fg_alpha", "", "Foreground opacity:", mCurrent.ReadSetting("fg_alpha"), pm)
+'
+'        End If
+'
+'        ' /* meter */
+'
+'        .Add new_BPrefsControl("banner", "", "Meter")
+'
+'        .Add new_BPrefsControl("fancytoggle2", "show_graphically", "Auto-detect numeric-only text?", "", mCurrent.ReadSetting("show_graphically"))
+'        fUseMeter = (Val(mCurrent.ReadSetting("show_graphically")) <> 0)
+'
+'        If (mCurrent.Flags And E_METER_STYLE_VARIABLE_METERS) Then
+'            .Add new_BPrefsControl("fancycycle", "meter_type", mCurrent.MeterTypes, "Type:", mCurrent.ReadSetting("meter_type"), , fUseMeter)
+'
+'            If (mCurrent.Flags And E_METER_STYLE_HAS_SPECTRUMS) Then
+'
+'                .Add new_BPrefsControl("fancycolourpicker", "bar_colour", "", "Bar colour:", mCurrent.ReadSetting("bar_colour"))
+'
+'                Set pm = New CTempMsg
+'                pm.Add "item-height", 24&
+'                Set pc = new_BPrefsControl("combo", "spectrum_type", mCurrent.Spectrums, "Spectrum type:", mCurrent.ReadSetting("spectrum_type"), pm, (InStr(mCurrent.MeterType(Val(mCurrent.ReadSetting("meter_type"))), "Spectrum")))
+'                .Add pc
+'
+'                uSetSpectrumIcon pc, 1, 0
+'                uSetSpectrumIcon pc, 2, 1
+'
+'            End If
+'        End If
+'
+'        If (mCurrent.Flags And E_METER_STYLE_NO_SHOW_PERCENT) = 0 Then _
+'            .Add new_BPrefsControl("fancytoggle2", "show_percent", "Display value as percentage?", "Options:", mCurrent.ReadSetting("show_percent"))
+'
+'
+'        ' /* debugging section - Sony only ATM (and only if CTRL held down) */
+'
+'        If g_IsPressed(VK_LCONTROL) Then
+''            If mPanelStyle = STYLE_NAME_SONY Then
+''            .Add new_BPrefsControl("separator", "", "")
+'                .Add new_BPrefsControl("banner", "", "Debugging")
+'                Set pm = New CTempMsg
+'                pm.Add "min", -1&
+'                pm.Add "max", 1439&
+'                pm.Add "freq", 120&
+'                pm.Add "label_size", 50&
+'                .Add new_BPrefsControl("fancyslider", "fs>dbgTime", "", "Time of day:", "0", pm)
+'
+''            End If
+'        End If
+'
+'    End With
+
+                
+                
+                
+            
+            End With
+
+            .AddPage pp
+            
+            .Go
+
+        End With
+
+    End If
+
+    IStyleEngine_GetConfigWindow = mPanel.hWnd
+
 End Function
 
 Private Function IStyleEngine_Initialize() As melon.M_RESULT
@@ -174,8 +326,8 @@ Private Sub IStyleEngine_StyleAt(ByVal Index As Long, Style As libSnarlStyles.st
             .Description = "Displays the notfication in a tiny bubble in the top right corner of the screen."
             .Major = 0
             .Minor = 2
-            .Flags = S_STYLE_CUSTOM_SHOW Or S_STYLE_CUSTOM_HIDE Or S_STYLE_SINGLE_INSTANCE Or S_STYLE_DONT_QUEUE
-            .Schemes = "Small|Extra Small"
+            .Flags = S_STYLE_CUSTOM_SHOW Or S_STYLE_CUSTOM_HIDE Or S_STYLE_SINGLE_INSTANCE Or S_STYLE_DONT_QUEUE Or S_STYLE_IS_CONFIGURABLE
+            .Schemes = "Top|Bottom|Top Left|Top Right|Bottom Left|Bottom Right"
 
         Case 3
             .Name = "Info Bar"
@@ -203,7 +355,6 @@ Private Function IStyleEngine_Version() As Long
 End Function
 
 Private Sub KPrefsPanel_PageChanged(ByVal NewPage As Long)
-
 End Sub
 
 Private Sub KPrefsPanel_Quit()
@@ -213,10 +364,17 @@ Private Sub KPrefsPanel_Quit()
 End Sub
 
 Private Sub KPrefsPanel_Ready()
-
 End Sub
 
 Private Sub KPrefsPanel_Selected(ByVal Command As String)
-
 End Sub
 
+Private Function uCreatePackedFontStr(ByVal Typeface As String, ByVal TypeSize As String) As String
+Dim ppd As BPackedData
+
+    Set ppd = New BPackedData
+    ppd.Add "name", Typeface
+    ppd.Add "size", TypeSize
+    uCreatePackedFontStr = ppd.AsString()
+
+End Function

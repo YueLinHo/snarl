@@ -186,16 +186,16 @@ Dim pStyleEngine As IStyleEngine
 
     On Error Resume Next
 
-    Err.Clear
+    err.Clear
     Set pStyleEngine = CreateObject(Object)
-    If Err.Number = 0 Then
+    If err.Number = 0 Then
         uLoadStyleEngine = uAddStyleEngine(pStyleEngine, FailedReason, Object)
         If Not uLoadStyleEngine Then _
             g_Debug "TStyleRoster.uLoadStyleEngine(): '" & Object & "' failed to load: " & FailedReason, LEMON_LEVEL_CRITICAL
 
     Else
         FailedReason = "Couldn't create '" & Object & "'"
-        g_Debug "TStyleRoster.uLoadStyleEngine(): " & Err.Description & "' creating '" & Object & "'", LEMON_LEVEL_CRITICAL
+        g_Debug "TStyleRoster.uLoadStyleEngine(): " & err.Description & "' creating '" & Object & "'", LEMON_LEVEL_CRITICAL
 
     End If
 
@@ -508,9 +508,9 @@ Dim i As Long
 
 Dim pEngine As IStyleEngine
 
-    Err.Clear
+    err.Clear
     Set pEngine = CreateObject(Engine)
-    If (pEngine Is Nothing) Or (Err.Number <> 0) Then
+    If (pEngine Is Nothing) Or (err.Number <> 0) Then
         g_Debug "TStyleRoster.Load(): failed to create engine instance", LEMON_LEVEL_CRITICAL
         FailText = "Couldn't create instance"
         Exit Function
@@ -725,9 +725,11 @@ Dim sz As String
         mVersions.Save
 
         If Notify Then _
-            snShowMessage "Style Engine Installed", _
-                          "Name: " & Engine.Name & vbCrLf & _
-                          "Version: " & szVerStr, 20, g_MakePath(App.Path) & "etc\icons\style_engine.png"
+            g_PrivateNotify "", "Style Engine Installed", _
+                            "Name: " & Engine.Name & vbCrLf & _
+                            "Version: " & szVerStr, _
+                            -1, _
+                            g_MakePath(App.Path) & "etc\icons\style_engine.png"
 
     Else
         ' /* known */
@@ -753,10 +755,12 @@ Dim sz As String
 '                If (Engine.Version > nMaj) Or ((Engine.Version = nMaj) And (Engine.Revision > nMin)) Then
 '                End If
 
-                snShowMessage "Style Engine Updated", _
-                              "Name: " & Engine.Name & vbCrLf & _
-                              "Previous version: " & sz & vbCrLf & _
-                              "New version: " & szVerStr, 20, g_MakePath(App.Path) & "etc\icons\style_engine.png"
+                g_PrivateNotify "", "Style Engine Updated", _
+                                "Name: " & Engine.Name & vbCrLf & _
+                                "Previous version: " & sz & vbCrLf & _
+                                "New version: " & szVerStr, _
+                                , _
+                                g_MakePath(App.Path) & "etc\icons\style_engine.png"
 
             End If
 

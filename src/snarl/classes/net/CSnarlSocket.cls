@@ -83,14 +83,16 @@ Private Sub theSocket_OnConnectionRequest(ByVal requestID As Long)
 End Sub
 
 Private Sub theSocket_OnDataArrival(ByVal bytesTotal As Long)
-Dim sz As String
-Dim i As Integer
+
+    On Error GoTo er
 
     g_Debug "CSnarlSocket.OnDataArrival(): id=0x" & g_HexStr(mId) & " bytesTotal=" & CStr(bytesTotal), LEMON_LEVEL_PROC
 
+Dim sz As String
+
     theSocket.GetData sz
 
-'    i = InStr(sz, vbCrLf)
+Dim i As Integer
 
     i = InStr(sz, Chr$(13))
     If i > 0 Then
@@ -103,6 +105,12 @@ Dim i As Integer
         mPacket = mPacket & sz
 
     End If
+
+    Exit Sub
+
+er:
+    g_Debug "CSnarlSocket.OnDataArrival(): " & err.Description, LEMON_LEVEL_CRITICAL
+    theSocket.SendData uCreateSNP2Reply(SNARL41_ERROR_BAD_PACKET)
 
 End Sub
 
@@ -126,8 +134,6 @@ End Sub
 
 Private Sub uTranslate(ByVal Request As String)
 
-    On Error GoTo er
-
     g_Debug "CSnarlSocket.uTranslate(): incoming notification from " & theSocket.RemoteHostIP & ":" & theSocket.RemotePort & "..."
 
     If g_ConfigGet("listen_for_snarl") = "0" Then
@@ -137,10 +143,100 @@ Private Sub uTranslate(ByVal Request As String)
 
     End If
 
+    If LCase$(g_SafeLeftStr(Request, 6)) = "snp://" Then
+        uTranslateSNP2 g_SafeRightStr(Request, Len(Request) - 6)
+
+    Else
+        uTranslateSNP Request
+    
+    End If
+
+End Sub
+
+Private Sub uTranslateSNP2(ByVal Request As String)
+
+    ' /* syntax is: snp://<action>[?arg=value[&arg=value]] CRLF
+    '    on entry the 'snp://' prefix will have been stripped */
+
+Dim sCommand As String
+Dim ppd As BPackedData
+Dim i As Integer
+
+    Set ppd = New BPackedData                           ' // g_DoAction() expects this, even if it's empty
+
+    ' /* find the command */
+
+    i = InStr(Request, "?")
+    If i = 0 Then
+        ' /* entire line is command */
+        sCommand = LCase$(Request)
+
+    Else
+        ' /* get the command */
+        sCommand = LCase$(g_SafeLeftStr(Request, i - 1))
+
+        ' /* get the args */
+        Request = g_SafeRightStr(Request, Len(Request) - i)
+
+        ' /* translate from SNP syntax into Win32 syntax */
+        Request = Replace(Request, "&", "#?")
+        Request = Replace(Request, "=", "::")
+
+        ' /* create the BPackedData */
+        ppd.SetTo Request
+
+    End If
+
+    ' /* pre-processing */
+
 Dim sz As String
+
+    Select Case sCommand
+
+    Case "register", "reg"
+        ' /* use default icon if none provided */
+        If Not ppd.Exists("icon") Then _
+            ppd.Add "icon", g_MakePath(App.Path) & "etc\icons\remote.png"
+
+    Case "notify"
+        ' /* if encoded icon data exists, extract it now */
+        If ppd.Exists("icon64") Then
+            sz = uDecodeBase64(Replace$(ppd.ValueOf("icon64"), "%", "="))
+            ppd.Add "icon", sz
+
+        End If
+
+    End Select
+
+Dim hr As Long
+
+    ' /* process the command */
+
+    hr = g_DoAction(sCommand, Val(ppd.ValueOf("token")), ppd, True, theSocket)
+    If hr <> 0 Then
+        ' /* success */
+        theSocket.SendData uCreateSNP2Reply(SNARL41_SUCCESS, IIf(hr <> -1, CStr(hr), ""))
+
+    Else
+        ' /* failed */
+        theSocket.SendData uCreateSNP2Reply(GetProp(ghWndMain, "last_error"))
+
+    End If
+
+    ' /* post-processing */
+
+    If (sCommand = "notify") And (sz <> "") Then _
+        DeleteFile sz
+
+End Sub
+
+Private Sub uTranslateSNP(ByVal Request As String)
 Dim pPacket As T_NETWORK_INFO
+Dim sz As String
 Dim pc As TAlert
 Dim pa As TApp
+
+    On Error GoTo er
 
     With New CConfFile
         If .SetFromText(Request, "#?") Then
@@ -195,16 +291,16 @@ Dim pa As TApp
                         pPacket.Valid = True
 
                     Case Else
-                        g_Debug "CSnarlSocket.uTranslate(): unknown action '" & sz & "'", LEMON_LEVEL_CRITICAL
+                        g_Debug "CSnarlSocket.uTranslateSNP(): unknown action '" & sz & "'", LEMON_LEVEL_CRITICAL
 
                     End Select
 
                 Else
-                    g_Debug "CSnarlSocket.uTranslate(): unsupported version '" & CStr(pPacket.Version) & "'", LEMON_LEVEL_CRITICAL
+                    g_Debug "CSnarlSocket.uTranslateSNP(): unsupported version '" & CStr(pPacket.Version) & "'", LEMON_LEVEL_CRITICAL
 
                 End If
             Else
-                g_Debug "CSnarlSocket.uTranslate(): bad packet type '" & sz & "'", LEMON_LEVEL_CRITICAL
+                g_Debug "CSnarlSocket.uTranslateSNP(): bad packet type '" & sz & "'", LEMON_LEVEL_CRITICAL
 
             End If
         End If
@@ -219,12 +315,12 @@ Dim pa As TApp
 
     End If
 
-    g_Debug "CSnarlSocket.uTranslate(): packet is valid (ver=" & pPacket.Version & ")"
+    g_Debug "CSnarlSocket.uTranslateSNP(): packet is valid (ver=" & pPacket.Version & ")"
 
     ' /* do some general safety checking first */
 
     If (g_AppRoster Is Nothing) Or (g_NotificationRoster Is Nothing) Then
-        g_Debug "CSnarlSocket.uTranslate(): action '" & pPacket.Action & "': app_roster or notification_roster not found", LEMON_LEVEL_CRITICAL
+        g_Debug "CSnarlSocket.uTranslateSNP(): action '" & pPacket.Action & "': app_roster or notification_roster not found", LEMON_LEVEL_CRITICAL
         theSocket.SendData uCreateReply(SNP_ERROR_FAILED)
         Exit Sub
 
@@ -242,14 +338,14 @@ Dim dw As Long
             dw = g_AppRoster.IndexOfPidAndName(-1, .App)
             If dw <> 0 Then
                 ' /* already registered */
-                g_Debug "CSnarlSocket.uTranslate(): remote app '" & .App & "' is already registered", LEMON_LEVEL_CRITICAL
+                g_Debug "CSnarlSocket.uTranslateSNP(): remote app '" & .App & "' is already registered", LEMON_LEVEL_CRITICAL
                 theSocket.SendData uCreateReply(SNP_ERROR_ALREADY_REGISTERED)
 
             Else
                 ' /* use the special "Add2()" method which allows us to register multiple apps using the same PID - in
                 '    this case -1, which represents remote apps */
                 g_AppRoster.OldAdd .App, 0, 0, g_MakePath(App.Path) & "etc\icons\remote_app.png", g_MakePath(App.Path) & "etc\icons\remote.png", -1
-                g_Debug "CSnarlSocket.uTranslate(): remote app '" & .App & "' registered"
+                g_Debug "CSnarlSocket.uTranslateSNP(): remote app '" & .App & "' registered"
                 theSocket.SendData uCreateReply(SNP_SUCCESS)
 
             End If
@@ -259,14 +355,14 @@ Dim dw As Long
             dw = g_AppRoster.IndexOfPidAndName(-1, .App)
             If dw = 0 Then
                 ' /* not registered */
-                g_Debug "CSnarlSocket.uTranslate(): remote app '" & .App & "' is not registered", LEMON_LEVEL_CRITICAL
+                g_Debug "CSnarlSocket.uTranslateSNP(): remote app '" & .App & "' is not registered", LEMON_LEVEL_CRITICAL
                 theSocket.SendData uCreateReply(SNP_ERROR_NOT_REGISTERED)
 
             Else
                 ' /* remove safely */
                 g_AppRoster.Remove dw
                 frmAbout.bUpdateAppList
-                g_Debug "CSnarlSocket.uTranslate(): remote app '" & .App & "' unregistered"
+                g_Debug "CSnarlSocket.uTranslateSNP(): remote app '" & .App & "' unregistered"
                 theSocket.SendData uCreateReply(SNP_SUCCESS)
 
             End If
@@ -276,7 +372,7 @@ Dim dw As Long
             dw = g_AppRoster.IndexOfPidAndName(-1, .App)
             If dw = 0 Then
                 ' /* not registered */
-                g_Debug "CSnarlSocket.uTranslate(): remote app '" & .App & "' is not registered", LEMON_LEVEL_CRITICAL
+                g_Debug "CSnarlSocket.uTranslateSNP(): remote app '" & .App & "' is not registered", LEMON_LEVEL_CRITICAL
                 theSocket.SendData uCreateReply(SNP_ERROR_NOT_REGISTERED)
 
             Else
@@ -288,12 +384,12 @@ Dim dw As Long
                         pc.DefaultIcon = pPacket.Icon
 
                     frmAbout.bUpdateAppList
-                    g_Debug "CSnarlSocket.uTranslate(): class '" & .Class & "' add"
+                    g_Debug "CSnarlSocket.uTranslateSNP(): class '" & .Class & "' add"
                     theSocket.SendData uCreateReply(SNP_SUCCESS)
 
                 Else
                     ' /* class already exists */
-                    g_Debug "CSnarlSocket.uTranslate(): class '" & .Class & "' is already registered", LEMON_LEVEL_CRITICAL
+                    g_Debug "CSnarlSocket.uTranslateSNP(): class '" & .Class & "' is already registered", LEMON_LEVEL_CRITICAL
                     theSocket.SendData uCreateReply(SNP_ERROR_CLASS_ALREADY_EXISTS)
 
                 End If
@@ -311,15 +407,15 @@ Dim dw As Long
             dw = g_AppRoster.IndexOfPidAndName(-1, .App)
             If dw = 0 Then
                 ' /* not registered: show anyway using the 'anonymous network notification' class */
-                g_Debug "CSnarlSocket.uTranslate(): remote app '" & .App & "' is not registered", LEMON_LEVEL_CRITICAL
+                g_Debug "CSnarlSocket.uTranslateSNP(): remote app '" & .App & "' is not registered", LEMON_LEVEL_CRITICAL
                 dw = snShowMessageEx(SNARL_CLASS_ANON_NET, .Title, .Text, .Timeout, pPacket.Icon, frmAbout.hWnd, WM_REMOTENOTIFY)
-                g_Debug "CSnarlSocket.uTranslate(): snShowMessageEx() returned 0x" & g_HexStr(dw)
+                g_Debug "CSnarlSocket.uTranslateSNP(): snShowMessageEx() returned 0x" & g_HexStr(dw)
 
             Else
                 ' /* app found */
                 Set pa = g_AppRoster.AppAt(dw)
                 dw = pa.Show(.Class, .Title, .Text, .Timeout, pPacket.Icon, frmAbout.hWnd, WM_REMOTENOTIFY)
-                g_Debug "CSnarlSocket.uTranslate(): Show() returned 0x" & g_HexStr(dw)
+                g_Debug "CSnarlSocket.uTranslateSNP(): Show() returned 0x" & g_HexStr(dw)
 
             End If
 
@@ -342,7 +438,7 @@ Dim dw As Long
 
         Case Else
             ' /* unknown action */
-            g_Debug "CSnarlSocket.uTranslate(): action '" & .Action & "' is unknown", LEMON_LEVEL_CRITICAL
+            g_Debug "CSnarlSocket.uTranslateSNP(): action '" & .Action & "' is unknown", LEMON_LEVEL_CRITICAL
             theSocket.SendData uCreateReply(SNP_ERROR_UNKNOWN_COMMAND)
 
         End Select
@@ -352,11 +448,10 @@ Dim dw As Long
     Exit Sub
 
 er:
-    g_Debug "CSnarlSocket.uTranslate(): " & Err.Description, LEMON_LEVEL_CRITICAL
+    g_Debug "CSnarlSocket.uTranslateSNP(): " & err.Description, LEMON_LEVEL_CRITICAL
     theSocket.SendData uCreateReply(SNP_ERROR_FAILED)
 
 End Sub
-
 
 
 '                If Not pa.FindAlert(.Class, pc) Then
@@ -445,9 +540,335 @@ Dim sz As String
 
 End Function
 
+Private Function uCreateSNP2Reply(ByVal Error As Long, Optional ByVal Data As String) As String
+Dim sz As String
+
+    Select Case Error
+
+    Case SNARL41_SUCCESS
+        sz = "OK"
+
+    Case SNARL41_ERROR_FAILED
+        sz = "Unspecified failure"
+
+    Case SNARL41_ERROR_UNKNOWN_COMMAND
+        sz = "Unknown command"
+
+    Case SNARL41_ERROR_TIMED_OUT
+        sz = "Timed out"
+
+    Case SNARL41_ERROR_ARG_MISSING
+        sz = "Required argument missing"
+
+    Case SNARL41_ERROR_SYSTEM
+        sz = "System error"
+
+    Case SNARL41_ERROR_NOT_RUNNING
+        sz = "Not running"
+
+    Case SNARL41_ERROR_NOT_REGISTERED
+        sz = "App is not registered"
+
+    Case SNARL41_ERROR_ALREADY_REGISTERED
+        sz = "App is already registered"
+
+    Case SNARL41_ERROR_CLASS_ALREADY_EXISTS
+        sz = "Class already exists"
+
+    Case SNARL41_ERROR_CLASS_BLOCKED
+        sz = "Class blocked"
+
+    Case SNARL41_ERROR_CLASS_NOT_FOUND
+        sz = "Class not found"
+
+    Case SNARL41_ERROR_NOTIFICATION_NOT_FOUND
+        sz = "Notification not found"
+
+    Case SNARL41_ERROR_FLOODING
+        sz = "Flooding detect"
+
+    Case SNARL42_ERROR_DO_NOT_DISTURB
+        sz = "Do Not Disturb"
+
+    Case SNARL42_ERROR_COULD_NOT_DISPLAY
+        sz = "Could not display"
+
+    Case SNARL42_ERROR_AUTH_FAILURE
+        sz = "Authentication failure"
+
+    Case Else
+        sz = "Undefined error"
+
+    End Select
+
+    uCreateSNP2Reply = "SNP/2.0/" & CStr(Error) & "/" & sz & IIf(Data <> "", "/" & Data, "") & vbCrLf
+
+End Function
+
 Public Sub Notify(ByVal Notification As Long, ByVal Token As String)
 
     If Not (theSocket Is Nothing) Then _
         theSocket.SendData uCreateReply(Notification + 270, Token)
 
 End Sub
+
+Private Function uDecodeBase64(ByVal Data As String) As String
+Dim sz As String
+Dim i As Integer
+
+    On Error Resume Next
+
+    sz = Decode64(Data)
+    uDecodeBase64 = g_GetSafeTempIconPath()
+
+    i = FreeFile()
+
+    err.Clear
+    Open uDecodeBase64 For Binary Access Write As #i
+
+    If err.Number = 0 Then
+        Put #i, , sz
+        Close #i
+
+    End If
+
+    Debug.Print "uDecodeBase64(): writing icon to '" & uDecodeBase64 & "'"
+
+End Function
+
+
+'Private Sub uTranslateSNP2(ByVal Request As String)
+'
+'    ' /* SNP2.0 format is "snp://<action>[?arg=value[&arg=value]] CRLF" */
+'
+'Dim sCommand As String
+'Dim ppd As BPackedData
+'Dim i As Integer
+'Dim hr As Long
+'
+'    ' /* on entry "snp://" prefix has been stripped */
+'
+'    Set ppd = New BPackedData
+'
+'    ' /* find the command */
+'
+'    i = InStr(Request, "?")
+'    If i = 0 Then
+'        ' /* entire line is command */
+'        sCommand = Request
+'
+'    Else
+'        ' /* get the command */
+'        sCommand = g_SafeLeftStr(Request, i - 1)
+'
+'        Debug.Print Request
+'
+'        ' /* get the args */
+'        Request = g_SafeRightStr(Request, Len(Request) - i)
+'
+'        ' /* translate from SNP syntax into Win32 syntax */
+'        Request = Replace(Request, "&", "#?")
+'        Request = Replace(Request, "=", "::")
+'
+'        ' /* create the BPackedData */
+'        ppd.SetTo Request
+'
+'    End If
+'
+'    ' /* parse the command */
+'
+'    Select Case sCommand
+'
+'    Case "test"
+'
+'        ' /* only available when Snarl is running in debug mode */
+'
+'        If gDebugMode Then
+'            sn41EZNotify gSnarlToken, "", "SNP2.0", "Test Message"
+'            theSocket.SendData uCreateSNP2Reply(SNARL41_SUCCESS)
+'
+'        Else
+'            theSocket.SendData uCreateSNP2Reply(SNARL41_ERROR_UNKNOWN_COMMAND)
+'
+'        End If
+'
+'
+'    Case "hello"
+'
+'        ' /* just reply with SUCCESS but it means the sender will
+'        '    be able to tell which version of SNP we support */
+'
+'        ' /* To-do: reply with an error message if Snarl isn't
+'        '    accepting requests, or DND mode enabled? */
+'
+'        theSocket.SendData uCreateSNP2Reply(SNARL41_SUCCESS)
+'
+'
+'    Case "register", "reg"
+'
+'        ' /* register the app as per args provided */
+'
+'        If Not ppd.Exists("icon") Then _
+'            ppd.Add "icon", g_MakePath(App.Path) & "etc\icons\remote.png"
+'
+'        hr = g_AppRoster.Add41(ppd, True)
+'        If hr = 0 Then
+'            theSocket.SendData uCreateSNP2Reply(GetProp(ghWndMain, "last_error"))
+'
+'        Else
+'            theSocket.SendData uCreateSNP2Reply(SNARL41_SUCCESS, CStr(hr))
+'
+'        End If
+'
+'
+'    Case "unregister", "unreg"
+'
+'        ' /* unregister the app as per the args provided */
+'
+'        hr = g_AppRoster.Unregister(Val(ppd.ValueOf("token")), ppd.ValueOf("password"))
+'        If hr = 0 Then
+'            theSocket.SendData uCreateSNP2Reply(GetProp(ghWndMain, "last_error"))
+'
+'        Else
+'            theSocket.SendData uCreateSNP2Reply(SNARL41_SUCCESS)
+'
+'        End If
+'
+'
+'    Case "updateapp", "update_app"
+'
+'        ' /* modify the app as per the args provided */
+'
+'        hr = g_AppRoster.Update(Val(ppd.ValueOf("token")), ppd)
+'        If hr = 0 Then
+'            theSocket.SendData uCreateSNP2Reply(GetProp(ghWndMain, "last_error"))
+'
+'        Else
+'            theSocket.SendData uCreateSNP2Reply(SNARL41_SUCCESS)
+'
+'        End If
+'
+'
+'    ' /* for info: SNARL41_SET_CALLBACK is not required as all SNP2.0 applications inherently
+'    '    receive feedback to their local port */
+'
+'Dim pa As TApp
+'
+'    Case "addclass"
+'
+'        Debug.Print "XAC: " & g_SafeFindApp(Val(ppd.ValueOf("token")), ppd.ValueOf("password"), pa)
+'
+'        hr = sn41AddClass(Val(ppd.ValueOf("token")), ppd.ValueOf("id"), ppd.ValueOf("name"))
+'        If hr = 0 Then
+'            theSocket.SendData uCreateSNP2Reply(GetProp(ghWndMain, "last_error"))
+'
+'        Else
+'            theSocket.SendData uCreateSNP2Reply(SNARL41_SUCCESS)
+'
+'        End If
+'
+'
+'
+'    Case "remclass"
+'
+'        Debug.Print "XRC: " & g_SafeFindApp(Val(ppd.ValueOf("token")), ppd.ValueOf("password"), pa)
+'
+'        hr = sn41RemoveClass(Val(ppd.ValueOf("token")), ppd.ValueOf("id"))
+'        If hr = 0 Then
+'            theSocket.SendData uCreateSNP2Reply(GetProp(ghWndMain, "last_error"))
+'
+'        Else
+'            theSocket.SendData uCreateSNP2Reply(SNARL41_SUCCESS)
+'
+'        End If
+'
+'
+'
+'    Case "killclasses"
+'        sn41RemoveAllClasses Val(ppd.ValueOf("token"))
+'        theSocket.SendData uCreateSNP2Reply(SNARL41_SUCCESS)
+'
+'
+'    Case "notify"
+'
+'        ' /* create a notification based on the args provided */
+'
+'        ppd.Add "remote", "1"       ' // add this to indicate sender is remote (or using IP, at least)
+'
+'Dim sz As String
+'
+'        If ppd.Exists("icon64") Then
+'            sz = uDecodeBase64(Replace$(ppd.ValueOf("icon64"), "%", "="))
+'            ppd.Add "icon", sz
+'
+'        End If
+'
+'        hr = g_DoNotify(Val(ppd.ValueOf("token")), ppd, theSocket)
+'        If hr = 0 Then
+'            theSocket.SendData uCreateSNP2Reply(GetProp(ghWndMain, "last_error"))
+'
+'        Else
+'            theSocket.SendData uCreateSNP2Reply(SNARL41_SUCCESS, CStr(hr))
+'
+'        End If
+'
+'        If sz <> "" Then _
+'            DeleteFile sz
+'
+'
+'    Case "update"
+'
+'        ' /* update a notification based on the args provided */
+'
+'        hr = g_DoUpdate(Val(ppd.ValueOf("token")), ppd)
+'        If hr = 0 Then
+'            theSocket.SendData uCreateSNP2Reply(GetProp(ghWndMain, "last_error"))
+'
+'        Else
+'            theSocket.SendData uCreateSNP2Reply(SNARL41_SUCCESS)
+'
+'        End If
+'
+'
+'    Case "hide"
+'        hr = sn41Hide(Val(ppd.ValueOf("token")))
+'        If hr = 0 Then
+'            theSocket.SendData uCreateSNP2Reply(GetProp(ghWndMain, "last_error"))
+'
+'        Else
+'            theSocket.SendData uCreateSNP2Reply(SNARL41_SUCCESS)
+'
+'        End If
+'
+'
+'    Case "isvisible"
+'        hr = sn41IsVisible(Val(ppd.ValueOf("token")))
+'        If hr = 0 Then
+'            theSocket.SendData uCreateSNP2Reply(GetProp(ghWndMain, "last_error"))
+'
+'        Else
+'            theSocket.SendData uCreateSNP2Reply(SNARL41_SUCCESS)
+'
+'        End If
+'
+'
+'    Case "lasterror"
+'        theSocket.SendData uCreateSNP2Reply(GetProp(ghWndMain, "last_error"))
+'
+'
+'    Case "version"
+'        theSocket.SendData uCreateSNP2Reply(SNARL41_SUCCESS, CStr(GetProp(ghWndMain, "_version")))
+'
+''    SNARL42_ADD_ACTION
+''    SNARL42_CLEAR_ACTIONS
+''    SNARL42_SHOW_REQUEST
+'
+'    Case Else
+'        g_Debug "CSnarlSocket(): uTranslateSNP2(): unknown command '" & sCommand & "'", LEMON_LEVEL_WARNING
+'        theSocket.SendData uCreateSNP2Reply(SNARL41_ERROR_UNKNOWN_COMMAND)
+'
+'    End Select
+'
+'End Sub
+
+

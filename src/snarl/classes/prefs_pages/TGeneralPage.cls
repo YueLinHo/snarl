@@ -52,6 +52,8 @@ Dim pm As CTempMsg
         .Add new_BPrefsControl("fancytoggle2", "notify_on_first_register", "Show notification on first registration only?", , g_ConfigGet("notify_on_first_register"))
         .Add new_BPrefsControl("fancytoggle2", "auto_update", "Check for updates on launch?", "", g_ConfigGet("auto_update"))
 
+        .Add new_BPrefsControl("fancybutton2", "update_now", "Check now...")
+
 'Dim nIdle As Long
 '
 '        .Add new_BPrefsControl("banner", "", "Behaviour")
@@ -146,6 +148,9 @@ Dim pc As BControl
 
     Case "go_app_manager"
         ShellExecute 0, "open", g_MakePath(App.Path) & "Snarl_App_Manager.exe", vbNullString, vbNullString, SW_SHOW
+
+    Case "update_now"
+        g_DoManualUpdateCheck
 
     End Select
 

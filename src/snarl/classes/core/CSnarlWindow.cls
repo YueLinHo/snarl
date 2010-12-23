@@ -63,6 +63,18 @@ Dim mMenuOpen As Boolean
 
     ' /* R2.4 */
 
+Private Type T_ACTION
+    Label As String
+    Command As String
+
+End Type
+
+Dim mAction() As T_ACTION
+Dim mActions As Long
+
+Dim mCloseRect As BRect
+Dim mActionsRect As BRect
+
 Implements MWndProcSink
 
 Friend Function Create(ByRef Class As TAlert, ByRef Info As T_NOTIFICATION_INFO, ByRef Instance As IStyleInstance, ByVal StyleFlags As S_STYLE_FLAGS, ByVal StylePath As String) As M_RESULT
@@ -255,7 +267,7 @@ Static f As Boolean
         ElseIf Not mCloseButtonVisible Then
             mCloseButtonVisible = True
             uDrawContent mCurrent
-            SetWindowPos hWnd, HWND_TOP, 0, 0, 0, 0, SWP_NOSIZE Or SWP_NOMOVE
+            SetWindowPos hWnd, HWND_TOP, 0, 0, 0, 0, SWP_NOSIZE Or SWP_NOMOVE Or SWP_NOACTIVATE
             SetTimer hWnd, TIMER_TRACK_POINTER, 100, 0
 
         End If
@@ -270,6 +282,7 @@ Static f As Boolean
         sz = uHitTest(lParam)
         f = True
         SetCapture hWnd
+
 
     Case WM_LBUTTONUP
         If f Then
@@ -320,8 +333,14 @@ Static f As Boolean
                     uNotify SNARL_NOTIFICATION_ACK
                     bPaused = False
                     Hide
-    
+
+                Case "action"
+                    bPaused = True
+                    uDoActionsMenu
+                    bPaused = False
+
                 End Select
+
             Else
                 g_Debug "CSnarlWindow.WndProc(): WM_LBUTTONUP ignored: hit-test mismatch"
 
@@ -344,19 +363,28 @@ Static f As Boolean
                     bPaused = True
                     uDoSysMenu
                     bPaused = False
-    
+
                 Case "client"
                     bPaused = True
                     If Not (mMenu Is Nothing) Then
                         ' /* track menu */
-                        uTrackMenu hWnd
+                        If Not uTrackMenu(hWnd) Then
+                            bPaused = False
+                            Exit Function
+
+                        End If
 
                     Else
                         uNotify SNARL_NOTIFICATION_CLICKED
 
                     End If
+
                     bPaused = False
-    
+
+                    ' /* R2.4: hide when right-clicked? */
+                    If (mInfo.Flags And SNARL41_NOTIFICATION_AUTO_DISMISS) Then _
+                        Hide
+
                 End Select
             Else
                 g_Debug "CSnarlWindow.WndProc(): WM_RBUTTONUP ignored: hit-test mismatch"
@@ -366,6 +394,7 @@ Static f As Boolean
             g_Debug "CSnarlWindow.WndProc(): WM_RBUTTONUP ignored: outside window"
 
         End If
+
         sz = ""
 
 
@@ -373,14 +402,20 @@ Static f As Boolean
         ' /* 38.133 - support the middle button */
         If f Then
             ReleaseCapture
+
             If sz = uHitTest(lParam) Then
                 Select Case sz
                 Case "close"
     
                 Case "client"
+
                     bPaused = True
                     uNotify SNARL_NOTIFICATION_MIDDLE_BUTTON
                     bPaused = False
+
+                    ' /* R2.4: hide when middle button clicked? */
+                    If (mInfo.Flags And SNARL41_NOTIFICATION_AUTO_DISMISS) Then _
+                        Hide
 
                 End Select
             Else
@@ -411,9 +446,9 @@ Debug.Print "SNARL_NOTIFICATION_TIMED_OUT " & mTick
         ElseIf wParam = TIMER_ASYNC_FADE Then
             If m_step < 0 Then
                 ' /* fading down */
-                
+
 'Debug.Print "FADING DOWN"
-                
+
                 If mCurrent <= m_Target Then
                     ' /* done! */
                     mCurrent = m_Target
@@ -511,34 +546,60 @@ Debug.Print "SNARL_NOTIFICATION_TIMED_OUT " & mTick
 End Function
 
 Private Function uHitTest(ByVal lParam As Long) As String
-Dim pt As POINTAPI
-Dim rc As RECT
-Dim ps As SIZEL
-Dim n As Integer
+Dim pp As BPoint
+Dim pr As BRect
 
-    MAKEPOINTS lParam, pt.x, pt.y
-    GetClientRect theWindow.hWnd, rc
+    ' /* returns:
+    '       "close" if the pointer is over the close button
+    '       "action" if the pointer is over the action button (and actions are defined)
+    '       "client" if the pointer is over the notification
+    '       "" if the pointer is outside the notification
+    ' */
 
-    If uDrawDropshadow() Then _
-        n = Val(g_ConfigGet("dropshadow_size"))
+    Set pp = new_BPointFromInt32(lParam)
+    Set pr = BW_Bounds(theWindow.hWnd)
 
-    If (pt.x >= rc.Left) And (pt.x <= rc.Right) And (pt.y >= rc.Top) And (pt.y <= rc.Bottom) Then
-        ' /* returns either "close" or "client" depending on where the cursor is */
-
-        If (pt.x >= n) And (pt.y >= n) And (pt.x <= (n + bm_Close.Width)) And (pt.y <= (n + bm_Close.Height)) Then
-            uHitTest = "close"
-
-        Else
-            uHitTest = "client"
-
-        End If
-
-        Debug.Print uHitTest
-
-    Else
-        g_Debug "CSnarlWindow(): not inside window"
+    If Not pr.Contains(pp) Then
+        g_Debug "CSnarlWindow.uHitTest(): not inside window"
+        Exit Function
 
     End If
+'mActions = 1
+
+    If mCloseRect.Contains(pp) Then
+        uHitTest = "close"
+
+    ElseIf (mActions > 0) And (mActionsRect.Contains(pp)) Then
+        uHitTest = "action"
+
+    Else
+        uHitTest = "client"
+
+    End If
+
+    Debug.Print uHitTest
+
+'Dim n As Integer
+'
+'    If uDrawDropshadow() Then _
+'        n = Val(g_ConfigGet("dropshadow_size"))
+'
+'    If (pt.x >= rc.Left) And (pt.x <= rc.Right) And (pt.y >= rc.Top) And (pt.y <= rc.Bottom) Then
+'
+'        If (pt.x >= n) And (pt.y >= n) And (pt.x <= (n + bm_Close.Width)) And (pt.y <= (n + bm_Close.Height)) Then
+'            uHitTest = "close"
+'
+'        Else
+'            uHitTest = "client"
+'
+'        End If
+'
+'        Debug.Print uHitTest
+'
+'    Else
+'        g_Debug "CSnarlWindow(): not inside window"
+'
+'    End If
 
 End Function
 
@@ -644,6 +705,11 @@ Debug.Print "SET TARGET ALPHA " & Alpha
 
     End If
 
+    ' /* R2.4: low priority notifications fade faster */
+
+    If mInfo.Priority < 0 Then _
+        m_step = m_step * 2
+
     m_Target = Alpha
     SetTimer theWindow.hWnd, TIMER_ASYNC_FADE, 2, 0
 
@@ -662,8 +728,6 @@ Public Sub Disable()
 End Sub
 
 Public Function SetTimeout(ByVal Timeout As Long) As M_RESULT
-
-Debug.Print "SETTIMEOUT"
 
     SetTimeout = M_FAILED
     If (theWindow Is Nothing) Then _
@@ -728,16 +792,19 @@ Dim pr As BRect
 
         lSize = MIN(bm_Close.Height, .Height)
 
-'        .SetHighColour rgba(255, 0, 0, 190)
-'        .FillRect .Bounds
-
         .DrawScaledImage theBitmap, new_BPoint(OFFSET_ICON, OFFSET_ICON)
-        If (mCloseButtonVisible) And (Not mClickThru) Then _
-            .DrawScaledImage bm_Close, _
-                             IIf(uDrawDropshadow(), new_BPoint(Val(g_ConfigGet("dropshadow_size")), Val(g_ConfigGet("dropshadow_size"))), new_BPoint(0, 0)), _
-                             new_BPoint(lSize, lSize)
+        If (mCloseButtonVisible) And (Not mClickThru) Then
 
-        If g_ConfigGet("show_timestamp") = "1" Then
+            ' /* draw close button */
+            .DrawScaledImage bm_Close, mCloseRect.TopLeft, new_BPoint(mCloseRect.Width, mCloseRect.Height)
+
+            ' /* R2.4: if the notification has actions, draw the actions button */
+            If mActions > 0 Then _
+                .DrawScaledImage bm_Actions, mActionsRect.TopLeft, new_BPoint(mActionsRect.Width, mActionsRect.Height)
+
+        End If
+
+        If (g_ConfigGet("show_timestamp") = "1") And (.Width > 79) Then
             If ((mCloseButtonVisible) And (Not mClickThru)) Or (mFuzzy) Then
                 .SetFont "Tahoma", 8, True
                 .TextMode = MFX_TEXT_ANTIALIAS
@@ -753,41 +820,53 @@ Dim pr As BRect
             End If
         End If
 
-Const RX = 12
+Const RX = 6
 
 Dim n As Long
+
+        ' /* can only ever have one low priority notification visible at any one time
+        '    (obviously this excludes visible non-windowed styles) */
 
         If mInfo.Priority < 0 Then _
             n = g_NotificationRoster.QueueCount
 
+        ' /* if we have queued notifications, draw the number in a badge */
+
         If n > 0 Then
-            .SetFont "Arial", 9, True
+            .SetFont "Tahoma", 8, True
             .TextMode = MFX_TEXT_ANTIALIAS
+            .EnableSmoothing True
+
+            ' /* figure out the badge size and position */
 
             Set pr = new_BRect(0, 0, MAX(.StringWidth(CStr(n)), .StringHeight("A")), .StringHeight("A"))
-            pr.ExpandBy 11, 11
-            pr.OffsetBy .Width - pr.Width, 0
+            pr.ExpandBy 8, 8
+            pr.OffsetBy .Width - pr.Width - 1, 1
 
             If uDrawDropshadow() Then _
                 pr.OffsetBy -Val(g_ConfigGet("dropshadow_size")), Val(g_ConfigGet("dropshadow_size"))
 
-            .SetHighColour rgba(132, 165, 191)
-            .FillRoundRect pr, RX, RX
+            ' /* background */
 
-            .SetHighColour rgba(0, 0, 0, 48)
-            .SetLowColour rgba(0, 0, 0, 0)
+            .SetHighColour rgba(0, 0, 64, 190)
+            .SetLowColour rgba(0, 0, 64, 100)
             .FillRoundRect pr, RX, RX, MFX_VERT_GRADIENT
+
+            ' /* label */
 
             .SetHighColour rgba(255, 255, 255)
             .DrawString CStr(n), pr, MFX_ALIGN_H_CENTER Or MFX_ALIGN_V_CENTER
 
-            .SetHighColour rgba(255, 255, 255)
-            .StrokeRoundRect pr, RX, RX, 2
+            ' /* border */
 
-'            .SetHighColour rgba(255, 255, 255, 150)
-'            .SetLowColour rgba(255, 255, 255, 32)
-'            pr.Bottom = Fix(pr.Height / 2)
-'            .FillRoundRect pr, RX, RX, MFX_VERT_GRADIENT
+            .SetHighColour rgba(255, 255, 255)
+            .StrokeRoundRect pr.InsetByCopy(1, 1), RX, RX, 2
+
+            ' /* edge and inset */
+
+            .SetHighColour rgba(0, 0, 0, 150)
+            .StrokeRoundRect pr, RX, RX, 1
+            .StrokeRoundRect pr.InsetByCopy(3, 3), RX, RX, 1
 
         End If
 
@@ -825,7 +904,7 @@ Dim pm As OMMenu
         If mClass.App.HasConfig Then _
             .AddItem .CreateItem("acfg", mClass.App.Name & " Settings...", , mClass.App.HasConfig)
 
-        .AddItem .CreateItem("$" & mClass.App.Name, "Notification Settings...")
+        .AddItem .CreateItem("$" & mClass.App.Name & "#?" & mClass.Name, "Notification Settings...")
 
         .AddSeparator
 
@@ -853,6 +932,8 @@ Dim pm As OMMenu
         Set pmi = .Track(theWindow.hWnd)
 
     End With
+
+Dim sz() As String
 
     If Not (pmi Is Nothing) Then
         EnableWindow theWindow.hWnd, -1         ' // item was selected so re-enable the window
@@ -887,7 +968,8 @@ Dim pm As OMMenu
             Select Case g_SafeLeftStr(pmi.Name, 1)
             Case "$"
                 ' /* app settings */
-                frmAbout.DoAppConfig g_SafeRightStr(pmi.Name, Len(pmi.Name) - 1)
+                sz = Split(g_SafeRightStr(pmi.Name, Len(pmi.Name) - 1), "#?")
+                frmAbout.DoAppConfig sz(0), sz(1)
 
             End Select
             
@@ -1055,72 +1137,121 @@ Dim dw As Long
 
     ' /* if <Value> is provided, make sure it's valid */
 
-    If szData <> "" Then
-        If Not g_IsNumeric(szData) Then
-            g_Debug "CSnarlWindow.uAddToMenu(): can't add '" & Item & "' to menu: data part is not numeric", LEMON_LEVEL_CRITICAL
-            Exit Sub
-
-        End If
-
-        dw = Val(szData)
-        If (dw < 1) Or (dw > 65535) Then
-            g_Debug "CSnarlWindow.uAddToMenu(): can't add '" & Item & "' to menu: data part must be 1-65535", LEMON_LEVEL_CRITICAL
-            Exit Sub
-
-        End If
-
-    End If
+'    If szData <> "" Then
+'        If Not g_IsNumeric(szData) Then
+'            g_Debug "CSnarlWindow.uAddToMenu(): can't add '" & Item & "' to menu: data part is not numeric", LEMON_LEVEL_CRITICAL
+'            Exit Sub
+'
+'        End If
+'
+'        dw = Val(szData)
+'        If (dw < 1) Or (dw > 65535) Then
+'            g_Debug "CSnarlWindow.uAddToMenu(): can't add '" & Item & "' to menu: data part must be 1-65535", LEMON_LEVEL_CRITICAL
+'            Exit Sub
+'
+'        End If
+'
+'    End If
 
     Menu.AddItem mMenu.CreateItem(szData, szText, , itemEnabled, itemMarked)
 
 End Sub
 
-Private Sub uTrackMenu(ByVal hWndOwner As Long)
+Private Function uTrackMenu(ByVal hWndOwner As Long) As Boolean
 
     If (mMenu Is Nothing) Then _
-        Exit Sub
+        Exit Function
 
 Dim pmi As OMMenuItem
 
     EnableWindow hWndOwner, 0
     Set pmi = mMenu.Track(hWndOwner)
     If (pmi Is Nothing) Then _
-        Exit Sub
+        Exit Function
 
     EnableWindow hWndOwner, -1          ' // item was selected so re-enable the window
 
-'Debug.Print "@ " & m_hWndReply & " / " & m_uMsg
+    If g_IsNumeric(pmi.Name) Then
+        ' /* it's an id, so send it as a SNARL_NOTIFICATION_MENU notification */
 
-    If (IsWindow(mInfo.hWndReply) = 0) Or (mInfo.uReplyMsg = 0) Then
-        g_Debug "CSnarlWindow.uTrackMenu(): can't send notification: invalid window or reply message", LEMON_LEVEL_CRITICAL
-        Exit Sub
+        uNotify SNARL_NOTIFICATION_MENU, Val(pmi.Name)
+
+'        If (IsWindow(mInfo.hWndReply) <> 0) And (mInfo.uReplyMsg <> 0) Then
+'            PostMessage mInfo.hWndReply, mInfo.uReplyMsg, MAKELONG(SNARL_NOTIFICATION_MENU, Val(pmi.Name)), ByVal mInfo.Token
+'
+'        Else
+'            g_Debug "CSnarlWindow.uTrackMenu(): can't send notification: invalid window or reply message", LEMON_LEVEL_WARNING
+'
+'        End If
+
+    ElseIf g_SafeLeftStr(pmi.Name, 1) = "!" Then
+        ' /* R2.4: menu id's can be bang commands */
+        g_ProcessAck pmi.Name
 
     End If
 
-Dim dw As Long
+    uTrackMenu = True
 
-    PostMessage mInfo.hWndReply, mInfo.uReplyMsg, MAKELONG(SNARL_NOTIFICATION_MENU, Val(pmi.Name)), ByVal mInfo.Token
+End Function
+
+Private Sub uNotify(ByVal Notification As Integer, Optional ByVal Data As Integer)
+
+    If Not (mInfo.Socket Is Nothing) Then
+        ' /* if we have a socket, then reply to that */
+        g_Debug "CSnarlWindow.uNotify(): replying to " & mInfo.Socket.RemoteHostIP & ":" & CStr(mInfo.Socket.RemotePort) & "..."
+        mInfo.Socket.SendData "SNP/2.0/" & CStr(Notification + 270) & "/" & uNotifyStr(Notification + 270) & "/" & CStr(mInfo.Token) & IIf(Data = 0, "", "/" & CStr(Data)) & vbCrLf
+
+    ElseIf (IsWindow(mInfo.hWndReply) <> 0) And (mInfo.uReplyMsg <> 0) Then
+        ' /* otherwise, if we have a valid window and message, reply to that */
+
+        g_Debug "CSnarlWindow.uNotify(): sending #" & CStr(Notification) & " to hWnd=" & g_HexStr(mInfo.hWndReply) & " msg=" & g_HexStr(mInfo.uReplyMsg) & " id=" & g_HexStr(mInfo.Token), LEMON_LEVEL_INFO
+        PostMessage mInfo.hWndReply, mInfo.uReplyMsg, MAKELONG(Notification, Data), ByVal mInfo.Token
+
+    Else
+        g_Debug "CSnarlWindow.uNotify(): no reply socket or window", LEMON_LEVEL_WARNING
+
+    End If
 
 End Sub
 
-Private Sub uNotify(ByVal Notification As Long)
+Private Function uNotifyStr(ByVal Id As Long) As String
 
-    If (IsWindow(mInfo.hWndReply) <> 0) And (mInfo.uReplyMsg <> 0) Then
-        g_Debug "CSnarlWindow.uNotify(): sending #" & CStr(Notification) & " to hWnd=" & g_HexStr(mInfo.hWndReply) & " msg=" & g_HexStr(mInfo.uReplyMsg) & " id=" & g_HexStr(mInfo.Token), LEMON_LEVEL_INFO
-        PostMessage mInfo.hWndReply, mInfo.uReplyMsg, Notification, ByVal mInfo.Token
+    Select Case Id
+    
+    Case SNARL42_NOTIFY_CLICK
+        uNotifyStr = "Clicked"
 
-    Else
-        g_Debug "CSnarlWindow.uNotify(): can't send #" & CStr(Notification) & ": hWnd=" & g_HexStr(mInfo.hWndReply) & " msg=" & g_HexStr(mInfo.uReplyMsg) & " id=" & g_HexStr(mInfo.Token), LEMON_LEVEL_WARNING
+    Case SNARL42_NOTIFY_TIMED_OUT
+        uNotifyStr = "Expired"
 
-    End If
+    Case SNARL42_NOTIFY_ACK                      '// notification was left-clicked
+        uNotifyStr = "Ack"
+
+    Case SNARL42_NOTIFY_MENU_SELECTED            '// indicates an item was selected from user-defined menu (deprecated as of V42)
+        uNotifyStr = "Menu"
+
+    Case SNARL42_NOTIFY_EX_CLICK                 '// user clicked the middle mouse button (deprecated as of V42)
+        uNotifyStr = "ExtendedClick"
+
+    Case SNARL42_NOTIFY_CLOSED                   '// user clicked the notification's close gadget
+        uNotifyStr = "Closed"
+
+    Case SNARL42_NOTIFY_ACTION                   '// user picked an action from the pop-up
+        uNotifyStr = "Action"
+
+    End Select
+
+End Function
+
+Private Sub uQuickUpdate()
+
+    Set theBitmap = uGetContent2()
+    uDrawContent
 
 End Sub
 
 ' /*---------------------------------------------------------------------------------------
-'   Update2() -- intelligent update
-'
-'   Called by the notification roster for single-instance, non-queued notifications when
-'   a new notification request arrives and an existing notification is still on-screen.
+'   uUpdate() -- intelligent update
 '
 '   This function updates the existing notification's content, then asks the style instance
 '   for an updated position (the style instance can resize the content during the update
@@ -1128,7 +1259,7 @@ End Sub
 '
 ' ---------------------------------------------------------------------------------------*/
 
-Friend Function Update2(ByRef Info As T_NOTIFICATION_INFO) As M_RESULT
+Private Function uUpdate(ByRef Info As T_NOTIFICATION_INFO) As Boolean
 
     ' /* ask our style instance to update */
 
@@ -1150,21 +1281,20 @@ Dim pt As POINTAPI
     pt.y = theWindow.Frame.Top
     Me.AdjustPosition pt.x, pt.y
 
-    ' /* from here this is generic to both instance types */
+    ' /* reset timeout */
 
-    SetTimeout mOriginalTimeout                 ' // reset timeout value
+    SetTimeout mOriginalTimeout
 
     ' /* re-position and re-size it */
 
     Set theBitmap = pb
     theView.SizeTo theBitmap.Width + OFFSET_ICON, theBitmap.Height + OFFSET_ICON
-
-    ' /* make it visible */
-
     g_MoveWindow theWindow.hWnd, pt.x, pt.y
-    uDrawContent mCurrent
 
-    Update2 = M_OK
+    ' /* draw it */
+
+    uDrawContent mCurrent
+    uUpdate = True
 
 End Function
 
@@ -1272,19 +1402,76 @@ Dim pbm As mfxBitmap
 
 Dim pv As mfxView
 Dim s As Single
+Dim n As Long
 
     s = Val(g_ConfigGet("scaling"))
     If s <= 0 Then _
         s = 1               ' // must NOT be zero!
 
+    ' /* button rectangles, scaled as well */
+
+    Set mCloseRect = new_BRect(0, 0, 19 * s, 19 * s)
+
+    ' /* create a temporary view */
+
+    Set pv = New mfxView
+    pv.SizeTo pbm.Width * s, pbm.Height * s
+    pv.DrawScaledImage pbm, , new_BPoint(pv.Width, pv.Height)
+
+    ' /* emblems */
+
+Dim pt As BPoint
+
+    Set pt = new_BPoint(pv.Width - 16 - 2, pv.Height - 16 - 2)
+
+    ' /* if notification isn't click-through and the mouse pointer isn't
+    '    over it, and it has actions, draw the actions indicator emblem */
+
+    If (Not mClickThru) And (Not mCloseButtonVisible) And (mActions > 0) Then
+        pv.DrawScaledImage bm_HasActions, pt, new_BPoint(16, 16)
+        pt.OffsetBy -17, 0
+
+    End If
+
+    ' /* if the notification was generated by a remote app */
+
+    If (mInfo.IntFlags And SNRL_NOTIFICATION_REMOTE) Then
+        pv.DrawScaledImage bm_Remote, pt, new_BPoint(16, 16)
+        pt.OffsetBy -17, 0
+
+    End If
+
+    ' /* if the notification was generated by a secure app */
+
+    If (mInfo.IntFlags And SNRL_NOTIFICATION_SECURE) Then
+        pv.DrawScaledImage bm_Secure, pt, new_BPoint(16, 16)
+        pt.OffsetBy -17, 0
+
+    End If
+
+    ' /* draw with or without dropshadow */
+
     If uDrawDropshadow() Then
-        Set pv = New mfxView
-        pv.SizeTo pbm.Width * s, pbm.Height * s
-        pv.DrawScaledImage pbm, , new_BPoint(pv.Width, pv.Height)
-        Set uGetContent2 = create_dropshadow(pv, , Val(g_ConfigGet("dropshadow_size")) * 2, Fix((Val(g_ConfigGet("dropshadow_strength")) / 100) * 255))
+        ' /* has a drop shadow */
+        n = Val(g_ConfigGet("dropshadow_size"))
+        mCloseRect.OffsetBy n, n
+        Set uGetContent2 = create_dropshadow(pv, , n * 2, Fix((Val(g_ConfigGet("dropshadow_strength")) / 100) * 255))
 
     Else
-        Set uGetContent2 = pbm
+        ' /* no drop shadow */
+        Set uGetContent2 = pv.ConvertToBitmap()
+
+    End If
+
+
+
+    ' /* set up the correct locations for the close and actions buttons */
+
+    If pbm.Height > 47 Then
+        Set mActionsRect = mCloseRect.OffsetByCopy(0, mCloseRect.Height)
+
+    Else
+        Set mActionsRect = mCloseRect.OffsetByCopy(mCloseRect.Width, 0)
 
     End If
 
@@ -1297,6 +1484,7 @@ Private Sub uUpdateStyleContent(ByRef Info As T_NOTIFICATION_INFO)
     If (mInstance Is Nothing) Then _
         Exit Sub
 
+
     With Info
 
         ' /* translate special markers */
@@ -1305,7 +1493,7 @@ Private Sub uUpdateStyleContent(ByRef Info As T_NOTIFICATION_INFO)
 '        .Text = Replace$(.Text, "\n", vbCrLf)
 
         ' /* take into consideration and "do not change" markers */
-        
+
         If .Title = Chr$(255) Then _
             .Title = mInfo.Title
 
@@ -1329,6 +1517,7 @@ Private Sub uUpdateStyleContent(ByRef Info As T_NOTIFICATION_INFO)
         .Text = Info.Text
         .IconPath = Info.IconPath
         .SchemeName = Info.SchemeName
+        .LastUpdated = Now()            ' // update this as well
 
     End With
 
@@ -1342,9 +1531,17 @@ Dim pInfo As notification_info
 '        .Icon = Replace$(Info.IconPath, Chr$(255), "")
 '        .Scheme = Replace$(LCase$(Info.SchemeName), Chr$(255), "")
 
-        .Title = Info.Title
-        .Text = Info.Text
-        .Icon = Info.IconPath
+        If (mStyleFlags And S_STYLE_V42_CONTENT) Then
+            .Title = Info.Sender
+            .Text = Info.OriginalContent
+
+        Else
+            .Title = Info.Title
+            .Text = Info.Text
+
+        End If
+
+        .Icon = g_TranslateIconPath(Info.IconPath, mStylePath)
         .Scheme = LCase$(Info.SchemeName)
 
         If Info.Priority > 0 Then _
@@ -1356,7 +1553,7 @@ Dim pInfo As notification_info
     Exit Sub
 
 er:
-    g_Debug "CSnarlWindow.uUpdateStyleContent(): " & Err.Description, LEMON_LEVEL_CRITICAL
+    g_Debug "CSnarlWindow.uUpdateStyleContent(): " & err.Description, LEMON_LEVEL_CRITICAL
 
 End Sub
 
@@ -1390,21 +1587,11 @@ End Function
 
 Private Sub uPulse()
 
-    On Error GoTo ex
+    If Not (mInstance Is Nothing) Then
+        If mInstance.Pulse() Then _
+            uQuickUpdate
 
-    If (mInstance Is Nothing) Then _
-        Exit Sub
-
-    ' /* only update if calling Pulse() returns True */
-
-    If Not mInstance.Pulse() Then _
-        Exit Sub
-
-    Set theBitmap = uGetContent2()
-    uDrawContent
-    Exit Sub
-
-ex: g_Debug "CSnarlWindow.uPulse(): " & Err.Description
+    End If
 
 End Sub
 
@@ -1438,19 +1625,11 @@ Private Function uDateStamp() As String
 End Function
 
 Private Function uDetailsMenu() As OMMenu
-Dim szClass As String
 
     Set uDetailsMenu = New OMMenu
     With uDetailsMenu
         .AddItem .CreateItem("", "Received: " & uDateStamp())
-        .AddItem .CreateItem("", "Generated by: " & mClass.App.Name)
-
-        szClass = mClass.Description
-        If szClass = "_all" Then _
-            szClass = "<Other Notifications>"
-
-        .AddItem .CreateItem("", "Class: " & szClass)
-'        .AddSeparator
+        .AddItem .CreateItem("$" & mClass.App.Name & "#?" & mClass.Name, "Generated by: " & mClass.App.Name & " (" & mClass.Description & ")")
 
     End With
 
@@ -1473,3 +1652,157 @@ Public Sub QueueCountChanged()
     uDrawContent
 
 End Sub
+
+Public Function IsMergeCandidate(ByRef ComparisonClass As TAlert, ByVal ComparisonTitle As String) As Boolean
+
+    If (ComparisonClass Is Nothing) Then _
+        Exit Function
+
+    If (mInfo.Flags And SNARL41_NOTIFICATION_ALLOWS_MERGE) = 0 Then _
+        Exit Function
+
+    If (ComparisonClass.App.Signature = mClass.App.Signature) And (ComparisonClass.Name = mClass.Name) Then _
+        IsMergeCandidate = (ComparisonTitle = mInfo.Title) Or (ComparisonTitle = "")
+
+End Function
+
+Friend Sub MergeWith(ByRef Info As T_NOTIFICATION_INFO)
+'Dim t As Long
+
+'    t = (mTick \ 10) + Info.Timeout
+    Info.Text = mInfo.Text & vbCrLf & Info.Text
+    Info.Text = g_TrimLines(Info.Text)              ' // still apply overflow trimming...
+
+    g_KludgeNotificationInfo Info
+
+    uUpdate Info                                    ' // update icon and title (if applicable)
+    SetTimeout mInfo.Timeout                        ' // set new timeout
+
+End Sub
+
+Public Function AddAction(ByVal Label As String, ByVal Cmd As String) As Boolean
+
+'    If (IsWindow(mInfo.hWndReply) = 0) Or (mInfo.uReplyMsg = 0) Then
+'        g_Debug "CSnarlWindow.AddAction(): bad reply-to window or reply message", LEMON_LEVEL_CRITICAL
+'        Exit Function
+'
+'    End If
+
+    mActions = mActions + 1
+    ReDim Preserve mAction(mActions)
+    With mAction(mActions)
+        .Label = Label
+        .Command = Cmd
+
+    End With
+
+    ' /* if we've added our first action, update content */
+
+    If mActions = 1 Then _
+        uQuickUpdate
+
+    AddAction = True
+
+End Function
+
+Private Sub uDoActionsMenu()
+
+    If mActions = 0 Then
+        g_Debug "CSnarlWindow.uDoActionsMenu(): no actions defined", LEMON_LEVEL_CRITICAL
+        Exit Sub
+
+    End If
+
+'    If (IsWindow(mInfo.hWndReply) = 0) Or (mInfo.uReplyMsg = 0) Then
+'        g_Debug "CSnarlWindow.uDoActionsMenu(): bad reply-to window or reply message", LEMON_LEVEL_CRITICAL
+'        Exit Sub
+'
+'    End If
+
+    EnableWindow theWindow.hWnd, 0
+
+Dim pmi As OMMenuItem
+Dim i As Long
+
+    With New OMMenu
+        For i = 1 To mActions
+            .AddItem .CreateItem(IIf(mAction(i).Command <> "", mAction(i).Command, "\\" & CStr(i)), mAction(i).Label)
+            If i < mActions Then _
+                .AddSeparator
+
+        Next i
+
+        Set pmi = .Track(theWindow.hWnd, BW_Frame(theWindow.hWnd).TopLeft.OffsetByCopy(mActionsRect.Left, mActionsRect.Bottom))
+
+    End With
+
+    If (pmi Is Nothing) Then _
+        Exit Sub
+
+    If g_SafeLeftStr(pmi.Name, 2) = "\\" Then
+        i = Val(g_SafeRightStr(pmi.Name, Len(pmi.Name) - 2))
+        uNotify SNARL_NOTIFICATION_ACTION, i
+
+    Else
+        g_ProcessAck pmi.Name
+
+    End If
+        
+    EnableWindow theWindow.hWnd, -1           ' // item was selected so re-enable the window
+
+    If (mInfo.Flags And SNARL41_NOTIFICATION_AUTO_DISMISS) Then _
+        Me.Hide
+
+End Sub
+
+Public Sub ClearActions()
+
+    mActions = 0
+    ReDim mAction(0)
+
+End Sub
+
+Public Function Update(ByRef Args As BPackedData) As Boolean
+Dim pInfo As T_NOTIFICATION_INFO
+Dim sz As String
+
+    ' /* get our current content */
+
+    LSet pInfo = mInfo
+
+    ' /* update content with only what's provided */
+
+    With pInfo
+
+        If Args.Exists("title") Then
+            sz = Replace$(Args.ValueOf("title"), "\n", vbCrLf)
+            sz = Replace$(sz, "\+", .Title)                         ' // specfic to Update() - replace '\+' with existing title
+            .Title = g_TrimLines(sz)
+
+        End If
+
+        If Args.Exists("text") Then
+            sz = Replace$(Args.ValueOf("text"), "\n", vbCrLf)
+            sz = Replace$(sz, "\+", .Text)                          ' // specfic to Update() - replace '\+' with existing text
+            .Text = g_TrimLines(sz)
+
+        End If
+
+        If Args.Exists("icon") Then _
+            .IconPath = Args.ValueOf("icon")
+
+        If Args.Exists("timeout") Then _
+            .Timeout = g_SafeLong(Args.ValueOf("timeout"))          ' // g_SafeLong() returns 0 on error - not good...
+
+    End With
+
+    ' /* create the OriginalContent value */
+
+    g_KludgeNotificationInfo pInfo
+    LSet mInfo = pInfo
+
+    ' /* tell the style to apply the changes and redraw */
+
+    Update = uUpdate(pInfo)
+
+End Function

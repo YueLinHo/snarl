@@ -8,7 +8,7 @@
 library libSnarlStyles {
 
     importlib("stdole2.tlb");
-    importlib("..\\..\\melon\\current\\typelib\\melon.tlb");
+    importlib("melon.tlb");
 
     #include "types.inc"
     #include "engine.inc"

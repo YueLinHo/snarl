@@ -56,16 +56,28 @@ End Sub
 
 Private Sub theSocket_OnDataArrival(ByVal bytesTotal As Long)
 Dim sz As String
+Dim szReply As String
 
     g_Debug "CJSONSocket.OnDataArrival(): id=0x" & g_HexStr(mId) & " bytesTotal=" & CStr(bytesTotal), LEMON_LEVEL_PROC
 
     theSocket.GetData sz
 
-    If g_ConfigGet("listen_for_json") Then _
-        uDo sz
+    If g_ConfigGet("listen_for_json") Then
+        If uDo(sz) Then
+            szReply = "200 OK"
+            
+        Else
+            szReply = "402 Payment Required"
 
-    theSocket.SendData "HTTP/1.0 200 OK" & vbCrLf & Format$(Now(), "ddd, d mmm yyyy hh:mm:ss") & " GMT" & vbCrLf & _
-                       "Content-Type: text/html" & vbCrLf & "Content-Length: 0" & vbCrLf
+        End If
+
+    Else
+        szReply = "410 Gone"
+
+    End If
+
+    theSocket.SendData "HTTP/1.0 " & szReply & vbCrLf & Format$(Now(), "ddd, d mmm yyyy hh:mm:ss") & " GMT" & vbCrLf & _
+                       "Content-Type: text/html" & vbCrLf & "Content-Length: 0" & vbCrLf & vbCrLf
 
     theSocket.CloseSocket
 
@@ -89,13 +101,13 @@ Private Sub theSocket_OnSendProgress(ByVal bytesSent As Long, ByVal bytesRemaini
 
 End Sub
 
-Private Sub uDo(ByVal HTTP As String)
+Private Function uDo(ByVal HTTP As String) As Boolean
 Dim po As BJSONObject
 
     Set po = New BJSONObject
     If Not po.SetFromHTTP(HTTP) Then
         g_Debug "CJSONSocket.uDo(): failed to create JSON object", LEMON_LEVEL_CRITICAL
-        Exit Sub
+        Exit Function
 
     End If
 
@@ -103,13 +115,13 @@ Dim pv As BJSONValue
 
     If Not po.Find("action", pv) Then
         g_Debug "CJSONSocket.uDo(): 'action' value missing", LEMON_LEVEL_CRITICAL
-        Exit Sub
+        Exit Function
 
     End If
 
     If pv.AsLong <> 1 Then
         g_Debug "CJSONSocket.uDo(): incorrect 'action' value", LEMON_LEVEL_CRITICAL
-        Exit Sub
+        Exit Function
 
     End If
 
@@ -122,9 +134,13 @@ Dim tx As String
     If po.Find("title", pv) Then _
         tt = pv.AsString()
 
-    snShowMessageEx SNARL_CLASS_JSON, tt, tx
+    g_Debug "CJSONSocket.uDo(): request #" & g_HexStr(mId) & " title=" & tt & " text=" & tx
 
-End Sub
+    uDo = (g_PrivateNotify(SNARL_CLASS_JSON, tt, tx) <> 0)
+
+'    uDo = (sn41EZNotify(gSnarlToken, SNARL_CLASS_JSON, tt, tx) <> 0)
+
+End Function
 
 
 

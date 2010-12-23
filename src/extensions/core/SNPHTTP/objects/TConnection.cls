@@ -16,11 +16,11 @@ Option Explicit
 Dim mId As Long
 Dim WithEvents myConnection As CSocket
 Attribute myConnection.VB_VarHelpID = -1
-Dim mIncludeHTML As Boolean
+Dim mConfig As CConfFile
 
-Public Sub Accept(ByVal Id As Long, ByVal IncludeHTML As Boolean)
+Public Sub Accept(ByVal Id As Long, ByRef Config As CConfFile)
 
-    mIncludeHTML = IncludeHTML
+    Set mConfig = Config
     Set myConnection = New CSocket
     myConnection.Accept Id
 
@@ -34,17 +34,21 @@ End Sub
 
 Private Sub myConnection_OnDataArrival(ByVal bytesTotal As Long)
 Dim sz As String
-Dim sReply As String
 
     myConnection.GetData sz
 
-    If mIncludeHTML Then _
-        sReply = "HTTP/1.0 200 OK" & vbCrLf & vbCrLf & "<html><body>"
+    ' /* decode and generate reply */
 
-    sReply = sReply & "SNP/2.0/" & uDecode(sz)
+Dim sReply As String
 
-    If mIncludeHTML Then _
-        sReply = sReply & "</body></html>" & vbCrLf & vbCrLf
+    sReply = "SNP/2.0/" & uDecode(sz)
+
+    ' /* deprecated: include HTML if required */
+
+    If mConfig.GetValueWithDefault("html_response", "0") = "1" Then _
+        sReply = "HTTP/1.0 200 OK" & vbCrLf & vbCrLf & "<html><body>" & sReply & "</body></html>" & vbCrLf & vbCrLf
+
+    ' /* reply and close */
 
     myConnection.SendData sReply
     myConnection.CloseSocket
@@ -78,7 +82,7 @@ Dim i As Integer
     
     ' /* HTTP/SNP syntax is slightly different:
     '
-    '   <command>[?<arg>=<value>[&<arg>=<value>]]
+    '   <action>[?<arg>=<value>[&<arg>=<value>]]
     '
     '   e.g. register?signature=application/vnd-fullphat.test
     '
@@ -88,7 +92,7 @@ Dim i As Integer
     i = InStr(sz, "HTTP")
     sz = g_SafeLeftStr(sz, i - 2)
 
-Dim pData As BPackedData
+'Dim pData As BPackedData
 Dim szCmd As String
 
     ' /* get the command */
@@ -100,116 +104,141 @@ Dim szCmd As String
         sz = ""
 
     Else
-        szCmd = g_SafeLeftStr(sz, i - 1)            ' // command
+        szCmd = g_SafeLeftStr(sz, i - 1)
         sz = uCleanURL(g_SafeRightStr(sz, Len(sz) - i))
 
     End If
 
-    Set pData = New BPackedData
-    pData.SetTo sz, "&", "="
+'    Set pData = New BPackedData
+'    pData.SetTo sz, "&", "="
 
 Dim hr As Long
 
-    Select Case LCase$(szCmd)
-    Case "register"
-        hr = sn41RegisterApp(pData.ValueOf("id"), pData.ValueOf("title"), pData.ValueOf("icon"))
-        If hr = 0 Then
-            uDecode = CStr(sn41GetLastError) & "/ERR"
+    hr = sn42Send(LCase$(szCmd), sz)
+    If hr = 0 Then
+        ' /* error */
+        uDecode = CStr(sn41GetLastError) & "/" & uErr(sn41GetLastError)
 
-        Else
-            uDecode = "0/OK/" & CStr(hr)
+    Else
+        ' /* okay */
+        uDecode = "0/OK" & IIf(hr <> -1, "/" & CStr(hr), "")
 
-        End If
+    End If
 
-    Case "unregister"
-        hr = sn41UnregisterApp(pData.ValueOf("token"))
-        If hr = 0 Then
-            uDecode = CStr(sn41GetLastError) & "/" & uErr(sn41GetLastError)
-
-        Else
-            uDecode = "0/OK"
-
-        End If
-
-    Case "update_app"
-        hr = sn41UpdateApp(Val(pData.ValueOf("token")), pData.ValueOf("title"), pData.ValueOf("icon"))
-        If hr = 0 Then
-            uDecode = CStr(sn41GetLastError) & "/" & uErr(sn41GetLastError)
-
-        Else
-            uDecode = "0/OK"
-
-        End If
-
-'    SNARL41_SET_CALLBACK
-
-    Case "add_class"
-        hr = sn41AddClass(Val(pData.ValueOf("token")), pData.ValueOf("id"), pData.ValueOf("name"))
-        If hr = 0 Then
-            uDecode = CStr(sn41GetLastError) & "/" & uErr(sn41GetLastError)
-
-        Else
-            uDecode = "0/OK"
-
-        End If
-
-    Case "remove_class"
-        hr = sn41RemoveClass(Val(pData.ValueOf("token")), pData.ValueOf("id"))
-        If hr = 0 Then
-            uDecode = CStr(sn41GetLastError) & "/" & uErr(sn41GetLastError)
-
-        Else
-            uDecode = "0/OK"
-
-        End If
-
-    Case "notify"
-        sz = pData.AsString
-        sz = Replace$(sz, "=", "::")
-        sz = Replace$(sz, "&", "#?")
-
-        hr = sn41Notify(Val(pData.ValueOf("token")), pData.ValueOf("id"), sz)
-        If hr = 0 Then
-            uDecode = CStr(sn41GetLastError) & "/" & uErr(sn41GetLastError)
-
-        Else
-            uDecode = "0/OK/" & CStr(hr)
-
-        End If
-
-'    SNARL41_UPDATE_NOTIFICATION
-'    SNARL41_HIDE_NOTIFICATION
-'    SNARL41_IS_NOTIFICATION_VISIBLE
+'Dim hr As Long
+'Dim n As Long
 '
-'    SNARL41_LAST_ERROR
-
-    Case "last_error"
-        uDecode = "0/OK/" & CStr(sn41GetLastError)
-
-    Case "version"
-        hr = sn41GetVersion()
-        If hr = 0 Then
-            uDecode = CStr(sn41GetLastError) & "/" & uErr(sn41GetLastError)
-
-        Else
-            uDecode = "0/OK/" & CStr(hr)
-
-        End If
-
-    Case "test"
-        hr = sn41EZNotify(0, "", "SNP/HTTP", "Test Message", -1, g_MakePath(App.Path) & "icon.png")
-        If hr = 0 Then
-            uDecode = CStr(sn41GetLastError) & "/" & uErr(sn41GetLastError)
-
-        Else
-            uDecode = "0/OK/" & CStr(hr)
-
-        End If
-
-    Case Else
-        uDecode = CStr(SNARL41_ERROR_UNKNOWN_COMMAND) & "/Unknown Command '" & szCmd & "'"
-
-    End Select
+'    Select Case LCase$(szCmd)
+'    Case "register", "reg"
+'        hr = sn41RegisterApp(pData.ValueOf("id"), pData.ValueOf("title"), pData.ValueOf("icon"))
+'        If hr = 0 Then
+'            uDecode = CStr(sn41GetLastError) & "/ERR"
+'
+'        Else
+'            uDecode = "0/OK/" & CStr(hr)
+'
+'        End If
+'
+'    Case "unregister", "unreg"
+'        hr = sn41UnregisterApp(pData.ValueOf("token"))
+'        If hr = 0 Then
+'            uDecode = CStr(sn41GetLastError) & "/" & uErr(sn41GetLastError)
+'
+'        Else
+'            uDecode = "0/OK"
+'
+'        End If
+'
+'    Case "update_app", "updateapp"
+'        hr = sn41UpdateApp(Val(pData.ValueOf("token")), pData.ValueOf("title"), pData.ValueOf("icon"))
+'        If hr = 0 Then
+'            uDecode = CStr(sn41GetLastError) & "/" & uErr(sn41GetLastError)
+'
+'        Else
+'            uDecode = "0/OK"
+'
+'        End If
+'
+''    SNARL41_SET_CALLBACK
+'
+'    Case "add_class", "addclass"
+'        hr = sn41AddClass(Val(pData.ValueOf("token")), pData.ValueOf("id"), pData.ValueOf("name"))
+'        If hr = 0 Then
+'            uDecode = CStr(sn41GetLastError) & "/" & uErr(sn41GetLastError)
+'
+'        Else
+'            uDecode = "0/OK"
+'
+'        End If
+'
+'    Case "remove_class", "remclass"
+'        hr = sn41RemoveClass(Val(pData.ValueOf("token")), pData.ValueOf("id"))
+'        If hr = 0 Then
+'            uDecode = CStr(sn41GetLastError) & "/" & uErr(sn41GetLastError)
+'
+'        Else
+'            uDecode = "0/OK"
+'
+'        End If
+'
+'
+'    Case "notify"
+'        sz = pData.AsString
+'        sz = Replace$(sz, "=", "::")
+'        sz = Replace$(sz, "&", "#?")
+'        n = Val(pData.ValueOf("token"))
+'
+'        If mConfig.GetValueWithDefault("allow_anon", "0") = "0" Then
+'            ' /* anonymous notifications not allowed */
+'            If n = 0 Then
+'                uDecode = CStr(SNARL41_ERROR_FAILED) & "/" & uErr(SNARL41_ERROR_FAILED)
+'                Exit Function
+'
+'            End If
+'        End If
+'
+'        hr = sn41Notify(n, pData.ValueOf("id"), sz)
+'        If hr = 0 Then
+'            uDecode = CStr(sn41GetLastError) & "/" & uErr(sn41GetLastError)
+'
+'        Else
+'            uDecode = "0/OK/" & CStr(hr)
+'
+'        End If
+'
+''    SNARL41_UPDATE_NOTIFICATION
+''    SNARL41_HIDE_NOTIFICATION
+''    SNARL41_IS_NOTIFICATION_VISIBLE
+''
+''    SNARL41_LAST_ERROR
+'
+'    Case "last_error", "lasterror"
+'        uDecode = "0/OK/" & CStr(sn41GetLastError)
+'
+'    Case "version"
+'        hr = sn41GetVersion()
+'        If hr = 0 Then
+'            uDecode = CStr(sn41GetLastError) & "/" & uErr(sn41GetLastError)
+'
+'        Else
+'            uDecode = "0/OK/" & CStr(hr)
+'
+'        End If
+'
+'    Case "test"
+'        hr = sn41EZNotify(0, "", "SNP/HTTP", "Test Message", -1, g_MakePath(App.Path) & "icon.png")
+'        If hr = 0 Then
+'            uDecode = CStr(sn41GetLastError) & "/" & uErr(sn41GetLastError)
+'
+'        Else
+'            uDecode = "0/OK/" & CStr(hr)
+'
+'        End If
+'
+'    Case Else
+'        uDecode = CStr(SNARL41_ERROR_UNKNOWN_COMMAND) & "/Unknown Command '" & szCmd & "'"
+'
+'    End Select
 
 End Function
 
@@ -270,6 +299,15 @@ Private Function uErr(ByVal Error As Long) As String
 
     Case SNARL41_ERROR_FLOODING
         uErr = "Flooding detect"
+
+    Case SNARL42_ERROR_DO_NOT_DISTURB
+        uErr = "Do Not Disturb"
+
+    Case SNARL42_ERROR_COULD_NOT_DISPLAY
+        uErr = "Could not display"
+
+    Case SNARL42_ERROR_AUTH_FAILURE
+        uErr = "Authentication failure"
 
     Case Else
         uErr = "Undefined error"

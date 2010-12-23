@@ -73,9 +73,9 @@ Dim hr As Long
 
     g_Debug "clsid is '" & Class & "', testing for V41 API..."
 
-    Err.Clear
+    err.Clear
     Set iExt = CreateObject(Class & ".extension")
-    If (Err.Number = 0) And (Not (iExt Is Nothing)) Then
+    If (err.Number = 0) And (Not (iExt Is Nothing)) Then
         ' /* is V41 extension */
         g_Debug "V41 extension"
         iExt.GetInfo mInfo
@@ -87,10 +87,10 @@ Dim hr As Long
 
         g_Debug "not V41 extension, checking MVersionInfo support..."
 
-        Err.Clear
+        err.Clear
         Set iVer = CreateObject(Class & ".extension")
-        If Err.Number <> 0 Then
-            g_Debug "doesn't support MVersionInfo (" & Err.Description & ")", LEMON_LEVEL_CRITICAL Or LEMON_LEVEL_PROC_EXIT
+        If err.Number <> 0 Then
+            g_Debug "doesn't support MVersionInfo (" & err.Description & ")", LEMON_LEVEL_CRITICAL Or LEMON_LEVEL_PROC_EXIT
             Exit Function
 
         End If
@@ -101,10 +101,10 @@ Dim iSink As MWndProcSink
 
         g_Debug "checking MWndProcSink support..."
 
-        Err.Clear
+        err.Clear
         Set iSink = iVer
-        If Err.Number <> 0 Then
-            g_Debug "doesn't support MWndProcSink (" & Err.Description & ")", LEMON_LEVEL_CRITICAL Or LEMON_LEVEL_PROC_EXIT
+        If err.Number <> 0 Then
+            g_Debug "doesn't support MWndProcSink (" & err.Description & ")", LEMON_LEVEL_CRITICAL Or LEMON_LEVEL_PROC_EXIT
             Exit Function
 
         End If
@@ -118,9 +118,9 @@ Dim dw As Long
 
             g_Debug "V40 extension, checking MSimpleEnum support..."
 
-            Err.Clear
+            err.Clear
             Set iEnum = iVer
-            If Err.Number <> 0 Then
+            If err.Number <> 0 Then
                 g_Debug "doesn't support MSimpleEnum", LEMON_LEVEL_CRITICAL Or LEMON_LEVEL_PROC_EXIT
                 Exit Function
 
@@ -561,9 +561,9 @@ Private Function uGetLastError() As String
 
 Dim pse As MSimpleEnum
 
-        Err.Clear
+        err.Clear
         Set pse = mObj
-        If Err.Number = 0 Then _
+        If err.Number = 0 Then _
             pse.FindItem "last_error", mLastErr
 
     End If
@@ -680,7 +680,9 @@ Dim sz As String
 
     End With
 
-    snShowMessage mInfo.Name & " " & mInfo.Release, sz, -1, mInfo.IconPath
+    sn41Hide gExtDetailsToken
+
+    gExtDetailsToken = g_PrivateNotify("", mInfo.Name & " " & mInfo.Release, sz, , mInfo.IconPath)
 
 End Sub
 

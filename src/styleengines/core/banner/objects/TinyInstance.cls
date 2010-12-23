@@ -13,18 +13,22 @@ Attribute VB_PredeclaredId = False
 Attribute VB_Exposed = False
 Option Explicit
 
-Private Const FONT_NAME = "Tahoma"
+Private Const FONT_NAME = "Arial" ' "Tahoma"
 Private Const FONT_SIZE_TITLE = 7
 Private Const FONT_SIZE_TEXT = 7
 
 Dim theView As mfxView
 Dim mShowing As Boolean
 Dim mYPos As Single
+Dim mInfo As notification_info
+
+Const PRE_DEF_WIDTH = 256 ' 128
+Const IS_DOUBLE_HEIGHT = 0
 
 Implements IStyleInstance
 
 Private Sub IStyleInstance_AdjustPosition(x As Long, y As Long, Alpha As Integer, Done As Boolean)
-Const STEP_SIZE = 0.125
+Const STEP_SIZE = 1 / 16
 
     ' /* on entry:
     '       x, y are set to the position Snarl has determined is best for the notification
@@ -36,28 +40,67 @@ Const STEP_SIZE = 0.125
     '
     ' */
 
-    x = GetSystemMetrics(SM_CXSCREEN) - (theView.Width + 32)
+    If InStr(mInfo.Scheme, "left") Then
+        x = 64
 
-    If mShowing Then
-        If mYPos < 0 Then
-            ' /* keep going... */
-            mYPos = mYPos + STEP_SIZE
-            y = ROUNDUP(mYPos)
-            Done = False
+    ElseIf InStr(mInfo.Scheme, "right") Then
+        x = GetSystemMetrics(SM_CXSCREEN) - (theView.Width + 64)
+
+    Else
+        x = Fix((GetSystemMetrics(SM_CXSCREEN) - theView.Width) / 2)
+
+    End If
+
+
+
+    If InStr(mInfo.Scheme, "top") Then
+
+        If mShowing Then
+            If mYPos < -1 Then
+                ' /* keep going... */
+                mYPos = mYPos + STEP_SIZE
+                y = ROUNDUP(mYPos)
+                Done = False
+
+            End If
+
+        Else
+            ' /* hiding */
+            If mYPos < theView.Height Then
+                ' /* keep going... */
+                mYPos = mYPos + (STEP_SIZE * 2)
+                y = -ROUNDUP(mYPos)
+                Done = False
+
+            End If
 
         End If
 
     Else
-        ' /* hiding */
-        If mYPos < theView.Height Then
-            ' /* keep going... */
-            mYPos = mYPos + STEP_SIZE
-            y = -ROUNDUP(mYPos)
-            Done = False
+
+        If mShowing Then
+            If mYPos > (g_ScreenHeight - theView.Height) Then
+                ' /* keep going... */
+                mYPos = mYPos - STEP_SIZE
+                y = ROUNDUP(mYPos)
+                Done = False
+
+            End If
+
+        Else
+            ' /* hiding */
+            If mYPos < (g_ScreenHeight + theView.Height) Then
+                ' /* keep going... */
+                mYPos = mYPos + (STEP_SIZE * 2)
+                y = ROUNDUP(mYPos)
+                Done = False
+
+            End If
 
         End If
-
+    
     End If
+
 
 End Sub
 
@@ -71,150 +114,179 @@ Private Function IStyleInstance_Pulse() As Boolean
 End Function
 
 Private Sub IStyleInstance_Show(ByVal Visible As Boolean)
+Dim rc As RECT
 
     mShowing = Visible
+    g_GetWorkArea rc
 
-    If mShowing Then
-        mYPos = -theView.Height
+    If InStr(mInfo.Scheme, "bottom") Then
+        mYPos = IIf(mShowing, g_ScreenHeight() + theView.Height, g_ScreenHeight() - theView.Height)
 
     Else
-        mYPos = 0
+        mYPos = IIf(mShowing, -theView.Height, 0)
 
     End If
 
 End Sub
 
 Private Sub IStyleInstance_UpdateContent(NotificationInfo As libSnarlStyles.notification_info)
-Const RX = 12
+Const RX = 5
+
+    With NotificationInfo
+        .Title = Replace$(.Title, vbCrLf, " ")
+        .Text = Replace$(.Text, vbCrLf, " ")
+
+    End With
+
+    LSet mInfo = NotificationInfo
 
     ' /* get icon and calc text offsets from it */
 
 Dim cxIcon As Long
 Dim xOffset As Long
 Dim pIcon As mfxBitmap
+Dim cyFont As Long
 
     Set pIcon = style_MakeSquareImage(load_image_obj(NotificationInfo.Icon))
 
-    If Not (pIcon Is Nothing) Then
-        If (pIcon.Width > 0) And (pIcon.Height > 0) Then
-            cxIcon = MIN(pIcon.Width, 24)                   ' // can't be bigger than 24px
-            xOffset = cxIcon + 4
+    If is_valid_image(pIcon) Then
+        cxIcon = MIN(pIcon.Width, 24)                   ' // can't be bigger than 24px
+        xOffset = cxIcon + 2
 
-        End If
     End If
 
     Set theView = New mfxView
 
-Dim nHeight As Long
-Dim nWidth As Long
+Dim xIcon As Long
 Dim pr As BRect
 Dim cy As Long
-
-Dim z As Long
-
-    ' /* determine overall width and height based on scheme */
-
-    Select Case NotificationInfo.Scheme
-    Case "extra small"
-        ' /* width flexes to keep height down */
-
-        nHeight = 4             ' // 2 x 2px border
-
-        With theView
-            ' /* calc title size */
-            .SetFont FONT_NAME, FONT_SIZE_TITLE, True
-            .MeasureString NotificationInfo.Title, new_BRect(0, 0, 999, 999), pr
-            cy = pr.Height
-            nHeight = nHeight + cy
-            nWidth = pr.Width
-
-            ' /* calc text size */
-            .SetFont FONT_NAME, FONT_SIZE_TEXT, True
-            .MeasureString NotificationInfo.Text, new_BRect(0, 0, 999, 999), pr
-            nHeight = nHeight + pr.Height
-            nWidth = MAX(nWidth, pr.Width) + xOffset + 4 + 2
-
-        End With
-
-    Case "small"
-        ' /* width is fixed - height is variable */
-
-        nWidth = 150
-
-        With theView
-            ' /* calc title size */
-            .SetFont FONT_NAME, FONT_SIZE_TITLE, True
-            .MeasureString NotificationInfo.Title, new_BRect(xOffset + 2, 0, nWidth - 2, 999), pr
-            cy = pr.Height
-            nHeight = nHeight + cy
-
-            ' /* calc text size */
-            .SetFont FONT_NAME, FONT_SIZE_TEXT, True
-            .MeasureString NotificationInfo.Text, new_BRect(xOffset + 2, 0, nWidth - 2, 999), pr
-            z = pr.Height
-            nHeight = nHeight + pr.Height
-
-        End With
-
-    End Select
-
+Dim yMargin As Long
+Dim ppd As BPackedData
+Dim sz As String
 
     With theView
-        .SizeTo nWidth, nHeight
-        .TextMode = MFX_TEXT_ANTIALIAS
 
-        ' /* background */
+        ' /* determine the required height */
 
-        .SetHighColour rgba(0, 0, 0)
-        .FillRoundRect .Bounds, RX, RX
-        .FillRect new_BRect(0, 0, .Width - 1, (RX / 2) - 1)         ' // square-up the top
+        .SetFont FONT_NAME, FONT_SIZE_TITLE, True
 
-        If (NotificationInfo.Flags And S_NOTIFICATION_IS_PRIORITY) Then
-            .SetHighColour rgba(0, 0, 0)
-            .SetLowColour rgba(255, 0, 0)
-'            .FillRoundRect new_BRect(0, Fix(.Height / 2), .Width - 1, .Height - 1), RX, RX, MFX_VERT_GRADIENT
-            .FillRoundRect .Bounds, RX, RX, MFX_VERT_GRADIENT
+        If gSettings.GetValueWithDefault("tiny.cleartype", "0") = "1" Then
+            .TextMode = MFX_TEXT_CLEARTYPE
 
         Else
+            .TextMode = MFX_TEXT_ANTIALIAS
 
         End If
 
-        .EnableSmoothing False
+        sz = gSettings.GetValueWithDefault("tiny.font")
+        If sz <> "" Then
+            Set ppd = New BPackedData
+            If ppd.SetTo(sz) Then _
+                .SetFont ppd.ValueOf("name"), ppd.ValueOf("size"), (ppd.ValueOf("bold") = "1")
+
+        End If
+
+        cyFont = .StringHeight("A")
+
+        If mInfo.Title <> "" Then _
+            cy = cy + cyFont
+
+        If mInfo.Text <> "" Then _
+            cy = cy + cyFont
+
+
+        cy = MAX(cy, 24)
+
+        cy = cy + (2 * 2)               ' // 2px margin
+
+        If (mInfo.Text = "") And (mInfo.Title = "") Then
+            ' /* special case: icon only */
+            .SizeTo 48 + (2 * 2), cy
+            xIcon = Fix((.Width - 24) / 2)
+
+        Else
+
+            Select Case gSettings.GetValueWithDefault("tiny.size", "1")
+            Case "1"
+                ' /* tiny */
+                .SizeTo 192, cy
+
+            Case "3"
+                ' /* large */
+                .SizeTo 512, cy
+
+            Case Else
+                ' /* medium */
+                .SizeTo 384, cy
+
+            End Select
+
+            xIcon = 2
+
+        End If
+
+        yMargin = Fix((.Height - (cyFont * 2)) / 2)
+'        yMargin = 2
+
+        ' /* background */
+
+        .EnableSmoothing True
+        .SetHighColour gSettings.GetValueWithDefault("tiny.background", CStr(rgba(0, 0, 0)))
+        .FillRoundRect .Bounds, RX, RX
+
+        .SetHighColour rgba(255, 255, 255, 16)
+        .SetLowColour rgba(255, 255, 255, 0)
+        .FillRoundRect .Bounds, RX, RX, MFX_VERT_GRADIENT
+
+'        .SetHighColour rgba(0, 0, 0)
+'        .FillRoundRect .Bounds, RX, RX
+'        .FillRect new_BRect(0, 0, .Width - 1, (RX / 2) - 1)         ' // square-up the top
+
+        If (NotificationInfo.Flags And S_NOTIFICATION_IS_PRIORITY) Then
+            .SetHighColour rgba(255, 0, 0, 0)
+            .SetLowColour rgba(255, 0, 0)
+            .FillRoundRect .Bounds, RX, RX, MFX_VERT_GRADIENT
+'            .SetHighColour rgba(255, 0, 0)
+'            .StrokeRoundRect .Bounds, RX, RX
+
+        End If
 
         ' /* icon */
 
         If Not (pIcon Is Nothing) Then _
-            .DrawScaledImage pIcon, new_BPoint(2, 2), new_BPoint(cxIcon, cxIcon), 220
-
+            .DrawScaledImage pIcon, new_BPoint(xIcon, 2), new_BPoint(cxIcon, cxIcon), 240
 
         ' /* labels */
 
-'        If (NotificationInfo.Flags And S_NOTIFICATION_IS_PRIORITY) Then
-'            .SetHighColour rgba(255, 0, 0)
-'            .SetLowColour rgba(255, 255, 255)
-'
-'        Else
-            .SetHighColour rgba(255, 255, 255)
-            .SetLowColour rgba(0, 0, 0)
-'
-'        End If
-
-        .SetFont FONT_NAME, FONT_SIZE_TITLE, True
+        .SetHighColour gSettings.GetValueWithDefault("tiny.foreground", CStr(rgba(255, 255, 255)))
 
         ' /* title */
 
-        Set pr = .Bounds.InsetByCopy(2, 2)
+        Set pr = .Bounds.InsetByCopy(2, yMargin)
         pr.Left = pr.Left + xOffset
-        .DrawString NotificationInfo.Title, pr, MFX_SIMPLE_OUTLINE
+        sz = .GetFormattedText(mInfo.Title, pr.Width, True)
+        If mInfo.Text = "" Then _
+            pr.OffsetBy 0, Fix((pr.Height - cyFont) / 2)
+
+        .DrawString sz, pr, IIf((mInfo.Text = "") And Not (is_valid_image(pIcon)), MFX_ALIGN_H_CENTER, MFX_ALIGN_LEFT)
 
         ' /* text */
 
-        Set pr = .Bounds.InsetByCopy(2, 2)
+        Set pr = .Bounds.InsetByCopy(2, yMargin)
         pr.Left = pr.Left + xOffset
-        pr.Top = cy
+        sz = .GetFormattedText(mInfo.Text, pr.Width, True)
+        If mInfo.Title = "" Then
+            pr.OffsetBy 0, Fix((pr.Height - cyFont) / 2)
 
-        .SetFont FONT_NAME, FONT_SIZE_TEXT, True
-        .DrawString NotificationInfo.Text, pr, MFX_SIMPLE_OUTLINE
+        Else
+            pr.OffsetBy 0, cyFont
+
+        End If
+
+        .DrawString sz, pr
+
+        .SetHighColour rgba(0, 0, 0, 102)
+        .StrokeRoundRect .Bounds, RX, RX
 
     End With
 

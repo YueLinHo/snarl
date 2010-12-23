@@ -2,7 +2,7 @@ VERSION 5.00
 Begin VB.Form Form1 
    BorderStyle     =   1  'Fixed Single
    Caption         =   "@"
-   ClientHeight    =   3975
+   ClientHeight    =   3945
    ClientLeft      =   45
    ClientTop       =   435
    ClientWidth     =   4530
@@ -19,19 +19,29 @@ Begin VB.Form Form1
    LinkTopic       =   "Form1"
    MaxButton       =   0   'False
    MinButton       =   0   'False
-   ScaleHeight     =   3975
+   ScaleHeight     =   3945
    ScaleWidth      =   4530
    StartUpPosition =   3  'Windows Default
+   Begin VB.CheckBox Check1 
+      Caption         =   "Allow merging"
+      Height          =   255
+      Left            =   60
+      TabIndex        =   6
+      Top             =   2160
+      Value           =   1  'Checked
+      Width           =   4395
+   End
    Begin VB.CommandButton Command1 
       Caption         =   "Update"
+      Enabled         =   0   'False
       Height          =   495
-      Left            =   1680
+      Left            =   1740
       TabIndex        =   5
-      Top             =   3360
+      Top             =   3180
       Width           =   1455
    End
    Begin VB.TextBox Text2 
-      Height          =   615
+      Height          =   975
       Left            =   60
       MultiLine       =   -1  'True
       TabIndex        =   3
@@ -50,27 +60,12 @@ Begin VB.Form Form1
    Begin VB.CommandButton Command4 
       Caption         =   "Show"
       Default         =   -1  'True
+      Enabled         =   0   'False
       Height          =   495
       Left            =   60
       TabIndex        =   0
-      Top             =   3360
+      Top             =   3180
       Width           =   1455
-   End
-   Begin VB.Label Label4 
-      Caption         =   "All new applications should ideally utilise the new V41 API and only fall back to earlier versions of the API if necessary."
-      Height          =   495
-      Left            =   60
-      TabIndex        =   7
-      Top             =   2760
-      Width           =   4395
-   End
-   Begin VB.Label Label3 
-      Caption         =   $"Form1.frx":001E
-      Height          =   855
-      Left            =   60
-      TabIndex        =   6
-      Top             =   1800
-      Width           =   4395
    End
    Begin VB.Label Label2 
       Caption         =   "Text"
@@ -96,55 +91,72 @@ Attribute VB_PredeclaredId = True
 Attribute VB_Exposed = False
 Option Explicit
 
+Dim mGotSnarl As Boolean
 Dim mMsg As Long
+
+Dim WithEvents myApp As SnarlApp
+Attribute myApp.VB_VarHelpID = -1
 
 Private Sub Command1_Click()
 
-    If mMsg Then _
-        snUpdateMessage mMsg, Text1.Text, Text2.Text
+'    If mMsg Then _
+        sn41EZUpdate mMsg, , Text2.Text
 
 End Sub
 
 Private Sub Command4_Click()
 
-    mMsg = snShowMessageEx("Test Class", Text1.Text, Text2.Text, 0, App.Path & "\icon.png", Me.hWnd, 0)
+    mMsg = myApp.EZNotify("", Text1.Text, Text2.Text, 0, "shell32.dll,-17", , , , , IIf(Check1.Value = vbChecked, NOTIFICATION_ALLOWS_MERGE, 0))
 
 End Sub
 
 Private Sub Form_Load()
-Dim hr As Long
 
-    If snGetSnarlWindow() = 0 Then
-        MsgBox "Snarl isn't running - launch Snarl, then run this demo.", vbExclamation Or vbOKOnly, App.Title
-        Unload Me
+    Set myApp = New SnarlApp
+
+    If is_snarl_running() Then
+        uRegister
 
     Else
-        hr = snRegisterConfig2(Me.hWnd, App.Title, 0, App.Path & "\icon.png", App.Path & "\icon.png")
-        If hr = 0 Then
-            Me.Caption = "Registered with Snarl V" & snGetVersionEx()
-            snRegisterAlert App.Title, "Test Class"
-
-        Else
-            Me.Caption = "Error registering with Snarl: " & Hex$(hr)
-
-        End If
+        Me.Caption = "Snarl not running, waiting..."
+        uQuit
 
     End If
 
 End Sub
 
 Private Sub Form_Unload(Cancel As Integer)
-Dim hr As Long
+'
+End Sub
 
-    hr = snRevokeConfig(Me.hWnd)
-    If hr = 0 Then
-        Debug.Print "OK"
+Private Sub uRegister()
 
-    Else
-        Debug.Print "FAILED: " & Hex$(hr)
+    If myApp.SetTo(App.ProductName, App.Title, "shell32.dll,-17") = B_OK Then
+        Me.Caption = "Registered with Snarl V" & CStr(snarl_version()) & " (" & Hex$(myApp.Token) & ")"
+        Command1.Enabled = True
+        Command4.Enabled = True
 
     End If
 
 End Sub
 
+Private Sub uQuit()
+
+    Command1.Enabled = False
+    Command4.Enabled = False
+
+End Sub
+
+Private Sub myApp_SnarlLaunched()
+
+    uRegister
+
+End Sub
+
+Private Sub myApp_SnarlQuit()
+
+    Me.Caption = "Snarl has quit, waiting..."
+    uQuit
+
+End Sub
 

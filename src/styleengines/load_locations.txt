@@ -1,7 +1,7 @@
 
 
-	Snarl Core Extensions DLL Base Addresses
-	========================================
+	Snarl Core Style Engine DLL Base Addresses
+	==========================================
 
 
 	Banner			0x2f000000

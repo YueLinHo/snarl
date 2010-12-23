@@ -2,7 +2,7 @@ VERSION 5.00
 Begin VB.Form Form1 
    BorderStyle     =   1  'Fixed Single
    Caption         =   "@"
-   ClientHeight    =   5115
+   ClientHeight    =   5850
    ClientLeft      =   45
    ClientTop       =   435
    ClientWidth     =   4530
@@ -19,16 +19,23 @@ Begin VB.Form Form1
    LinkTopic       =   "Form1"
    MaxButton       =   0   'False
    MinButton       =   0   'False
-   ScaleHeight     =   5115
+   ScaleHeight     =   5850
    ScaleWidth      =   4530
    StartUpPosition =   3  'Windows Default
+   Begin VB.TextBox Text5 
+      Height          =   315
+      Left            =   60
+      TabIndex        =   14
+      Text            =   "primary::36°"
+      Top             =   4740
+      Width           =   4395
+   End
    Begin VB.CheckBox Check3 
       Caption         =   "Custom background colour (web format #rrggbb)"
       Height          =   255
       Left            =   60
       TabIndex        =   13
       Top             =   2880
-      Value           =   1  'Checked
       Width           =   3915
    End
    Begin VB.TextBox Text4 
@@ -70,6 +77,7 @@ Begin VB.Form Form1
       Max             =   100
       TabIndex        =   7
       Top             =   2460
+      Value           =   23
       Width           =   4395
    End
    Begin VB.CommandButton Command1 
@@ -77,7 +85,7 @@ Begin VB.Form Form1
       Height          =   495
       Left            =   1680
       TabIndex        =   5
-      Top             =   4500
+      Top             =   5220
       Width           =   1455
    End
    Begin VB.TextBox Text2 
@@ -103,8 +111,16 @@ Begin VB.Form Form1
       Height          =   495
       Left            =   60
       TabIndex        =   0
-      Top             =   4500
+      Top             =   5220
       Width           =   1455
+   End
+   Begin VB.Label Label5 
+      Caption         =   "Extra Data"
+      Height          =   195
+      Left            =   60
+      TabIndex        =   15
+      Top             =   4440
+      Width           =   1155
    End
    Begin VB.Label Label4 
       Alignment       =   1  'Right Justify
@@ -158,13 +174,20 @@ Private Sub Command1_Click()
 End Sub
 
 Private Sub Command4_Click()
+Dim szIcon As String
+
+    szIcon = Text3.Text
+    If g_SafeLeftStr(szIcon, 2) = ".\" Then _
+        szIcon = g_MakePath(App.Path) & g_SafeRightStr(szIcon, Len(szIcon) - 2)
+
 
     If mToken Then _
         mMsg = sn41EZNotify(mToken, "", _
                             Text1.Text, Text2.Text, 0, _
-                            IIf(Check2.Value = vbChecked, App.Path & "\icon.png", ""), , , , , _
+                            IIf(Check2.Value = vbChecked, szIcon, ""), , , , , _
                             IIf(Check1.Value = vbChecked, "percent::" & CStr(HScroll1.Value), "") & _
-                                IIf(Check3.Value = vbChecked, "#?col::" & Text4.Text, ""))
+                                IIf(Check3.Value = vbChecked, "#?col::" & Text4.Text, "") & _
+                                IIf(Text5.Text <> "", "#?" & Text5.Text, ""))
 
 End Sub
 
@@ -186,7 +209,7 @@ Dim hr As Long
 
         End If
 
-        Text3.Text = App.Path & "\icon.png"
+        Text3.Text = ".\icon.png"
         Label4.Caption = HScroll1.Value & "%"
 
     End If
@@ -218,3 +241,4 @@ Private Sub HScroll1_Scroll()
     Label4.Caption = HScroll1.Value & "%"
 
 End Sub
+

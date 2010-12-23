@@ -47,8 +47,9 @@ Dim mToken As Long
 Dim mRefs As Long
 
 Dim mMissed() As T_NOTIFICATION_INFO
-Dim mMissedCount As Long
+Dim mMissedCount As Long                        ' // total in the list
 Dim mMissedPanel As TMissedNotificationsPanel
+Dim mActualMissed As Long                       ' // number that appeared since DnD enabled
 
 Dim mDelayed() As TDelayedNotification
 Dim mDelayedCount As Long
@@ -281,15 +282,9 @@ Dim lQuantum As Long
     Info.Sender = Class.App.Name
     Info.Class = Class.Description
 
-    ' /* R2.3: CRLF replacement */
-
-    Info.Title = Replace$(Info.Title, "\n", vbCrLf)
-    Info.Text = Replace$(Info.Text, "\n", vbCrLf)
-
     ' /* R2.3: set datestamp */
 
     Info.DateStamp = Now()
-
 
     ' /* R2.3: send to any selected non-window styles */
 
@@ -347,63 +342,78 @@ Dim pDelayed As TDelayedNotification
     End If
 
 
-    ' /* R2.2: if DnD is enabled and the notification's priority is normal or low, we just add it to
-    '    the missed notification list */
+    ' /* Do Not Disturb mode */
+
 
 Dim pIcon As mfxBitmap
 
-    ' /* R2.31: only add if "Log During DND" is enabled for the notification class */
+    ' /* while DnD is in effect, normal priority notifications are added
+    '    to the missed list (unless the user has blocked them); high
+    '    priority notifications are still displayed */
 
-    If (g_IsDNDModeEnabled()) And (Info.Priority < 1) And (Class.GetValue("log_during_dnd") = "1") Then
-        mMissedCount = mMissedCount + 1
-        ReDim Preserve mMissed(mMissedCount)
-        LSet mMissed(mMissedCount) = Info
-        Set mMissed(mMissedCount).Icon = style_MakeSquareImage(load_image_obj(uTranslateIconPath(Info.IconPath, "")))
+    If (g_IsDNDModeEnabled()) And (Info.Priority < 1) Then
 
-        If Not (mMissedPanel Is Nothing) Then _
-            mMissedPanel.UpdateList
+        ' /* R2.31: only add if "Log During DND" is enabled for the notification class */
 
-        frmAbout.bMissedNotificationsChanged
+        gSetLastError SNARL42_ERROR_DO_NOT_DISTURB
 
-        Add = -1                    ' // V40.7 - changed from M_OK to -1 (indicates success but no token available)
-        Exit Function               ' // TO-DO: we should probably return zero here and set last_error to something like "BLOCKED"
+        If (Info.Priority = 0) And (Class.GetValue("log_during_dnd") = "1") Then
 
+            uAddToMissedList Info
 
-    ElseIf Info.Priority < 0 Then
-        ' /* R2.4: if the notification's priority is low, we may need to queue it */
-
-        If sn41IsVisible(gCurrentLowPriorityId) Then
-
-            ' /* we need to queue it */
-
-            mQueueCount = mQueueCount + 1
-            ReDim Preserve mQueue(mQueueCount)
-
-            ' /* if the token hasn't been pre-allocated set it here so the sender
-            '    can still manipulate the content */
-
-            If Info.Token = 0 Then
-                mToken = mToken + 1
-                Info.Token = mToken
-
-            End If
-
-            ' /* queue it */
-
-            With mQueue(mQueueCount)
-                Set .Class = Class
-                LSet .Detail = Info
-
-            End With
-
-            ' /* update the count badge on the existing notification */
-
-            uUpdateQueueCount
+            ' /* special case: we return a valid token but we set LastError
+            '    to ERROR_DO_NOT_DISTURB to indicate the notification wasn't
+            '    actually displayed */
 
             Add = Info.Token
             Exit Function
 
+        Else
+            ' /* otherwise, it's discarded */
+            Add = 0
+            Exit Function
+
         End If
+
+    End If
+
+
+    ' /* R2.4: for low priority notifications only one may be visible
+    '    at any one time, so zap any existing */
+
+    If Info.Priority < 0 Then
+
+        If sn41IsVisible(gCurrentLowPriorityId) Then _
+            Me.Hide gCurrentLowPriorityId
+
+'            ' /* we need to queue it */
+'
+'            mQueueCount = mQueueCount + 1
+'            ReDim Preserve mQueue(mQueueCount)
+'
+'            ' /* if the token hasn't been pre-allocated set it here so the sender
+'            '    can still manipulate the content */
+'
+'            If Info.Token = 0 Then
+'                mToken = mToken + 1
+'                Info.Token = mToken
+'
+'            End If
+'
+'            ' /* queue it */
+'
+'            With mQueue(mQueueCount)
+'                Set .Class = Class
+'                LSet .Detail = Info
+'
+'            End With
+'
+'            ' /* update the count badge on the existing notification */
+'
+'            uUpdateQueueCount
+'
+'            Add = Info.Token
+'            Exit Function
 
     End If
 
@@ -417,12 +427,33 @@ Dim pIcon As mfxBitmap
         ' /* V41: (not sure it's documented) - if timeout is -1 then use global default timeout */
         Info.Timeout = Val(g_ConfigGet("default_duration"))
 
+    ElseIf (Info.Priority < 0) And (Info.Timeout = 0) Then
+        ' /* R2.4: low-priority notifications cannot be sticky */
+        Info.Timeout = Val(g_ConfigGet("default_duration"))
+
+    End If
+
+    ' /* R2.4: merging */
+
+Dim i As Long
+
+    If (Info.Flags And SNARL41_NOTIFICATION_ALLOWS_MERGE) Then
+        ' /* is there an existing notification we can merge with? */
+        i = uFindMergeCandidate(Class, Info.Title)
+        If i Then
+            ' /* update content */
+            mItem(i).Window.MergeWith Info
+            gSetLastError SNARL42_WAS_MERGED                    ' // set LastError to indicate the merge
+            Add = mItem(i).Window.Id
+            Exit Function
+
+        End If
     End If
 
     ' /* R2.4: overflow trimming */
 
-    Info.Title = uTrimLines(Info.Title)
-    Info.Text = uTrimLines(Info.Text)
+    Info.Title = g_TrimLines(Info.Title)
+    Info.Text = g_TrimLines(Info.Text)
 
     ' /* no style name?  that's okay, use the default */
 
@@ -449,7 +480,7 @@ Dim pStyle As TStyle
 
     ' /* get the path to the style - we need this for style-provided icons and sounds */
 
-    Info.IconPath = uTranslateIconPath(Info.IconPath, pStyle.Path)
+'    Info.IconPath = uTranslateIconPath(Info.IconPath, pStyle.Path)
 
     ' /* if S_STYLE_WANT_APP_NAME is set, prefix title with the sending app name */
 
@@ -490,10 +521,13 @@ Dim psi As IStyleInstance
             ' /* notification found, so decide what to do next... */
             If (pStyle.Flags And S_STYLE_DONT_QUEUE) Then
                 ' /* don't queue notifications - so update and return the existing id */
-'                Info.StyleToUse = style_GetSchemeName(Info.StyleToUse)
-                mItem(p).Window.Update2 Info
-                Add = mItem(p).Window.Id
-                Exit Function
+
+                mItem(p).Window.Hide
+
+''                Info.StyleToUse = style_GetSchemeName(Info.StyleToUse)
+'                mItem(p).Window.Update2 Info
+'                Add = mItem(p).Window.Id
+'                Exit Function
 
             Else
                 ' /* TO DO: add to queue */
@@ -583,11 +617,23 @@ Dim dwStyleFlags As S_STYLE_FLAGS
 
     ' /* figure out its location on screen */
 
-Dim i As Long
-
     If Not uGetNotificationPosition(psw, Info.Position, ar, i) Then
         g_Debug "TNotificationRoster.Add(): couldn't display notification", LEMON_LEVEL_CRITICAL
-        Add = 0
+        gSetLastError SNARL42_ERROR_COULD_NOT_DISPLAY
+        
+        ' /* V42: couldn't find suitable position - mostly likely no room left on-screen */
+
+        If Info.Priority >= 0 Then
+            ' /* normal and high priority notifications are added to missed list */
+
+            uAddToMissedList Info
+            Add = Info.Token
+
+        Else
+            Add = 0
+
+        End If
+
         Exit Function
 
     End If
@@ -627,7 +673,7 @@ Dim i As Long
 
     End With
 
-    ' /* R2.4: if this was a low priority notification, record its token */
+    ' /* R2.4: if this was a low priority notification, remember the token */
 
     If Info.Priority < 0 Then _
         gCurrentLowPriorityId = Add
@@ -668,14 +714,14 @@ Dim i As Long
     ReDim Preserve mItem(mItems)
     uRemove = True
 
-    If mItems Then
-        For i = 1 To mItems
-            With mItem(i).Window.Frame
-                Debug.Print "** " & .Left & "," & .Top & "-" & .Right & "," & .Bottom
-
-            End With
-        Next i
-    End If
+'    If mItems Then
+'        For i = 1 To mItems
+'            With mItem(i).Window.Frame
+'                Debug.Print "** " & .Left & "," & .Top & "-" & .Right & "," & .Bottom
+'
+'            End With
+'        Next i
+'    End If
 
 End Function
 
@@ -694,8 +740,25 @@ Dim i As Long
 
 End Function
 
+Private Function uFindInMissedList(ByVal Token As Long) As Long
+
+    If mMissedCount = 0 Then _
+        Exit Function
+
+Static i As Long
+
+    For i = 1 To mMissedCount
+        If mMissed(i).Token = Token Then
+            uFindInMissedList = i
+            Exit Function
+
+        End If
+    Next i
+
+End Function
+
 Public Function Hide(ByVal Id As Long) As Boolean
-Dim i As Long
+Static i As Long
 
     i = uFind(Id)
     If i Then
@@ -704,8 +767,17 @@ Dim i As Long
         Hide = True
 
     Else
-        g_Debug "TNotificationRoster.Hide(): id '" & g_HexStr(Id) & " not found", LEMON_LEVEL_WARNING
-        gSetLastError SNARL41_ERROR_NOTIFICATION_NOT_FOUND
+
+        i = uFindInMissedList(Id)
+        If i Then
+            g_Debug "TNotificationRoster.Hide(): '" & g_HexStr(Id) & " is in missed list"
+            uRemoveFromMissedList i
+
+        Else
+            g_Debug "TNotificationRoster.Hide(): '" & g_HexStr(Id) & " not found", LEMON_LEVEL_WARNING
+            gSetLastError SNARL41_ERROR_NOTIFICATION_NOT_FOUND
+
+        End If
 
     End If
 
@@ -713,48 +785,68 @@ End Function
 
 Public Function IsVisible(ByVal Id As Long) As Boolean
 
-    gSetLastError SNARL41_SUCCESS
-    IsVisible = (uFind(Id) > 0)
-    g_Debug "TNotificationRoster.IsVisible(): id '" & g_HexStr(Id) & "'==" & IsVisible
+    g_Debug "TNotificationRoster.IsVisible(" & g_HexStr(Id) & ")", LEMON_LEVEL_PROC_ENTER
 
-End Function
+    If uFind(Id) > 0 Then
+        g_Debug "found/visible"
+        gSetLastError SNARL41_SUCCESS
+        IsVisible = True
 
-Public Function Update(ByVal Token As Long, ByVal Title As String, ByVal Text As String, ByVal IconPath As String) As M_RESULT
-Dim i As Long
+    ElseIf uFindInMissedList(Id) Then
+        g_Debug "found/missed"
+        gSetLastError SNARL41_SUCCESS
+        IsVisible = False
 
-    i = uFind(Token)
-    If i = 0 Then
-        g_Debug "TNotificationRoster.Update(): #" & g_HexStr(Token) & " not found", LEMON_LEVEL_WARNING
+    Else
+        g_Debug "not found"
         gSetLastError SNARL41_ERROR_NOTIFICATION_NOT_FOUND
-        Update = M_NOT_FOUND
-        Exit Function
+        IsVisible = False
 
     End If
 
-Dim pInfo As T_NOTIFICATION_INFO
-
-    ' /* don't do any special pre-processing here - this is handled by CSnarlWindow->uUupdateStyleContent() */
-
-    With pInfo
-
-        ' /* R2.4: process text and title */
-
-        Title = Replace$(Title, "\+", mItem(i).Window.Title)        ' // specific to Update() only
-        Text = Replace$(Text, "\+", mItem(i).Window.Text)           ' // sepcific to Update() only
-
-        .Title = uTrimLines(Title)
-        .Text = uTrimLines(Text)
-
-        ' /* R2.3: get the correct icon taking the current style into consideration */
-        .IconPath = uTranslateIconPath(IconPath, mItem(i).Window.StylePath)
-        .SchemeName = Chr$(255)         ' // means "use existing"
-
-    End With
-
-    gSetLastError SNARL41_SUCCESS
-    Update = mItem(i).Window.Update2(pInfo)
+    g_Debug "", LEMON_LEVEL_PROC_EXIT
 
 End Function
+
+'Public Function Update(ByVal Token As Long, ByVal Title As String, ByVal Text As String, ByVal IconPath As String, Optional ByVal Content As String) As M_RESULT
+'Dim i As Long
+'
+'    i = uFind(Token)
+'    If i = 0 Then
+'        g_Debug "TNotificationRoster.Update(): #" & g_HexStr(Token) & " not found", LEMON_LEVEL_WARNING
+'        gSetLastError SNARL41_ERROR_NOTIFICATION_NOT_FOUND
+'        Update = M_NOT_FOUND
+'        Exit Function
+'
+'    End If
+'
+'Dim pInfo As T_NOTIFICATION_INFO
+'
+'    ' /* don't do any special pre-processing here - this is handled by CSnarlWindow->uUupdateStyleContent() */
+'
+'    With pInfo
+'
+'        ' /* R2.4: process text and title */
+'
+'        Title = Replace$(Title, "\+", mItem(i).Window.Title)        ' // specific to Update() only
+'        Text = Replace$(Text, "\+", mItem(i).Window.Text)           ' // sepcific to Update() only
+'
+'        .Title = g_TrimLines(Title)
+'        .Text = g_TrimLines(Text)
+'
+'        ' /* R2.3: get the correct icon taking the current style into consideration */
+'        .IconPath = IconPath '// uTranslateIconPath(IconPath, mItem(i).Window.StylePath)
+'        .SchemeName = Chr$(255)         ' // means "use existing"
+'
+'        ' /* R2.4: store original content */
+'        .OriginalContent = Content
+'
+'    End With
+'
+'    gSetLastError SNARL41_SUCCESS
+'    Update = mItem(i).Window.Update2(pInfo)
+'
+'End Function
 
 Private Function uIsFreeSpace(ByRef aRect As BRect) As Boolean
 Static i As Long
@@ -766,14 +858,14 @@ Static i As Long
     If mItems = 0 Then _
         Exit Function
 
-    g_Debug "uIsFreeSpace(): testing " & aRect.Left & "," & aRect.Top & "-" & aRect.Right & "," & aRect.Bottom
+'    g_Debug "uIsFreeSpace(): testing " & aRect.Left & "," & aRect.Top & "-" & aRect.Right & "," & aRect.Bottom
 
     For i = 1 To mItems
         If mItem(i).Window.Frame.Intersects(aRect) Then
-            With mItem(i).Window.Frame
-                g_Debug "blocked by item " & CStr(i) & " at " & .Left & "," & .Top & ";" & .Right & "," & .Bottom
-            
-            End With
+'            With mItem(i).Window.Frame
+'                g_Debug "blocked by item " & CStr(i) & " at " & .Left & "," & .Top & ";" & .Right & "," & .Bottom
+'
+'            End With
 
             uIsFreeSpace = False
             Exit Function
@@ -928,10 +1020,13 @@ Dim i As Long
     Select Case Attr
 
     Case SNARL_ATTRIBUTE_TITLE
-       SetAttribute = Me.Update(Id, Value, "-", "-")
+       SetAttribute = Me.Update(Id, g_newBPackedData("title::" & Value))
 
     Case SNARL_ATTRIBUTE_TEXT
-       SetAttribute = Me.Update(Id, "-", Value, "-")
+       SetAttribute = Me.Update(Id, g_newBPackedData("text::" & Value))
+
+    Case SNARL_ATTRIBUTE_ICON
+       SetAttribute = Me.Update(Id, g_newBPackedData("icon::" & Value))
 
     Case SNARL_ATTRIBUTE_TIMEOUT
        SetAttribute = pw.SetTimeout(Val(Value))
@@ -939,9 +1034,6 @@ Dim i As Long
     Case SNARL_ATTRIBUTE_SOUND
         g_Debug "TNotificationRoster.SetAttribute(): SNARL_ATTRIBUTE_SOUND cannot be changed", LEMON_LEVEL_WARNING
         SetAttribute = M_NOT_IMPLEMENTED
-
-    Case SNARL_ATTRIBUTE_ICON
-       SetAttribute = Me.Update(Id, "-", "-", Value)
 
     Case SNARL_ATTRIBUTE_ACK
         SetAttribute = pw.SetAck(Value)
@@ -1017,13 +1109,27 @@ Public Sub ShowMissedPanel()
     If (mMissedPanel Is Nothing) Then _
         Set mMissedPanel = New TMissedNotificationsPanel
 
+    ResetMissedCount
     mMissedPanel.Go
 
 End Sub
 
-Public Function CountMissed() As Long
+Public Function ActualMissedCount() As Long
 
-    CountMissed = mMissedCount
+    ActualMissedCount = mActualMissed
+
+End Function
+
+Public Sub ResetMissedCount()
+
+    mActualMissed = 0
+    frmAbout.bMissedNotificationsChanged
+
+End Sub
+
+Public Function MissedCount() As Long
+
+    MissedCount = mMissedCount
 
 End Function
 
@@ -1049,9 +1155,14 @@ End Function
 
 Public Sub ClearMissed()
 
+    ' /* clear the array */
+
     mMissedCount = 0
     ReDim mMissed(0)
-    frmAbout.bMissedNotificationsChanged
+
+    ' /* reset the missed count */
+
+    ResetMissedCount
 
 End Sub
 
@@ -1101,111 +1212,111 @@ Private Function uGetClassFlagsStr(ByRef Class As TAlert, ByVal ForcePriority As
 
 End Function
 
-Private Function uTranslateIconPath(ByVal Icon As String, ByVal StylePath As String) As String
-Dim pbm As mfxBitmap
-Dim pIcon As BIcon
-Dim sz As String
-Dim dw As Long
-Dim i As Long
-
-
-    If g_SafeLeftStr(Icon, 1) = "!" Then
-        ' /* convert the icon into it's corresponding file */
-        Icon = g_SafeRightStr(Icon, Len(Icon) - 1) & ".png"
-
-        ' /* default location */
-
-        uTranslateIconPath = g_MakePath(App.Path) & "etc\default_theme\icons\" & Icon
-
-        ' /* here, 'StylePath' sould be either empty or contain the full path to the
-        '    current style.  If it's the former we use the built-in icon set; if
-        '    it's the latter we try to get the icon from the style */
-
-        If (g_ConfigGet("use_style_icons") = "1") And (StylePath <> "") Then
-            ' /* try to get it from the style... */
-            sz = g_MakePath(StylePath) & "icons\" & Icon
-            If g_Exists(sz) Then _
-                uTranslateIconPath = sz
-
-        End If
-
-    ElseIf g_SafeLeftStr(Icon, 1) = "%" Then
-        ' /* whatever is after the % should be a valid HICON */
-        dw = Val(g_SafeRightStr(Icon, Len(Icon) - 1))
-        If dw Then
-            Set pbm = uGetIcon(dw)
-            If Not (pbm Is Nothing) Then
-                uTranslateIconPath = g_GetSafeTempIconPath()
-                pbm.Save uTranslateIconPath, "image/png"
-
-            End If
-
-        Else
-            g_Debug "TNotificationRoster.uTranslateIconPath(): bad HICON '" & Icon & "'", LEMON_LEVEL_WARNING
-
-        End If
-
-    ElseIf LCase$(g_GetExtension(Icon)) = "ico" Then
-        uTranslateIconPath = uLoadICO(Icon)
-
-    Else
-
-        uTranslateIconPath = Icon
-
-        ' /* windows icon? */
-
-        i = InStr(Icon, ",")
-        If i <> 0 Then
-            dw = Val(g_SafeRightStr(Icon, Len(Icon) - i))
-            Icon = g_SafeLeftStr(Icon, i - 1)
-            uTranslateIconPath = uGetBestIcon(Icon, dw)
-
-        End If
-    End If
-
-End Function
-
-Private Function uLoadICO(ByVal IconPath As String) As String
-Dim pbm As mfxBitmap
-Dim pIcon As BIcon
-
-    On Error Resume Next
-
-    With New BIconContent
-        If Not .LoadFromICO(IconPath) Then _
-            Exit Function
-
-        If .GetIcon(B_GET_ICON_BIGGEST Or B_GET_ICON_MOST_COLOURS, pIcon) Then
-            Set pbm = create_bitmap_from_image(pIcon.Render)
-            uLoadICO = g_GetSafeTempIconPath()
-            pbm.Save uLoadICO, "image/png"
-
-        End If
-
-    End With
-
-End Function
-
-Private Function uGetBestIcon(ByVal IconPath As String, ByVal Index As Long) As String
-Dim pbm As mfxBitmap
-Dim pIcon As BIcon
-
-    On Error Resume Next
-
-    With New BIconContent
-        If Not .LoadFromResource(IconPath, Index) Then _
-            Exit Function
-
-        If .GetIcon(B_GET_ICON_BIGGEST Or B_GET_ICON_MOST_COLOURS, pIcon) Then
-            Set pbm = create_bitmap_from_image(pIcon.Render)
-            uGetBestIcon = g_GetSafeTempIconPath()
-            pbm.Save uGetBestIcon, "image/png"
-
-        End If
-
-    End With
-
-End Function
+'Private Function uTranslateIconPath(ByVal Icon As String, ByVal StylePath As String) As String
+'Dim pbm As mfxBitmap
+'Dim pIcon As BIcon
+'Dim sz As String
+'Dim dw As Long
+'Dim i As Long
+'
+'
+'    If g_SafeLeftStr(Icon, 1) = "!" Then
+'        ' /* convert the icon into it's corresponding file */
+'        Icon = g_SafeRightStr(Icon, Len(Icon) - 1) & ".png"
+'
+'        ' /* default location */
+'
+'        uTranslateIconPath = g_MakePath(App.Path) & "etc\default_theme\icons\" & Icon
+'
+'        ' /* here, 'StylePath' sould be either empty or contain the full path to the
+'        '    current style.  If it's the former we use the built-in icon set; if
+'        '    it's the latter we try to get the icon from the style */
+'
+'        If (g_ConfigGet("use_style_icons") = "1") And (StylePath <> "") Then
+'            ' /* try to get it from the style... */
+'            sz = g_MakePath(StylePath) & "icons\" & Icon
+'            If g_Exists(sz) Then _
+'                uTranslateIconPath = sz
+'
+'        End If
+'
+'    ElseIf g_SafeLeftStr(Icon, 1) = "%" Then
+'        ' /* whatever is after the % should be a valid HICON */
+'        dw = Val(g_SafeRightStr(Icon, Len(Icon) - 1))
+'        If dw Then
+'            Set pbm = uGetIcon(dw)
+'            If Not (pbm Is Nothing) Then
+'                uTranslateIconPath = g_GetSafeTempIconPath()
+'                pbm.Save uTranslateIconPath, "image/png"
+'
+'            End If
+'
+'        Else
+'            g_Debug "TNotificationRoster.uTranslateIconPath(): bad HICON '" & Icon & "'", LEMON_LEVEL_WARNING
+'
+'        End If
+'
+'    ElseIf LCase$(g_GetExtension(Icon)) = "ico" Then
+'        uTranslateIconPath = uLoadICO(Icon)
+'
+'    Else
+'
+'        uTranslateIconPath = Icon
+'
+'        ' /* windows icon? */
+'
+'        i = InStr(Icon, ",")
+'        If i <> 0 Then
+'            dw = Val(g_SafeRightStr(Icon, Len(Icon) - i))
+'            Icon = g_SafeLeftStr(Icon, i - 1)
+'            uTranslateIconPath = uGetBestIcon(Icon, dw)
+'
+'        End If
+'    End If
+'
+'End Function
+'
+'Private Function uLoadICO(ByVal IconPath As String) As String
+'Dim pbm As mfxBitmap
+'Dim pIcon As BIcon
+'
+'    On Error Resume Next
+'
+'    With New BIconContent
+'        If Not .LoadFromICO(IconPath) Then _
+'            Exit Function
+'
+'        If .GetIcon(B_GET_ICON_BIGGEST Or B_GET_ICON_MOST_COLOURS, pIcon) Then
+'            Set pbm = create_bitmap_from_image(pIcon.Render)
+'            uLoadICO = g_GetSafeTempIconPath()
+'            pbm.Save uLoadICO, "image/png"
+'
+'        End If
+'
+'    End With
+'
+'End Function
+'
+'Private Function uGetBestIcon(ByVal IconPath As String, ByVal Index As Long) As String
+'Dim pbm As mfxBitmap
+'Dim pIcon As BIcon
+'
+'    On Error Resume Next
+'
+'    With New BIconContent
+'        If Not .LoadFromResource(IconPath, Index) Then _
+'            Exit Function
+'
+'        If .GetIcon(B_GET_ICON_BIGGEST Or B_GET_ICON_MOST_COLOURS, pIcon) Then
+'            Set pbm = create_bitmap_from_image(pIcon.Render)
+'            uGetBestIcon = g_GetSafeTempIconPath()
+'            pbm.Save uGetBestIcon, "image/png"
+'
+'        End If
+'
+'    End With
+'
+'End Function
 
 Private Function uFindbyStyleName(ByVal Style As String) As Long
 
@@ -1395,29 +1506,29 @@ Dim pt As POINTAPI
 
 End Function
 
-Private Function uGetIcon(ByVal hIcon As Long) As mfxBitmap
-
-    On Error Resume Next
-
-Dim pi As BIcon
-
-    Err.Clear
-    Set pi = New BIcon
-    If Err.Number <> 0 Then
-        g_Debug "TNofiticationRoster.uGetIcon(): no icon.resource", LEMON_LEVEL_CRITICAL
-        Exit Function
-
-    End If
-
-    If Not pi.SetFromHICON(hIcon) Then
-        g_Debug "TNofiticationRoster.uGetIcon(): bad icon handle", LEMON_LEVEL_CRITICAL
-        Exit Function
-
-    End If
-        
-    Set uGetIcon = create_bitmap_from_image(pi.Render())
-
-End Function
+'Private Function uGetIcon(ByVal hIcon As Long) As mfxBitmap
+'
+'    On Error Resume Next
+'
+'Dim pi As BIcon
+'
+'    Err.Clear
+'    Set pi = New BIcon
+'    If Err.Number <> 0 Then
+'        g_Debug "TNofiticationRoster.uGetIcon(): no icon.resource", LEMON_LEVEL_CRITICAL
+'        Exit Function
+'
+'    End If
+'
+'    If Not pi.SetFromHICON(hIcon) Then
+'        g_Debug "TNofiticationRoster.uGetIcon(): bad icon handle", LEMON_LEVEL_CRITICAL
+'        Exit Function
+'
+'    End If
+'
+'    Set uGetIcon = create_bitmap_from_image(pi.Render())
+'
+'End Function
 
 Private Sub uSafeGetStyle(ByVal StyleToUse As String, ByRef Style As TStyle)
 Dim pStyle As TStyle
@@ -1434,45 +1545,6 @@ Dim pStyle As TStyle
 
 End Sub
 
-Private Function uTrimLines(ByVal Text As String) As String
-
-    Text = Replace$(Text, "\n", vbCrLf)
-
-    ' /* pre-set default */
-
-    uTrimLines = Text
-
-Dim n As Long
-
-    n = g_SafeLong(g_ConfigGet("style.overflow_limit"))
-    If (n < 4) Or (n > 12) Then _
-        n = 12                  ' // must be at least 5 lines to make it meaningful to
-                                ' // take up a line with the ellipsis
-                                ' // i.e. line 1
-                                ' //      ...
-                                ' //      line 3
-                                ' //      line 4
-                                ' // is pointless as only line 2 is replaced
-
-Dim sz() As String
-Dim c As Long
-Dim i As Long
-
-    sz() = Split(Text, vbCrLf)
-    c = UBound(sz)
-
-    If (c + 1) > n Then
-        ' /* <first line> \n <...> \n <remaining lines> */
-        uTrimLines = sz(0) & vbCrLf & "…"
-        For i = c - (n - 3) To c
-            uTrimLines = uTrimLines & vbCrLf & sz(i)
-
-        Next i
-
-    End If
-
-End Function
-
 Private Sub uCopyTo(ByRef Info As T_NOTIFICATION_INFO, ByRef Class As TAlert)
 
     ' /* get the appropriate instance for the notification before we do anything else
@@ -1487,7 +1559,7 @@ Dim pStyle As TStyle
 
     ' /* get the path to the style - we need this for style-provided icons and sounds */
 
-    Info.IconPath = uTranslateIconPath(Info.IconPath, pStyle.Path)
+    Info.IconPath = g_TranslateIconPath(Info.IconPath, pStyle.Path)
 
     ' /* if S_STYLE_WANT_APP_NAME is set, prefix title with the sending app name */
 
@@ -1560,4 +1632,141 @@ Public Function QueueCount() As Long
 
 End Function
 
+Private Function uFindMergeCandidate(ByRef Class As TAlert, ByVal Title As String) As Long
+
+    If (Class Is Nothing) Or (mItems = 0) Then _
+        Exit Function
+
+Dim i As Long
+
+    For i = 1 To mItems
+        If mItem(i).Window.IsMergeCandidate(Class, Title) Then
+            uFindMergeCandidate = i
+            Exit Function
+
+        End If
+
+    Next i
+
+End Function
+
+Public Function AddAction(ByVal Token As Long, ByRef Data As BPackedData) As Long
+
+    ' /* param checking... */
+
+    If Data.ValueOf("label") = "" Then
+        g_Debug "TNotificationRoster.AddAction(): missing 'label' from action", LEMON_LEVEL_CRITICAL
+        gSetLastError SNARL41_ERROR_ARG_MISSING
+        Exit Function
+
+    End If
+
+Dim i As Long
+
+    i = uFind(Token)
+    If i = 0 Then
+        g_Debug "TNotificationRoster.AddAction(): token '" & g_HexStr(Token) & " not found", LEMON_LEVEL_WARNING
+        gSetLastError SNARL41_ERROR_NOTIFICATION_NOT_FOUND
+        Exit Function
+
+    End If
+
+    If Not mItem(i).Window.AddAction(Data.ValueOf("label"), Data.ValueOf("cmd")) Then
+        gSetLastError SNARL41_ERROR_FAILED
+
+    Else
+        gSetLastError SNARL41_SUCCESS
+        AddAction = -1
+
+    End If
+
+End Function
+
+Public Function ClearActions(ByVal Token As Long) As Long
+Dim i As Long
+
+    i = uFind(Token)
+    If i = 0 Then
+        g_Debug "TNotificationRoster.AddAction(): token '" & g_HexStr(Token) & " not found", LEMON_LEVEL_WARNING
+        gSetLastError SNARL41_ERROR_NOTIFICATION_NOT_FOUND
+        Exit Function
+
+    End If
+
+    mItem(i).Window.ClearActions
+    ClearActions = -1
+
+End Function
+
+Private Sub uAddToMissedList(ByRef Info As T_NOTIFICATION_INFO)
+
+    If Info.Token = 0 Then
+        ' /* allocate a token now */
+        mToken = mToken + 1
+        Info.Token = mToken
+
+    End If
+
+    mActualMissed = mActualMissed + 1
+    mMissedCount = mMissedCount + 1
+    ReDim Preserve mMissed(mMissedCount)
+    LSet mMissed(mMissedCount) = Info
+    Set mMissed(mMissedCount).Icon = style_MakeSquareImage(load_image_obj(g_TranslateIconPath(Info.IconPath, "")))
+
+    If Not (mMissedPanel Is Nothing) Then _
+        mMissedPanel.UpdateList
+
+    frmAbout.bMissedNotificationsChanged
+
+End Sub
+
+Private Sub uRemoveFromMissedList(ByVal Index As Long)
+
+    If (Index < 1) Or (Index > mMissedCount) Then _
+        Exit Sub
+
+Static i As Long
+
+    If Index < mMissedCount Then
+        For i = Index To (mMissedCount - 1)
+            LSet mMissed(i) = mMissed(i + 1)
+
+        Next i
+
+    End If
+
+    mMissedCount = mMissedCount - 1
+    ReDim Preserve mMissed(mMissedCount)
+
+
+    If Not (mMissedPanel Is Nothing) Then _
+        mMissedPanel.UpdateList
+
+'    frmAbout.bMissedNotificationsChanged
+
+End Sub
+
+Public Function Update(ByVal Token As Long, ByRef Args As BPackedData) As Boolean
+Dim i As Long
+
+    i = uFind(Token)
+    If i Then
+        g_Debug "TNotificationRoster.Update(): '" & g_HexStr(Token) & "' found"
+        Update = mItem(i).Window.Update(Args)
+
+    Else
+        i = uFindInMissedList(Token)
+        If i Then
+            g_Debug "TNotificationRoster.Update(): '" & g_HexStr(Token) & "' is in missed list"
+
+        Else
+            g_Debug "TNotificationRoster.Update(): '" & g_HexStr(Token) & "' not found", LEMON_LEVEL_WARNING
+            gSetLastError SNARL41_ERROR_NOTIFICATION_NOT_FOUND
+            Update = False
+
+        End If
+    
+    End If
+
+End Function
 

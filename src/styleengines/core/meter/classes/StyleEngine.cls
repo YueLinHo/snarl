@@ -13,7 +13,7 @@ Attribute VB_PredeclaredId = False
 Attribute VB_Exposed = True
 Option Explicit
 
-Private Const LIB_DATE = "23-Jul-2010"
+Private Const LIB_DATE = "8-Nov-2010"
 
 Private Const STYLE_NAME_JUST_BLACK = "Just Black"
 Private Const STYLE_NAME_IPHONEY = "iPhoney"
@@ -23,6 +23,8 @@ Private Const STYLE_NAME_SMOOTH = "Smooth"
 Private Const STYLE_NAME_METRO = "Metro"
 Private Const STYLE_NAME_CLOCK = "Clock"
 Private Const STYLE_NAME_MUSIC = "Slideshow"
+Private Const STYLE_NAME_DROID = "Droid"
+Private Const STYLE_NAME_CORP = "Corporate"
 
 Dim mLastErr As String
 
@@ -74,6 +76,12 @@ Dim pStyle As IMeterStyle
 
     Case STYLE_NAME_MUSIC
         Set pStyle = New TMusicInstance
+
+    Case STYLE_NAME_DROID
+        Set pStyle = New TDroidInstance
+
+    Case STYLE_NAME_CORP
+        Set pStyle = New TCorpInstance
 
     End Select
 
@@ -215,6 +223,24 @@ Private Function IStyleEngine_Initialize() As melon.M_RESULT
          0, 3, _
          uCreatePackedStr("title_font::Arial#?title_size::8#?text_font::Arial#?text_size::7#?background::" & CStr(rgba(17, 17, 17)) & "#?show_graphically::1#?fg_alpha::100"), _
          E_METER_STYLE_CAN_CHANGE_FONT Or E_METER_STYLE_CAN_CHANGE_BKGND Or E_METER_STYLE_CAN_CHANGE_FGND Or E_METER_STYLE_CAN_SET_FG_ALPHA Or E_METER_STYLE_NO_SHOW_PERCENT
+
+
+    uAdd STYLE_NAME_DROID, _
+         "Droid Style", _
+         S_STYLE_IS_CONFIGURABLE Or S_STYLE_MULTI_INSTANCE Or S_STYLE_V42_CONTENT Or S_STYLE_PULSE_NEEDED, _
+         "Standard", _
+         0, 2, _
+         uCreatePackedStr("title_font::Droid Sans#?title_size::13#?text_font::Droid Sans#?text_size::9#?background::" & CStr(rgba(87, 87, 87)) & "#?fg_alpha::100"), _
+         E_METER_STYLE_CAN_CHANGE_FONT Or E_METER_STYLE_NO_SHOW_PERCENT
+
+
+    uAdd STYLE_NAME_CORP, _
+         "Corporate Style", _
+         S_STYLE_IS_CONFIGURABLE Or S_STYLE_MULTI_INSTANCE Or S_STYLE_V42_CONTENT Or S_STYLE_PULSE_NEEDED, _
+         "Standard|Light", _
+         0, 3, _
+         uCreatePackedStr("title_font::Droid Sans#?title_size::11#?text_font::Droid Sans#?text_size::9#?background::" & CStr(rgba(15, 15, 15)) & "#?foreground::" & CStr(rgba(255, 255, 255)) & "#?fg_alpha::100"), _
+         E_METER_STYLE_CAN_CHANGE_FONT Or E_METER_STYLE_NO_SHOW_PERCENT
 
 
 Dim pPacked As BPackedData

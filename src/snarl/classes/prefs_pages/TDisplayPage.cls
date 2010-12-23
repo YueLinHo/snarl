@@ -177,7 +177,7 @@ Private Sub KPrefsPage_ControlInvoked(Control As BControl)
     Debug.Print "[" & mPage.GetName() & "]: ControlInvoked '" & Control.GetName() & "'"
 
     If Control.GetName() = "test_display_settings" Then
-        snShowMessage "Settings Test", "This is a test of the current display settings", -1
+        g_PrivateNotify "", "Settings Test", "This is a test of the current display settings"
 
     End If
 

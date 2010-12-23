@@ -277,6 +277,9 @@ Private Function uGetExtension(ByRef Folder As storage_kit.Node, Optional ByVal 
 
 Dim szExtension As String
 Dim fLinked As Boolean
+Dim t As Long
+
+    t = GetTickCount()
 
     If Folder.IsFolder Then
         ' /* old-style extension - is actually in this folder */
@@ -307,25 +310,6 @@ Dim fLinked As Boolean
 
     End If
 
-
-    ' /* R2.2 - we don't bother validating the extension's location and we no longer register them - this
-    '    must be done by the extension installer */
-
-'Dim szLocation As String
-'
-'    szLocation = LCase$(g_GetAXLocation(ext_name & ".Extension"))
-'    If szLocation <> LCase$(szFile) Then
-'        g_Debug "TExtensionRoster.uGetExtension(): '" & ext_name & "' registration mismatch", LEMON_LEVEL_WARNING
-'
-'        ' /* try to register the component in this location */
-'
-'        If Not g_RegSvr32(szFile) Then
-'            g_Debug "TExtensionRoster.uGetExtension(): '" & ext_name & "' failed to register", LEMON_LEVEL_CRITICAL
-'            Exit Function
-'
-'        End If
-'    End If
-
 Dim px As TExtension
 
     Set px = New TExtension
@@ -333,12 +317,6 @@ Dim px As TExtension
     ' /* if SetTo() fails then this isn't a bona-fide extension */
 
     If Not px.SetTo(g_RemoveExtension(szExtension), Folder.File) Then _
-        Exit Function
-
-    ' /* calling bInit() on the extension checks the extension is valid and retrieves
-    '    information about it */
-
-'    If Not px.Init(Folder.File) Then _
         Exit Function
 
     ' /* initialised okay, so add it to our list */
@@ -358,6 +336,8 @@ Dim px As TExtension
         g_Debug "TExtensionRoster.uGetExtension(): exclude list not loaded", LEMON_LEVEL_WARNING
 
     End If
+
+    g_Debug "TExtensionRoster.uGetExtension(): " & szExtension & "took " & CStr(GetTickCount() - t) & "ms"
 
 End Function
 
@@ -569,10 +549,11 @@ Dim i As Long
 End Function
 
 Private Sub uGetExtensions(ByRef Folder As storage_kit.Node)
-Dim pf As storage_kit.Node
 
     If (Folder Is Nothing) Then _
         Exit Sub
+
+Dim pf As storage_kit.Node
 
     Set pf = New storage_kit.Node
     If Not pf.SetTo(g_MakePath(Folder.File) & "full phat\snarl\extensions") Then
@@ -597,9 +578,6 @@ Dim i As Long
         Next i
 
     End With
-
-    If g_IsWinXPOrBetter() Then _
-        CoFreeUnusedLibrariesEx 0, 0
 
 End Sub
 
@@ -636,16 +614,18 @@ Dim sz As String
             mVersions.Save
 
         If CheckVersion Then _
-            snShowMessage Extension.Name & " Installed", _
-                          "Version: " & Extension.VerString(), -1, Extension.Icon
-        
+            g_PrivateNotify "", Extension.Name & " Installed", _
+                            "Version: " & Extension.VerString(), _
+                            , _
+                            Extension.Icon
 
     Else
         ' /* known */
         If CheckVersion Then
             If Val(sz) <> Val(szNewVer) Then
-                snShowMessage Extension.Name & " Upgraded", _
-                              "New version: " & Extension.VerString(), -1, Extension.Icon
+                g_PrivateNotify "", _
+                                Extension.Name & " Upgraded", _
+                                "New version: " & Extension.VerString(), -1, Extension.Icon
 
             End If
 

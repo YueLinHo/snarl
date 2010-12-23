@@ -278,11 +278,9 @@ Dim i As Long
             pm.Add "greyscale", IIf(mCurrent.IsEnabled, 0&, -1&)
 
             Control.DoExCmd B_SET_ITEM, pm
-            
 
             If Control.Page.Panel.Find("cb>apps", pc) Then _
                 pc.Notify "update_list", Nothing
-
 
 '                Else
 '                    ' /* failed to enable/disable the extension */

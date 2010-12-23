@@ -15,6 +15,7 @@ Option Explicit
 
 Dim WithEvents myUpdateCheck As BWebRequest
 Attribute myUpdateCheck.VB_VarHelpID = -1
+Dim mManual As Boolean
 
 Private Sub Class_Initialize()
 '//
@@ -37,6 +38,8 @@ Public Function Check(ByVal OverrideLastCheck As Boolean) As Boolean
 
 Dim n As Long
 
+    mManual = OverrideLastCheck
+
     If Not OverrideLastCheck Then
         n = Abs(DateDiff("d", gPrefs.last_update_check, Now))
         If n < 1 Then
@@ -44,6 +47,9 @@ Dim n As Long
             Exit Function
 
         End If
+
+    Else
+        g_Debug "TAutoUpdate.Check(): forcing a check..."
 
     End If
 
@@ -53,8 +59,6 @@ Dim n As Long
     Check = myUpdateCheck.GetContent("http://www.fullphat.net/updateinfo/snarl.updateinfo")
 
 End Function
-
-
 
 Private Sub uDecodeUpdateFile(ByVal Content As String)
 Dim szURL As String
@@ -106,9 +110,11 @@ Dim i As Long
 
                             g_Debug "TAutoUpdate.uDecodeUpdateFile(): update found - version = " & sz, LEMON_LEVEL_INFO
 
-                            i = snShowMessage("Update Available", sz & " is available for download (you have " & App.Comments & ")." & vbCrLf & vbCrLf & _
-                                              "Click this notification to go to the download website.", 40, _
-                                              g_MakePath(App.Path) & "etc\icons\snarl-update.png")
+                            i = g_PrivateNotify("", _
+                                                "Update Available", _
+                                                sz & " is available for download (you have " & App.Comments & ")." & vbCrLf & vbCrLf & "Click this notification to go to the download website.", _
+                                                40, _
+                                                g_MakePath(App.Path) & "etc\icons\snarl-update.png")
 
                             If i > 0 Then _
                                 snChangeAttribute i, SNARL_ATTRIBUTE_ACK, szURL
@@ -118,7 +124,10 @@ Dim i As Long
 
                         Else
                             g_Debug "TAutoUpdate.uDecodeUpdateFile(): this version is the most current"
-'                            MsgBox "This is the current Snarl release.", vbInformation Or vbOKOnly, App.Title
+
+                            If mManual Then _
+                                i = g_PrivateNotify("", , "You are running the latest version of Snarl")
+
                             Exit Sub
 
                         End If

@@ -21,7 +21,7 @@ Private Declare Function GetClipboardFormatName Lib "user32" Alias "GetClipboard
     ' /* these are only used by the deprecated SNARL_GET_VERSION, we still maintain them however */
 
 Private Const APP_VER = 2
-Private Const APP_SUB_VER = 3
+Private Const APP_SUB_VER = 4
 
     ' /* used for decoding incoming standard commands */
 
@@ -143,6 +143,15 @@ Private Function MWndProcSink_WndProc(ByVal hWnd As Long, ByVal uMsg As Long, By
             ReturnValue = -1
             MWndProcSink_WndProc = True
 
+        Case 64
+            snShowMessage g_HexStr((Rnd * 65535) Or &HC0000000), _
+                          g_HexStr(Rnd * 16777215) & "-" & g_HexStr(Rnd * 16777215), _
+                          20, _
+                          g_MakePath(App.Path) & "styles\default\default_icon.png"
+
+            ReturnValue = -1
+            MWndProcSink_WndProc = True
+
         Case Else
             ReturnValue = M_NOT_IMPLEMENTED
             MWndProcSink_WndProc = True
@@ -158,7 +167,7 @@ Private Function MWndProcSink_WndProc(ByVal hWnd As Long, ByVal uMsg As Long, By
         Select Case wParam
         Case 1
             ' /* install specified style engine or extension */
-            uInstall uAtomName(lParam)
+'            uInstall uAtomName(lParam)
 
         Case 2
             ' /* configure specified style engine or extension */
@@ -172,7 +181,19 @@ Private Function MWndProcSink_WndProc(ByVal hWnd As Long, ByVal uMsg As Long, By
 
 
     Case MSG_QUIT, WM_CLOSE
+        g_Debug "{" & IIf(uMsg = WM_CLOSE, "WM_CLOSE", "MSG_QUIT") & "}"
         PostQuitMessage 0
+
+
+    Case WM_QUERYENDSESSION
+        g_Debug "{WM_QUERYENDSESSION: " & g_HexStr(wParam) & " " & g_HexStr(lParam) & "}"
+'        sn41EZNotify gSnarlToken, "", "", "The system is shutting down"
+
+
+    Case WM_ENDSESSION
+        g_Debug "{WM_ENDSESSION: " & g_HexStr(wParam) & " " & g_HexStr(lParam) & "}"
+        If wParam <> 0 Then _
+            PostQuitMessage 0
 
     End Select
 
@@ -529,20 +550,17 @@ Dim sz As String
 '
 '        uDoCmd = g_NotificationRoster.Add(0, SNARL_CLASS_ANON, g_UTF8(pss.Title), g_UTF8(pss.Text), pss.Timeout, g_UTF8(pss.Icon), pss.LngData2, pss.Id, "", sz, "")
 
-        If Not g_AppRoster.FindByPid(GetCurrentProcessId(), pa) Then
+        If g_AppRoster.FindByToken(gSnarlToken, pa, gSnarlPassword) Then
+            ' /* generate the alert using the SNARL_CLASS_ANON class so the user can block them if they want */
+            uDoCmd = pa.Show(SNARL_CLASS_ANON, g_UTF8(pss.Title), g_UTF8(pss.Text), pss.Timeout, _
+                             g_UTF8(pss.Icon), pss.LngData2, pss.Id)
+
+        Else
             ' /* not found */
-            g_Debug "SNARL_SHOW: Snarl internal app not found", LEMON_LEVEL_CRITICAL
+            g_Debug "uDoCmd('SNARL_SHOW'): Snarl internal app not found", LEMON_LEVEL_CRITICAL
             uDoCmd = M_ABORTED
-            Exit Function
 
         End If
-
-        ' /* generate the alert using the SNARL_CLASS_ANON class so the user can block them if they want */
-
-        uDoCmd = pa.Show(SNARL_CLASS_ANON, g_UTF8(pss.Title), g_UTF8(pss.Text), pss.Timeout, _
-                         g_UTF8(pss.Icon), pss.LngData2, pss.Id)
-
-
 
 
     Case SNARL_HIDE
@@ -783,251 +801,95 @@ End Function
 Private Function uDoV41Request(ByVal lpRequest As Long, ByVal SenderPID As Long) As Long
 Dim pData As BPackedData
 Dim pReq As SNARLREQI
-Dim pApp As TApp
+
+    ' /* this is much neater under V42: we convert the command into an action
+    '    name and send it over to g_DoAction() which handles everything for
+    '    us, including setting/clearing LastError */
 
     CopyMemory pReq, ByVal lpRequest, Len(pReq)
-
-'    snShowMessage "V41 Request", "Command " & CStr(pReq.Command) & " from PID " & CStr(SenderPID) & vbCrLf & _
-                    g_UTF8(pReq.PacketData)
-
     Set pData = New BPackedData
     pData.SetTo g_UTF8(pReq.PacketData)
+
+Dim szAction As String
 
     Select Case pReq.Command
 
     Case SNARL41_REGISTER_APP
-        ' /* pData should contain following:
-        '       id          Required: MIME format string uniquely identifying the application
-        '       title       Required: Name of the application
-        '       icon        Optional: Icon path
-        ' */
-        If (g_AppRoster Is Nothing) Then
-            g_Debug "TMainWindow.uDoV41Request(): SNARL41_REGISTER_APP: app roster is not available", LEMON_LEVEL_CRITICAL
-            gSetLastError SNARL41_ERROR_FAILED
-
-        Else
-            gSetLastError 0
-            uDoV41Request = g_AppRoster.Add41(pData)
-
-        End If
-
+        szAction = "reg"
 
     Case SNARL41_UNREGISTER_APP
-        ' /* PacketData is unused; Token should contain token off application to remove */
-        If (g_AppRoster Is Nothing) Then
-            g_Debug "TMainWindow.uDoV41Request(): SNARL41_UNREGISTER_APP: app roster is not available", LEMON_LEVEL_CRITICAL
-            gSetLastError SNARL41_ERROR_FAILED
-
-        Else
-            gSetLastError 0
-            uDoV41Request = g_AppRoster.Unregister(pReq.Token)
-
-        End If
-
+        szAction = "unreg"
 
     Case SNARL41_UPDATE_APP
-        ' /* pData can contain any of the following:
-        '       title
-        '       icon
-        ' */
-        If (g_AppRoster Is Nothing) Then
-            g_Debug "TMainWindow.uDoV41Request(): SNARL41_UPDATE_APP: app roster is not available", LEMON_LEVEL_CRITICAL
-            gSetLastError SNARL41_ERROR_FAILED
-
-        Else
-            gSetLastError 0
-            uDoV41Request = g_AppRoster.Update(pReq.Token, pData)
-
-        End If
-
+        szAction = "updateapp"
 
     Case SNARL41_ADD_CLASS
-        If (g_AppRoster Is Nothing) Then
-            g_Debug "TMainWindow.uDoV41Request(): SNARL41_ADD_CLASS: app roster is not available", LEMON_LEVEL_CRITICAL
-            gSetLastError SNARL41_ERROR_FAILED
-            Exit Function
-
-        End If
-
-        If Not g_AppRoster.FindByToken(pReq.Token, pApp) Then
-            gSetLastError SNARL41_ERROR_NOT_REGISTERED
-            Exit Function
-
-        End If
-
-        gSetLastError 0
-        uDoV41Request = pApp.AddClass(pData)
-
+        szAction = "addclass"
 
     Case SNARL41_REMOVE_CLASS
-        If (g_AppRoster Is Nothing) Then
-            g_Debug "TMainWindow.uDoV41Request(): SNARL41_REMOVE_CLASS: app roster is not available", LEMON_LEVEL_CRITICAL
-            gSetLastError SNARL41_ERROR_SYSTEM
-            Exit Function
-
-        End If
-
-        If Not g_AppRoster.FindByToken(pReq.Token, pApp) Then
-            gSetLastError SNARL41_ERROR_NOT_REGISTERED
-            Exit Function
-
-        End If
-
-        uDoV41Request = pApp.RemClass(pData)
-
+        szAction = "remclass"
 
     Case SNARL41_LAST_ERROR
-        uDoV41Request = GetProp(ghWndMain, "last_error")
-
+        szAction = "lasterror"
 
     Case SNARL41_NOTIFY
-        ' /* return notification token or zero on failure - last error will be set */
-        uDoV41Request = uNotify(pReq.Token, pData)
-
+        szAction = "notify"
 
     Case SNARL41_UPDATE_NOTIFICATION
-        ' /* last error will be set */
-        uDoV41Request = uUpdate(pReq.Token, pData)
-
+        szAction = "update"
 
     Case SNARL41_HIDE_NOTIFICATION
-        If (g_NotificationRoster Is Nothing) Then
-            gSetLastError SNARL41_ERROR_SYSTEM
-
-        Else
-            uDoV41Request = CLng(g_NotificationRoster.Hide(pReq.Token))
-
-        End If
-
+        szAction = "hide"
 
     Case SNARL41_IS_NOTIFICATION_VISIBLE
-        If (g_NotificationRoster Is Nothing) Then
-            gSetLastError SNARL41_ERROR_SYSTEM
+        szAction = "isvisible"
 
-        Else
-            uDoV41Request = CLng(g_NotificationRoster.IsVisible(pReq.Token))
-        
-        End If
+    Case SNARL42_ADD_ACTION
+        szAction = "addaction"
+
+    Case SNARL42_CLEAR_ACTIONS
+        szAction = "killactions"
+
+    Case SNARL42_SHOW_REQUEST
+        szAction = "alert"
+
+    Case SNARL42_PARSE
+        szAction = pData.ValueOf("action")
+        pReq.Token = g_SafeLong(pData.ValueOf("token"))
+
+    Case Else
+        ' /* no need to process these */
+        gSetLastError SNARL41_ERROR_UNKNOWN_COMMAND
+        Exit Function
 
     End Select
 
-End Function
-
-Private Function uNotify(ByVal Token As Long, ByRef pData As BPackedData) As Long
-
-    ' /* sanity checking */
-
-    If (g_AppRoster Is Nothing) Or (g_NotificationRoster Is Nothing) Then
-        g_Debug "TMainWindow.uNotify(): app/notification roster invalid", LEMON_LEVEL_CRITICAL
-        gSetLastError SNARL41_ERROR_SYSTEM
-        Exit Function
-
-    End If
-
-Dim szClass As String
-Dim pApp As TApp
-
-    ' /* special case: if the app token is 0, the notification is treated as local anonymous
-    '    (akin to the old snShowMessage() function).  */
-
-    If Token = 0 Then
-        If g_AppRoster.FindByPid(GetCurrentProcessId(), pApp) Then
-            ' /* generate the alert using the SNARL_CLASS_ANON class so the user can block them if they want */
-            szClass = SNARL_CLASS_ANON
-
-        Else
-            ' /* Snarl's registration not found */
-            g_Debug "TMainWindow.uNotify(): Snarl internal app not in roster", LEMON_LEVEL_CRITICAL
-            gSetLastError SNARL41_ERROR_SYSTEM
-            Exit Function
-
-        End If
-
-    ElseIf g_AppRoster.FindByToken(Token, pApp) Then
-        ' /* found the app */
-        szClass = pData.ValueOf("id")
-
-    Else
-        g_Debug "TMainWindow.uNotify(): app " & g_HexStr(Token) & " not in roster", LEMON_LEVEL_CRITICAL
-        gSetLastError SNARL41_ERROR_NOT_REGISTERED
-        Exit Function
-
-    End If
-
-Dim pInfo As T_NOTIFICATION_INFO
-
-    With pInfo
-        .hWndReply = Val(pData.ValueOf("hwnd"))
-        .IconPath = pData.ValueOf("icon")
-        .Text = pData.ValueOf("text")
-        .Timeout = Val(pData.ValueOf("timeout"))
-        .Title = pData.ValueOf("title")
-        .uReplyMsg = Val(pData.ValueOf("umsg"))
-        .Priority = Val(pData.ValueOf("priority"))
-        .DefaultAck = pData.ValueOf("ack")
-        .Value = pData.ValueOf("value")
-
-    End With
-
-    uNotify = pApp.ShowNew(szClass, pInfo)
+    uDoV41Request = g_DoAction(szAction, pReq.Token, pData)
 
 End Function
 
-Private Function uOldUpdate(ByVal Token As Long, ByVal Title, ByVal Text As String, ByVal IconPath As String) As M_RESULT
+Private Function uOldUpdate(ByVal Token As Long, ByVal Title As String, ByVal Text As String, ByVal IconPath As String) As M_RESULT
 
-    uOldUpdate = g_NotificationRoster.Update(Token, IIf(Title = "", "-", Title), IIf(Text = "", "-", Text), IIf(IconPath = "", "-", IconPath))
+    ' /* Only include anything that isn't an empty string.  The known bug here is, of course, that
+    '    the user can't clear a particular item, although they can use SetAttribute() instead */
 
-End Function
+Dim ppd As BPackedData
 
-Private Function uUpdate(ByVal Token As Long, ByRef pData As BPackedData) As Long
+    Set ppd = New BPackedData
+    If Title <> "" Then _
+        ppd.Add "title", Title
 
-    ' /* return -1 on success, 0 on failure */
+    If Text <> "" Then _
+        ppd.Add "text", Text
 
-    gSetLastError SNARL41_ERROR_SYSTEM
-    If (g_NotificationRoster Is Nothing) Then _
-        Exit Function
+    If IconPath <> "" Then _
+        ppd.Add "icon", IconPath
 
-Dim pInfo As notification_info
-
-    If pData.Exists("title") Then
-        pInfo.Title = pData.ValueOf("title")
-
-    Else
-        pInfo.Title = Chr$(255)
-
-    End If
-
-    If pData.Exists("text") Then
-        pInfo.Text = pData.ValueOf("text")
+    If g_NotificationRoster.Update(Token, ppd) Then
+        uOldUpdate = M_OK
 
     Else
-        pInfo.Text = Chr$(255)
-
-    End If
-
-    If pData.Exists("icon") Then
-        pInfo.Icon = pData.ValueOf("icon")
-
-    Else
-        pInfo.Icon = Chr$(255)
-
-    End If
-
-Dim hr As M_RESULT
-
-    ' /* call the pre-V41 stuff here - LastError will be set */
-
-    hr = g_NotificationRoster.Update(Token, pInfo.Title, pInfo.Text, pInfo.Icon)
-    If hr = M_OK Then
-        ' /* success, was timeout specified? */
-
-        If pData.Exists("timeout") Then _
-            g_NotificationRoster.SetAttribute Token, SNARL_ATTRIBUTE_TIMEOUT, pData.ValueOf("timeout")
-
-        uUpdate = -1
-
-    Else
-        uUpdate = 0
+        uOldUpdate = M_FAILED
 
     End If
 
@@ -1079,6 +941,6 @@ Dim i As Long
 
 End Function
 
-Private Sub uInstall(ByVal Item As String)
-
-End Sub
+'Private Sub uInstall(ByVal Item As String)
+'
+'End Sub

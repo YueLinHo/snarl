@@ -50,8 +50,8 @@ Option Explicit
     '
     ' */
 
-Private Const LIB_DATE = "6-Nov-2010"
-Private Const LIB_RELEASE = "1.2"
+Private Const LIB_DATE = "20-Dec-2010"
+Private Const LIB_RELEASE = "1.21"
 Private Const EXT_NAME = "SNP/HTTP"
 Private Const EXT_COMMENT = "Provides support for SNP 2.0 over HTTP"
 
@@ -90,17 +90,18 @@ Dim pCtl As BControl
         With mPanel
             .SetHandler Me
             .SetWindow 1
-            .SetTitle "SNPHTTP Preferences"
-            .SetWidth 128
+            .SetTitle "SNP/HTTP Preferences"
+            .SetWidth 178
 
             Set pPage = new_BPrefsPage("", , Me)
             With pPage
                 .SetMargin 64
-                .SetWidth 356
-                .Add new_BPrefsControl("label", "", "This extension manages applications that register with Snarl using SNP 2.0 sent via HTTP.")
+'                .SetWidth 200
+'                .Add new_BPrefsControl("label", "", "This extension manages applications that register with Snarl using SNP 2.0 sent via HTTP.")
 
+                .Add new_BPrefsControl("banner", "", "Connection")
                 Set pCtl = new_BPrefsControl("fancyedit", "port", mConfig.GetValueWithDefault("port", "80"), "Port:")
-                pCtl.SizeTo 64, pCtl.GetSize.y
+                pCtl.SizeTo 48, pCtl.GetSize.y
                 .Add pCtl
 
                 .Add new_BPrefsControl("label", "", "The standard port for HTTP traffic is 80.  You can change this if it conflicts with an existing application (e.g. a web server).")
@@ -111,7 +112,11 @@ Dim pCtl As BControl
 
                 End If
 
-                .Add new_BPrefsControl("fancytoggle2", "reply_with_html", "Include HTML in response?", , mConfig.GetValueWithDefault("reply_with_html", "1"))
+                .Add new_BPrefsControl("banner", "", "Formatting")
+                .Add new_BPrefsControl("fancytoggle2", "html_response", "Include HTML in response?", , mConfig.GetValueWithDefault("html_response", "0"))
+
+                .Add new_BPrefsControl("banner", "", "Privacy")
+                .Add new_BPrefsControl("fancytoggle2", "allow_anon", "Allow applications to create anonymous notifications?", , mConfig.GetValueWithDefault("allow_anon", "0"))
 
             End With
             
@@ -154,7 +159,7 @@ Private Function ISnarlExtension_Initialize() As Long
 
     On Error Resume Next
 
-    l3OpenLog "%APPDATA%\" & EXT_NAME & ".log", True
+    l3OpenLog "%APPDATA%\full phat\snarl\snphttp.log", True
     g_Debug "pwd: " & g_MakePath(App.Path)
 
     If sn41GetVersion = 0 Then
@@ -270,71 +275,16 @@ Private Sub KPrefsPage_Attached()
 End Sub
 
 Private Sub KPrefsPage_ControlChanged(Control As BControl, ByVal Value As String)
-'Dim pc As BControl
-'Dim sz As String
-'Dim i As Long
-
-'    g_Debug "[" & mPage.GetName() & "]: ControlChanged '" & Control.GetName() & "' >> '" & Value & "'"
-
-
-'    MsgBox Control.GetName & " > " & Value
 
     mConfig.Update Control.GetName, Value
     mConfig.Save
 
     Select Case Control.GetName
-'    Case "when_idle"
-'        prefskit_SafeEnable mPanel, "idle_time", (Value = "1")
 
     Case "port"
         mPortChanged = True
 
     End Select
-
-'    Select Case Control.GetName()
-'
-'    Case "ft>WatchSpecificApps"
-'        mSettings.WatchSpecificApps = (Value = "1")
-'        uWriteConfig
-'
-'        If mPage.Find("lb>apps", pc) Then _
-'            pc.SetEnabled mSettings.WatchSpecificApps
-'
-'        If mPage.Find("fpm>apps", pc) Then _
-'            pc.SetEnabled mSettings.WatchSpecificApps
-'
-'
-'    Case "ft>DebugMode"
-'        mSettings.DebugMode = (Value = "1")
-'        uWriteConfig
-'
-'
-'    Case "fpm>apps"
-'        If Value = "+" Then
-'            With New CFileDialog
-'                .DialogType = E_DIALOG_OPEN
-'                .AddFilter "Applications", "exe", True, True
-'                .Title = ""
-'                .InitialPath = IIf(mLastPath = "", g_GetSystemFolderStr(CSIDL_PROGRAMFILES), mLastPath)
-'                If .Go(True, E_FILE_DIALOG_CENTRE_OWNER, mPanel.hWnd) Then
-'                    mLastPath = g_GetPath(.SelectedFile)
-'                    uAdd .SelectedFile
-'
-'                End If
-'
-'            End With
-'
-'        Else
-'            ' /* remove selected */
-'
-'            If Not mPage.Find("lb>apps", pc) Then _
-'                Exit Sub
-'
-'            uRemove Val(pc.GetValue())
-'
-'        End If
-'
-'    End Select
 
 End Sub
 
@@ -373,7 +323,7 @@ Private Sub theSocket_OnConnectionRequest(ByVal requestID As Long)
     mCount = mCount + 1
     ReDim Preserve mConn(mCount)
     Set mConn(mCount) = New TConnection
-    mConn(mCount).Accept requestID, (mConfig.GetValueWithDefault("reply_with_html", "1") = "1")
+    mConn(mCount).Accept requestID, mConfig
 
 End Sub
 

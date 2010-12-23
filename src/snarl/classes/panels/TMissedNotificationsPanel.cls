@@ -15,7 +15,6 @@ Option Explicit
 
 Dim mPanel As BPrefsPanel
 
-'Dim mSelected As G_NOTIFICATION_CONTENT
 Dim mSelected As T_NOTIFICATION_INFO
 Dim mSelIndex As Long
 
@@ -200,13 +199,13 @@ Dim n As Long
 
     With g_NotificationRoster
         
-        prefskit_SafeEnable mPanel, "fb>clear", (.CountMissed > 0)
+        prefskit_SafeEnable mPanel, "fb>clear", (.MissedCount > 0)
 
-        If .CountMissed Then
+        If .MissedCount Then
 
             ' /* build the content string */
 
-            For i = 1 To .CountMissed
+            For i = .MissedCount To 1 Step -1
                 .MissedAt i, pInfo
                 sz = sz & g_FormattedMidStr(Replace$(pInfo.Title, "|", ":"), 54) & "#?0#?" & "From " & pInfo.Sender & " (" & pInfo.Class & ") at " & Format$(pInfo.DateStamp, "hh:mm:ss") & "|"
 
@@ -218,12 +217,14 @@ Dim n As Long
 
             Set pm = New CTempMsg
 
-            For i = 1 To .CountMissed
+            n = 1
+            For i = .MissedCount To 1 Step -1
                 .MissedAt i, pInfo
-                pm.Replace "index", i
+                pm.Replace "index", n
                 pm.Remove "image-object"
                 pm.Add "image-object", pInfo.Icon
                 pc.DoExCmd B_EXTENDED_COMMANDS.B_SET_ITEM, pm
+                n = n + 1
 
             Next i
 

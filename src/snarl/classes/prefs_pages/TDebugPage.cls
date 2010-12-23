@@ -30,20 +30,22 @@ Dim pm As CTempMsg
     With mPage
         .SetMargin 96
         .Add new_BPrefsControl("banner", "", "Debugging")
-        .Add new_BPrefsControl("fancybutton2", "go_lemon", "Open Lemon Log")
-        .Add new_BPrefsControl("label", "", "Lemon is an external log/debug console created by k23 productions.  The log file can be useful for debugging purposes.")
+        .Add new_BPrefsControl("fancybutton2", "go_lemon", "Open debug log")
+'        .Add new_BPrefsControl("label", "", "The log file can be useful for debugging purposes.")
+
+        .Add new_BPrefsControl("fancybutton2", "go_garbage", "Garbage collection", , , , g_IsWinXPOrBetter())
 
 '        .Add new_BPrefsControl("separator", "")
         .Add new_BPrefsControl("banner", "", "Configuration")
-        .Add new_BPrefsControl("fancybutton2", "open_config", "Open Config File")
-        .Add new_BPrefsControl("label", "", "Opens the current config file in notepad so it can be edited manually.")
+        .Add new_BPrefsControl("fancybutton2", "open_config", "Open config folder")
+        .Add new_BPrefsControl("label", "", "Opens the current config folder in Explorer so the various configuration files can be edited manually.")
 
-        .Add new_BPrefsControl("fancybutton2", "cycle_config", "Reload Config File")
-        .Add new_BPrefsControl("label", "", "Reloads the current configuration file.")
+'        .Add new_BPrefsControl("fancybutton2", "cycle_config", "Reload Config File")
+'        .Add new_BPrefsControl("label", "", "Reloads the current configuration file.")
 
 '        .Add new_BPrefsControl("separator", "")
         .Add new_BPrefsControl("banner", "", "Diagnostics")
-        .Add new_BPrefsControl("fancybutton2", "test", "Test Notification")
+        .Add new_BPrefsControl("fancybutton2", "test", "Test notification")
         .Add new_BPrefsControl("label", "", "Sends a special test message to the Snarl engine which should result in a notification appearing.  This message is sent using the same mechanism a 3rd party application would use and therefore should prove (or otherwise) that the Snarl notification engine is running correctly.")
 
 '        .Add new_BPrefsControl("separator", "")
@@ -69,10 +71,14 @@ Dim hWnd As Long
         ShellExecute 0, "open", "notepad.exe", l3LogPath(), vbNullString, SW_SHOW
 
     Case "open_config"
-        ShellExecute 0, "open", "notepad.exe", g_SettingsPath(), vbNullString, SW_SHOW
+        ShellExecute 0, "open", g_GetPath(g_SettingsPath()), vbNullString, vbNullString, SW_SHOW
 
     Case "cycle_config"
         g_ConfigInit
+
+    Case "go_garbage"
+        If g_IsWinXPOrBetter() Then _
+            CoFreeUnusedLibrariesEx 0, 0
 
     Case "test"
         hWnd = snGetSnarlWindow()

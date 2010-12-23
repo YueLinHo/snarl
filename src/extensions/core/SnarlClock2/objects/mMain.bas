@@ -242,7 +242,7 @@ End Sub
 Public Sub g_WriteConfig()
 Dim szPath As String
 
-    If Not snext_getuserpath(szPath) Then _
+    If Not sn42GetConfigPath(szPath) Then _
         Exit Sub
 
     With New CConfFile

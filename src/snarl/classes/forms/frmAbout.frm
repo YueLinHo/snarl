@@ -30,6 +30,24 @@ Begin VB.Form frmAbout
       Left            =   240
       Top             =   3240
    End
+   Begin VB.Label Label2 
+      BackStyle       =   0  'Transparent
+      Caption         =   "UTF8 support by Tomas, Icons by Mattahan.  Additional development and testing:   "
+      BeginProperty Font 
+         Name            =   "Calibri"
+         Size            =   9
+         Charset         =   0
+         Weight          =   400
+         Underline       =   0   'False
+         Italic          =   0   'False
+         Strikethrough   =   0   'False
+      EndProperty
+      Height          =   435
+      Left            =   1980
+      TabIndex        =   6
+      Top             =   1500
+      Width           =   3555
+   End
    Begin VB.Label Label3 
       BackStyle       =   0  'Transparent
       Caption         =   $"frmAbout.frx":1042
@@ -42,12 +60,12 @@ Begin VB.Form frmAbout
          Italic          =   0   'False
          Strikethrough   =   0   'False
       EndProperty
-      Height          =   1095
+      Height          =   915
       Index           =   4
       Left            =   1980
       TabIndex        =   5
-      Top             =   1800
-      Width           =   3375
+      Top             =   1980
+      Width           =   4395
    End
    Begin VB.Label Label1 
       Alignment       =   2  'Center
@@ -72,10 +90,10 @@ Begin VB.Form frmAbout
    Begin VB.Image Image2 
       Appearance      =   0  'Flat
       Height          =   450
-      Left            =   5520
-      Picture         =   "frmAbout.frx":10ED
+      Left            =   5580
+      Picture         =   "frmAbout.frx":10E9
       Stretch         =   -1  'True
-      Top             =   2460
+      Top             =   0
       Width           =   825
    End
    Begin VB.Line Line1 
@@ -88,7 +106,7 @@ Begin VB.Form frmAbout
    Begin VB.Image Image1 
       Height          =   1920
       Left            =   60
-      Picture         =   "frmAbout.frx":1D53
+      Picture         =   "frmAbout.frx":1D4F
       Top             =   180
       Width           =   1920
    End
@@ -225,6 +243,8 @@ Dim mSockets As Long
 
 Dim WithEvents ioSocket As CSocket
 Attribute ioSocket.VB_VarHelpID = -1
+Dim WithEvents GrowlUDPSocket As CSocket
+Attribute GrowlUDPSocket.VB_VarHelpID = -1
 
 Dim mListener() As CSnarlListener
 Dim mListenerCount As Long
@@ -323,9 +343,9 @@ Dim n As Integer
 
     g_Debug "_load: pre-loading readme..."
     n = FreeFile()
-    Err.Clear
+    err.Clear
     Open g_MakePath(App.Path) & "read-me.rtf" For Input As #n
-    If Err.Number = 0 Then
+    If err.Number = 0 Then
         Do While Not EOF(n)
             Line Input #n, sz
             m_About = m_About & sz & vbCrLf
@@ -452,6 +472,15 @@ Dim i As Long
 
 End Sub
 
+Private Sub GrowlUDPSocket_OnDataArrival(ByVal bytesTotal As Long)
+Dim b() As Byte
+
+    Debug.Print bytesTotal
+    GrowlUDPSocket.GetData b(), vbArray + vbByte
+    g_ProcessGrowlUDP b(), bytesTotal, GrowlUDPSocket.RemoteHost
+
+End Sub
+
 Private Sub Image1_MouseMove(Button As Integer, Shift As Integer, x As Single, y As Single)
 
     If Label1.Font.Underline = True Then _
@@ -516,7 +545,13 @@ Dim dw As Long
             End If
 
         Case WM_LBUTTONDBLCLK
-            Me.NewDoPrefs
+            If g_NotificationRoster.ActualMissedCount > 0 Then
+                g_NotificationRoster.ShowMissedPanel
+
+            Else
+                Me.NewDoPrefs
+
+            End If
 
         End Select
 
@@ -583,10 +618,6 @@ Dim rc      As RECT
 Dim hIcon   As Long
 Dim update_config   As Boolean
 
-Dim nMissed As Long
-
-    nMissed = g_NotificationRoster.CountMissed
-
     ' /* track the menu */
 
     SetForegroundWindow Me.hWnd
@@ -596,7 +627,7 @@ Dim nMissed As Long
         .AddSeparator
 
         .AddItem .CreateItem("dnd", "Do Not Disturb", , , g_IsDNDModeEnabled())
-        .AddItem .CreateItem("missed", IIf(nMissed > 0, CStr(nMissed) & " ", "") & "Missed Notification" & IIf(nMissed = 1, "", "s") & "...")
+        .AddItem .CreateItem("missed", IIf(g_NotificationRoster.ActualMissedCount > 0, CStr(g_NotificationRoster.ActualMissedCount) & " ", "") & "Missed Notification" & IIf(g_NotificationRoster.ActualMissedCount = 1, "", "s") & "...")
         .AddSeparator
         .AddItem .CreateItem("restart", "Restart Snarl", , g_IsRunning)
 
@@ -658,7 +689,7 @@ Dim nMissed As Long
 
             If gPrefs.UserDnD Then
                 If Not (g_NotificationRoster Is Nothing) Then _
-                    gPrefs.MissedCountOnDnD = g_NotificationRoster.CountMissed
+                    g_NotificationRoster.ResetMissedCount
 
             Else
                 g_CheckMissed
@@ -857,18 +888,27 @@ End Sub
 
 Friend Sub bMissedNotificationsChanged()
 
+    On Error Resume Next
+
     If (mTrayIcon Is Nothing) Then _
         Exit Sub
 
-Dim n As Long
+Dim hIcon As Long
 
-    n = g_NotificationRoster.CountMissed
+    If g_NotificationRoster.ActualMissedCount > 0 Then
 
-    If n > 0 Then
-        mTrayIcon.Update "tray_icon", , "Snarl - " & CStr(n) & " missed notification" & IIf(n = 1, "", "s")
+        hIcon = LoadResPicture(50, vbResIcon).Handle
+        If hIcon = 0 Then _
+            hIcon = Me.Icon.Handle
+
+        mTrayIcon.Update "tray_icon", hIcon, "Snarl - " & CStr(g_NotificationRoster.ActualMissedCount) & " missed notification" & IIf(g_NotificationRoster.ActualMissedCount = 1, "", "s")
 
     Else
-        mTrayIcon.Update "tray_icon", , "Snarl"
+        hIcon = LoadImage(App.hInstance, 1&, IMAGE_ICON, 16, 16, 0)
+        If hIcon = 0 Then _
+            hIcon = Me.Icon.Handle
+        
+        mTrayIcon.Update "tray_icon", hIcon, "Snarl"
 
     End If
 
@@ -1047,13 +1087,13 @@ Dim cb As Long
 
         End If
 
-        snShowMessage g_GetUserName() & " on " & g_GetComputerName(), _
-                      g_GetOSName() & " " & g_GetServicePackName() & vbCrLf & _
-                      IIf(dw > 1, CStr(dw) & "x", "") & .FullName & " @ " & Format$(dFreq, "0.0#") & " " & szMetric & vbCrLf & _
-                      g_FileSizeToStringEx2(g_GetPhysMem(True), "GB", " ", "0.##") & " / " & g_FileSizeToStringEx2(g_GetPageMem(True) + g_GetPhysMem(True), "GB", " ", "0.##") & " RAM" & vbCrLf & _
-                      "Snarl " & App.Major & "." & App.Revision & " (" & App.Comments & "), melon " & IIf(szMelon <> "", szMelon, "??"), _
-                      20, _
-                      g_MakePath(App.Path) & "etc\icons\snarl.png"
+        g_PrivateNotify "", g_GetUserName() & " on " & g_GetComputerName(), _
+                        g_GetOSName() & " " & g_GetServicePackName() & vbCrLf & _
+                        IIf(dw > 1, CStr(dw) & "x", "") & .FullName & " @ " & Format$(dFreq, "0.0#") & " " & szMetric & vbCrLf & _
+                        g_FileSizeToStringEx2(g_GetPhysMem(True), "GB", " ", "0.##") & " (" & g_FileSizeToStringEx2(g_GetPageMem(True) + g_GetPhysMem(True), "GB", " ", "0.##") & ") RAM" & vbCrLf & _
+                        "Snarl " & App.Major & "." & App.Revision & " (" & App.Comments & ")" & vbCrLf & "melon " & IIf(szMelon <> "", szMelon, "??"), _
+                        -1, _
+                        g_MakePath(App.Path) & "etc\icons\snarl.png"
 
     End With
 
@@ -1342,7 +1382,25 @@ Dim i As Long
 
         End If
 
+        g_Debug "EnableSNP(): creating Growl UDP socket..."
+
+        Set GrowlUDPSocket = New CSocket
+        With GrowlUDPSocket
+            .Protocol = sckUDPProtocol
+            .Bind 9887
+
+        End With
+
     Else
+
+        g_Debug "EnableSNP(): closing Growl UDP socket..."
+
+        If Not (GrowlUDPSocket Is Nothing) Then
+            GrowlUDPSocket.CloseSocket
+            Set GrowlUDPSocket = Nothing
+
+        End If
+
         g_Debug "stopping SNP listeners..."
 
         If mListenerCount Then
@@ -1404,12 +1462,39 @@ Dim pStyleList As BControl
 
 End Function
 
-Public Sub DoAppConfig(ByVal AppName As String)
+Public Sub DoAppConfig(ByVal AppName As String, Optional ByVal ClassName As String)
 
     NewDoPrefs 2
 
-    If Not (g_AppRoster Is Nothing) Then _
-        prefskit_SetValue mPanel, "cb>apps", CStr(g_AppRoster.IndexOf(AppName))
+Dim i As Long
+
+    If Not (g_AppRoster Is Nothing) Then
+        i = g_AppRoster.IndexOf(AppName)
+        If i Then
+            ' /* select the application */
+            prefskit_SetValue mPanel, "cb>apps", CStr(i)
+
+            ' /* find the class */
+            i = g_AppRoster.AppAt(i).IndexOf(ClassName)
+            If i = 0 Then
+                ' /* not found/null - select _all */
+                prefskit_SetValue mPanel, "lb>classes", "1"
+
+            Else
+                ' /* select it */
+                prefskit_SetValue mPanel, "lb>classes", CStr(i)
+
+            End If
+
+        Else
+            g_Debug "frmAbout.DoAppConfig(): '" & AppName & "' not found", LEMON_LEVEL_CRITICAL
+
+        End If
+
+    Else
+        g_Debug "frmAbout.DoAppConfig(): app roster not available", LEMON_LEVEL_CRITICAL
+
+    End If
 
 End Sub
 

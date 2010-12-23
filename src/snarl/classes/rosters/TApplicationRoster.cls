@@ -43,6 +43,7 @@ Private Function MLibrary_Close() As melon.M_RESULT
     If mRefs = 0 Then
         ' /* run tidyup code */
 
+        Me.Unregister gSnarlToken, gSnarlPassword
         SendAll SNARL_QUIT
 
         ReDim mApp(0)
@@ -65,6 +66,8 @@ Private Function MLibrary_Magic() As Long
 End Function
 
 Private Function MLibrary_Open() As melon.M_RESULT
+Dim pAppInfo As T_SNARL_APP
+Dim pSnarlApp As TApp
 
     g_Debug "TApplicationRoster.Open()", LEMON_LEVEL_PROC
 
@@ -76,23 +79,72 @@ Private Function MLibrary_Open() As melon.M_RESULT
         mAppToken = &H2C0
 
         ' /* register ourselves with, er, ourself! */
-    
+
         g_IsRunning = True
 '        snRegisterConfig2 frmAbout.hWnd, App.Title, &H555, g_MakePath(App.Path) & "etc\icons\snarl.png"
 
         g_Debug "TApplicationRoster.Open(): registering ourself..."
-        snRegisterApp App.Title, g_MakePath(App.Path) & "etc\icons\snarl.png", g_MakePath(App.Path) & "etc\icons\snarl.png", frmAbout.hWnd, &H555
+'        snRegisterApp App.Title, g_MakePath(App.Path) & "etc\icons\snarl.png", g_MakePath(App.Path) & "etc\icons\snarl.png", frmAbout.hWnd, &H555
 
-        g_Debug "TApplicationRoster.Open(): registering classes..."
-        snAddClass SNARL_CLASS_WELCOME
-        snAddClass SNARL_CLASS_APP_REG
-        snAddClass SNARL_CLASS_APP_UNREG
-        ' /* V38.97 */
-        snAddClass SNARL_CLASS_JSON
-        ' /* V38.142 */
-        snAddClass SNARL_CLASS_ANON_NET
-        ' /* V39.21 */
-        snAddClass SNARL_CLASS_ANON
+        ' /* V42: password protect Snarl */
+
+'        gSnarlPassword = uGenerateSnarlPassword()
+'        gSnarlToken = sn41RegisterApp(App.ProductName, App.Title, g_MakePath(App.Path) & "etc\icons\snarl.png", frmAbout.hWnd, &H555, , gSnarlPassword)
+
+        With pAppInfo
+            .hWnd = frmAbout.hWnd
+            .Icon = g_MakePath(App.Path) & "etc\icons\snarl.png"
+            .LargeIcon = .Icon
+            .Name = App.Title
+            .Password = gSnarlPassword
+            .pid = GetCurrentProcessId()
+            .Signature = App.ProductName
+            .uMsg = &H555
+
+        End With
+
+        gSnarlToken = uAddByStruct(pAppInfo, pSnarlApp)
+
+        If gSnarlToken = 0 Then
+        
+            ' /* panic? */
+
+        Else
+            g_Debug "TApplicationRoster.Open(): registered as " & g_HexStr(gSnarlToken) & ", adding classes..."
+
+            With pSnarlApp
+                .AddClass g_newBPackedData("id::" & SNARL_CLASS_WELCOME & "#?name::Welcome Message#?password::" & gSnarlPassword)
+                .AddClass g_newBPackedData("id::" & SNARL_CLASS_APP_REG & "#?name::Application Registered#?password::" & gSnarlPassword)
+                .AddClass g_newBPackedData("id::" & SNARL_CLASS_APP_UNREG & "#?name::Application Unregistered#?password::" & gSnarlPassword)
+
+                ' /* V38.97 */
+                .AddClass g_newBPackedData("id::" & SNARL_CLASS_JSON & "#?name::Incoming JSON Notifications#?password::" & gSnarlPassword)
+
+                ' /* V38.142 */
+                .AddClass g_newBPackedData("id::" & SNARL_CLASS_ANON_NET & "#?name::Anonymous Remote Notifications#?password::" & gSnarlPassword)
+
+                ' /* V39.21 */
+                .AddClass g_newBPackedData("id::" & SNARL_CLASS_ANON & "#?name::Anonymous Local Notifications#?password::" & gSnarlPassword)
+
+                ' /* R2.4 */
+                .AddClass g_newBPackedData("id::" & SNARL_CLASS_LOW_PRIORITY & "#?name::Low Priority Notifications#?password::" & gSnarlPassword)
+
+'            sn41AddClass gSnarlToken, SNARL_CLASS_WELCOME, "Welcome Message"
+'            sn41AddClass gSnarlToken, SNARL_CLASS_APP_REG, "Application Registered"
+'            sn41AddClass gSnarlToken, SNARL_CLASS_APP_UNREG, "Application Unregistered"
+'            ' /* V38.97 */
+'            sn41AddClass gSnarlToken, SNARL_CLASS_JSON, "Incoming JSON Notifications"
+'            ' /* V38.142 */
+'            sn41AddClass gSnarlToken, SNARL_CLASS_ANON_NET, "Anonymous Remote Notifications"
+'            ' /* V39.21 */
+'            sn41AddClass gSnarlToken, SNARL_CLASS_ANON, "Anonymous Local Notifications"
+'            ' /* R2.4 */
+'            sn41AddClass gSnarlToken, SNARL_CLASS_LOW_PRIORITY, "Low Priority Notifications"
+
+            End With
+
+        End If
+
         g_IsRunning = False
 
     End If
@@ -187,7 +239,7 @@ Private Property Get MVersionInfo_Version() As Long
 
 End Property
 
-Public Function Add41(ByRef Data As BPackedData) As Long
+Public Function Add41(ByRef Data As BPackedData, Optional ByVal IsRemote As Boolean) As Long
 Dim i As Long
 
     g_Debug "TApplicationRoster.Add41()", LEMON_LEVEL_PROC_ENTER
@@ -229,27 +281,88 @@ Dim pInfo As T_SNARL_APP
 
         .hWnd = Val(Data.ValueOf("hwnd"))
         .uMsg = Val(Data.ValueOf("umsg"))
-
         .Flags = Val(Data.ValueOf("flags"))
+        .Password = Data.ValueOf("password")
+        .IsRemote = IsRemote
 
         g_Debug "name='" & .Name & "' signature='" & .Signature & "' flags=0x" & g_HexStr(.Flags)
 
     End With
 
-Dim bIsNewApp As Boolean
+    Add41 = uAddByStruct(pInfo)
+
+    g_Debug "", LEMON_LEVEL_PROC_EXIT
+
+End Function
+
+Private Function uAddByStruct(ByRef Info As T_SNARL_APP, Optional ByRef NewAppObject As TApp) As Long
 Dim pa As TApp
 
-    Set pa = New TApp
-    If pa.bInit(pInfo, bIsNewApp, mAppToken) Then
-        uAdd pa, bIsNewApp
-        Add41 = pa.Token
+    ' /* assign token and bump counter on */
 
-    Else
-        Add41 = 0
+    Info.Token = mAppToken
+    mAppToken = mAppToken + 4
+
+    Set pa = New TApp
+
+    ' /* unlikely, but bInit() can fail... */
+
+    If Not pa.bInit(Info) Then _
+        Exit Function
+
+Dim bShow As Boolean
+
+    ' /* add it to our roster */
+
+    uAlphaAdd pa
+    bShow = True
+
+    ' /* don't show if it's us or we're locked */
+
+    If (pa.Name = App.Title) Or (g_IgnoreLock) > 0 Then
+        bShow = False
+
+    ElseIf g_ConfigGet("notify_on_first_register") = "1" Then
+        ' /* if notify_on_first_register is set, we need to take account of the IsNewApp setting */
+        bShow = pa.IsNew()
 
     End If
 
-    g_Debug "", LEMON_LEVEL_PROC_EXIT
+Dim lFlags As SNRL_NOTIFICATION_FLAGS
+Dim i As Long
+
+    If bShow Then
+
+        ' /* if app has a password or was registered via some IP protocol
+        '    add the relevant system flags here */
+
+        If pa.Password <> "" Then _
+            lFlags = lFlags Or SNRL_NOTIFICATION_SECURE
+
+        If pa.IsRemote Then _
+            lFlags = lFlags Or SNRL_NOTIFICATION_REMOTE
+
+        ' /* display the 'app registered' notification */
+
+        i = g_PrivateNotify(SNARL_CLASS_APP_REG, _
+                            "Application registered", _
+                            pa.Name & " registered successfully with Snarl", _
+                            -1, _
+                            IIf(pa.LargeIcon = "", g_MakePath(App.Path) & "etc\icons\snarl.png", pa.LargeIcon), , , _
+                            SNARL41_NOTIFICATION_AUTO_DISMISS, lFlags)
+
+        If i Then
+            ' /* add the action(s) */
+            sn42AddAction i, pa.Name & " Settings...", "!snarl cfg " & pa.Signature
+            If pa.HasConfig Then _
+                sn42AddAction i, "Configure " & pa.Name & "...", "!snarl manage " & pa.Signature
+
+        End If
+    End If
+
+    frmAbout.bUpdateAppList
+    Set NewAppObject = pa
+    uAddByStruct = pa.Token
 
 End Function
 
@@ -281,11 +394,8 @@ Dim pa As TApp
 
     End With
 
-Dim bIsNewApp As Boolean
-
-    Set pa = New TApp
-    If pa.bInit(pInfo, bIsNewApp, mAppToken) Then
-        uAdd pa, bIsNewApp
+    If uAddByStruct(pInfo) <> 0 Then
+        ' /* success (token was returned) */
         OldAdd = M_OK
 
     Else
@@ -297,55 +407,83 @@ Dim bIsNewApp As Boolean
 
 End Function
 
-Private Sub uAdd(ByRef theApp As TApp, ByVal IsNewApp As Boolean)
-
-    uAlphaAdd theApp
-
-    ' /* check version - deprecated as of V41 (wasn't ever used?) */
-
-'    If (theApp.hWnd <> 0) And (theApp.uMsg <> 0) Then
-'        i = SendMessage(theApp.hWnd, theApp.uMsg, SNARL_ASK_APPLET_VER, ByVal 0&)
-'        If i <> 0 Then
-'            g_Debug "TApplicationRoster.uAdd(): app responded to SNARL_ASK_APPLET_VER with " & CStr(i), LEMON_LEVEL_INFO
+'Private Sub uAdd(ByRef theApp As TApp)          ', ByVal IsNewApp As Boolean
 '
-'        Else
-'            g_Debug "TApplicationRoster.uAdd(): app ignored SNARL_ASK_APPLET_VER"
+'    uAlphaAdd theApp
+'
+'    ' /* check version - deprecated as of V41 (wasn't ever used?) */
+'
+''    If (theApp.hWnd <> 0) And (theApp.uMsg <> 0) Then
+''        i = SendMessage(theApp.hWnd, theApp.uMsg, SNARL_ASK_APPLET_VER, ByVal 0&)
+''        If i <> 0 Then
+''            g_Debug "TApplicationRoster.uAdd(): app responded to SNARL_ASK_APPLET_VER with " & CStr(i), LEMON_LEVEL_INFO
+''
+''        Else
+''            g_Debug "TApplicationRoster.uAdd(): app ignored SNARL_ASK_APPLET_VER"
+''
+''        End If
+''
+''    End If
+'
+'Dim bShow As Boolean
+'
+'    bShow = True
+'
+'    ' /* don't show if it's us or we're locked */
+'
+''Debug.Print "(): " & gPrefs.notify_on_first_register & " >> " & g_IgnoreLock
+'
+'    If (theApp.Name = App.Title) Or (g_IgnoreLock) > 0 Then
+'        bShow = False
+'
+'    ElseIf g_ConfigGet("notify_on_first_register") = "1" Then
+'        ' /* if notify_on_first_register is set, we need to take account of the IsNewApp setting */
+'        bShow = theApp.IsNew()
+'
+'    End If
+'
+'Dim lFlags As SNRL_NOTIFICATION_FLAGS
+'Dim i As Long
+'
+'    If bShow Then
+'
+'        ' /* if app has a password or was registered via some IP protocol
+'        '    add the relevant system flags here */
+'
+'        If theApp.Password <> "" Then _
+'            lFlags = lFlags Or SNRL_NOTIFICATION_SECURE
+'
+'        If theApp.IsRemote Then _
+'            lFlags = lFlags Or SNRL_NOTIFICATION_REMOTE
+'
+'        ' /* create the notification */
+'
+'        i = g_PrivateNotify(SNARL_CLASS_APP_REG, _
+'                            "Application registered", _
+'                            theApp.Name & " registered successfully with Snarl", _
+'                            -1, _
+'                            IIf(theApp.LargeIcon = "", g_MakePath(App.Path) & "etc\icons\snarl.png", theApp.LargeIcon), , , _
+'                            SNARL41_NOTIFICATION_AUTO_DISMISS, lFlags)
+'
+'        If i Then
+'            ' /* add the action(s) */
+'            sn42AddAction i, theApp.Name & " Settings...", "!snarl cfg " & theApp.Signature
+'            If theApp.HasConfig Then _
+'                sn42AddAction i, "Configure " & theApp.Name & "...", "!snarl manage " & theApp.Signature
+'
+''            szMenu = "Notification Settings...#?!snarl cfg " & theApp.Signature
+''            If theApp.HasConfig Then _
+'                szMenu = szMenu & "||Configure " & theApp.Name & "...#?!snarl manage " & theApp.Signature
+'
+''            snChangeAttribute i, SNARL_ATTRIBUTE_MENU, szMenu
 '
 '        End If
 '
 '    End If
-
-Dim bShow As Boolean
-
-    bShow = True
-
-    ' /* don't show if it's us or we're locked */
-
-'Debug.Print "(): " & gPrefs.notify_on_first_register & " >> " & g_IgnoreLock
-
-    If (theApp.Name = App.Title) Or (g_IgnoreLock) > 0 Then
-        bShow = False
-
-    ElseIf g_ConfigGet("notify_on_first_register") = "1" Then
-        ' /* if notify_on_first_register is set, we need to take account of the IsNewApp setting */
-        bShow = IsNewApp
-
-    End If
-
-Dim i As Long
-
-    If bShow Then
-        i = snShowNotification(SNARL_CLASS_APP_REG, "Application Registered", _
-                               theApp.Name & " registered successfully with Snarl", 10, _
-                               IIf(theApp.LargeIcon = "", g_MakePath(App.Path) & "etc\icons\snarl.png", theApp.LargeIcon))
-        If i Then _
-            snChangeAttribute i, SNARL_ATTRIBUTE_ACK, "!cfg " & theApp.Signature
-
-    End If
-
-    frmAbout.bUpdateAppList
-
-End Sub
+'
+'    frmAbout.bUpdateAppList
+'
+'End Sub
 
 Private Sub uAlphaAdd(ByRef theApp As TApp)
 Static i As Long
@@ -442,23 +580,34 @@ Dim i As Long
 
 End Function
 
-Public Function FindByToken(ByVal Token As Long, ByRef App As TApp) As Boolean
+Public Function FindByToken(ByVal Token As Long, ByRef App As TApp, ByVal Password As String) As Boolean
 
     If (Token = 0) Or (mCount = 0) Then _
         Exit Function
 
-Dim i As Long
+Static i As Long
 
     For i = 1 To mCount
         If mApp(i).Token = Token Then
-            Set App = mApp(i)
-            FindByToken = True
+            ' /* V42: validate password, if the app has one */
+            If (mApp(i).Password <> "") And (mApp(i).Password <> Password) Then
+                g_Debug "TApplicationRoster.FindByToken(): incorrect password", LEMON_LEVEL_CRITICAL
+                gSetLastError SNARL42_ERROR_AUTH_FAILURE
+
+            Else
+                gSetLastError SNARL41_SUCCESS
+                Set App = mApp(i)
+                FindByToken = True
+
+            End If
+
             Exit Function
 
         End If
     Next i
 
     g_Debug "TApplicationRoster.FindByToken(): " & g_HexStr(Token) & " not found", LEMON_LEVEL_CRITICAL
+    gSetLastError SNARL41_ERROR_NOT_REGISTERED
 
 End Function
 
@@ -586,9 +735,9 @@ Dim i As Long
     ' /* don't show if it's us unregistering ;-) */
 
     If (sz <> App.Title) And (g_IgnoreLock < 1) And (g_ConfigGet("notify_on_first_register") = "0") Then _
-        snShowNotification SNARL_CLASS_APP_UNREG, "Application Unregistered", _
-                        sz & " unregistered successfully with Snarl", 10, _
-                        szIcon
+        g_PrivateNotify SNARL_CLASS_APP_UNREG, "Application unregistered", _
+                     sz & " unregistered successfully with Snarl", , _
+                     szIcon
 
     frmAbout.bUpdateAppList
 
@@ -669,15 +818,25 @@ Dim i As Long
 
 End Function
 
-Public Function Unregister(ByVal Token As Long) As Long
+Public Function Unregister(ByVal Token As Long, ByVal Password As String) As Long
 Static i As Long
 
-    i = IndexOfToken(Token)
+    i = uIndexOfToken(Token)
     If i = 0 Then
         g_Debug "TApplicationRoster.Unregister(): '" & CStr(Token) & "' not found", LEMON_LEVEL_CRITICAL
         gSetLastError SNARL41_ERROR_NOT_REGISTERED
 
     Else
+
+        ' /* V42: password must match */
+        If mApp(i).Password <> "" Then
+            If mApp(i).Password <> Password Then
+                gSetLastError SNARL42_ERROR_AUTH_FAILURE
+                Exit Function
+
+            End If
+        End If
+
         Remove i
         Unregister = -1
 
@@ -685,7 +844,7 @@ Static i As Long
 
 End Function
 
-Private Function IndexOfToken(ByVal Token As Long) As Long
+Private Function uIndexOfToken(ByVal Token As Long) As Long
 
     If (mCount < 1) Or (Token = 0) Then _
         Exit Function
@@ -694,7 +853,7 @@ Static i As Long
 
     For i = 1 To mCount
         If mApp(i).Token = Token Then
-            IndexOfToken = i
+            uIndexOfToken = i
             Exit Function
 
         End If
@@ -703,25 +862,43 @@ Static i As Long
 End Function
 
 Public Function Update(ByVal Token As Long, ByRef Data As BPackedData) As Long
+
+    If (Data Is Nothing) Then
+        g_Debug "TApplicationRoster.Update(): arg missing", LEMON_LEVEL_CRITICAL
+        gSetLastError SNARL41_ERROR_ARG_MISSING
+        Exit Function
+
+    End If
+
 Static i As Long
 
-    i = IndexOfToken(Token)
+    i = uIndexOfToken(Token)
     If i = 0 Then
         g_Debug "TApplicationRoster.Update(): '" & CStr(Token) & "' not found", LEMON_LEVEL_CRITICAL
         gSetLastError SNARL41_ERROR_NOT_REGISTERED
-
-    Else
-
-'        If Data.Exists("title") Then _
-            mApp(i)Name = Data.ValueOf("title")
-
-        If Data.Exists("icon") Then _
-            mApp(i).SetIcon Data.ValueOf("icon")
-
-        frmAbout.bUpdateAppList
-        Update = -1
+        Exit Function
 
     End If
+
+    ' /* V42: password must match */
+
+    If mApp(i).Password <> "" Then
+        If mApp(i).Password <> Data.ValueOf("password") Then
+            g_Debug "TApplicationRoster.Update(): '" & CStr(Token) & "' password mismatch", LEMON_LEVEL_CRITICAL
+            gSetLastError SNARL42_ERROR_AUTH_FAILURE
+            Exit Function
+
+        End If
+    End If
+
+'        If Data.Exists("title") Then _
+        mApp(i)Name = Data.ValueOf("title")
+
+    If Data.Exists("icon") Then _
+        mApp(i).SetIcon Data.ValueOf("icon")
+
+    frmAbout.bUpdateAppList
+    Update = -1
 
 End Function
 
@@ -787,3 +964,18 @@ Public Sub SnarlAppDo(ByVal Index As Long, ByVal Cmd As SNARL_APP_COMMANDS)
     PostMessage mApp(Index).hWnd, mSnarlAppMsg, Cmd, ByVal 0&
 
 End Sub
+
+Private Function uGenerateSnarlPassword() As String
+Dim i As Integer
+Dim c As Integer
+
+    Randomize Timer
+    c = (Rnd * 24) + 8      ' // variable length between 8 and 32 chars
+
+    For i = 1 To c
+        Randomize Timer
+        uGenerateSnarlPassword = uGenerateSnarlPassword & g_HexStr(Rnd * 255, 2)
+
+    Next i
+
+End Function

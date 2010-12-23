@@ -293,10 +293,12 @@ Dim pInfo As T_NOTIFICATION_INFO
     With pInfo
         .Title = Me.Description
         .Text = "Test Notification"
-        .Timeout = 7
+        .Timeout = -1
         .IconPath = Me.App.Icon
 
     End With
+
+    g_KludgeNotificationInfo pInfo
 
     Me.ShowNotification pInfo
 
@@ -324,7 +326,6 @@ Friend Function ShowNotification(ByRef Info As T_NOTIFICATION_INFO) As Long
 Dim lDup As E_CLASS_DUPLICATES
 
     If (Info.Title = mPrevTitle) And (Info.Text = mPrevText) Then
-        ' /* duplicate content - what should we do? */
 
         lDup = Me.GetValue("duplicates")
 
@@ -347,7 +348,6 @@ Dim lDup As E_CLASS_DUPLICATES
     End If
 
     mPrevTick = GetTickCount()
-
 
     ' /* figure out timeout */
 
@@ -391,9 +391,6 @@ Dim lDur As E_NOTIFICATION_DURATION
 
     End If
 
-    If Info.SndFile = "" Then _
-        Info.SndFile = Me.DefaultSound
-
     ' /* R2.31d3: custom ack */
 
     If Me.GetValue("use_custom_ack") = "1" Then
@@ -411,8 +408,22 @@ Dim lDur As E_NOTIFICATION_DURATION
 
     ' /* sound */
 
-'    If Me.Sound = E_CLASS_SOUND_CUSTOM Then _
-'        SoundFile = Me.CustomSound
+    ' /* the notification roster takes care of the global sound settings; we
+    '    just need to provide our preferred sound which, as of R2.4, is as follows:
+    '       1. user-defined sound
+    '       2. class-defined sound
+    '       3. notification-defined sound
+    '
+    ' */
+
+    If Me.GetValue("use_custom_sound") = "1" Then
+        Info.SndFile = Me.GetValue("custom_sound")
+
+    ElseIf Me.DefaultSound <> "" Then
+        Info.SndFile = Me.DefaultSound
+
+    End If
+
 
     Info.Position = Val(Me.GetValue("position"))
 
@@ -432,7 +443,7 @@ Dim lDur As E_NOTIFICATION_DURATION
     ShowNotification = g_NotificationRoster.Add(Me, Info)
 
     mLastToken = Info.Token
-    Debug.Print "TAlert.ShowNotification(): token=" & CStr(mLastToken) & " sender=" & CStr(mContent.App.Token) & " (" & mContent.App.Signature & ") title=" & Info.Title
+    Debug.Print "TAlert.ShowNotification(): token=" & CStr(mLastToken) & " sender=" & CStr(mContent.App.Token) & " (" & mContent.App.Signature & ") title='" & Info.Title & "' text='" & Info.Text & "'"
 
 End Function
 

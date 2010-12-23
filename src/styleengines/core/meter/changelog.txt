@@ -2,6 +2,16 @@
 
 	Meter Style Engine Change Log
 
+	- Fixed bug in Corporate style which caused a meter to be
+	  incorrectly displayed in certain circumstances.  (39.82)
+
+	- Added "light" scheme to Corporate.  (39.76)
+
+	- Droid now accepts numerical text values as percentages if
+	  no "percent" tag is present.  (39.72)
+
+	- Added new V42 compliant "Droid" style. (39.64)
+
 	- Added "None" scheme to Slideshow style which draws only the
 	  icon.  (39.50)
 

@@ -169,7 +169,7 @@ Private Function IStyleEngine_Version() As Long
 
 End Function
 
-Private Sub IStyleInstance_AdjustPosition(x As Long, y As Long, Alpha As Integer, Done As Boolean)
+Private Sub IStyleInstance_AdjustPosition(x As Long, y As Long, Alpha As Integer, done As Boolean)
 End Sub
 
 Private Function IStyleInstance_GetContent() As melon.MImage
@@ -199,32 +199,8 @@ End Sub
 
 Private Sub uIPFStyleUpdate(ByRef NotificationInfo As notification_info)
 
-    Debug.Print "-----> forwarder <-------"
-    If (gRemoteComputers Is Nothing) Then
-        Debug.Print "--- error ---"
-        Exit Sub
 
-    End If
-
-Static i As Long
-
-    With gRemoteComputers
-        Debug.Print "remote computers: " & .CountEntries
-
-        If .CountEntries Then
-            For i = 1 To .CountEntries
-                Debug.Print .EntryAt(i).Name & " / " & .EntryAt(i).Value
-
-                gForwarders = gForwarders + 1
-                ReDim Preserve gForwarder(gForwarders)
-                Set gForwarder(gForwarders) = New TForwarder
-                gForwarder(gForwarders).Init .EntryAt(i).Name, NotificationInfo, gForwarderUID
-                gForwarderUID = gForwarderUID + 4
-
-            Next i
-        End If
-
-    End With
+        g_ForwardNotification NotificationInfo
 
 End Sub
 

@@ -33,6 +33,7 @@ Dim mAlerts As Long
 
 Dim mSettings As ConfigFile     ' // persistent settings
 Dim mAppConfig As ConfigSection ' // persistent app settings
+Dim mIsUnknown As Boolean       ' // new app (or, one without persistent settings anyway)
 
 Implements MObject
 
@@ -45,7 +46,7 @@ End Sub
 Private Property Get MObject_Type() As String
 End Property
 
-Friend Function bInit(ByRef Info As T_SNARL_APP, ByRef IsNew As Boolean, ByRef AppToken As Long) As Boolean
+Friend Function bInit(ByRef Info As T_SNARL_APP) As Boolean     ', ByRef IsNew As Boolean, ByRef AppToken As Long
 Dim sz As String
 Dim i As Long
 Dim f As Boolean
@@ -53,10 +54,10 @@ Dim f As Boolean
     g_Debug "TApp.bInit()", LEMON_LEVEL_PROC_ENTER
 
     LSet mInfo = Info
-    IsNew = False
+    mIsUnknown = False
 
-    mInfo.Token = AppToken
-    AppToken = AppToken + 4
+'    mInfo.Token = AppToken
+'    AppToken = AppToken + 4
 
     ' /* do we have a config file for this app? */
 
@@ -80,9 +81,9 @@ Dim f As Boolean
 
         ' /* must have an "_all" section */
 
-        IsNew = Not (.SectionExists("_all"))
+        mIsUnknown = Not (.SectionExists("_all"))
 
-        If IsNew Then
+        If mIsUnknown Then
             .AddSection "_all"
             uWriteSettings
 
@@ -152,22 +153,31 @@ Dim i As Long
 
 End Function
 
+Public Function IndexOf(ByVal Class As String) As Long
+
+    If (mAlerts = 0) Or (Class = "") Then _
+        Exit Function
+
+Dim i As Long
+
+    For i = 1 To mAlerts
+        If mAlert(i).Name = Class Then
+            IndexOf = i
+            Exit Function
+
+        End If
+    Next i
+
+End Function
+
 Public Function FindAlert(ByVal Class As String, ByRef Alert As TAlert) As Boolean
 Dim i As Long
 
-    If mAlerts Then
-        For i = 1 To mAlerts
-            If mAlert(i).Name = Class Then
-                Set Alert = mAlert(i)
-                Alert.Index = i
-                FindAlert = True
-                Exit Function
-
-            End If
-        Next i
-
-    Else
-        g_Debug "TApp.FindAlert(): '" & Name & "' has no alerts"
+    i = IndexOf(Class)
+    If i Then
+        Set Alert = mAlert(i)
+        Alert.Index = i
+        FindAlert = True
 
     End If
 
@@ -312,6 +322,10 @@ Dim pInfo As T_NOTIFICATION_INFO
 
     End With
 
+    ' /* R2.4: create OriginalContent manually */
+
+    g_KludgeNotificationInfo pInfo
+
     ' /* pass it to the class... */
 
     Show = pc.ShowNotification(pInfo)
@@ -322,44 +336,133 @@ Dim pInfo As T_NOTIFICATION_INFO
 
 End Function
 
-Friend Function ShowNew(ByVal Class As String, ByRef Info As T_NOTIFICATION_INFO) As Long
-Dim pc As TAlert
+Public Function Show41(ByVal ClassId As String, ByRef pData As BPackedData, Optional ByRef ReplySocket As CSocket, Optional ByVal IntFlags As SNRL_NOTIFICATION_FLAGS) As Long
 
-    ' /* V39.86: wasn't taking about of the "Use Same Settings..." option */
+    If (pData Is Nothing) Then _
+        Exit Function
+
+Dim pClass As TAlert
+
+    ' /* V39.86: wasn't taking account of the "Use Same Settings..." option */
 
     If Me.UseSameSettingsForAllClasses Then
-        Set pc = mAlert(1)
+        ' /* use the All/Other class definitions */
+        Set pClass = mAlert(1)
 
-    ElseIf Not Me.FindAlert(Class, pc) Then
+    ElseIf Not Me.FindAlert(ClassId, pClass) Then
         ' /* is the class registered? */
-        g_Debug "TApp.Show(): class '" & Class & "' not registered, using default...", LEMON_LEVEL_WARNING
+        g_Debug "TApp.Show(): class '" & ClassId & "' not registered, using default...", LEMON_LEVEL_WARNING
         If mAlerts > 0 Then _
-            Set pc = mAlert(1)              ' // default/catch-all...
+            Set pClass = mAlert(1)              ' // default/catch-all...
+
+        ' /* to-do: block notifications with invalid class names, especially those
+        '    sourcing from remotely registered apps */
 
     End If
 
     ' /* here, we must have a class... */
 
-    If (pc Is Nothing) Then
+    If (pClass Is Nothing) Then
         g_Debug "TApp.Show(): couldn't find a suitable class", LEMON_LEVEL_CRITICAL
-        gSetLastError SNARL41_ERROR_FAILED
+        gSetLastError SNARL41_ERROR_SYSTEM
         Exit Function
 
     End If
 
-    ' /* alert class won't know about these two */
+    ' /* convert the packed data into a T_NOTIFICATION_INFO struct */
 
-    If Info.hWndReply = 0 Then _
-        Info.hWndReply = mInfo.hWnd
+Dim pInfo As T_NOTIFICATION_INFO
+Dim i As Long
 
-    If Info.uReplyMsg = 0 Then _
-        Info.uReplyMsg = mInfo.uMsg
+    With pInfo
+
+        .DefaultAck = pData.ValueOf("ack")
+
+        If pData.Exists("flags") Then
+            i = Val("&H" & pData.ValueOf("flags"))
+            .Flags = (i And &HFFFF&)                ' // only keep user flags
+
+        End If
+
+        .hWndReply = Val(pData.ValueOf("hwnd"))
+        If .hWndReply = 0 Then _
+            .hWndReply = mInfo.hWnd                 ' // use app-defined value
+
+        .IconPath = pData.ValueOf("icon")
+        .IntFlags = IntFlags
+        .Priority = Val(pData.ValueOf("priority"))
+        Set .Socket = ReplySocket
+
+        .Text = Replace$(pData.ValueOf("text"), "\n", vbCrLf)
+
+        .Timeout = -1                               ' // pre-set with default
+        If pData.Exists("timeout") Then _
+            .Timeout = Val(pData.ValueOf("timeout"))
+
+        .Title = Replace$(pData.ValueOf("title"), "\n", vbCrLf)
+
+        .uReplyMsg = Val(pData.ValueOf("umsg"))
+        If .uReplyMsg = 0 Then _
+            .uReplyMsg = mInfo.uMsg                 ' // use app-defined value
+
+        .Value = pData.ValueOf("value")
+
+        ' /* V42 styles need the unabridged content */
+
+        .OriginalContent = Replace$(pData.AsString(), "\n", vbCrLf)
+
+    End With
 
     ' /* pass it to the class... */
 
-    ShowNew = pc.ShowNotification(Info)
+    Show41 = pClass.ShowNotification(pInfo)
 
 End Function
+
+
+'Friend Function ShowNew(ByVal Class As String, ByRef Info As T_NOTIFICATION_INFO) As Long
+'Dim pc As TAlert
+'
+'    ' /* V39.86: wasn't taking account of the "Use Same Settings..." option */
+'
+'    If Me.UseSameSettingsForAllClasses Then
+'        Set pc = mAlert(1)
+'
+'    ElseIf Not Me.FindAlert(Class, pc) Then
+'        ' /* is the class registered? */
+'        g_Debug "TApp.Show(): class '" & Class & "' not registered, using default...", LEMON_LEVEL_WARNING
+'        If mAlerts > 0 Then _
+'            Set pc = mAlert(1)              ' // default/catch-all...
+'
+'    End If
+'
+'    ' /* here, we must have a class... */
+'
+'    If (pc Is Nothing) Then
+'        g_Debug "TApp.Show(): couldn't find a suitable class", LEMON_LEVEL_CRITICAL
+'        gSetLastError SNARL41_ERROR_FAILED
+'        Exit Function
+'
+'    End If
+'
+'    ' /* alert class won't know about these two */
+'
+'    If Info.hWndReply = 0 Then _
+'        Info.hWndReply = mInfo.hWnd
+'
+'    If Info.uReplyMsg = 0 Then _
+'        Info.uReplyMsg = mInfo.uMsg
+'
+'    ' /* secure */
+'
+''    If mInfo.Password <> "" Then _
+'        Info.Flags = Info.Flags Or SNARL42_NOTIFICATION_SECURE
+'
+'    ' /* pass it to the class... */
+'
+'    ShowNew = pc.ShowNotification(Info)
+'
+'End Function
 
 Public Function Token() As Long
 
@@ -433,7 +536,7 @@ Dim lFlags As E_CLASS_FLAGS
 
 End Function
 
-Public Function RemClass(ByRef Data As BPackedData) As Long
+Public Function RemClass(ByRef Data As BPackedData, Optional ByVal RemoveAll As Boolean = False) As Long
 Static i As Long
 Static j As Long
 
@@ -449,7 +552,7 @@ Static j As Long
     ' /* special case: if the 'all' tag is present and it's set to "1" then
     '    remove all classes */
 
-    If Data.ValueOf("all") = "1" Then
+    If (Data.ValueOf("all") = "1") Or (RemoveAll) Then
         g_Debug "TApp.RemClass(): removing all classes..."
         mAlerts = 0
         ReDim mAlert(0)
@@ -567,3 +670,21 @@ Private Sub uWriteSettings()
     End If
 
 End Sub
+
+Public Function Password() As String
+
+    Password = mInfo.Password
+
+End Function
+
+Public Function IsRemote() As Boolean
+
+    IsRemote = mInfo.IsRemote
+
+End Function
+
+Public Function IsNew() As Boolean
+
+    IsNew = mIsUnknown
+
+End Function

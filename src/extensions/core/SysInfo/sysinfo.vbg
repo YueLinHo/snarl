@@ -1,2 +1,3 @@
 VBGROUP 5.0
-StartupProject=sysinfo.vbp
+Project=sysinfo.vbp
+StartupProject=..\..\..\snarl\Snarl.vbp
