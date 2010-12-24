@@ -71,8 +71,8 @@ Dim sz() As String
     ' /* we must also escape any CRLF's back to \n's otherwise the CR will
     '    act as a packet terminator */
 
-    theSocket.SendData "snp://notify?title=" & sz(1) & _
-                       "&text=" & Replace$(mInfo.Text, vbCrLf, "\n") & "\n\n" & sz(0) & " on " & g_GetComputerName() & _
+    theSocket.SendData "snp://notify?title=" & g_EncodeURL(sz(1)) & _
+                       "&text=" & g_EncodeURL(Replace$(mInfo.Text, vbCrLf, "\n") & "\n\n" & sz(0) & " on " & g_GetComputerName()) & _
                        "&icon=" & mInfo.Icon & _
                        vbCr
 

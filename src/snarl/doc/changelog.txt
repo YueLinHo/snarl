@@ -58,6 +58,10 @@
 
 	Snarl Change Log
 
+	- Snarl now performs URL decoding on any incoming SNP2.0 and Win32
+	  packets.  Outgoing notifications (e.g. via the forwarding subsystem)
+	  are now URL-encoded as well.  (42.20) 
+
 	- Notification forwarding completely reworked to use SNP2.0 (so, at
 	  present, forwarding to computers not running Snarl 2.4 is broken) and
 	  removed the reliance on the deprecated Snarl Network Bridge library.

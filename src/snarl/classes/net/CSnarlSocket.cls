@@ -28,7 +28,7 @@ End Enum
 Private Type T_NETWORK_INFO
     Valid As Boolean
     SenderIP As String
-    Action As T_NETWORK_ACTIONS
+    action As T_NETWORK_ACTIONS
     App As String
     Class As String
     Title As String             ' // used for application name in 'register' action
@@ -183,7 +183,7 @@ Dim i As Integer
         Request = Replace(Request, "=", "::")
 
         ' /* create the BPackedData */
-        ppd.SetTo Request
+        ppd.SetTo g_DecodeURL(Request)
 
     End If
 
@@ -254,15 +254,15 @@ Dim pa As TApp
 
                     Select Case sz
                     Case "register"
-                        pPacket.Action = T_ACTION_REGISTER
+                        pPacket.action = T_ACTION_REGISTER
                         pPacket.Valid = (pPacket.App <> "")
 
                     Case "unregister"
-                        pPacket.Action = T_ACTION_REVOKE
+                        pPacket.action = T_ACTION_REVOKE
                         pPacket.Valid = (pPacket.App <> "")
 
                     Case "add_class"
-                        pPacket.Action = T_ACTION_ADD_CLASS
+                        pPacket.action = T_ACTION_ADD_CLASS
                         pPacket.Title = .GetValueWithDefault("title")
                         pPacket.Class = .GetValueWithDefault("class")
                         ' /* V40.10 (SNP1.1) */
@@ -270,7 +270,7 @@ Dim pa As TApp
                         pPacket.Valid = (pPacket.App <> "") And (pPacket.Class <> "")
 
                     Case "notification"
-                        pPacket.Action = T_ACTION_SHOW_NOTIFICATION
+                        pPacket.action = T_ACTION_SHOW_NOTIFICATION
                         pPacket.Class = .GetValueWithDefault("class")
                         pPacket.Title = .GetValueWithDefault("title")
                         pPacket.Text = .GetValueWithDefault("text")
@@ -282,12 +282,12 @@ Dim pa As TApp
 
                     Case "hello"
                         ' /* introduced in SNP1.1 */
-                        pPacket.Action = T_ACTION_HELLO
+                        pPacket.action = T_ACTION_HELLO
                         pPacket.Valid = True
 
                     Case "version"
                         ' /* introduced in SNP1.1 */
-                        pPacket.Action = T_ACTION_VERSION
+                        pPacket.action = T_ACTION_VERSION
                         pPacket.Valid = True
 
                     Case Else
@@ -320,7 +320,7 @@ Dim pa As TApp
     ' /* do some general safety checking first */
 
     If (g_AppRoster Is Nothing) Or (g_NotificationRoster Is Nothing) Then
-        g_Debug "CSnarlSocket.uTranslateSNP(): action '" & pPacket.Action & "': app_roster or notification_roster not found", LEMON_LEVEL_CRITICAL
+        g_Debug "CSnarlSocket.uTranslateSNP(): action '" & pPacket.action & "': app_roster or notification_roster not found", LEMON_LEVEL_CRITICAL
         theSocket.SendData uCreateReply(SNP_ERROR_FAILED)
         Exit Sub
 
@@ -332,7 +332,7 @@ Dim dw As Long
 
     With pPacket
 
-        Select Case .Action
+        Select Case .action
 
         Case T_ACTION_REGISTER
             dw = g_AppRoster.IndexOfPidAndName(-1, .App)
@@ -438,7 +438,7 @@ Dim dw As Long
 
         Case Else
             ' /* unknown action */
-            g_Debug "CSnarlSocket.uTranslateSNP(): action '" & .Action & "' is unknown", LEMON_LEVEL_CRITICAL
+            g_Debug "CSnarlSocket.uTranslateSNP(): action '" & .action & "' is unknown", LEMON_LEVEL_CRITICAL
             theSocket.SendData uCreateReply(SNP_ERROR_UNKNOWN_COMMAND)
 
         End Select

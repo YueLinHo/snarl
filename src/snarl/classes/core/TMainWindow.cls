@@ -808,7 +808,7 @@ Dim pReq As SNARLREQI
 
     CopyMemory pReq, ByVal lpRequest, Len(pReq)
     Set pData = New BPackedData
-    pData.SetTo g_UTF8(pReq.PacketData)
+    pData.SetTo g_DecodeURL(g_UTF8(pReq.PacketData))
 
 Dim szAction As String
 

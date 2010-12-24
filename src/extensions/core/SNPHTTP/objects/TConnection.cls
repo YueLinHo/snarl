@@ -105,7 +105,7 @@ Dim szCmd As String
 
     Else
         szCmd = g_SafeLeftStr(sz, i - 1)
-        sz = uCleanURL(g_SafeRightStr(sz, Len(sz) - i))
+        sz = g_SafeRightStr(sz, Len(sz) - i)
 
     End If
 
@@ -242,17 +242,17 @@ Dim hr As Long
 
 End Function
 
-Private Function uCleanURL(ByVal URL As String) As String
-Dim i As Integer
-
-    uCleanURL = URL
-
-    For i = &H20 To &H7F
-        uCleanURL = Replace$(uCleanURL, "%" & g_HexStr(i, 2), Chr$(i))
-
-    Next i
-
-End Function
+'Private Function uCleanURL(ByVal URL As String) As String
+'Dim i As Integer
+'
+'    uCleanURL = URL
+'
+'    For i = &H20 To &H7F
+'        uCleanURL = Replace$(uCleanURL, "%" & g_HexStr(i, 2), Chr$(i))
+'
+'    Next i
+'
+'End Function
 
 Private Function uErr(ByVal Error As Long) As String
 
