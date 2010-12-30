@@ -31,6 +31,8 @@ HINSTANCE hInst;                                // current instance
 TCHAR szTitle[MAX_LOADSTRING];                  // The title bar text
 TCHAR szWindowClass[MAX_LOADSTRING];            // the main window class name
 
+UINT nSnarlGlobalMsg = 0;
+
 // Forward declarations of functions included in this code module:
 ATOM                MyRegisterClass(HINSTANCE hInstance);
 BOOL                InitInstance(HINSTANCE, int);
@@ -72,6 +74,9 @@ int APIENTRY _tWinMain(HINSTANCE hInstance,
 	pV39SnarlTest = new CSnarlV39Test(pV39Snarl, pTestHelper);
 	pV41SnarlTest = new CSnarlV41Test(pV41Snarl, pTestHelper);
 
+	// Get the Snarl broadcast message
+	nSnarlGlobalMsg = pV41Snarl->Broadcast();
+
 	// ------------------------------------------------------------------------
 	// Main message loop:
 	while (GetMessage(&msg, NULL, 0, 0))
@@ -88,7 +93,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance,
 	delete pTestHelper;
 	delete pV39SnarlTest;
 
-	return (int) msg.wParam;
+	return (int)msg.wParam;
 }
 
 
@@ -169,6 +174,22 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 	PAINTSTRUCT ps;
 	HDC hdc;
 
+	// Test if Snarl broadcast message
+	if (message == nSnarlGlobalMsg)
+	{
+		if (wParam == Snarl::V41::SnarlEnums::GlobalEvent::SnarlLaunched)
+		{
+			MessageBox(NULL, _T("Snarl Launched"), _T("Snarl C++ test app"), 0);
+		}
+		else if (wParam == Snarl::V41::SnarlEnums::GlobalEvent::SnarlQuit)
+		{
+			MessageBox(NULL, _T("Snarl Quit"), _T("Snarl C++ test app"), 0);
+		}
+
+		return 1;
+	}
+
+	// Normal message switch
 	switch (message)
 	{
 	case WM_CREATE:
