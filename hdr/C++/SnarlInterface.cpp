@@ -39,6 +39,7 @@
 /// </example>
 ///----------------------------------------------------------------------------
 /// <VersionHistory>
+///  2011-01-02 : mingw-w64 patch by Patrick von Reth
 ///  2010-08-13 : First release of V41 Snarl API implementation
 /// </VersionHistory>
 
@@ -49,6 +50,16 @@
 
 namespace Snarl {
 namespace V41 {
+
+
+// workaround for mingw-w64 bug
+#ifdef __GNUC__
+inline errno_t strncat_s( char *strDest,  size_t bufferSizeInBytes,  const char *strSource,  size_t count){
+    strncat(strDest,strSource,count);
+    return 0;
+}
+#endif //__GNUC__
+
 
 //-----------------------------------------------------------------------------
 // Constructor/Destructor
@@ -272,7 +283,7 @@ LONG32 SnarlInterface::EZUpdate(LONG32 msgToken, LPCSTR title /* = NULL */, LPCS
 	}
 	if (timeout != -1) {
 		char tmp[32];
-		_itoa_s(timeout, tmp, 10);
+		_itoa_s(timeout, tmp, sizeof(tmp), 10);
 		
 		err |= strncat_s(pData, SnarlPacketDataSize, (pData[0] != NULL) ? "#?timeout::" : "timeout::", _TRUNCATE);
 		err |= strncat_s(pData, SnarlPacketDataSize, tmp, _TRUNCATE);
