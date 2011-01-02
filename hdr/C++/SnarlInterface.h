@@ -1,7 +1,9 @@
 ﻿#ifndef SNARL_INTERFACE_V41
 #define SNARL_INTERFACE_V41
 
-#define MINGW_HAS_SECURE_API
+#ifdef __MINGW32__
+	#define MINGW_HAS_SECURE_API
+#endif 
 
 #include <tchar.h>
 #include <windows.h>
