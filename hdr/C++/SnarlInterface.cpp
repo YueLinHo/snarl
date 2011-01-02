@@ -54,9 +54,9 @@ namespace V41 {
 
 // workaround for mingw-w64 bug
 #ifdef __MINGW64_VERSION_MAJOR
-    extern "C" {
-        __declspec(dllimport) errno_t __cdecl strncat_s(char *_Dst, size_t _DstSizeInChars, const char *_Src, size_t _MaxCount);
-    }
+	extern "C" {
+		__declspec(dllimport) errno_t __cdecl strncat_s(char *_Dst, size_t _DstSizeInChars, const char *_Src, size_t _MaxCount);
+	}
 #endif //__MINGW64_VERSION_MAJOR
 
 
