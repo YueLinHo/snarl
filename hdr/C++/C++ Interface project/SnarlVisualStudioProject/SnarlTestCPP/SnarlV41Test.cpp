@@ -12,6 +12,7 @@ static LPCTSTR CLASS_DESC1 = _T("Class 1");
 static LPCTSTR CLASS_DESC2 = _T("Class 2");
 
 static LPCTSTR TESTMSG1 = L"Test text\nSpecial characters: 完了しました != 完乾Eました and おはよう != おEよう";
+static LPCTSTR TESTMSG2 = L"Test text 2\nSecond line";
 
 static LONG32 DEFAULT_TIMEOUT = 10;
 
@@ -86,7 +87,7 @@ void CSnarlV41Test::Test1()
 	pHelper->WriteLine(_T("EZNotify: %d"), snarl->EZNotify(CLASS1, _T("Message 1"), _T("Test text"), DEFAULT_TIMEOUT, snarlIcon3, 0, _T("ack"), _T("val")));
 	pHelper->WriteLine(_T("EZNotify: %d"), snarl->EZNotify(CLASS1, _T("Message 2"), TESTMSG1, DEFAULT_TIMEOUT, snarlIcon3, 0, _T("ack"), _T("val")));
 	pHelper->WriteLine(_T("EZNotify: %d"), snarl->EZNotify(CLASS1, _T("Message 3"), TESTMSG1, DEFAULT_TIMEOUT, NULL, 0, NULL, NULL));
-	pHelper->WriteLine(_T("EZNotify: %d"), snarl->EZNotify(CLASS1, _T("Message 4"), TESTMSG1));
+	pHelper->WriteLine(_T("EZNotify: %d"), snarl->EZNotify(CLASS1, _T("Message 4"), TESTMSG2));
 
 	// Test Notify
 	TCHAR szNotify[512];
