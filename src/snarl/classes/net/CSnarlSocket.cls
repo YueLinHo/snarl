@@ -13,6 +13,19 @@ Attribute VB_PredeclaredId = False
 Attribute VB_Exposed = False
 Option Explicit
 
+    '/*********************************************************************************************
+    '/
+    '/  File:           CSnarlListener.cls
+    '/
+    '/  Description:    Represents a listening socket bound to TCP port 9887 (SNP) or
+    '/                  23053 (GNTP) on a particular IP address
+    '/
+    '/  © 2010 full phat products
+    '/
+    '/  This file may be used under the terms of the Simplified BSD Licence
+    '/
+    '*********************************************************************************************/
+
 Private Enum T_NETWORK_ACTIONS
     T_ACTION_NULL
     T_ACTION_REGISTER
@@ -54,7 +67,7 @@ Private Sub Class_Terminate()
 '//
 End Sub
 
-Public Sub Accept(ByVal Id As Long)
+Public Sub Accept(ByVal Id As Long, ByVal IsGNTP As Boolean)
 
     g_Debug "CSnarlSocket.Accept(): Id=0x" & g_HexStr(Id), LEMON_LEVEL_PROC
 
@@ -408,7 +421,11 @@ Dim dw As Long
             If dw = 0 Then
                 ' /* not registered: show anyway using the 'anonymous network notification' class */
                 g_Debug "CSnarlSocket.uTranslateSNP(): remote app '" & .App & "' is not registered", LEMON_LEVEL_CRITICAL
-                dw = snShowMessageEx(SNARL_CLASS_ANON_NET, .Title, .Text, .Timeout, pPacket.Icon, frmAbout.hWnd, WM_REMOTENOTIFY)
+
+'FIXFIXFIX
+                ' /* we no longer include frmAbout.hWnd and WM_REMOTENOTIFY with this */
+                g_PrivateNotify SNARL_CLASS_ANON_NET, .Title, .Text, .Timeout, .Icon, , .DefaultAck, , S_NOTIFICATION_REMOTE
+'FIXFIXFIX
                 g_Debug "CSnarlSocket.uTranslateSNP(): snShowMessageEx() returned 0x" & g_HexStr(dw)
 
             Else
@@ -420,13 +437,14 @@ Dim dw As Long
             End If
 
             If dw > 0 Then
-                snChangeAttribute dw, SNARL_ATTRIBUTE_ACK, pPacket.DefaultAck       ' // V40.17
                 theSocket.SendData uCreateReply(SNP_SUCCESS, CStr(dw))
                 frmAbout.AddRemoteNotification dw, Me
 
             Else
                 theSocket.SendData uCreateReply(SNP_ERROR_FAILED)
+
             End If
+
 
         Case T_ACTION_HELLO
             ' /* send release back */

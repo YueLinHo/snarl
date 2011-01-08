@@ -13,6 +13,18 @@ Attribute VB_PredeclaredId = False
 Attribute VB_Exposed = False
 Option Explicit
 
+    '/*********************************************************************************************
+    '/
+    '/  File:           TRequester.cls
+    '/
+    '/  Description:    Represents an on-screen requester instance
+    '/
+    '/  © 2011 full phat products
+    '/
+    '/  This file may be used under the terms of the Simplified BSD Licence
+    '/
+    '*********************************************************************************************/
+
 Dim mhWnd As Long
 Dim mView As mfxView
 
@@ -62,7 +74,7 @@ Dim sv As String
 
     ' /* following are required */
 
-    mReplyTo = Val(Data.ValueOf("hwnd"))
+    mReplyTo = Val(Data.ValueOf("reply-to"))
     mReplyMsg = Val(Data.ValueOf("reply"))
     sv = Data.ValueOf("actions")
     If (IsWindow(mReplyTo) = 0) Or (mReplyMsg = 0) Or (sv = "") Then

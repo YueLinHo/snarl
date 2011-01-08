@@ -50,8 +50,8 @@ Option Explicit
     '
     ' */
 
-Private Const LIB_DATE = "10-Dec-2010"
-Private Const LIB_RELEASE = "3.0"
+Private Const LIB_DATE = "24-Dec-2010"
+Private Const LIB_RELEASE = "3.01"
 Private Const EXT_NAME = "SysInfo"
 Private Const EXT_COMMENT = "Tracks events specific to this computer"
 
@@ -69,6 +69,7 @@ Private Const CLASS_POWER_CONNECT = "pwrc"
 Private Const CLASS_POWER_DISCONNECT = "pwrd"
 Private Const CLASS_POWER_LOW = "pwrl"
 Private Const CLASS_LOCK_KEY = "keyb"
+Private Const CLASS_IP_CHANGE = "ipch"
 
 Dim mLastErr As String
 Dim mhWndOwner As Long              ' // handle of the window which launched our config (typically Snarl's Prefs panel)
@@ -299,7 +300,7 @@ Dim pm As CTempMsg
 
     End If
 
-    ISnarlExtension_GetConfigWindow = mPanel.hwnd
+    ISnarlExtension_GetConfigWindow = mPanel.hWnd
 
 End Function
 
@@ -425,14 +426,13 @@ Dim i As Integer
     sn41AddClass mToken, CLASS_LOW_DISK, "Low disk space", False
     sn41AddClass mToken, CLASS_NIC_CONN, "Network connected", False
     sn41AddClass mToken, CLASS_NIC_DISC, "Network disconnected", False
-    sn41AddClass mToken, CLASS_DUN_CONN, "Dial-up connected", False
-    sn41AddClass mToken, CLASS_DUN_DISC, "Dial-up disconnected", False
     sn41AddClass mToken, CLASS_VOL_MNT, "Volume mounted"
     sn41AddClass mToken, CLASS_VOL_UMNT, "Volume unmounted"
     sn41AddClass mToken, CLASS_POWER_CONNECT, "Power connected"
     sn41AddClass mToken, CLASS_POWER_DISCONNECT, "Power disconnected"
     sn41AddClass mToken, CLASS_POWER_LOW, "Low power warning"
     sn41AddClass mToken, CLASS_LOCK_KEY, "Caps, Num or Scroll lock activated"
+    sn41AddClass mToken, CLASS_IP_CHANGE, "IP address change"
 
     Set mAdapterList = new_BTagList()
 
@@ -563,6 +563,16 @@ Dim i As Long
     i = sn41EZNotify(mToken, CLASS_DUN_DISC, _
                      szTitle, _
                      szText, , "!dun-disconnected")
+
+End Sub
+
+Private Sub theHandler_LocalIPAddressChanged(ByVal Details As String)
+Dim l As Long
+
+    l = sn41EZNotify(mToken, CLASS_IP_CHANGE, "IP address change", Details, , g_MakePath(App.Path) & "ipaddrchange.png")
+
+'    If mNotify Then _
+        snShowMessageEx Me.CLASS_1, "Local IP Change", IPAddr & " added", 10, g_MakePath(App.Path) & "icon.png", Me.hWnd, &H401
 
 End Sub
 
@@ -1105,7 +1115,7 @@ Private Sub KPrefsPage_ControlInvoked(Control As BControl)
         theHandler_OnDiskThresholdReached mConfig.ValueOf("disk.low_mark"), g_SafeLeftStr(App.Path, 3)
 
     Case "go_website"
-        ShellExecute Control.Page.Panel.hwnd, "open", "http://www.fullphat.net", vbNullString, vbNullString, 5
+        ShellExecute Control.Page.Panel.hWnd, "open", "http://www.fullphat.net", vbNullString, vbNullString, 5
 
     End Select
 

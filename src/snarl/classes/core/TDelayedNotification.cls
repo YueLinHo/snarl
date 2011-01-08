@@ -27,7 +27,6 @@ Option Explicit
 
 '// "http://www.google.com/ig/images/weather/chance_of_rain.gif"
 
-Dim mClass As TAlert
 Dim mInfo As T_NOTIFICATION_INFO
 Dim mTempIcon As String
 
@@ -38,9 +37,9 @@ Public Function Init(ByVal URL As String) As Boolean
 
     On Error Resume Next
 
-    Err.Clear
+    err.Clear
     Set theIconRequest = New BWebRequest
-    If Err.Number <> 0 Then
+    If err.Number <> 0 Then
         g_Debug "TDelayedNotification.Init(): couldn't create BWebRequest", LEMON_LEVEL_CRITICAL
         Exit Function
 
@@ -60,10 +59,9 @@ Public Function Init(ByVal URL As String) As Boolean
 
 End Function
 
-Friend Sub SetTo(ByRef Info As T_NOTIFICATION_INFO, ByRef Class As TAlert)
+Friend Sub SetTo(ByRef Info As T_NOTIFICATION_INFO)
 
     LSet mInfo = Info
-    Set mClass = Class
 
 End Sub
 
@@ -74,8 +72,8 @@ Dim sz As String
 
     If Not WasSuccessful Then
         ' /* didn't download for some reason so use the class default icon, if one exists */
-        If Not (mClass Is Nothing) Then
-            sz = mClass.DefaultIcon
+        If Not (mInfo.ClassObj Is Nothing) Then
+            sz = mInfo.ClassObj.DefaultIcon
 
         Else
             ' /* to-do: allow user to specify an icon? */
@@ -90,6 +88,6 @@ Dim sz As String
     mInfo.IconPath = sz
 
     If Not (g_NotificationRoster Is Nothing) Then _
-        g_NotificationRoster.Add mClass, mInfo
+        g_NotificationRoster.Add mInfo, Nothing
 
 End Sub

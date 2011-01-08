@@ -105,7 +105,7 @@ Dim pc As BControl
 
     Select Case Control.GetName()
     Case "go_app_manager"
-        ShellExecute 0, "open", g_MakePath(App.Path) & "Snarl_App_Manager.exe", vbNullString, vbNullString, SW_SHOW
+        ShellExecute 0, "open", g_MakePath(App.Path) & "SNARLAPP_Manager.exe", vbNullString, vbNullString, SW_SHOW
 
     Case "restart_style_roster"
         If Not (g_StyleRoster Is Nothing) Then

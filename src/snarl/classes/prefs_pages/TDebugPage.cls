@@ -81,7 +81,8 @@ Dim hWnd As Long
             CoFreeUnusedLibrariesEx 0, 0
 
     Case "test"
-        hWnd = snGetSnarlWindow()
+        ' /* mimic how we would do it from an external app... */
+        hWnd = FindWindow("w>Snarl", "Snarl")
         If IsWindow(hWnd) <> 0 Then _
             SendMessage hWnd, WM_SNARLTEST, 0, ByVal 0&
 

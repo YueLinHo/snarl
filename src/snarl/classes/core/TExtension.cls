@@ -662,15 +662,19 @@ Dim sz As String
     With mInfo
         ' /* R2.4 */
         If (.Version <> 0) And (.Revision <> 0) Then _
-            sz = "Version: " & CStr(.Version) & "." & CStr(.Revision) & "\n"
+            sz = "Version: " & CStr(.Version) & "." & CStr(.Revision)
 
-        sz = sz & "Date: " & .Date
+        If .Date <> "" Then _
+            sz = sz & " (" & .Date & ")"
 
         If .Author <> "" Then _
-            sz = sz & "\nAuthor: " & .Author
+            sz = sz & "\n" & .Author
 
         If .Copyright <> "" Then _
-            sz = sz & "\nCopyright: " & .Copyright
+            sz = sz & "\n" & .Copyright
+
+        If (.SupportEmail <> "") Or (.URL <> "") Then _
+            sz = sz & "\n"
 
         If .SupportEmail <> "" Then _
             sz = sz & "\nSupport: " & .SupportEmail
@@ -680,9 +684,18 @@ Dim sz As String
 
     End With
 
-    sn41Hide gExtDetailsToken
+    g_NotificationRoster.Hide gExtDetailsToken
 
     gExtDetailsToken = g_PrivateNotify("", mInfo.Name & " " & mInfo.Release, sz, , mInfo.IconPath)
+
+    If gExtDetailsToken <> 0 Then
+        If (mInfo.SupportEmail <> "") And (InStr(mInfo.SupportEmail, "@") <> 0) Then _
+            g_QuickAddAction gExtDetailsToken, "Contact vendor...", "mailto:" & mInfo.SupportEmail
+
+        If (g_SafeLeftStr(mInfo.URL, 7) = "http://") Or (g_SafeLeftStr(mInfo.URL, 8) = "https://") Then _
+            g_QuickAddAction gExtDetailsToken, "Visit website...", mInfo.URL
+
+    End If
 
 End Sub
 

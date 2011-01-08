@@ -52,7 +52,7 @@ Dim pm As CTempMsg
         pm.Add "item-height", 30&
         .Add new_BPrefsControl("listbox", "cb>apps", "", "", "0", pm)
 
-        .Add new_BPrefsControl("fancytoolbar", "ftb>app", "Details|Settings...")
+        .Add new_BPrefsControl("fancytoolbar", "ftb>app", "Details|Settings...|Unregister")
 
         Set pm = New CTempMsg
         pm.Add "text", "Use the same settings for all notification classes?"
@@ -163,8 +163,13 @@ Dim pa As TApp
             uUpdateClassList
 
             If mPage.Find("ftb>app", pc) Then
-                prefskit_SetItem pc, 1, "enabled", IIf((mCurrent.Flags And SNARL41_APP_HAS_ABOUT), 1&, 0&)
-                prefskit_SetItem pc, 2, "enabled", IIf((mCurrent.Flags And SNARL41_APP_HAS_PREFS), 1&, 0&)
+'                prefskit_SetItem pc, 1, "enabled", IIf((mCurrent.Flags And SNARL41_APP_HAS_ABOUT), 1&, 0&)
+
+                prefskit_SetItem pc, 1, "enabled", 1&
+                prefskit_SetItem pc, 2, "enabled", IIf((mCurrent.Flags And SNARLAPP_HAS_PREFS), 1&, 0&)
+
+                ' /* V42.21: "Unregister" button */
+                prefskit_SetItem pc, 3, "enabled", (mCurrent.Token <> gSnarlToken)
 
             Else
                 Debug.Print "TAppsPage.ControlChanged(): 'ftb>app' control not found"
@@ -211,6 +216,10 @@ Dim pa As TApp
             Case 2
                 ' /* configure */
                 mCurrent.DoSettings
+
+            Case 3
+                ' /* unregister */
+                g_AppRoster.Unregister mCurrent.Token, mCurrent.Password
 
             End Select
 
@@ -437,7 +446,7 @@ Dim pm As CTempMsg
                 pm.Replace "index", i
                 sz = IIf(.AppAt(i).LargeIcon <> "", .AppAt(i).LargeIcon, .AppAt(i).Icon)
                 If Not g_Exists(sz) Then _
-                    sz = g_MakePath(App.Path) & "etc\icons\app-no_icon.png"
+                    sz = g_MakePath(App.Path) & "etc\icons\no_icon.png"
 
                 pm.Replace "image-file", sz
                 pc.DoExCmd B_SET_ITEM, pm

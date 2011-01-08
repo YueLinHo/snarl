@@ -46,18 +46,19 @@ End Sub
 Private Property Get MObject_Type() As String
 End Property
 
-Friend Function bInit(ByRef Info As T_SNARL_APP) As Boolean     ', ByRef IsNew As Boolean, ByRef AppToken As Long
+Friend Function bInit(ByRef Info As T_SNARL_APP) As Boolean
 Dim sz As String
 Dim i As Long
 Dim f As Boolean
 
     g_Debug "TApp.bInit()", LEMON_LEVEL_PROC_ENTER
 
+    ' /* store registration time/date */
+
+    Info.Timestamp = Now()
+
     LSet mInfo = Info
     mIsUnknown = False
-
-'    mInfo.Token = AppToken
-'    AppToken = AppToken + 4
 
     ' /* do we have a config file for this app? */
 
@@ -108,7 +109,7 @@ Public Function AddAlert(ByVal Class As String, ByVal Description As String, Opt
 
     If Me.FindAlert(Class, Nothing) Then
         g_Debug "class '" & Class & "' already exists", LEMON_LEVEL_CRITICAL Or LEMON_LEVEL_PROC_EXIT
-        gSetLastError SNARL41_ERROR_CLASS_ALREADY_EXISTS
+        gSetLastError SNARL_ERROR_CLASS_ALREADY_EXISTS
         AddAlert = M_ALREADY_EXISTS
         Exit Function
 
@@ -324,11 +325,11 @@ Dim pInfo As T_NOTIFICATION_INFO
 
     ' /* R2.4: create OriginalContent manually */
 
-    g_KludgeNotificationInfo pInfo
+'    g_KludgeNotificationInfo pInfo
 
     ' /* pass it to the class... */
 
-    Show = pc.ShowNotification(pInfo)
+    Show = pc.ShowNotification(pInfo, Nothing)
     If Show = 0 Then _
         Show = M_FAILED
 
@@ -336,7 +337,7 @@ Dim pInfo As T_NOTIFICATION_INFO
 
 End Function
 
-Public Function Show41(ByVal ClassId As String, ByRef pData As BPackedData, Optional ByRef ReplySocket As CSocket, Optional ByVal IntFlags As SNRL_NOTIFICATION_FLAGS) As Long
+Public Function Show41(ByVal ClassId As String, ByRef pData As BPackedData, Optional ByRef ReplySocket As CSocket, Optional ByVal IntFlags As S_SYS_FLAGS, Optional ByVal RemoteHost As String) As Long
 
     If (pData Is Nothing) Then _
         Exit Function
@@ -364,7 +365,7 @@ Dim pClass As TAlert
 
     If (pClass Is Nothing) Then
         g_Debug "TApp.Show(): couldn't find a suitable class", LEMON_LEVEL_CRITICAL
-        gSetLastError SNARL41_ERROR_SYSTEM
+        gSetLastError SNARL_ERROR_SYSTEM
         Exit Function
 
     End If
@@ -376,7 +377,14 @@ Dim i As Long
 
     With pInfo
 
-        .DefaultAck = pData.ValueOf("ack")
+        If pData.Exists("callback") Then
+            ' /* R2.4 DR7: name change */
+            .DefaultAck = pData.ValueOf("callback")
+
+        Else
+            .DefaultAck = pData.ValueOf("ack")
+
+        End If
 
         If pData.Exists("flags") Then
             i = Val("&H" & pData.ValueOf("flags"))
@@ -384,7 +392,10 @@ Dim i As Long
 
         End If
 
-        .hWndReply = Val(pData.ValueOf("hwnd"))
+        .hWndReply = Val(pData.ValueOf("reply-to"))
+        If .hWndReply = 0 Then _
+            .hWndReply = Val(pData.ValueOf("hwnd"))
+
         If .hWndReply = 0 Then _
             .hWndReply = mInfo.hWnd                 ' // use app-defined value
 
@@ -401,7 +412,11 @@ Dim i As Long
 
         .Title = Replace$(pData.ValueOf("title"), "\n", vbCrLf)
 
-        .uReplyMsg = Val(pData.ValueOf("umsg"))
+
+        .uReplyMsg = Val(pData.ValueOf("reply"))
+        If .uReplyMsg = 0 Then _
+            .uReplyMsg = Val(pData.ValueOf("umsg"))
+
         If .uReplyMsg = 0 Then _
             .uReplyMsg = mInfo.uMsg                 ' // use app-defined value
 
@@ -411,11 +426,13 @@ Dim i As Long
 
         .OriginalContent = Replace$(pData.AsString(), "\n", vbCrLf)
 
+        .RemoteHost = RemoteHost
+
     End With
 
     ' /* pass it to the class... */
 
-    Show41 = pClass.ShowNotification(pInfo)
+    Show41 = pClass.ShowNotification(pInfo, pData)
 
 End Function
 
@@ -440,7 +457,7 @@ End Function
 '
 '    If (pc Is Nothing) Then
 '        g_Debug "TApp.Show(): couldn't find a suitable class", LEMON_LEVEL_CRITICAL
-'        gSetLastError SNARL41_ERROR_FAILED
+'        gSetLastError SNARL_ERROR_FAILED
 '        Exit Function
 '
 '    End If
@@ -485,21 +502,21 @@ Public Function AddClass(ByRef Data As BPackedData, Optional ByRef ClassObject A
 
     If (Data Is Nothing) Then
         g_Debug "TApp.AddClass(): config error", LEMON_LEVEL_CRITICAL
-        gSetLastError SNARL41_ERROR_FAILED
+        gSetLastError SNARL_ERROR_FAILED
         Exit Function
 
     End If
 
     If Not Data.Exists("id") Then
         g_Debug "TApp.AddClass(): required arg 'id' missing", LEMON_LEVEL_CRITICAL
-        gSetLastError SNARL41_ERROR_ARG_MISSING
+        gSetLastError SNARL_ERROR_ARG_MISSING
         Exit Function
 
     End If
 
     If Not Data.Exists("name") Then
         g_Debug "TApp.AddClass(): required arg 'name' missing", LEMON_LEVEL_CRITICAL
-        gSetLastError SNARL41_ERROR_ARG_MISSING
+        gSetLastError SNARL_ERROR_ARG_MISSING
         Exit Function
 
     End If
@@ -522,7 +539,17 @@ Dim lFlags As E_CLASS_FLAGS
     ' /* do some V41 post-initialization */
 
     With ClassObject
-        .DefaultAck = Data.ValueOf("ack")
+        If Data.Exists("callback") Then
+            ' /* R2.4 DR7: name change */
+            .DefaultAck = Data.ValueOf("callback")
+
+        Else
+            .DefaultAck = Data.ValueOf("ack")
+
+        End If
+
+        Debug.Print .Description & " >> " & Data.Exists("icon")
+
         .DefaultIcon = Data.ValueOf("icon")
         .DefaultSound = Data.ValueOf("sound")
         .DefaultText = Data.ValueOf("text")
@@ -544,7 +571,7 @@ Static j As Long
 
     If (Data Is Nothing) Then
         g_Debug "TApp.RemClass(): config error", LEMON_LEVEL_CRITICAL
-        gSetLastError SNARL41_ERROR_FAILED
+        gSetLastError SNARL_ERROR_FAILED
         Exit Function
 
     End If
@@ -559,21 +586,21 @@ Static j As Long
         AddAlert "_all", ""
         RemClass = -1
         frmAbout.bUpdateClassList mInfo.Token
-        gSetLastError SNARL41_SUCCESS
+        gSetLastError SNARL_SUCCESS
 
     ElseIf Not Data.Exists("id") Then
         g_Debug "TApp.RemClass(): required arg 'id' missing", LEMON_LEVEL_CRITICAL
-        gSetLastError SNARL41_ERROR_ARG_MISSING
+        gSetLastError SNARL_ERROR_ARG_MISSING
 
     ElseIf Data.ValueOf("id") = "_all" Then
         g_Debug "TApp.RemClass(): cannot remove '_all' class", LEMON_LEVEL_CRITICAL
-        gSetLastError SNARL41_ERROR_FAILED
+        gSetLastError SNARL_ERROR_FAILED
 
     Else
         i = uIndexOf(Data.ValueOf("id"))
         If i = 0 Then
             g_Debug "TApp.RemClass(): class '" & Data.ValueOf("id") & "' not found", LEMON_LEVEL_CRITICAL
-            gSetLastError SNARL41_ERROR_CLASS_NOT_FOUND
+            gSetLastError SNARL_ERROR_CLASS_NOT_FOUND
 
         Else
 
@@ -589,7 +616,7 @@ Static j As Long
             ReDim Preserve mAlert(mAlerts)
             frmAbout.bUpdateClassList mInfo.Token
             RemClass = -1
-            gSetLastError SNARL41_SUCCESS
+            gSetLastError SNARL_SUCCESS
 
         End If
     End If
@@ -602,7 +629,7 @@ Public Function Signature() As String
 
 End Function
 
-Public Function Flags() As SNARL41_APP_FLAGS
+Public Function Flags() As SNARLAPP_FLAGS
 
     Flags = mInfo.Flags
 
@@ -611,7 +638,7 @@ End Function
 Public Function IsSnarlApp() As Boolean
 
     If IsWindow(mInfo.hWnd) <> 0 Then _
-        IsSnarlApp = (GetProp(mInfo.hWnd, "snarl_app") = 1) Or ((mInfo.Flags And SNARL41_APP_IS_WINDOWLESS) <> 0)
+        IsSnarlApp = (GetProp(mInfo.hWnd, "snarl_app") = 1) Or ((mInfo.Flags And SNARLAPP_IS_WINDOWLESS) <> 0)
 
 End Function
 
@@ -621,21 +648,34 @@ Public Function HasConfig() As Boolean
         Exit Function
 
     If IsWindow(mInfo.hWnd) <> 0 Then _
-        HasConfig = ((mInfo.Flags And SNARL41_APP_HAS_PREFS) <> 0)
+        HasConfig = ((mInfo.Flags And SNARLAPP_HAS_PREFS) <> 0)
 
 End Function
 
 Public Sub DoAbout()
 
-    If (IsWindow(mInfo.hWnd) <> 0) And ((mInfo.Flags And SNARL41_APP_HAS_ABOUT)) Then _
-        PostMessage mInfo.hWnd, sn41AppMsg(), SNARL41_APP_ABOUT, ByVal 0&
+    If (IsWindow(mInfo.hWnd) <> 0) And ((mInfo.Flags And SNARLAPP_HAS_ABOUT)) Then
+        ' /* ask the app to display its own details */
+        PostMessage mInfo.hWnd, snAppMsg(), SNARLAPP_DO_ABOUT, ByVal 0&
+
+    Else
+        ' /* just show what we can */
+        g_PrivateNotify "", _
+                        mInfo.Name, _
+                        "Registered: " & CStr(mInfo.Timestamp) & _
+                        IIf(mInfo.Password <> "", "\nPassword protected", "") & _
+                        IIf(mInfo.IsRemote, "\nSource is remote", ""), _
+                        , _
+                        mInfo.Icon
+
+    End If
 
 End Sub
 
 Public Sub DoSettings()
 
-    If (IsWindow(mInfo.hWnd) <> 0) And ((mInfo.Flags And SNARL41_APP_HAS_PREFS)) Then _
-        PostMessage mInfo.hWnd, sn41AppMsg(), SNARL41_APP_PREFS, ByVal 0&
+    If (IsWindow(mInfo.hWnd) <> 0) And ((mInfo.Flags And SNARLAPP_HAS_PREFS)) Then _
+        PostMessage mInfo.hWnd, snAppMsg(), SNARLAPP_DO_PREFS, ByVal 0&
 
 End Sub
 

@@ -22,7 +22,7 @@ Private Const PBT_APMSUSPEND = 4
 Private Const PBT_APMRESUMEAUTOMATIC = 18
 
 'Private Declare Function DeleteFile Lib "kernel32" Alias "DeleteFileA" (ByVal lpFileName As String) As Long
-Private Declare Function PostMessage Lib "user32" Alias "PostMessageA" (ByVal hwnd As Long, ByVal wMsg As Long, ByVal wParam As Long, ByVal lParam As Long) As Long
+Private Declare Function PostMessage Lib "user32" Alias "PostMessageA" (ByVal hWnd As Long, ByVal wMsg As Long, ByVal wParam As Long, ByVal lParam As Long) As Long
 
 Const GUID_DEVINTERFACE_USB_DEVICE = "A5DCBF10-6530-11D2-901F-00C04FB951ED"
 Const GUID_DEVINTERFACE_DISK = "53F56307-B6BF-11D0-94F2-00A0C91EFB8B"
@@ -80,7 +80,7 @@ Dim mLastDisconnected As String
 'Implements KPrefsPanel
 Implements BWndProcSink
 
-Private Function BWndProcSink_WndProc(ByVal hwnd As Long, ByVal uMsg As Long, ByVal wParam As Long, ByVal lParam As Long, ByVal PrevWndProc As Long, ReturnValue As Long) As Boolean
+Private Function BWndProcSink_WndProc(ByVal hWnd As Long, ByVal uMsg As Long, ByVal wParam As Long, ByVal lParam As Long, ByVal PrevWndProc As Long, ReturnValue As Long) As Boolean
 Static bIgnoreDeviceChanges As Boolean
 'Static bWaitForNextPowerChange As Boolean
 Dim n As Long
@@ -90,7 +90,7 @@ Dim n As Long
     Select Case uMsg
     Case WM_CREATE
         Form1.Add "WM_CREATE"
-        mhWnd = hwnd
+        mhWnd = hWnd
         uStart
 
 
@@ -112,6 +112,9 @@ Dim n As Long
         If Not bIgnoreDeviceChanges Then _
             uDeviceChange wParam, lParam
 
+        ReturnValue = -1
+        BWndProcSink_WndProc = True
+
 
     Case WM_POWERBROADCAST
         Select Case wParam
@@ -122,7 +125,7 @@ Dim n As Long
 
         Case PBT_APMRESUMEAUTOMATIC
             Form1.List1.AddItem "PBT_APMRESUMEAUTOMATIC: waiting for a while..."
-            SetTimer hwnd, 1, 3000, 0
+            SetTimer hWnd, 1, 3000, 0
 '            bWaitForNextPowerChange = True
 
 '        Case PBT_APMPOWERSTATUSCHANGE
@@ -139,12 +142,15 @@ Dim n As Long
 
         End Select
 
+        ReturnValue = -1
+        BWndProcSink_WndProc = True
+
 
     Case WM_TIMER
         If wParam = 1 Then
             Form1.List1.AddItem "WM_TIMER: allowing further device notifications"
             bIgnoreDeviceChanges = False
-            KillTimer hwnd, wParam
+            KillTimer hWnd, wParam
 
         End If
 
@@ -524,7 +530,7 @@ Dim szDevice As String
 
 End Sub
 
-Private Function uGetDeviceInfo(ByVal DeviceType As Long, ByVal Ptr As Long, ByRef DeviceInfo As T_DEVICEINFO) As Boolean
+Private Function uGetDeviceInfo(ByVal DeviceType As Long, ByVal ptr As Long, ByRef DeviceInfo As T_DEVICEINFO) As Boolean
 Dim pif As DEV_BROADCAST_DEVICEINTERFACER
 Dim pvol As DEV_BROADCAST_VOLUME
 Dim pInfo As T_DEVICEINSTANCEINFO
@@ -537,7 +543,7 @@ Dim pInfo As T_DEVICEINSTANCEINFO
 
     Case DBT_DEVTYP_VOLUME
         ' // logical volume
-        CopyMemory pvol, ByVal Ptr, Len(pvol)
+        CopyMemory pvol, ByVal ptr, Len(pvol)
         Debug.Print "  DBT_DEVTYP_VOLUME: " & g_HexStr(pvol.dbcv_unitmask) & " " & g_HexStr(pvol.dbcv_flags)
         DeviceInfo.Path = g_BitMaskToDrive(pvol.dbcv_unitmask)
         DeviceInfo.Flags = pvol.dbcv_flags
@@ -557,7 +563,7 @@ Dim pInfo As T_DEVICEINSTANCEINFO
 
     Case DBT_DEVTYP_DEVICEINTERFACE
         ' // device interface class
-        CopyMemory pif, ByVal Ptr, Len(pif)
+        CopyMemory pif, ByVal ptr, Len(pif)
         Debug.Print "  DBT_DEVTYPE_DEVICEINTERFACE"
         Debug.Print "  guid: " & g_StringFromGuid(pif.dbcc_classguid)
         Debug.Print "  name: " & StrConv(pif.dbcc_name, 0)

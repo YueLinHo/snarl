@@ -12,6 +12,48 @@ Option Explicit
     '   doubt please consult development team for guidance.
     '
     ' */
+    
+    
+    ' /*
+    '
+    '   SNARLSTRUCT
+    '   This is an internal structure used to pass information between Snarl and
+    '   registered applications - do not attempt to craft your own messages
+    '   using this structure; use the standard sn... api methods instead.
+    '
+    ' */
+
+
+Public Type SNARLSTRUCT
+    Cmd As Long       ' // what to do...
+    Id As Long                  ' // snarl message id (returned by snShowMessage())
+    Timeout As Long             ' // timeout in seconds (0=sticky)
+    LngData2 As Long            ' // reserved
+    Title As String * 512
+    Text As String * 512        ' // VB defines these as wide so they're actually 1024 bytes
+    Icon As String * 512
+
+End Type
+
+Public Type SNARLSTRUCTEX
+    Cmd As Long       ' // what to do...
+    Id As Long                  ' // snarl message id (returned by snShowMessage())
+    Timeout As Long             ' // timeout in seconds (0=sticky)
+    LngData2 As Long            ' // reserved
+    Title As String * 512
+    Text As String * 512        ' // VB defines these as wide so they're actually 1024 bytes
+    Icon As String * 512
+    Class As String * 512
+    Extra As String * 512
+    Extra2 As String * 512
+    Reserved1 As Long
+    Reserved2 As Long
+
+End Type
+
+
+    
+    
 
     ' /* ================= Constants and Enums ================= */
 
@@ -48,7 +90,7 @@ End Enum
 
 
 Public Enum PRIVATE_SNARL_COMMANDS
-    SNARL_PRIV_LAST_PUBLIC = SNARL_ADD_CLASS
+    SNARL_PRIV_LAST_PUBLIC = 17         '// (SNARL_ADD_CLASS)
     SNARL_LOAD_EXTENSION                '// private (V38.107)
     SNARL_UNLOAD_EXTENSION              '// private (V38.107)
     SNARL_COUNT_NOTIFICATIONS           '// private (V39.12)
@@ -233,29 +275,29 @@ End Function
 '
 'End Function
 
-Public Function snPrivateUpdateMessage(ByVal Id As Long, ByVal Title As String, ByVal Text As String, Optional ByVal IconPath As String, Optional ByVal Flags As E_SNARL_UPDATE_FLAGS) As Long
-Dim pss As SNARLSTRUCT
-
-    ' /* this is currently the same as snUpdateMessage() except that it allows for an extra parameter - Flags - to be
-    '    specified.  At the moment only a single flag - E_SNARL_CREATE_IF_NEEDED - if defined and this isn't actually
-    '    implemented as yet.  Note that the command is still the original SNARL_UPDATE; we just make use of the
-    '    previously reserved "LngData2" value. */
-
-    With pss
-        .Cmd = SNARL_UPDATE
-        .Id = Id
-        .Title = uToUTF8(Title)
-        .Text = uToUTF8(Text)
-        ' /* 1.6 Beta 4 */
-        .Icon = uToUTF8(IconPath)
-        ' /* V39 */
-        .LngData2 = Flags
-
-    End With
-
-    snPrivateUpdateMessage = uSend(pss)
-
-End Function
+'Public Function snPrivateUpdateMessage(ByVal Id As Long, ByVal Title As String, ByVal Text As String, Optional ByVal IconPath As String, Optional ByVal Flags As E_SNARL_UPDATE_FLAGS) As Long
+'Dim pss As SNARLSTRUCT
+'
+'    ' /* this is currently the same as snUpdateMessage() except that it allows for an extra parameter - Flags - to be
+'    '    specified.  At the moment only a single flag - E_SNARL_CREATE_IF_NEEDED - if defined and this isn't actually
+'    '    implemented as yet.  Note that the command is still the original SNARL_UPDATE; we just make use of the
+'    '    previously reserved "LngData2" value. */
+'
+'    With pss
+'        .Cmd = SNARL_UPDATE
+'        .Id = Id
+'        .Title = uToUTF8(Title)
+'        .Text = uToUTF8(Text)
+'        ' /* 1.6 Beta 4 */
+'        .Icon = uToUTF8(IconPath)
+'        ' /* V39 */
+'        .LngData2 = Flags
+'
+'    End With
+'
+'    snPrivateUpdateMessage = uSend(pss)
+'
+'End Function
 
 ' /*
 '   snPrivateLoadStyleEngine() -- asks Snarl to reload an EXISTING style engine  (V39)

@@ -98,12 +98,22 @@ Private Sub InputMixer_ControlChanged(Control As audio_resource.BMixerLineContro
 
     Select Case LCase$(Control.Name)
     Case "master volume"
-        If mSettings.GetValueWithDefault("show_mute", "1") = "1" Then _
-            uVolChanged Control, Value, g_SafeLong(mSettings.GetValueWithDefault("vol_detail", "2"))
+
+        If Control.Maximum < 1 Then
+            g_Debug "Extension.ControlChanged(): bad maximum setting '" & Control.Maximum & "' for '" & Control.Name & "'", LEMON_LEVEL_CRITICAL
+            Exit Sub
+
+        End If
+
+        uVolChanged Fix((Value / Control.Maximum) * 100)
+
+
+
+
+'            uVolChanged Control, Value ', g_SafeLong(mSettings.GetValueWithDefault("vol_detail", "2"))
 
     Case "master mute"
-        If mSettings.GetValueWithDefault("show_vol", "1") = "1" Then _
-            uMuteChanged Value, g_SafeLong(mSettings.GetValueWithDefault("mute_detail", "2"))
+        uMuteChanged Value ', g_SafeLong(mSettings.GetValueWithDefault("mute_detail", "2"))
 
     Case Else
         g_Debug "InputMixer.ControlChanged(): unrecognised control '" & Control.Name & "'", LEMON_LEVEL_WARNING
@@ -345,10 +355,15 @@ Dim i As Long
 
     End With
 
-    ' /* create handler window (for forthcoming Vista/Win7 notifier) */
+    If g_IsWinVistaOrBetter Then
+        ' /* create handler window */
+        EZRegisterClass CLASS_NAME
+        mhWnd = EZAddWindow(CLASS_NAME, Me, CLASS_NAME)
 
-    EZRegisterClass CLASS_NAME
-    mhWnd = EZAddWindow(CLASS_NAME, Me, CLASS_NAME)
+        ' /* launch volume spy daemon */
+        ShellExecute mhWnd, "open", g_MakePath(App.Path) & "snarl-audiomon.exe", vbNullString, vbNullString, 5
+
+    End If
 
     ' /* register */
 
@@ -372,10 +387,15 @@ Private Sub ISnarlExtension_Stop()
 
     sn41UnregisterApp mAppToken
 
-    ' /* zap window */
+    If g_IsWinVistaOrBetter Then
+        ' /* zap window */
+        EZRemoveWindow mhWnd
+        EZUnregisterClass CLASS_NAME
 
-    EZRemoveWindow mhWnd
-    EZUnregisterClass CLASS_NAME
+        ' /* launch volume spy daemon */
+        ShellExecute mhWnd, "open", g_MakePath(App.Path) & "snarl-audiomon.exe", "-quit", vbNullString, 5
+
+    End If
 
 End Sub
 
@@ -554,41 +574,46 @@ End Function
 
 Private Function MWndProcSink_WndProc(ByVal hWnd As Long, ByVal uMsg As Long, ByVal wParam As Long, ByVal lParam As Long, ByVal PrevWndProc As Long, ReturnValue As Long) As Boolean
 
+    Select Case uMsg
+    Case &H440
+        Select Case wParam
+        Case 0
+            ' /* master mute */
+            uMuteChanged lParam
+
+        Case 1
+            ' /* master volume */
+            Select Case lParam
+            Case 0 To 100
+                ' /* valid volume change */
+                uVolChanged lParam
+
+            Case Else
+                g_Debug "WndProc/0x0440/0x01: invalid volume parameter '" & CStr(lParam) & "'", LEMON_LEVEL_WARNING
+    
+            End Select
+
+        End Select
+
+    End Select
+
 End Function
 
-Private Sub uVolChanged(Control As audio_resource.BMixerLineControl, ByVal Value As Long, ByVal Detail As Long)
+Private Sub uVolChanged(ByVal Value As Long) ', ByVal Detail As Long)
 
-    ' /* bounds check */
+    ' /* bounds and arg checking */
 
-    If Control.Maximum < 1 Then
-        g_Debug "Extension.uVolChanged(): bad maximum setting '" & Control.Maximum & "'", LEMON_LEVEL_CRITICAL
+    If (Value = mVol) Or (current_master_mute() = True) Or (Value < 0) Or (Value > 100) Or (mSettings.GetValueWithDefault("show_vol", "1") <> "1") Then _
         Exit Sub
 
-    End If
-
-Dim i As Long
-
-    ' /* has it changed enough to make a difference? */
-
-    i = Fix((Value / Control.Maximum) * 100)
-    If i = mVol Then _
-        Exit Sub
-
-    ' /* yes */
-
-    mVol = i
-
-    ' /* if volume is muted don't bother notifying */
-
-    If current_master_mute() Then _
-        Exit Sub
+    mVol = Value
 
     ' /* notify */
 
 Dim szTitle As String
 Dim szText As String
 
-    Select Case Detail
+    Select Case g_SafeLong(mSettings.GetValueWithDefault("vol_detail", "2"))
     Case 1
         ' /* icon only */
 
@@ -624,11 +649,17 @@ Dim szText As String
 
 End Sub
 
-Private Sub uMuteChanged(ByVal Value As Long, ByVal Detail As Long)
+Private Sub uMuteChanged(ByVal Value As Long) ', ByVal Detail As Long)
+
+    ' /* bounds and arg checking */
+
+    If (Value < 0) Or (Value > 1) Or (mSettings.GetValueWithDefault("show_mute", "1") <> "1") Then _
+        Exit Sub
+
 Dim szTitle As String
 Dim szText As String
 
-    Select Case Detail
+    Select Case g_SafeLong(mSettings.GetValueWithDefault("mute_detail", "2"))
     Case 1
         ' /* icon only */
 

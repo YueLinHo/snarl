@@ -29,18 +29,56 @@ End Sub
 
 Private Sub KPrefsPage_ControlChanged(Control As prefs_kit_d2.BControl, ByVal Value As String)
 Dim pc As BControl
+Dim sz As String
 
     Select Case Control.GetName()
     Case "lb>missed"
         mSelIndex = Val(Value)
         g_NotificationRoster.MissedAt mSelIndex, mSelected
 
-        prefskit_SafeSetText mPanel, "the_title", Replace$(mSelected.Title, vbCrLf, " \n ")
-        prefskit_SafeSetText mPanel, "the_text", Replace$(mSelected.Text, vbCrLf, " \n ")
+        ' /* toolbar */
+        prefskit_SafeEnable mPanel, "toolbar_options", (Value <> "0")
+
+        If mPanel.Find("toolbar_options", pc) Then _
+            prefskit_SetItem pc, 1, "enabled", IIf(mSelected.DefaultAck <> "", 1&, 0&)
+
+        prefskit_SafeSetText mPanel, "the_title", Replace$(mSelected.Title, vbCrLf, "¶ ")
+        prefskit_SafeSetText mPanel, "the_text", Replace$(mSelected.Text, vbCrLf, "¶ ")
         prefskit_SafeEnable mPanel, "fb>ack", (mSelected.DefaultAck <> "")
+
+Debug.Print "*********************************"
+
+        sz = "Created " & Format$(mSelected.DateStamp, "hh:mm:ss") & _
+             IIf(DateDiff("d", Now, mSelected.DateStamp) = "0", " today", " on " & Format$(mSelected.DateStamp, "short date")) & _
+             " by " & Replace$(mSelected.ClassObj.App.Name, vbCrLf, "¶ ")
+
+        If Not (mSelected.Socket Is Nothing) Then _
+            sz = sz & " on " & mSelected.Socket.RemoteHostIP
+
+'        If mSelected.DefaultAck <> "" Then _
+            sz = sz & "  Callback: " & mSelected.DefaultAck
+
+        prefskit_SafeSetText mPanel, "the_detail", sz
+'        prefskit_SafeSetText mPanel, "the_callback", Replace$(mSelected.DefaultAck, vbCrLf, "¶ ")
 
 '        prefskit_SafeSetText mPanel, "sending_app", "Sent from " & mSelected.Sender & " using class '" & mSelected.Class & "'"
 '        prefskit_SafeSetText mPanel, "sending_class", mSelected.Class
+
+    Case "toolbar_options"
+
+        Select Case Val(Value)
+        Case 1
+            If mSelected.DefaultAck <> "" Then _
+                g_ProcessAck mSelected.DefaultAck
+
+        Case 2
+            Clipboard.SetText mSelected.Title & vbCrLf & mSelected.Text
+
+        Case 3
+            If Not g_IsDNDModeEnabled Then _
+                g_NotificationRoster.Add mSelected, Nothing
+
+        End Select
 
     End Select
 
@@ -68,7 +106,7 @@ Dim pc As BControl
 
         ElseIf IsWindow(mSelected.hWndReply) <> 0 Then
             If mSelected.uReplyMsg <> 0 Then
-                PostMessage mSelected.hWndReply, mSelected.uReplyMsg, SNARL_NOTIFICATION_ACK, ByVal mSelected.Token
+                PostMessage mSelected.hWndReply, mSelected.uReplyMsg, SNARL_CALLBACK_INVOKED, ByVal mSelected.Token
 
             Else
                 Debug.Print "TMissedNotificationsPanel.fb>ack(): bad reply message"
@@ -142,31 +180,41 @@ Dim pm As CTempMsg
                 pc.SizeTo 0, 160
                 .Add pc
 
-                .Add new_BPrefsControl("label", "", "Title")
-                Set pm = New CTempMsg
-                pm.Add "locked", 1&
-                .Add new_BPrefsControl("fancyedit", "the_title", "", , , pm)
-
-                .Add new_BPrefsControl("label", "", "Text")
-                Set pm = New CTempMsg
-                pm.Add "locked", 1&
-                .Add new_BPrefsControl("fancyedit", "the_text", "", , , pm)
+'                .Add new_BPrefsControl("label", "", "Title")
+'                Set pm = New CTempMsg
+'                pm.Add "locked", 1&
+'                .Add new_BPrefsControl("fancyedit", "the_title", "", , , pm)
+'
+'                .Add new_BPrefsControl("label", "", "Text")
+'                Set pm = New CTempMsg
+'                pm.Add "locked", 1&
+'                .Add new_BPrefsControl("fancyedit", "the_text", "", , , pm)
+        
+'                .Add new_BPrefsControl("label", "", "Source")
+                .Add new_BPrefsControl("label", "the_detail", Space$(256))
         
 '                .Add new_BPrefsControl("label", "sending_app", Space$(128))
 '                .Add new_BPrefsControl("label", "sending_class", "Class:")
+
+'                .Add new_BPrefsControl("label", "", "Callback")
+'                .Add new_BPrefsControl("label", "the_callback", "")
+
+                .Add new_BPrefsControl("fancytoolbar", "toolbar_options", "Invoke|Copy to Clipboard|Display", , , , False)
+
+'                .Add new_BPrefsControl("fancybutton2", "fb>ack", "Invoke Callback", , , , False)
         
-                .Add new_BPrefsControl("fancybutton2", "fb>ack", "Acknowledge Notification", , , , False)
-        
-                .Add new_BPrefsControl("seperator", "")
+'                .Add new_BPrefsControl("seperator", "")
                 .Add new_BPrefsControl("fancybutton2", "fb>clear", "Clear List")
         
             End With
 
             .AddPage pPage
 
-            uUpdateList
 
             .Go
+
+            uUpdateList
+
             g_SetWindowIconToAppResourceIcon .hWnd
 
         End With
@@ -194,20 +242,28 @@ Dim pm As CTempMsg
 Dim sz As String
 Dim i As Long
 Dim n As Long
+Dim sza As String
 
     n = Val(pc.GetValue())
 
     With g_NotificationRoster
-        
+
         prefskit_SafeEnable mPanel, "fb>clear", (.MissedCount > 0)
 
         If .MissedCount Then
 
             ' /* build the content string */
 
-            For i = .MissedCount To 1 Step -1
+            For i = 1 To .MissedCount
                 .MissedAt i, pInfo
-                sz = sz & g_FormattedMidStr(Replace$(pInfo.Title, "|", ":"), 54) & "#?0#?" & "From " & pInfo.Sender & " (" & pInfo.Class & ") at " & Format$(pInfo.DateStamp, "hh:mm:ss") & "|"
+                sza = Replace$(pInfo.Title, "|", ":")
+                sza = Replace$(sza, vbCrLf, "¶")
+                sz = sz & g_FormattedMidStr(sza, 54) & "#?0#?"
+
+                sza = Replace$(pInfo.Text, "|", ":")
+                sza = Replace$(sza, vbCrLf, "¶")
+                sz = sz & g_FormattedMidStr(sza, 54) & "|"
+'                sz = sz & g_FormattedMidStr(Replace$(pInfo.Title, "|", ":"), 54) & "#?0#?" & "From " & pInfo.Sender & " (" & pInfo.Class & ") at " & Format$(pInfo.DateStamp, "hh:mm:ss") & "|"
 
             Next i
 
@@ -216,15 +272,12 @@ Dim n As Long
             ' /* set the icons */
 
             Set pm = New CTempMsg
-
-            n = 1
-            For i = .MissedCount To 1 Step -1
+            For i = 1 To .MissedCount
                 .MissedAt i, pInfo
-                pm.Replace "index", n
+                pm.Replace "index", i
                 pm.Remove "image-object"
                 pm.Add "image-object", pInfo.Icon
                 pc.DoExCmd B_EXTENDED_COMMANDS.B_SET_ITEM, pm
-                n = n + 1
 
             Next i
 
@@ -235,10 +288,7 @@ Dim n As Long
 
     End With
 
-'    If n = 0 Then _
-        n = 1
-
-    pc.SetValue CStr(n)
+    pc.SetValue CStr(n + 1)
 
 End Sub
 

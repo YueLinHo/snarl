@@ -58,6 +58,77 @@
 
 	Snarl Change Log
 
+	- Can now include zero or more "action=<label>,<command>" arguments
+	  in a <Notify> request.  (42.34)
+
+	- Win32 action and menu dynamic callbacks now send the command (with
+	  the "@" prefix removed) cast as an Int16.  (42.34)
+
+	- Notification right-click menu item selection now works with SNP-
+	  generated notificatons (it is still deprecated however).  (42.34)
+
+	- <Register>, <Unregister>, <AddClass> and <Notify> now all use "app-
+	  sig" as the application signature argument.  <Register> still accepts
+	  "id" for backwards compatibility reasons.  (42.32)
+
+	- <AddClass> now accepts an application signature as an alternative
+	  to an application token.  Use "app=<sig>".  (42.31)
+
+	- Reverted the "Missed Notifications" notification back to using the
+	  default callback rather than an action to open the missed list.
+	  (42.31)
+
+	- Application signature must not contain spaces (a "missing arg"
+	  error will result if it does).  GrowlNet register command ammended
+	  to replace spaces with underscores.  (42.30)
+
+	- <Unregister> action now accepts an "id" argument which should be
+	  the signature of the application to unregister.  Likewise, <Notify>
+	  now accepts an "app" argument as in lieu of an application token.
+	  (42.27)
+
+	- Minor bug fixes and code tweaks.  (42.26)
+
+	- Notification actions must now have a command.  Attempting to add
+	  an action with no command now fails.  If a command begins with '@'
+	  it is sent back to the app which added it either verbatim (for SNP)
+	  or using the item index (win32).  (42.23)
+
+	- Refinements to notification callbacks.  Right-clicking and middle-
+	  clicking are now deprecated although the Win32 API still sends the
+	  appropriate message to ensure backwards-compatibility with older
+	  applications.  The "auto dismiss" flag introduced during the early
+	  V42 development phase has been removed.  (42.22)
+
+	- Removed V41 include.  (42.22)
+
+	- Added rudimentary support for some GNTP functionality (specifically
+	  application registration and notification creation.  (42.22)
+
+	- Removed dependency on legacy include file and moved remaining legacy
+	  constants into new "deprecated" module.  These will be retained for
+	  as long as we support the 1.x API.  (42.21)
+
+	- New VB5/VB6 V42 include file which now uses the Mk.3 Win32 low-level
+	  transport.  (42.21)
+
+	- Implemented new Mk.3 low-level transport (see separate notes) and
+	  removed temporary SNARL42_PARSE command.  (42.21)
+
+	- Application re-registration now requires the password supplied when
+	  the application was first registered.  (42.21)
+
+	- About page now checks existence of the Calibri font and reverts to
+	  Tahoma.  (42.21)
+
+	- Rebranded "Default Ack" and "Acknowledge" to "Callback".  (42.21)
+
+	- Clicking the "Details" button on the Apps page will, for those apps
+	  which don't provide their own information, generate a notification
+	  with basic information about the application.  (42.21)
+
+	- Released as R2.4 DR6.  (42.20)
+
 	- Snarl now performs URL decoding on any incoming SNP2.0 and Win32
 	  packets.  Outgoing notifications (e.g. via the forwarding subsystem)
 	  are now URL-encoded as well.  (42.20) 

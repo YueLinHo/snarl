@@ -26,7 +26,7 @@ Private Const APP_SUB_VER = 4
     ' /* used for decoding incoming standard commands */
 
 Private Type SNARLSTRUCTI
-    Cmd As SNARL_COMMANDS       ' // what to do...
+    Cmd As Long       ' // what to do...
     Id As Long                  ' // snarl message id (returned by snShowMessage())
     Timeout As Long             ' // timeout in seconds (0=sticky)
     LngData2 As Long            ' // reserved
@@ -39,7 +39,7 @@ End Type
     ' /* used for decoding incoming extended commands */
 
 Private Type SNARLSTRUCTEXI
-    Cmd As SNARL_COMMANDS       ' // what to do...
+    Cmd As Long       ' // what to do...
     Id As Long                  ' // snarl message id (returned by snShowMessage())
     Timeout As Long             ' // timeout in seconds (0=sticky)
     LngData2 As Long            ' // reserved
@@ -55,7 +55,7 @@ Private Type SNARLSTRUCTEXI
 End Type
 
 Private Type SNARLREQI
-    Command As SNARL_COMMANDS_41
+    Command As S_SNARL_COMMANDS
     Token As Long
     PacketData(0 To 4095) As Byte
 
@@ -124,9 +124,10 @@ Private Function MWndProcSink_WndProc(ByVal hWnd As Long, ByVal uMsg As Long, By
 
     Case WM_SNARLTEST
         ' /* simple test message - aims to prove Snarl is responding */
+
         Select Case wParam
         Case 0
-            snShowMessage "Test Message", _
+            szShowMessage "Test Message", _
                           "This is the WM_SNARLTEST test message", _
                           20, _
                           g_MakePath(App.Path) & "styles\default\default_icon.png"
@@ -135,7 +136,7 @@ Private Function MWndProcSink_WndProc(ByVal hWnd As Long, ByVal uMsg As Long, By
             MWndProcSink_WndProc = True
 
         Case 1
-            snShowMessage "Test Message", _
+            szShowMessage "Test Message", _
                           "This is a test message (lParam was 0x" & g_HexStr(lParam) & ")", _
                           20, _
                           g_MakePath(App.Path) & "styles\default\default_icon.png"
@@ -144,7 +145,7 @@ Private Function MWndProcSink_WndProc(ByVal hWnd As Long, ByVal uMsg As Long, By
             MWndProcSink_WndProc = True
 
         Case 64
-            snShowMessage g_HexStr((Rnd * 65535) Or &HC0000000), _
+            szShowMessage g_HexStr((Rnd * 65535) Or &HC0000000), _
                           g_HexStr(Rnd * 16777215) & "-" & g_HexStr(Rnd * 16777215), _
                           20, _
                           g_MakePath(App.Path) & "styles\default\default_icon.png"
@@ -198,127 +199,6 @@ Private Function MWndProcSink_WndProc(ByVal hWnd As Long, ByVal uMsg As Long, By
     End Select
 
 End Function
-
-'Private Sub lemon_handle(ByRef Data As SOSSTRUCT)
-'Dim var() As String
-'Dim c As Long
-'Dim i As Long
-'
-'    Select Case Data.Cmd
-'    Case LEMON_CONNECTED
-'        lemonConOut vbCrLf & "Snarl " & g_Version() & " Monitor 2.0", , True
-'        lemonConOut vbCrLf & "Type <help> for command list, <quit> to quit" & vbCrLf
-'        lemon_prompt
-'
-'    Case LEMON_ARGS_RECEIVED
-'        c = lemonGetArgs(Data, var)
-'        If c Then
-'            Select Case var(1)
-'            Case "help"
-'                lemonConOut vbCrLf & vbCrLf & "Snarl Monitor Commands" & vbCrLf, , , True
-'
-'                lemonConOut "apps", , True
-'                lemonConOut " - Lists registered applications" & vbCrLf
-'
-'                lemonConOut "info", , True
-'                lemonConOut " - Displays Snarl information" & vbCrLf
-'
-'                lemonConOut "quit", , True
-'                lemonConOut " - Quits the monitor" & vbCrLf
-'
-'                lemonConOut "test", , True
-'                lemonConOut " - Displays a Snarl message with the specified information" & vbCrLf
-'
-'
-'            Case "quit"
-'                lemonConOut vbCrLf & "bye" & vbCrLf
-'                lemonDisconnect
-'                Exit Sub
-'
-'            Case "test"
-'                uCmdTest c, var
-'
-'            Case "info"
-'                lemonConOut vbCrLf & vbCrLf & "Snarl Information" & vbCrLf, , , True
-'                lemonConOut "Snarl window: 0x" & g_HexStr(mhWnd) & vbCrLf
-'                lemonConOut "SNARL_GLOBAL_MSG: 0x" & g_HexStr(snGetGlobalMsg(), 4) & vbCrLf
-'                lemonConOut "Connected apps: " & g_AppRoster.CountApps() & vbCrLf
-'
-'            Case "apps"
-'                If Not (g_AppRoster Is Nothing) Then
-'                    With g_AppRoster
-'                        For i = 1 To .CountApps
-'                            With .AppAt(i)
-'                                lemonConOut vbCrLf & g_HexStr(.hWnd) & IIf(IsWindow(.hWnd) = 0, "*", " ") & g_RightPad(CStr(.pid), 5) & " " & .Name
-'
-'                            End With
-'                        Next i
-'                        lemonConOut vbCrLf & CStr(.CountApps) & " listed"
-'
-'                    End With
-'                Else
-'                    lemonConOut vbCrLf & "App Roster not running", , True
-'
-'                End If
-'
-'            Case Else
-'                lemonConOut vbCrLf & "unknown command '" & var(1) & "'"
-'
-'            End Select
-'
-'        End If
-'
-'        lemon_prompt
-'
-'    End Select
-'
-'End Sub
-'
-'Private Sub lemon_prompt()
-'
-'    lemonConOut vbCrLf & "s> ", , True
-'
-'End Sub
-'
-'Private Sub uCmdTest(ByVal Args As Long, Arg() As String)
-'Dim szTitle As String
-'Dim szText As String
-'Dim dwTimeout As Long
-'Dim szIcon As String
-'
-'    On Error Resume Next            ' // just in case we get a bad timeout value...
-'
-'    dwTimeout = 10
-'
-'    If Args > 1 Then
-'        szTitle = Arg(2)
-'        If Args > 2 Then
-'            szText = Arg(3)
-'            If Args > 3 Then
-'                If Val(Arg(4)) <> 0 Then _
-'                    dwTimeout = Val(Arg(4))
-'
-'                If Args > 4 Then _
-'                    szIcon = Arg(5)
-'
-'            End If
-'        End If
-'    End If
-'
-'Dim pInfo As T_NOTIFICATION_INFO
-'
-'    With pInfo
-'        .Title = szTitle
-'        .Text = szText
-'        .Timeout = dwTimeout
-'        .IconPath = szIcon
-'
-'    End With
-'
-'    g_NotificationRoster.Add New TAlert, pInfo
-'    lemonConOut vbCrLf & "Okay"
-'
-'End Sub
 
 Private Function uManageSnarl(ByVal wParam As Long, ByVal lParam As Long) As Long
 
@@ -448,16 +328,14 @@ Private Function uManageSnarl(ByVal wParam As Long, ByVal lParam As Long) As Lon
 
 
     Case E_SET_DND_MODE
-        ' /* lParam specifies the mode - 0 = disabled, 1 = enabled */
-        If lParam = 1 Then
-            g_AddDNDLock
+        ' /* lParam specifies the mode - 0 = disabled (decrement lock), 1 = enabled (increment lock) */
+        If lParam = 0 Then
+            g_LockDoNotDisturb False
 
-        ElseIf lParam = 0 Then
-            g_RemDNDLock
+        ElseIf lParam = 1 Then
+            g_LockDoNotDisturb True
 
         End If
-
-'        snShowMessage "DND mode changed", CStr(gPrefs.do_not_disturb)
 
 
     Case Else
@@ -475,12 +353,12 @@ Dim pcds As COPYDATASTRUCT
     CopyMemory pcds, ByVal lpStruct, Len(pcds)
     g_Debug "TMainWindow.uCopyData(): dwData=" & CStr(pcds.dwData) & " hWndFrom=" & g_HexStr(hwndFrom)
 
-    If (pcds.dwData <> 2) And (pcds.dwData <> &H534E4C02) Then
-        ' /* not from Snarl */
-        g_Debug "TMainWindow.uCopyData(): Unknown COPYDATASTRUCT->dwData value '" & CStr(pcds.dwData) & "' from 0x" & g_HexStr(hwndFrom)
-        Exit Function
-
-    End If
+'    If (pcds.dwData <> 2) And (pcds.dwData <> &H534E4C02) Then
+'        ' /* not from Snarl */
+'        g_Debug "TMainWindow.uCopyData(): Unknown COPYDATASTRUCT->dwData value '" & CStr(pcds.dwData) & "' from 0x" & g_HexStr(hwndFrom)
+'        Exit Function
+'
+'    End If
 
     ' /* possible Snarl request */
 
@@ -488,16 +366,22 @@ Dim pss As SNARLSTRUCTI
 
     If g_IsRunning Then
 
-        If pcds.dwData = &H534E4C02 Then
+        Select Case pcds.dwData
+
+        Case &H534E4C03
+            ' /* V42 API request */
+            uCopyData = uDoV42Request(pcds.cbData, pcds.lpData, hwndFrom)
+
+        Case &H534E4C02
             ' /* V41 API request */
             uCopyData = uDoV41Request(pcds.lpData, hwndFrom)
 
-        Else
+        Case 2
 
             ' /* retrieve the SNARLSTRUCT so we can get the command */
 
             CopyMemory pss, ByVal pcds.lpData, Len(pss)
-            g_Debug "TMainWindow.uCopyData(): cmd=" & snCommandStr(pss.Cmd) & " id=" & pss.Id & " lngdata2=" & g_HexStr(pss.LngData2), LEMON_LEVEL_PROC
+            g_Debug "TMainWindow.uCopyData(): cmd=" & g_XCommandStr(pss.Cmd) & " id=" & pss.Id & " lngdata2=" & g_HexStr(pss.LngData2), LEMON_LEVEL_PROC
 
             If pss.Cmd >= SNARL_EX_SHOW Then
                 ' /* extended command */
@@ -508,11 +392,16 @@ Dim pss As SNARLSTRUCTI
                 uCopyData = uDoCmd(pss, hwndFrom)
 
             End If
-        End If
+
+        Case Else
+            g_Debug "TMainWindow.uCopyData(): Unknown COPYDATASTRUCT->dwData value '" & CStr(pcds.dwData) & "' from 0x" & g_HexStr(hwndFrom)
+            gSetLastError SNARL_ERROR_BAD_PACKET
+
+        End Select
 
     Else
         g_Debug "TMainWindow.uCopyData(): notification engine is not running", LEMON_LEVEL_WARNING
-        gSetLastError SNARL41_ERROR_NOT_RUNNING
+        gSetLastError SNARL_ERROR_NOT_RUNNING
 
         ' /* TO-DO: we might want to log the notification somewhere? */
 
@@ -562,10 +451,8 @@ Dim sz As String
 
         End If
 
-
     Case SNARL_HIDE
         uDoCmd = g_NotificationRoster.Hide(pss.Id)
-
 
     Case SNARL_UPDATE
         uDoCmd = uOldUpdate(pss.Id, g_UTF8(pss.Title), g_UTF8(pss.Text), g_UTF8(pss.Icon))
@@ -798,8 +685,70 @@ Dim pa As TApp
 
 End Function
 
-Private Function uDoV41Request(ByVal lpRequest As Long, ByVal SenderPID As Long) As Long
+Private Function uDoV42Request(ByVal cbRequest As Long, ByVal lpRequest As Long, ByVal SenderPID As Long) As Long
+Dim sz As String
+
+    ' /* easy: get the request, do some pre-processing on it and send it over to g_DoAction()
+    '    which handles everything for us, including setting/clearing LastError */
+
+    Debug.Print "TMainWindow.uDoV42Request(): data is " & cbRequest & " byte(s)"
+
+    ' /* V42 requests are variable length */
+
+    sz = String(cbRequest, 0)
+    CopyMemory ByVal StrPtr(sz), ByVal lpRequest, cbRequest
+    sz = g_UTF8(sz)
+
+    Debug.Print "TMainWindow.uDoV42Request(): data is '" & sz & "'"
+
+    ' /* must at least have an action */
+
+    If sz = "" Then
+        gSetLastError SNARL_ERROR_BAD_PACKET
+        Exit Function
+
+    End If
+
+    ' /* convert to internal format (note that 'real' equals and apostrophe
+    '    signs will still be url-encoded so they're safe */
+
+    sz = Replace$(sz, "=", "::")
+    sz = Replace$(sz, "&", "#?")
+
+Dim szAction As String
+Dim i As Integer
+
+    ' /* find the action/arg marker */
+
+    i = InStr(sz, "?")
+    If i Then
+        ' /* action and args */
+        szAction = g_SafeLeftStr(sz, i - 1)
+        sz = g_SafeRightStr(sz, Len(sz) - i)
+
+    Else
+        ' /* just an action */
+        szAction = sz
+        sz = ""
+
+    End If
+
+    ' /* set the packed data and URL-decode the arguments at the same time */
+
 Dim pData As BPackedData
+Dim lToken As Long
+
+    Set pData = New BPackedData
+    pData.SetTo g_DecodeURL(sz)
+    lToken = g_SafeLong(pData.ValueOf("token"))
+
+    ' /* pass to master function */
+
+    uDoV42Request = g_DoAction(szAction, lToken, pData)
+
+End Function
+
+Private Function uDoV41Request(ByVal lpRequest As Long, ByVal SenderPID As Long) As Long
 Dim pReq As SNARLREQI
 
     ' /* this is much neater under V42: we convert the command into an action
@@ -807,59 +756,53 @@ Dim pReq As SNARLREQI
     '    us, including setting/clearing LastError */
 
     CopyMemory pReq, ByVal lpRequest, Len(pReq)
-    Set pData = New BPackedData
-    pData.SetTo g_DecodeURL(g_UTF8(pReq.PacketData))
 
 Dim szAction As String
 
+    ' /* set the packed data and URL-decode at the same time */
+
+Dim pData As BPackedData
+
+    Set pData = New BPackedData
+    pData.SetTo g_DecodeURL(g_UTF8(pReq.PacketData))
+
+    ' /* parse the command */
+
     Select Case pReq.Command
 
-    Case SNARL41_REGISTER_APP
+    Case SNARLX41_REGISTER_APP
         szAction = "reg"
 
-    Case SNARL41_UNREGISTER_APP
+    Case SNARLX41_UNREGISTER_APP
         szAction = "unreg"
 
-    Case SNARL41_UPDATE_APP
+    Case SNARLX41_UPDATE_APP
         szAction = "updateapp"
 
-    Case SNARL41_ADD_CLASS
+    Case SNARLX41_ADD_CLASS
         szAction = "addclass"
 
-    Case SNARL41_REMOVE_CLASS
+    Case SNARLX41_REMOVE_CLASS
         szAction = "remclass"
 
-    Case SNARL41_LAST_ERROR
+    Case SNARLX41_LAST_ERROR
         szAction = "lasterror"
 
-    Case SNARL41_NOTIFY
+    Case SNARLX41_NOTIFY
         szAction = "notify"
 
-    Case SNARL41_UPDATE_NOTIFICATION
+    Case SNARLX41_UPDATE_NOTIFICATION
         szAction = "update"
 
-    Case SNARL41_HIDE_NOTIFICATION
+    Case SNARLX41_HIDE_NOTIFICATION
         szAction = "hide"
 
-    Case SNARL41_IS_NOTIFICATION_VISIBLE
+    Case SNARLX41_IS_NOTIFICATION_VISIBLE
         szAction = "isvisible"
-
-    Case SNARL42_ADD_ACTION
-        szAction = "addaction"
-
-    Case SNARL42_CLEAR_ACTIONS
-        szAction = "killactions"
-
-    Case SNARL42_SHOW_REQUEST
-        szAction = "alert"
-
-    Case SNARL42_PARSE
-        szAction = pData.ValueOf("action")
-        pReq.Token = g_SafeLong(pData.ValueOf("token"))
 
     Case Else
         ' /* no need to process these */
-        gSetLastError SNARL41_ERROR_UNKNOWN_COMMAND
+        gSetLastError SNARL_ERROR_UNKNOWN_COMMAND
         Exit Function
 
     End Select

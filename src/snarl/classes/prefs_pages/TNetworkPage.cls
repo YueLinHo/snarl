@@ -40,7 +40,7 @@ Dim pm As CTempMsg
         pm.Replace "text", "Listen for incoming JSON notifications?"
         .Add new_BPrefsControl("fancytoggle", "listen_for_json", , , g_ConfigGet("listen_for_json"), pm)
 
-        .Add new_BPrefsControl("label", "", "Snarl will listen on port 9887 for incoming notifications and port 9889 for incoming JSON notifications.  You may need to adjust your firewall settings in order to receive these.")
+        .Add new_BPrefsControl("label", "", "Snarl will listen on ports 9887 and 23053 for incoming notifications, and port 9889 for incoming JSON notifications.  You may need to adjust your firewall settings in order to receive these.")
 
         .Add new_BPrefsControl("separator", "")
 ''        pm.Replace "text", "Forward notifications?"

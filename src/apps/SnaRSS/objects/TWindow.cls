@@ -43,6 +43,8 @@ Private Function BWndProcSink_WndProc(ByVal hWnd As Long, ByVal uMsg As Long, By
         If gToken Then _
             sn41UnregisterApp gToken
 
+        Set mFeedRoster = Nothing
+
 
     Case WM_CLOSE
         PostQuitMessage 0
@@ -114,6 +116,8 @@ Private Sub uRegisterWithSnarl()
     If gToken Then
         frmMain.List1.Tag = CStr(gToken)
         frmMain.Add "Registered with Snarl (token=" & CStr(gToken) & ")"
+'        g_Debug "Registered with Snarl (token=" & CStr(gToken) & ")"
+
 '        sn41AddClass gtoken, "info", "Informational notifications"
 '        sn41AddClass gtoken, "warn", "Warning notifications"
 '        sn41AddClass gtoken, "crit", "Critical notifications"
@@ -121,6 +125,7 @@ Private Sub uRegisterWithSnarl()
 
     Else
         frmMain.Add "Error registering with Snarl (" & CStr(sn41GetLastError()) & ")"
+'        g_Debug "Error registering with Snarl (" & CStr(sn41GetLastError()) & ")"
 
     End If
 

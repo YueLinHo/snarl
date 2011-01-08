@@ -114,12 +114,8 @@ Dim i As Long
                                                 "Update Available", _
                                                 sz & " is available for download (you have " & App.Comments & ")." & vbCrLf & vbCrLf & "Click this notification to go to the download website.", _
                                                 40, _
-                                                g_MakePath(App.Path) & "etc\icons\snarl-update.png")
+                                                g_MakePath(App.Path) & "etc\icons\snarl-update.png", , szURL)
 
-                            If i > 0 Then _
-                                snChangeAttribute i, SNARL_ATTRIBUTE_ACK, szURL
-
-'                            MsgBox "An update is available:" & vbCrLf & vbCrLf & sz & vbCrLf & mGetFileRequest.Content, vbInformation Or vbOKOnly, App.Title
                             Exit Sub
 
                         Else

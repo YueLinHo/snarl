@@ -147,7 +147,7 @@ Dim pc As BControl
             pc.SetText IIf(g_IsRunning, "Snarl is running", "Snarl is stopped")
 
     Case "go_app_manager"
-        ShellExecute 0, "open", g_MakePath(App.Path) & "Snarl_App_Manager.exe", vbNullString, vbNullString, SW_SHOW
+        ShellExecute 0, "open", g_MakePath(App.Path) & "SNARLAPP_Manager.exe", vbNullString, vbNullString, SW_SHOW
 
     Case "update_now"
         g_DoManualUpdateCheck

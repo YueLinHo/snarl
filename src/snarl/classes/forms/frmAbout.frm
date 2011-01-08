@@ -30,7 +30,7 @@ Begin VB.Form frmAbout
       Left            =   240
       Top             =   3240
    End
-   Begin VB.Label Label2 
+   Begin VB.Label Label3 
       BackStyle       =   0  'Transparent
       Caption         =   "UTF8 support by Tomas, Icons by Mattahan.  Additional development and testing:   "
       BeginProperty Font 
@@ -43,6 +43,7 @@ Begin VB.Form frmAbout
          Strikethrough   =   0   'False
       EndProperty
       Height          =   435
+      Index           =   5
       Left            =   1980
       TabIndex        =   6
       Top             =   1500
@@ -238,33 +239,32 @@ Dim mCurAlert As TAlert
 Dim mPanel As BPrefsPanel
 Dim mAppsPage As TAppsPage
 
+    ' /* listening sockets */
+Dim WithEvents JSONSocket As CSocket            ' // 9889 (TCP)
+Attribute JSONSocket.VB_VarHelpID = -1
+Dim WithEvents GrowlUDPSocket As CSocket        ' // 9887 (UDP)
+Attribute GrowlUDPSocket.VB_VarHelpID = -1
+Dim mListener() As CSnarlListener               ' // 9887 (TCP) - all local ip addresses
+Dim mListenerCount As Long
+
+    ' /* active JSON connections */
 Dim mJSONSocket() As CJSONSocket
 Dim mSockets As Long
 
-Dim WithEvents ioSocket As CSocket
-Attribute ioSocket.VB_VarHelpID = -1
-Dim WithEvents GrowlUDPSocket As CSocket
-Attribute GrowlUDPSocket.VB_VarHelpID = -1
-
-Dim mListener() As CSnarlListener
-Dim mListenerCount As Long
 
 Dim mClickThruOver As CSnarlWindow
 Dim mMenuOpen As Boolean
 
-'Dim WithEvents myDownloadUpdateRequest As CHTTPRequest
 Dim mDownloadId As Long
 
-Private Type T_REMOTENOTIFICATION
-    Token As Long               ' // notification token
-    Socket As CSnarlSocket      ' // remote socket
-
-End Type
-
-Dim mRemoteNotification() As T_REMOTENOTIFICATION
-Dim mRemoteNotifications As Long
-
-'Dim WithEvents theIdleTimer As BTimer
+'Private Type T_REMOTENOTIFICATION
+'    Token As Long               ' // notification token
+'    Socket As TRemoteConnection
+'
+'End Type
+'
+'Dim mRemoteNotification() As T_REMOTENOTIFICATION
+'Dim mRemoteNotifications As Long
 
 Dim WithEvents theReadyTimer As BTimer
 Attribute theReadyTimer.VB_VarHelpID = -1
@@ -287,41 +287,53 @@ Dim n As Integer
 
     g_HideFromView Me.hWnd
 
+    ' /* R2.4 DR7: check for Calibri and default to Tahoma */
+
+    For n = Label3.LBound To Label3.UBound
+        Label3(n).Font.Name = "Calibri"
+        If Label3(n).Font.Name <> "Calibri" Then
+            Label3(n).Font.Name = "Tahoma"
+            Label3(n).Font.Size = Label3(n).Font.Size - 1
+
+        End If
+
+    Next n
+
     ' /* add user messages to UIPI allowed filter */
 
     g_Debug "frmAbout.Load(): relaxing UIPI message filter..."
     g_Debug "frmAbout.Load(): o/s is 0x" & g_HexStr(g_GetNTVersion())
 
-    If g_GetNTVersion() >= NTWIN7 Then
-        g_Debug "Windows 7 / Windows 2008 R2 (or better)..."
-        ChangeWindowMessageFilterEx Me.hWnd, WM_SNARL_TRAY_ICON, MSGFLT_ALLOW, 0&
-        ChangeWindowMessageFilterEx Me.hWnd, WM_REMOTENOTIFY, MSGFLT_ALLOW, 0&
-        ChangeWindowMessageFilterEx Me.hWnd, WM_INSTALL_SNARL, MSGFLT_ALLOW, 0&
-        ChangeWindowMessageFilterEx Me.hWnd, MSG_SHOW_PREFS, MSGFLT_ALLOW, 0&
-'        ChangeWindowMessageFilterEx Me.hWnd, MSG_QUIT, MSGFLT_ALLOW, 0&
-        ChangeWindowMessageFilterEx Me.hWnd, WM_SNARLTEST, MSGFLT_ALLOW, 0&
-        ChangeWindowMessageFilterEx Me.hWnd, WM_MANAGE_SNARL, MSGFLT_ALLOW, 0&
-
-'WM_SNARL_TRAY_ICON     ' // WM_USER + 3
-'WM_REMOTENOTIFY        ' // WM_USER + 9
-'WM_INSTALL_SNARL       ' // WM_USER + 12
-'MSG_SHOW_PREFS         ' // WM_USER + 80
-'MSG_QUIT               ' // WM_USER + 81
-'WM_SNARLTEST           ' // WM_USER + 237
-'WM_MANAGE_SNARL        ' // WM_USER + 238
-
-    ElseIf g_GetNTVersion() = NTVISTA Then
-        ' /* we will do this here but *NOT* in TMainWindow construction */
-        g_Debug "Windows Vista / Windows 2008"
-        ChangeWindowMessageFilter WM_SNARL_TRAY_ICON, MSGFLT_ADD
-        ChangeWindowMessageFilter WM_REMOTENOTIFY, MSGFLT_ADD
-        ChangeWindowMessageFilter WM_INSTALL_SNARL, MSGFLT_ADD
-        ChangeWindowMessageFilter MSG_SHOW_PREFS, MSGFLT_ADD
-'        ChangeWindowMessageFilter MSG_QUIT, MSGFLT_ADD
-        ChangeWindowMessageFilter WM_SNARLTEST, MSGFLT_ADD
-        ChangeWindowMessageFilter WM_MANAGE_SNARL, MSGFLT_ADD
-
-    End If
+'    If g_GetNTVersion() >= NTWIN7 Then
+'        g_Debug "Windows 7 / Windows 2008 R2 (or better)..."
+'        ChangeWindowMessageFilterEx Me.hWnd, WM_SNARL_TRAY_ICON, MSGFLT_ALLOW, 0&
+'        ChangeWindowMessageFilterEx Me.hWnd, WM_REMOTENOTIFY, MSGFLT_ALLOW, 0&
+'        ChangeWindowMessageFilterEx Me.hWnd, WM_INSTALL_SNARL, MSGFLT_ALLOW, 0&
+'        ChangeWindowMessageFilterEx Me.hWnd, MSG_SHOW_PREFS, MSGFLT_ALLOW, 0&
+''        ChangeWindowMessageFilterEx Me.hWnd, MSG_QUIT, MSGFLT_ALLOW, 0&
+'        ChangeWindowMessageFilterEx Me.hWnd, WM_SNARLTEST, MSGFLT_ALLOW, 0&
+'        ChangeWindowMessageFilterEx Me.hWnd, WM_MANAGE_SNARL, MSGFLT_ALLOW, 0&
+'
+''WM_SNARL_TRAY_ICON     ' // WM_USER + 3
+''WM_REMOTENOTIFY        ' // WM_USER + 9
+''WM_INSTALL_SNARL       ' // WM_USER + 12
+''MSG_SHOW_PREFS         ' // WM_USER + 80
+''MSG_QUIT               ' // WM_USER + 81
+''WM_SNARLTEST           ' // WM_USER + 237
+''WM_MANAGE_SNARL        ' // WM_USER + 238
+'
+'    ElseIf g_GetNTVersion() = NTVISTA Then
+'        ' /* we will do this here but *NOT* in TMainWindow construction */
+'        g_Debug "Windows Vista / Windows 2008"
+'        ChangeWindowMessageFilter WM_SNARL_TRAY_ICON, MSGFLT_ADD
+'        ChangeWindowMessageFilter WM_REMOTENOTIFY, MSGFLT_ADD
+'        ChangeWindowMessageFilter WM_INSTALL_SNARL, MSGFLT_ADD
+'        ChangeWindowMessageFilter MSG_SHOW_PREFS, MSGFLT_ADD
+''        ChangeWindowMessageFilter MSG_QUIT, MSGFLT_ADD
+'        ChangeWindowMessageFilter WM_SNARLTEST, MSGFLT_ADD
+'        ChangeWindowMessageFilter WM_MANAGE_SNARL, MSGFLT_ADD
+'
+'    End If
 
 
 
@@ -495,6 +507,10 @@ Private Sub Image2_MouseMove(Button As Integer, Shift As Integer, x As Single, y
 
 End Sub
 
+Private Sub Label2_Click()
+
+End Sub
+
 Private Function MWndProcSink_WndProc(ByVal hWnd As Long, ByVal uMsg As Long, ByVal wParam As Long, ByVal lParam As Long, ByVal PrevWndProc As Long, ReturnValue As Long) As Boolean
 Static fIgnoreNext As Boolean
 Dim dw As Long
@@ -573,28 +589,29 @@ Dim dw As Long
         MWndProcSink_WndProc = True
 
     Case WM_INSTALL_SNARL
-        If LoWord(wParam) = SNARL_NOTIFICATION_ACK Then _
+        If LoWord(wParam) = SNARL_CALLBACK_INVOKED Then _
             ShellExecute hWnd, "open", g_MakePath(App.Path) & gUpdateFilename, vbNullString, vbNullString, SW_SHOW
 
-    Case WM_REMOTENOTIFY
 
-        Debug.Print "WM_REMOTENOTIFY: token=" & lParam & " notification=" & LoWord(wParam)
-
-        dw = uFindRemoteNotification(lParam)
-        If dw = 0 Then
-            g_Debug "WM_REMOTENOTIFY: token " & g_HexStr(lParam) & " not in remote list", LEMON_LEVEL_CRITICAL
-
-        Else
-            mRemoteNotification(dw).Socket.Notify LoWord(wParam), CStr(lParam)
-            Select Case LoWord(wParam)
-            Case SNARL_NOTIFICATION_ACK, SNARL_NOTIFICATION_CLOSED
-                uRemoveRemoteNotification dw
-
-            End Select
-
-        End If
-
-        MWndProcSink_WndProc = True
+'    Case WM_REMOTENOTIFY
+'
+'        Debug.Print "WM_REMOTENOTIFY: token=" & lParam & " notification=" & LoWord(wParam)
+'
+'        dw = uFindRemoteNotification(lParam)
+'        If dw = 0 Then
+'            g_Debug "WM_REMOTENOTIFY: token " & g_HexStr(lParam) & " not in remote list", LEMON_LEVEL_CRITICAL
+'
+'        Else
+'            mRemoteNotification(dw).Socket.Notify LoWord(wParam), CStr(lParam)
+'            Select Case LoWord(wParam)
+'            Case SNARL_NOTIFICATION_ACK, SNARL_NOTIFICATION_CLOSED
+'                uRemoveRemoteNotification dw
+'
+'            End Select
+'
+'        End If
+'
+'        MWndProcSink_WndProc = True
 
     End Select
 
@@ -645,7 +662,7 @@ Dim update_config   As Boolean
 '        .AddItem .CreateItem("app_mgr", "App Manager...")
         .AddItem .CreateItem("", "Snarl Apps", , , , , , g_AppRoster.SnarlAppsMenu())
         .AddSeparator
-        .AddItem .CreateItem("about", "About Snarl")
+        .AddItem .CreateItem("about", "About Snarl...")
 
         Set pi = .Track(Me.hWnd)
 
@@ -679,22 +696,31 @@ Dim update_config   As Boolean
             Me.NewDoPrefs
 
 '        Case "app_mgr"
-'            ShellExecute 0, "open", g_MakePath(App.Path) & "Snarl_App_Manager.exe", vbNullString, vbNullString, SW_SHOW
+'            ShellExecute 0, "open", g_MakePath(App.Path) & "SNARLAPP_Manager.exe", vbNullString, vbNullString, SW_SHOW
 
         Case "sticky"
             g_ConfigSet "sticky_snarls", IIf(g_ConfigGet("sticky_snarls") = "1", "0", "1")
 
         Case "dnd"
-            gPrefs.UserDnD = Not gPrefs.UserDnD
-
-            If gPrefs.UserDnD Then
-                If Not (g_NotificationRoster Is Nothing) Then _
-                    g_NotificationRoster.ResetMissedCount
+            If g_IsDNDModeEnabled Then
+                ' /* currently enabled so forcably unlock it */
+                g_ForceUnlockDoNotDisturb
 
             Else
-                g_CheckMissed
+                g_LockDoNotDisturb True
 
             End If
+
+'            gPrefs.UserDnD = Not gPrefs.UserDnD
+'
+'            If gPrefs.UserDnD Then
+'                If Not (g_NotificationRoster Is Nothing) Then _
+'                    g_NotificationRoster.ResetMissedCount
+'
+'            Else
+'                g_CheckMissed
+'
+'            End If
 
         Case "missed"
             If Not (g_NotificationRoster Is Nothing) Then _
@@ -702,7 +728,7 @@ Dim update_config   As Boolean
 
         Case Else
             If g_SafeLeftStr(pi.Name, 1) = "!" Then _
-                g_AppRoster.SnarlAppDo Val(g_SafeRightStr(pi.Name, Len(pi.Name) - 1)), SNARL_APP_SHOW_PREFS
+                g_AppRoster.SnarlAppDo Val(g_SafeRightStr(pi.Name, Len(pi.Name) - 1)), SNARLAPP_DO_PREFS
 
 '            sz = g_SafeLeftStr(pi.Name, 3)
 '            szData = g_SafeRightStr(pi.Name, Len(pi.Name) - 3)
@@ -710,11 +736,11 @@ Dim update_config   As Boolean
 '            Select Case sz
 '            Case "cfg"
 '                ' /* Snarl App -> Settings... szData is App Roster index */
-'                g_AppRoster.SnarlAppDo Val(szData), SNARL_APP_SHOW_PREFS
+'                g_AppRoster.SnarlAppDo Val(szData), SNARLAPP_SHOW_PREFS
 '
 '            Case "abt"
 '                ' /* Snarl App -> About... szData is App Roster index */
-'                g_AppRoster.SnarlAppDo Val(szData), SNARL_APP_SHOW_ABOUT
+'                g_AppRoster.SnarlAppDo Val(szData), SNARLAPP_SHOW_ABOUT
 '
 '            End Select
 
@@ -924,15 +950,15 @@ Dim sz() As String
 
 End Function
 
-Private Sub ioSocket_OnConnect()
+Private Sub JSONSocket_OnConnect()
 
-    g_Debug "ioSocket.OnConnect()", LEMON_LEVEL_PROC
+    g_Debug "JSONSocket.OnConnect()", LEMON_LEVEL_PROC
 
 End Sub
 
-Private Sub ioSocket_OnConnectionRequest(ByVal requestID As Long)
+Private Sub JSONSocket_OnConnectionRequest(ByVal requestID As Long)
 
-    g_Debug "ioSocket.OnConnectionRequest(): requestID=0x" & g_HexStr(requestID), LEMON_LEVEL_PROC
+    g_Debug "JSONSocket.OnConnectionRequest(): requestID=0x" & g_HexStr(requestID), LEMON_LEVEL_PROC
 
     mSockets = mSockets + 1
     ReDim Preserve mJSONSocket(mSockets)
@@ -941,9 +967,9 @@ Private Sub ioSocket_OnConnectionRequest(ByVal requestID As Long)
 
 End Sub
 
-Private Sub ioSocket_OnDataArrival(ByVal bytesTotal As Long)
+Private Sub JSONSocket_OnDataArrival(ByVal bytesTotal As Long)
 
-    g_Debug "ioSocket.OnDataArrival(): bytesTotal=" & g_HexStr(bytesTotal), LEMON_LEVEL_PROC
+    g_Debug "JSONSocket.OnDataArrival(): bytesTotal=" & g_HexStr(bytesTotal), LEMON_LEVEL_PROC
 
 End Sub
 
@@ -1153,7 +1179,7 @@ Private Sub theReadyTimer_Pulse()
     ' /* tell everyone we're open for business */
 
     g_Debug "Notifying ready to run..."
-    PostMessage HWND_BROADCAST, snGetGlobalMsg(), SNARL_LAUNCHED, ByVal CLng(App.Major)
+    PostMessage HWND_BROADCAST, g_GlobalMessage(), SNARL_BROADCAST_LAUNCHED, ByVal CLng(App.Major)
 
 End Sub
 
@@ -1278,53 +1304,53 @@ End Sub
 '
 'End Sub
 
-Public Sub AddRemoteNotification(ByVal Token As Long, ByRef Socket As CSnarlSocket)
-
-    mRemoteNotifications = mRemoteNotifications + 1
-    ReDim Preserve mRemoteNotification(mRemoteNotifications)
-    With mRemoteNotification(mRemoteNotifications)
-        .Token = Token
-        Set .Socket = Socket
-
-    End With
-
-End Sub
-
-Private Function uFindRemoteNotification(ByVal Token As Long) As Long
-Dim i As Long
-
-    If mRemoteNotifications = 0 Then _
-        Exit Function
-
-    For i = 1 To mRemoteNotifications
-        If mRemoteNotification(i).Token = Token Then
-           uFindRemoteNotification = i
-           Exit Function
-
-        End If
-
-    Next i
-
-End Function
-
-Private Sub uRemoveRemoteNotification(ByVal Index As Long)
-Dim i As Long
-
-    If (Index < 1) Or (Index > mRemoteNotifications) Then _
-        Exit Sub
-
-    If Index < mRemoteNotifications Then
-        For i = Index To (mRemoteNotifications - 1)
-            LSet mRemoteNotification(i) = mRemoteNotification(i + 1)
-
-        Next i
-
-    End If
-
-    mRemoteNotifications = mRemoteNotifications - 1
-    ReDim Preserve mRemoteNotification(mRemoteNotifications)
-
-End Sub
+'Public Sub AddRemoteNotification(ByVal Token As Long, ByRef Socket As TRemoteConnection)
+'
+'    mRemoteNotifications = mRemoteNotifications + 1
+'    ReDim Preserve mRemoteNotification(mRemoteNotifications)
+'    With mRemoteNotification(mRemoteNotifications)
+'        .Token = Token
+'        Set .Socket = Socket
+'
+'    End With
+'
+'End Sub
+'
+'Private Function uFindRemoteNotification(ByVal Token As Long) As Long
+'Dim i As Long
+'
+'    If mRemoteNotifications = 0 Then _
+'        Exit Function
+'
+'    For i = 1 To mRemoteNotifications
+'        If mRemoteNotification(i).Token = Token Then
+'           uFindRemoteNotification = i
+'           Exit Function
+'
+'        End If
+'
+'    Next i
+'
+'End Function
+'
+'Private Sub uRemoveRemoteNotification(ByVal Index As Long)
+'Dim i As Long
+'
+'    If (Index < 1) Or (Index > mRemoteNotifications) Then _
+'        Exit Sub
+'
+'    If Index < mRemoteNotifications Then
+'        For i = Index To (mRemoteNotifications - 1)
+'            LSet mRemoteNotification(i) = mRemoteNotification(i + 1)
+'
+'        Next i
+'
+'    End If
+'
+'    mRemoteNotifications = mRemoteNotifications - 1
+'    ReDim Preserve mRemoteNotification(mRemoteNotifications)
+'
+'End Sub
 
 Public Sub EnableJSON(ByVal Enabled As Boolean)
 
@@ -1333,17 +1359,17 @@ Public Sub EnableJSON(ByVal Enabled As Boolean)
     If Enabled Then
         g_Debug "creating JSON listener..."
 
-        Set ioSocket = New CSocket
-        ioSocket.Bind "9889", "127.0.0.1"
-        ioSocket.Listen
+        Set JSONSocket = New CSocket
+        JSONSocket.Bind "9889", "127.0.0.1"
+        JSONSocket.Listen
 
-        g_Debug "listening on " & ioSocket.LocalIP & ":" & ioSocket.LocalPort & "..."
+        g_Debug "listening on " & JSONSocket.LocalIP & ":" & JSONSocket.LocalPort & "..."
 
     Else
         g_Debug "stopping JSON listener..."
-        If Not (ioSocket Is Nothing) Then
-            ioSocket.CloseSocket
-            Set ioSocket = Nothing
+        If Not (JSONSocket Is Nothing) Then
+            JSONSocket.CloseSocket
+            Set JSONSocket = Nothing
             g_Debug "JSON listener stopped"
 
         Else
@@ -1366,15 +1392,18 @@ Dim i As Long
         g_Debug "getting local ip address table..."
         ' /* get local ip addresses */
         szAddr() = Split(get_ip_address_table(), " ")
+
         If UBound(szAddr()) > -1 Then
+
+            ' /* add SNP/tcp and GNTP listeners */
+
             For i = 0 To UBound(szAddr())
                 If szAddr(i) <> "0.0.0.0" Then
-                    mListenerCount = mListenerCount + 1
-                    ReDim Preserve mListener(mListenerCount)
-                    Set mListener(mListenerCount) = New CSnarlListener
-                    mListener(mListenerCount).Go szAddr(i)
+                    uAddListener szAddr(i), False                   ' // SNP listener
+                    uAddListener szAddr(i), True                    ' // GNTP listener
 
                 End If
+
             Next i
 
         Else
@@ -1382,7 +1411,9 @@ Dim i As Long
 
         End If
 
-        g_Debug "EnableSNP(): creating Growl UDP socket..."
+        ' /* R2.4: native Growl/UDP support */
+
+        g_Debug "creating Growl UDP socket..."
 
         Set GrowlUDPSocket = New CSocket
         With GrowlUDPSocket
@@ -1393,7 +1424,7 @@ Dim i As Long
 
     Else
 
-        g_Debug "EnableSNP(): closing Growl UDP socket..."
+        g_Debug "closing Growl UDP socket..."
 
         If Not (GrowlUDPSocket Is Nothing) Then
             GrowlUDPSocket.CloseSocket
@@ -1534,5 +1565,14 @@ End Sub
 Friend Sub bReadyToRun()
 
     Set theReadyTimer = new_BTimer(2000, True)
+
+End Sub
+
+Private Sub uAddListener(ByVal IPAddr As String, ByVal IsGNTP As Boolean)
+
+    mListenerCount = mListenerCount + 1
+    ReDim Preserve mListener(mListenerCount)
+    Set mListener(mListenerCount) = New CSnarlListener
+    mListener(mListenerCount).Go IPAddr, IsGNTP
 
 End Sub

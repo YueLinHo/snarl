@@ -207,12 +207,13 @@ Dim szText As String
                 .SchemeName = szScheme
                 .Position = E_START_DEFAULT_POS
                 .Priority = IIf(Val(Value) = 3, 1, 0)
+                Set .ClassObj = New TAlert              ' // we must have a class object, so create a default one (bit of a kludge)
 
             End With
 
-            g_KludgeNotificationInfo pInfo
+'            g_KludgeNotificationInfo pInfo
 
-            g_NotificationRoster.Add New TAlert, pInfo
+            g_NotificationRoster.Add pInfo, Nothing
 
 
         Case 4
@@ -550,6 +551,8 @@ Dim pInfo As T_NOTIFICATION_INFO
         .IconPath = mStyle.IconPath
         .StyleName = mStyle.Name
         .SchemeName = LCase$(mScheme)
+        ' /* R2.4 DR7 */
+        Set .ClassObj = New TAlert
 
     End With
 
@@ -559,7 +562,7 @@ Dim pInfo As T_NOTIFICATION_INFO
 Dim pw As CSnarlWindow
 
     Set pw = New CSnarlWindow
-    If pw.Create(New TAlert, pInfo, mStyle.CreateInstance(), mStyle.Flags, g_GetStylePath(mStyle.Name)) = M_OK Then
+    If pw.Create(pInfo, mStyle.CreateInstance(), mStyle.Flags, g_GetStylePath(mStyle.Name)) = M_OK Then
         pw.CaptureToFile uMakePreviewName()
         pw.Zap
         uCreatePreviewImage = True

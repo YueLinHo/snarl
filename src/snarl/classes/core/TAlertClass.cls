@@ -294,21 +294,18 @@ Dim pInfo As T_NOTIFICATION_INFO
         .Title = Me.Description
         .Text = "Test Notification"
         .Timeout = -1
-        .IconPath = Me.App.Icon
 
     End With
 
-    g_KludgeNotificationInfo pInfo
-
-    Me.ShowNotification pInfo
+    Me.ShowNotification pInfo, Nothing
 
 End Sub
 
-Friend Function ShowNotification(ByRef Info As T_NOTIFICATION_INFO) As Long
+Friend Function ShowNotification(ByRef Info As T_NOTIFICATION_INFO, ByRef Args As BPackedData) As Long
 
-    ' /* IMPORTANT! This should *only* be called by TApp.Show() */
+    ' /* IMPORTANT! This should *only* be called by TApp.Show(), TApp.Show41() and TAlert.TestNotification() */
 
-    gSetLastError SNARL41_ERROR_SYSTEM
+    gSetLastError SNARL_ERROR_SYSTEM
     If (g_NotificationRoster Is Nothing) Then _
         Exit Function
 
@@ -316,7 +313,7 @@ Friend Function ShowNotification(ByRef Info As T_NOTIFICATION_INFO) As Long
 
     If Me.GetValue("enabled") = "0" Then
         g_Debug "TAlert.ShowNotification(): class '" & mContent.Class & "' has been disabled by the user"
-        gSetLastError SNARL41_ERROR_CLASS_BLOCKED
+        gSetLastError SNARL_ERROR_CLASS_BLOCKED
         Exit Function
 
     End If
@@ -391,6 +388,11 @@ Dim lDur As E_NOTIFICATION_DURATION
 
     End If
 
+    ' /* R2.4 DR7: if still no icon, use app's icon */
+
+    If Info.IconPath = "" Then _
+        Info.IconPath = Me.App.Icon
+
     ' /* R2.31d3: custom ack */
 
     If Me.GetValue("use_custom_ack") = "1" Then
@@ -438,9 +440,12 @@ Dim lDur As E_NOTIFICATION_DURATION
 
     End If
 
+    ' /* R2.4 DR7: now store originating class object */
+    Set Info.ClassObj = Me
+
     ' /* send it to the notification roster */
 
-    ShowNotification = g_NotificationRoster.Add(Me, Info)
+    ShowNotification = g_NotificationRoster.Add(Info, Args)
 
     mLastToken = Info.Token
     Debug.Print "TAlert.ShowNotification(): token=" & CStr(mLastToken) & " sender=" & CStr(mContent.App.Token) & " (" & mContent.App.Signature & ") title='" & Info.Title & "' text='" & Info.Text & "'"

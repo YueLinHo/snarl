@@ -89,35 +89,31 @@ Dim i As Integer
     ' */
 
     sz = g_SafeRightStr(sz, Len(sz) - 5)
-    i = InStr(sz, "HTTP")
+    i = InStrRev(sz, "HTTP")
     sz = g_SafeLeftStr(sz, i - 2)
 
-'Dim pData As BPackedData
-Dim szCmd As String
-
-    ' /* get the command */
-
-    i = InStr(sz, "?")
-    If i = 0 Then
-        ' /* no data, just a command */
-        szCmd = sz
-        sz = ""
-
-    Else
-        szCmd = g_SafeLeftStr(sz, i - 1)
-        sz = g_SafeRightStr(sz, Len(sz) - i)
-
-    End If
-
-'    Set pData = New BPackedData
-'    pData.SetTo sz, "&", "="
+'Dim szCmd As String
+'
+'    ' /* get the command */
+'
+'    i = InStr(sz, "?")
+'    If i = 0 Then
+'        ' /* no data, just a command */
+'        szCmd = sz
+'        sz = ""
+'
+'    Else
+'        szCmd = g_SafeLeftStr(sz, i - 1)
+'        sz = g_SafeRightStr(sz, Len(sz) - i)
+'
+'    End If
 
 Dim hr As Long
 
-    hr = sn42Send(LCase$(szCmd), sz)
+    hr = snDoRequest(sz)
     If hr = 0 Then
         ' /* error */
-        uDecode = CStr(sn41GetLastError) & "/" & uErr(sn41GetLastError)
+        uDecode = CStr(snGetLastError) & "/" & uErr(snGetLastError)
 
     Else
         ' /* okay */
@@ -258,55 +254,55 @@ Private Function uErr(ByVal Error As Long) As String
 
     Select Case Error
 
-    Case SNARL41_SUCCESS
+    Case SNARL_SUCCESS
         uErr = "Success"
 
-    Case SNARL41_ERROR_FAILED
+    Case SNARL_ERROR_FAILED
         uErr = "Unspecified failure"
 
-    Case SNARL41_ERROR_UNKNOWN_COMMAND
+    Case SNARL_ERROR_UNKNOWN_COMMAND
         uErr = "Unknown command"
 
-    Case SNARL41_ERROR_TIMED_OUT
+    Case SNARL_ERROR_TIMED_OUT
         uErr = "Timed out"
 
-    Case SNARL41_ERROR_ARG_MISSING
+    Case SNARL_ERROR_ARG_MISSING
         uErr = "Required argument missing"
 
-    Case SNARL41_ERROR_SYSTEM
+    Case SNARL_ERROR_SYSTEM
         uErr = "System error"
 
-    Case SNARL41_ERROR_NOT_RUNNING
+    Case SNARL_ERROR_NOT_RUNNING
         uErr = "Not running"
 
-    Case SNARL41_ERROR_NOT_REGISTERED
+    Case SNARL_ERROR_NOT_REGISTERED
         uErr = "App is not registered"
 
-    Case SNARL41_ERROR_ALREADY_REGISTERED
+    Case SNARL_ERROR_ALREADY_REGISTERED
         uErr = "App is already registered"
 
-    Case SNARL41_ERROR_CLASS_ALREADY_EXISTS
+    Case SNARL_ERROR_CLASS_ALREADY_EXISTS
         uErr = "Class already exists"
 
-    Case SNARL41_ERROR_CLASS_BLOCKED
+    Case SNARL_ERROR_CLASS_BLOCKED
         uErr = "Class blocked"
 
-    Case SNARL41_ERROR_CLASS_NOT_FOUND
+    Case SNARL_ERROR_CLASS_NOT_FOUND
         uErr = "Class not found"
 
-    Case SNARL41_ERROR_NOTIFICATION_NOT_FOUND
+    Case SNARL_ERROR_NOTIFICATION_NOT_FOUND
         uErr = "Notification not found"
 
-    Case SNARL41_ERROR_FLOODING
+    Case SNARL_ERROR_FLOODING
         uErr = "Flooding detect"
 
-    Case SNARL42_ERROR_DO_NOT_DISTURB
+    Case SNARL_ERROR_DO_NOT_DISTURB
         uErr = "Do Not Disturb"
 
-    Case SNARL42_ERROR_COULD_NOT_DISPLAY
+    Case SNARL_ERROR_COULD_NOT_DISPLAY
         uErr = "Could not display"
 
-    Case SNARL42_ERROR_AUTH_FAILURE
+    Case SNARL_ERROR_AUTH_FAILURE
         uErr = "Authentication failure"
 
     Case Else

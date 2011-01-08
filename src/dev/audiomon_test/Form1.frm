@@ -20,14 +20,22 @@ Begin VB.Form Form1
    ScaleHeight     =   3090
    ScaleWidth      =   4680
    StartUpPosition =   3  'Windows Default
-   Begin VB.CommandButton Command1 
-      Caption         =   "Command1"
-      Height          =   555
-      Left            =   1140
+   Begin VB.HScrollBar HScroll1 
+      Height          =   315
+      LargeChange     =   10
+      Left            =   1200
+      Max             =   100
+      TabIndex        =   2
+      Top             =   2100
+      Width           =   3375
+   End
+   Begin VB.CheckBox Check1 
+      Caption         =   "Mute"
+      Height          =   315
+      Left            =   120
       TabIndex        =   1
-      Top             =   2160
-      Visible         =   0   'False
-      Width           =   1335
+      Top             =   2100
+      Width           =   975
    End
    Begin VB.TextBox Text1 
       Height          =   1875
@@ -46,7 +54,7 @@ Attribute VB_PredeclaredId = True
 Attribute VB_Exposed = False
 Option Explicit
 
-Private Declare Function SendMessage Lib "user32" Alias "SendMessageA" (ByVal hwnd As Long, ByVal wMsg As Long, ByVal wParam As Long, lParam As Any) As Long
+Private Declare Function SendMessage Lib "user32" Alias "SendMessageA" (ByVal hWnd As Long, ByVal wMsg As Long, ByVal wParam As Long, lParam As Any) As Long
 
 Dim mhWnd As Long
 
@@ -65,7 +73,7 @@ Private Sub uAddText(ByVal Text As String)
 
 End Sub
 
-Private Function BWndProcSink_WndProc(ByVal hwnd As Long, ByVal uMsg As Long, ByVal wParam As Long, ByVal lParam As Long, ByVal PrevWndProc As Long, ReturnValue As Long) As Boolean
+Private Function BWndProcSink_WndProc(ByVal hWnd As Long, ByVal uMsg As Long, ByVal wParam As Long, ByVal lParam As Long, ByVal PrevWndProc As Long, ReturnValue As Long) As Boolean
 
     Select Case uMsg
     Case &H440
@@ -90,6 +98,13 @@ Dim i As Long
     i = Rnd * 100
 
     SendMessage mhWnd, &H440, 1, ByVal i
+
+End Sub
+
+Private Sub Check1_Click()
+
+    If Check1.Value = vbChecked Then
+        SendMessage
 
 End Sub
 

@@ -17,40 +17,45 @@ Option Explicit
     '/
     '/  File:           CSnarlListener.cls
     '/
-    '/  Description:    Represents a listening socket bound to port 9887 on a specific IP address
+    '/  Description:    Represents a listening socket bound to TCP port 9887 (SNP) or
+    '/                  23053 (GNTP) on a particular IP address
     '/
-    '/  © 2008 full phat products
+    '/  © 2010 full phat products
     '/
     '/  This file may be used under the terms of the Simplified BSD Licence
     '/
     '*********************************************************************************************/
 
-Dim mConn() As CSnarlSocket
+Const GNTP_DEFAULT_PORT = 23053
+Const SNP_DEFAULT_PORT = 9887
+
+Dim mConn() As TRemoteConnection
 Dim mCount As Long
 Dim mIp As String
 
 Dim WithEvents theSocket As CSocket
 Attribute theSocket.VB_VarHelpID = -1
 
-Public Sub Go(ByVal LocalIP As String)
+Public Sub Go(ByVal LocalIP As String, ByVal IsGNTP As Boolean)
 
     Set theSocket = New CSocket
-    theSocket.Bind 9887, LocalIP
+    theSocket.Bind IIf(IsGNTP, GNTP_DEFAULT_PORT, SNP_DEFAULT_PORT), LocalIP
     theSocket.Listen
 
     mIp = LocalIP
-    g_Debug "CSnarlListener.Go(): listening on " & theSocket.LocalIP & ":" & theSocket.LocalPort & "..."
+    g_Debug "CSnarlListener.Go(): bound to " & theSocket.LocalIP & ":" & theSocket.LocalPort & "..."
 
 End Sub
 
 Public Sub Quit()
-Dim sz As String
 
     If Not (theSocket Is Nothing) Then
-        sz = theSocket.LocalIP & ":" & theSocket.LocalPort
+        g_Debug "CSnarlListener.Quit(): closing " & theSocket.LocalIP & ":" & theSocket.LocalPort & "..."
         theSocket.CloseSocket
         Set theSocket = Nothing
-        g_Debug "CSnarlListener.Quit(): listener on '" & sz & "' stopped"
+
+    Else
+        g_Debug "CSnarlListener.Quit(): socket object is invalid", LEMON_LEVEL_WARNING
 
     End If
 
@@ -62,7 +67,7 @@ Private Sub theSocket_OnConnectionRequest(ByVal requestID As Long)
 
     mCount = mCount + 1
     ReDim Preserve mConn(mCount)
-    Set mConn(mCount) = New CSnarlSocket
-    mConn(mCount).Accept requestID
+    Set mConn(mCount) = New TRemoteConnection
+    mConn(mCount).Accept requestID, (theSocket.LocalPort = GNTP_DEFAULT_PORT)
 
 End Sub

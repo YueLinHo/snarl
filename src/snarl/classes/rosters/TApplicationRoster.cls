@@ -44,7 +44,7 @@ Private Function MLibrary_Close() As melon.M_RESULT
         ' /* run tidyup code */
 
         Me.Unregister gSnarlToken, gSnarlPassword
-        SendAll SNARL_QUIT
+        SendAll SNARL_BROADCAST_QUIT
 
         ReDim mApp(0)
         mCount = 0
@@ -240,31 +240,49 @@ Private Property Get MVersionInfo_Version() As Long
 End Property
 
 Public Function Add41(ByRef Data As BPackedData, Optional ByVal IsRemote As Boolean) As Long
+Dim sz As String
 Dim i As Long
 
     g_Debug "TApplicationRoster.Add41()", LEMON_LEVEL_PROC_ENTER
 
     ' /* validate args */
 
-    If (Data.ValueOf("title") = "") Or (Data.ValueOf("id") = "") Then
+    sz = Data.ValueOf("app-sig")
+    If sz = "" Then _
+        sz = Data.ValueOf("id")
+
+    If (Data.ValueOf("title") = "") Or (sz = "") Then
         g_Debug "required arg missing", LEMON_LEVEL_CRITICAL Or LEMON_LEVEL_PROC_EXIT
-        gSetLastError SNARL41_ERROR_ARG_MISSING
+        gSetLastError SNARL_ERROR_ARG_MISSING
+        Exit Function
+
+    End If
+
+    If InStr(sz, " ") Then
+        g_Debug "application signature cannot contain spaces", LEMON_LEVEL_CRITICAL Or LEMON_LEVEL_PROC_EXIT
+        gSetLastError SNARL_ERROR_ARG_MISSING
         Exit Function
 
     End If
 
     ' /* check for duplicate and return existing token */
 
-Dim sz As String
-
     If mCount Then
-        sz = Data.ValueOf("id")
         For i = 1 To mCount
             If mApp(i).Signature = sz Then
-                g_Debug "'" & sz & "' already registered (token=" & mApp(i).Token & ")", LEMON_LEVEL_PROC_EXIT
-                Add41 = mApp(i).Token
-                Exit Function
+                ' /* R2.4 DR7: check same password provided */
+                If (mApp(i).Password <> "") And (mApp(i).Password <> Data.ValueOf("password")) Then
+                    g_Debug "'" & sz & "' already registered: password mismatch", LEMON_LEVEL_CRITICAL Or LEMON_LEVEL_PROC_EXIT
+                    gSetLastError SNARL_ERROR_AUTH_FAILURE
+                    Add41 = 0
+                    Exit Function
 
+                Else
+                    g_Debug "'" & sz & "' already registered (token=" & mApp(i).Token & ")", LEMON_LEVEL_PROC_EXIT
+                    Add41 = mApp(i).Token
+                    Exit Function
+
+                End If
             End If
         Next i
     End If
@@ -276,11 +294,27 @@ Dim pInfo As T_SNARL_APP
     With pInfo
         .Name = Data.ValueOf("title")
         .Icon = Data.ValueOf("icon")
-        .Signature = Data.ValueOf("id")
+        .Signature = sz
         .LargeIcon = .Icon                       ' // no need for two icons: V41 spec recommends 128x128px icon
 
-        .hWnd = Val(Data.ValueOf("hwnd"))
-        .uMsg = Val(Data.ValueOf("umsg"))
+        If Data.Exists("reply-to") Then
+            ' /* V42.22: new name */
+            .hWnd = Val(Data.ValueOf("reply-to"))
+
+        Else
+            .hWnd = Val(Data.ValueOf("hwnd"))
+
+        End If
+
+        If Data.Exists("reply") Then
+            ' /* V42.22: new name */
+            .uMsg = Val(Data.ValueOf("reply"))
+
+        Else
+            .uMsg = Val(Data.ValueOf("umsg"))
+
+        End If
+
         .Flags = Val(Data.ValueOf("flags"))
         .Password = Data.ValueOf("password")
         .IsRemote = IsRemote
@@ -328,7 +362,7 @@ Dim bShow As Boolean
 
     End If
 
-Dim lFlags As SNRL_NOTIFICATION_FLAGS
+Dim lFlags As S_SYS_FLAGS
 Dim i As Long
 
     If bShow Then
@@ -337,10 +371,10 @@ Dim i As Long
         '    add the relevant system flags here */
 
         If pa.Password <> "" Then _
-            lFlags = lFlags Or SNRL_NOTIFICATION_SECURE
+            lFlags = lFlags Or S_NOTIFICATION_SECURE
 
         If pa.IsRemote Then _
-            lFlags = lFlags Or SNRL_NOTIFICATION_REMOTE
+            lFlags = lFlags Or S_NOTIFICATION_REMOTE
 
         ' /* display the 'app registered' notification */
 
@@ -349,13 +383,13 @@ Dim i As Long
                             pa.Name & " registered successfully with Snarl", _
                             -1, _
                             IIf(pa.LargeIcon = "", g_MakePath(App.Path) & "etc\icons\snarl.png", pa.LargeIcon), , , _
-                            SNARL41_NOTIFICATION_AUTO_DISMISS, lFlags)
+                            , lFlags)
 
         If i Then
             ' /* add the action(s) */
-            sn42AddAction i, pa.Name & " Settings...", "!snarl cfg " & pa.Signature
+            g_QuickAddAction i, "Manage Notifications...", "!snarl cfg " & pa.Signature
             If pa.HasConfig Then _
-                sn42AddAction i, "Configure " & pa.Name & "...", "!snarl manage " & pa.Signature
+                g_QuickAddAction i, pa.Name & " Preferences...", "!snarl manage " & pa.Signature
 
         End If
     End If
@@ -592,10 +626,10 @@ Static i As Long
             ' /* V42: validate password, if the app has one */
             If (mApp(i).Password <> "") And (mApp(i).Password <> Password) Then
                 g_Debug "TApplicationRoster.FindByToken(): incorrect password", LEMON_LEVEL_CRITICAL
-                gSetLastError SNARL42_ERROR_AUTH_FAILURE
+                gSetLastError SNARL_ERROR_AUTH_FAILURE
 
             Else
-                gSetLastError SNARL41_SUCCESS
+                gSetLastError SNARL_SUCCESS
                 Set App = mApp(i)
                 FindByToken = True
 
@@ -607,7 +641,38 @@ Static i As Long
     Next i
 
     g_Debug "TApplicationRoster.FindByToken(): " & g_HexStr(Token) & " not found", LEMON_LEVEL_CRITICAL
-    gSetLastError SNARL41_ERROR_NOT_REGISTERED
+    gSetLastError SNARL_ERROR_NOT_REGISTERED
+
+End Function
+
+Public Function FindBySignature(ByVal Signature As String, ByRef App As TApp, ByVal Password As String) As Boolean
+
+    If (Signature = "") Or (mCount = 0) Then _
+        Exit Function
+
+Static i As Long
+
+    For i = 1 To mCount
+        If mApp(i).Signature = Signature Then
+            ' /* V42: validate password, if the app has one */
+            If (mApp(i).Password <> "") And (mApp(i).Password <> Password) Then
+                g_Debug "TApplicationRoster.FindBySignature(): incorrect password", LEMON_LEVEL_CRITICAL
+                gSetLastError SNARL_ERROR_AUTH_FAILURE
+
+            Else
+                gSetLastError SNARL_SUCCESS
+                Set App = mApp(i)
+                FindBySignature = True
+
+            End If
+
+            Exit Function
+
+        End If
+    Next i
+
+    g_Debug "TApplicationRoster.FindBySignature(): " & Signature & " not found", LEMON_LEVEL_CRITICAL
+    gSetLastError SNARL_ERROR_NOT_REGISTERED
 
 End Function
 
@@ -818,29 +883,51 @@ Dim i As Long
 
 End Function
 
+Public Function UnregisterBySig(ByVal Signature As String, ByVal Password As String) As Long
+Static i As Long
+
+    i = IndexOfSig(Signature)
+    If i = 0 Then
+        g_Debug "TApplicationRoster.UnregisterBySig(): '" & Signature & "' not found", LEMON_LEVEL_CRITICAL
+        gSetLastError SNARL_ERROR_NOT_REGISTERED
+
+    Else
+        UnregisterBySig = uUnregister(i, Password)
+
+    End If
+
+End Function
+
 Public Function Unregister(ByVal Token As Long, ByVal Password As String) As Long
 Static i As Long
 
     i = uIndexOfToken(Token)
     If i = 0 Then
         g_Debug "TApplicationRoster.Unregister(): '" & CStr(Token) & "' not found", LEMON_LEVEL_CRITICAL
-        gSetLastError SNARL41_ERROR_NOT_REGISTERED
+        gSetLastError SNARL_ERROR_NOT_REGISTERED
 
     Else
-
-        ' /* V42: password must match */
-        If mApp(i).Password <> "" Then
-            If mApp(i).Password <> Password Then
-                gSetLastError SNARL42_ERROR_AUTH_FAILURE
-                Exit Function
-
-            End If
-        End If
-
-        Remove i
-        Unregister = -1
+        Unregister = uUnregister(i, Password)
 
     End If
+
+End Function
+
+Private Function uUnregister(ByVal Index As Long, ByVal Password As String) As Long
+
+    ' /* WARNING: index is _NOT_ bounds-checked */
+
+    ' /* V42: password must match */
+    If mApp(Index).Password <> "" Then
+        If mApp(Index).Password <> Password Then
+            gSetLastError SNARL_ERROR_AUTH_FAILURE
+            Exit Function
+
+        End If
+    End If
+
+    Remove Index
+    uUnregister = -1
 
 End Function
 
@@ -865,7 +952,7 @@ Public Function Update(ByVal Token As Long, ByRef Data As BPackedData) As Long
 
     If (Data Is Nothing) Then
         g_Debug "TApplicationRoster.Update(): arg missing", LEMON_LEVEL_CRITICAL
-        gSetLastError SNARL41_ERROR_ARG_MISSING
+        gSetLastError SNARL_ERROR_ARG_MISSING
         Exit Function
 
     End If
@@ -875,7 +962,7 @@ Static i As Long
     i = uIndexOfToken(Token)
     If i = 0 Then
         g_Debug "TApplicationRoster.Update(): '" & CStr(Token) & "' not found", LEMON_LEVEL_CRITICAL
-        gSetLastError SNARL41_ERROR_NOT_REGISTERED
+        gSetLastError SNARL_ERROR_NOT_REGISTERED
         Exit Function
 
     End If
@@ -885,7 +972,7 @@ Static i As Long
     If mApp(i).Password <> "" Then
         If mApp(i).Password <> Data.ValueOf("password") Then
             g_Debug "TApplicationRoster.Update(): '" & CStr(Token) & "' password mismatch", LEMON_LEVEL_CRITICAL
-            gSetLastError SNARL42_ERROR_AUTH_FAILURE
+            gSetLastError SNARL_ERROR_AUTH_FAILURE
             Exit Function
 
         End If
@@ -941,7 +1028,7 @@ Dim i As Long
 '                    Set pm = New OMMenu
 '                    pm.AddItem pm.CreateItem("cfg" & CStr(i), "Settings...", , (mApp(i).Flags And E_APP_HAS_PREFS))
 '                    pm.AddItem pm.CreateItem("abt" & CStr(i), "About...", , (mApp(i).Flags And E_APP_HAS_ABOUT))
-                    .AddItem .CreateItem("!" & CStr(i), mApp(i).Name, , (mApp(i).Flags And SNARL41_APP_HAS_PREFS))
+                    .AddItem .CreateItem("!" & CStr(i), mApp(i).Name, , (mApp(i).Flags And SNARLAPP_HAS_PREFS))
 
                 End If
             Next i
@@ -954,7 +1041,7 @@ Dim i As Long
 
 End Function
 
-Public Sub SnarlAppDo(ByVal Index As Long, ByVal Cmd As SNARL_APP_COMMANDS)
+Public Sub SnarlAppDo(ByVal Index As Long, ByVal Cmd As Long)
 
     If (Index < 1) Or (Index > mCount) Then _
         Exit Sub
@@ -979,3 +1066,15 @@ Dim c As Integer
     Next i
 
 End Function
+
+'Public Function FindBySignature(ByVal Signature As String, ByRef App As TApp) As Boolean
+'Dim i As Long
+'
+'    i = IndexOfSig(Signature)
+'    If i Then
+'        Set App = mApp(i)
+'        FindBySignature = True
+'
+'    End If
+'
+'End Function

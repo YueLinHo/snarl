@@ -1,7 +1,24 @@
 Attribute VB_Name = "mSnarl"
 Option Explicit
 
+    '/*********************************************************************************************
+    '/
+    '/  File:           mSnarl.bas
+    '/
+    '/  Description:    Global functions and declarations
+    '/
+    '/  © 2004-2011 full phat products
+    '/
+    '/  This file may be used under the terms of the Simplified BSD Licence
+    '/
+    '*********************************************************************************************/
+
 Private Declare Function GetTempPath Lib "kernel32" Alias "GetTempPathA" (ByVal nBufferLength As Long, ByVal lpBuffer As String) As Long
+Private Declare Function WinExec Lib "kernel32" (ByVal lpCmdLine As String, ByVal nCmdShow As Long) As Long
+Public Declare Sub CoFreeUnusedLibrariesEx Lib "ole32" (ByVal dwUnloadDelay As Long, ByVal dwReserved As Long)
+Private Declare Function RegisterClipboardFormat Lib "user32" Alias "RegisterClipboardFormatA" (ByVal lpString As String) As Long
+'Private Declare Function GetModuleHandle Lib "kernel32" Alias "GetModuleHandleA" (ByVal lpModuleName As String) As Long
+'Private Declare Sub CoFreeLibrary Lib "ole32.dll" (ByVal hInst As Long)
 
 Private Const WINDOW_CLASS = "w>Snarl"
 
@@ -10,10 +27,12 @@ Public Const WM_SNARL_QUIT = WM_USER + 2
 Public Const WM_SNARL_TRAY_ICON = WM_USER + 3
 'Public Const WM_SNARL_NOTIFY_RUNNING = WM_USER + 4
 
-Public Const WM_REMOTENOTIFY = WM_USER + 9              ' // frmAbout: remote notifications
+'Public Const WM_REMOTENOTIFY = WM_USER + 9              ' // frmAbout: remote notifications
 Public Const WM_INSTALL_SNARL = WM_USER + 12            ' // frmAbout: snarl update available
 
 Public Const TIMER_UPDATES = 32
+
+    ' /* Snarl app class id's */
 
 Public Const SNARL_CLASS_WELCOME = "_WLC"
 Public Const SNARL_CLASS_APP_UNREG = "_APU"
@@ -22,6 +41,19 @@ Public Const SNARL_CLASS_JSON = "_ANJ"
 Public Const SNARL_CLASS_ANON_NET = "_ANN"
 Public Const SNARL_CLASS_ANON = "_ANL"
 Public Const SNARL_CLASS_LOW_PRIORITY = "_LOW"
+
+
+    ' /* internal notification flags */
+
+Public Enum S_SYS_FLAGS
+    S_NOTIFICATION_REMOTE = &H80000000
+    S_NOTIFICATION_SECURE = &H40000000
+
+    S_NOTIFICATION_MERGE = &H1000
+
+End Enum
+
+    ' /* master notification structure, as used by the notification roster */
 
 Public Type T_NOTIFICATION_INFO
     pid As Long
@@ -35,9 +67,10 @@ Public Type T_NOTIFICATION_INFO
 '    StyleToUse As String
     StyleName As String                 ' // Split
     SchemeName As String                ' // Split
-    DefaultAck As String
+    DefaultAck As String                ' // Known as "callback" from R2.4 DR7
     Position As E_START_POSITIONS
     Token As Long
+    ' /* V41 */
     Priority As Long                    ' // V41: <0 = low, 0 = normal, >0 = high
     Value As String                     ' // V41: freeform value which will negate the need to use the Text field
                                         '         thoughts are the value can encapsulate the format it's sent in
@@ -45,13 +78,16 @@ Public Type T_NOTIFICATION_INFO
                                         '         how/if it's displayed
     DateStamp As Date                   ' // V41: when it was added to the Notification Roster
     Icon As mfxBitmap                   ' // V41 (R2.31): note it's an mfxBitmap, not an MImage!
-    Sender As String
-    Class As String
+'    Sender As String
+'    Class As String
+    ' /* V42 */
     Flags As SNARL41_NOTIFICATION_FLAGS ' // V41 (R2.4): new flags
     OriginalContent As String           ' // V41 (R2.4): as passed from external source
-    LastUpdated As Date                 ' // V42 (R2.4): time last changed
-    Socket As CSocket                   ' // V42 (R2.4): reply socket (SNP2.0 native only)
-    IntFlags As SNRL_NOTIFICATION_FLAGS ' // V42 (R2.4): internal notification flags
+    LastUpdated As Date                 ' // time last changed
+    Socket As CSocket                   ' // reply socket (SNP2.0 native only)
+    IntFlags As S_SYS_FLAGS             ' // internal notification flags
+    RemoteHost As String                ' // sender (as string) for remote connections that do not have reply sockets
+    ClassObj As TAlert                  ' // object
 
 End Type
 
@@ -68,12 +104,7 @@ Public Type T_SNARL_STYLE_ENGINE_INFO
 
 End Type
 
-'Public Enum E_APP_FLAGS
-'    E_APP_HAS_ABOUT = SNARL_APP_HAS_ABOUT
-'    E_APP_HAS_PREFS = SNARL_APP_HAS_PREFS
-'    E_APP_IS_WINDOWLESS = &H8000&
-'
-'End Enum
+    ' /* internal registered application structure */
 
 Public Type T_SNARL_APP
     Name As String
@@ -84,12 +115,14 @@ Public Type T_SNARL_APP
     LargeIcon As String         ' // V38 (private for now) - path to large icon
     Token As Long               ' // V41
     Signature As String         ' // V41 - MIME string
-    Flags As SNARL41_APP_FLAGS  ' // V41
+    Flags As SNARLAPP_FLAGS     ' // V41
     Password As String          ' // V42 - non-persistent (so the app can generate a new one each time)
     IsRemote As Boolean         ' // V42 - remotely registered
+    Timestamp As Date           ' // V42.21: set when added
 
 End Type
 
+    ' /* internal Snarl admin structure */
 
 Public Type T_SNARL_ADMIN
     HideIcon As Boolean                 ' // hides the tray icon (over-rules undoc'd setting in .snarl file)
@@ -129,10 +162,6 @@ Public Const MSG_SHOW_PREFS = WM_USER + 80
     '          2        Configure style or extension                        ("")
     ' */
 
-
-    ' /* MSG_QUIT is deprecated in favour of using standard WM_CLOSE.  Handling of MSG_QUIT is retained in R2.3 */
-Public Const MSG_QUIT = WM_USER + 81
-
 Public bm_Close As MImage
 Public bm_Menu As MImage
 Public bm_Actions As MImage
@@ -160,11 +189,11 @@ Public Enum E_NOTIFICATION_DURATION
 
 End Enum
 
-'Public Const GOFFSET = 4
-
+    ' /* master controls */
 Public g_IsRunning  As Boolean
 Public g_IsQuitting As Boolean
 
+    ' /* rosters */
 Public g_ExtnRoster As TExtensionRoster
 Public g_StyleRoster As TStyleRoster
 Public g_AppRoster As TApplicationRoster
@@ -179,23 +208,7 @@ Public Enum E_FONTSMOOTHING
 
 End Enum
 
-    ' /* used by the missed notifications panel - should be consolidated with other similar structs */
-
-'Public Type G_NOTIFICATION_CONTENT
-'    Title As String
-'    Text As String
-'    Icon As mfxBitmap
-'    Timeout As Long
-'    Ack As String
-'    Timestamp As Date
-'    Sender As String
-'    Class As String
-'    ' /* R2.31 */
-'    hWndReply As Long
-'    uMsgReply As Long
-'
-'End Type
-
+Private Const SNARL_XXX_GLOBAL_MSG = "SnarlGlobalEvent"
 
 Public Type T_CONFIG
 
@@ -206,7 +219,7 @@ Public Type T_CONFIG
 '    last_sound_folder As String
 '    use_hotkey As Boolean
     UserDnD As Boolean      ' // not persitent: user-controlled DND setting
-    SysDnDCount As Long             ' // set using WM_MANAGE_SNARL
+'    SysDnDCount As Long             ' // set using WM_MANAGE_SNARL
 '    MissedCountOnDnD As Long
     use_dropshadow As Boolean
     last_update_check As Date
@@ -236,31 +249,27 @@ Public gDebugMode As Boolean
 
 Public gLastNotification As Date    ' // V41.47 - last notification timestamp
 
-Public Type G_REMOTE_COMPUTER
-    IsHostName As Boolean
-    HostNameOrIp As String
-
-End Type
+'Public Type G_REMOTE_COMPUTER
+'    IsHostName As Boolean
+'    HostNameOrIp As String
+'
+'End Type
 
 Public ghWndMain As Long
 Public gUpdateFilename As String        ' // name of the update file to download
 
 Dim myUpdateCheck As TAutoUpdate
 
-Public gCurrentLowPriorityId As Long
-Public gSnarlToken As Long
+Public gCurrentLowPriorityId As Long    ' // only one can be on-screen at any one time
+Public gSnarlToken As Long              ' // when Snarl registers with itself
 Public gSnarlPassword As String         ' // created on the fly
 
+Dim mDoNotDisturbLock As Long           ' // >0 means enabled, <=0 means disabled
+
+    ' /* requesters */
 Dim mReq() As TRequester
 Dim mReqs As Long
 Public gRequestId As Long
-
-Private Declare Function WinExec Lib "kernel32" (ByVal lpCmdLine As String, ByVal nCmdShow As Long) As Long
-Public Declare Sub CoFreeUnusedLibrariesEx Lib "ole32" (ByVal dwUnloadDelay As Long, ByVal dwReserved As Long)
-Private Declare Function RegisterClipboardFormat Lib "user32" Alias "RegisterClipboardFormatA" (ByVal lpString As String) As Long
-
-'Private Declare Function GetModuleHandle Lib "kernel32" Alias "GetModuleHandleA" (ByVal lpModuleName As String) As Long
-'Private Declare Sub CoFreeLibrary Lib "ole32.dll" (ByVal hInst As Long)
 
 Public Sub Main()
 Dim szArg() As String
@@ -608,12 +617,22 @@ Dim szData As String
 
     g_SetRunning True, False
 
+Dim i As Long
+
     ' /* display welcome message */
 
-    If (g_ConfigGet("show_msg_on_start") = "1") Or (gDebugMode) Then _
-        g_PrivateNotify SNARL_CLASS_WELCOME, "Welcome to Snarl!", _
-                        "Snarl " & g_Version() & vbCrLf & App.LegalCopyright & vbCrLf & "http://www.fullphat.net" & IIf(gDebugMode, vbCrLf & vbCrLf & "Debug mode enabled", ""), , _
-                        g_MakePath(App.Path) & "etc\icons\snarl.png"
+    If (g_ConfigGet("show_msg_on_start") = "1") Or (gDebugMode) Then
+        i = g_PrivateNotify(SNARL_CLASS_WELCOME, "Welcome to Snarl!", _
+                            "Snarl " & g_Version() & vbCrLf & App.LegalCopyright & vbCrLf & "http://www.fullphat.net" & IIf(gDebugMode, vbCrLf & vbCrLf & "Debug mode enabled", ""), , _
+                            g_MakePath(App.Path) & "etc\icons\snarl.png")
+
+        If i Then
+            g_QuickAddAction i, "User Guide", "http://sourceforge.net/apps/mediawiki/snarlwin/index.php?title=User_Guide"
+            g_QuickAddAction i, "Release Notes", "http://sourceforge.net/apps/mediawiki/snarlwin/index.php?title=New_Features#" & Replace$(App.Comments, " ", "_")
+        
+        End If
+
+    End If
 
     ' /* get extensions */
 
@@ -688,16 +707,8 @@ Dim t As Long
 
     ' /* broadcast SNARL_QUIT */
 
-    uSnarlGlobal = snGetGlobalMsg()
-    If uSnarlGlobal > 0 Then
-        g_Debug "main(): broadcasting SNARL_QUIT..."
-'        SendMessageTimeout HWND_BROADCAST, um, SNARL_QUIT, ByVal 0&, SMTO_NORMAL, 10, i
-        PostMessage HWND_BROADCAST, uSnarlGlobal, SNARL_QUIT, ByVal CLng(App.Major)
-
-    Else
-        g_Debug "main(): snGetGlobalMsg() returned zero", LEMON_LEVEL_WARNING
-
-    End If
+    g_Debug "main(): broadcasting SNARL_QUIT..."
+    PostMessage HWND_BROADCAST, g_GlobalMessage(), SNARL_BROADCAST_QUIT, ByVal CLng(App.Major)
 
     SendMessage ghWndMain, WM_SNARL_QUIT, 0, ByVal 0&
     Unload frmAbout
@@ -932,11 +943,11 @@ Dim dw As Long
 
         ' /* tell our applications we're starting */
         If Not (g_AppRoster Is Nothing) Then _
-            g_AppRoster.SendAll SNARL_LAUNCHED
+            g_AppRoster.SendAll SNARL_BROADCAST_LAUNCHED
 
         ' /* R2.4: broadcast a started message */
 
-        PostMessage HWND_BROADCAST, snGetGlobalMsg(), SNARL_BROADCAST_STARTED, ByVal 0&
+        PostMessage HWND_BROADCAST, g_GlobalMessage(), SNARL_BROADCAST_STARTED, ByVal 0&
 
 
 '        If Broadcast Then
@@ -956,7 +967,7 @@ Dim dw As Long
 '        End If
 
         ' /* R2.4: broadcast a stopped message */
-        PostMessage HWND_BROADCAST, snGetGlobalMsg(), SNARL_BROADCAST_STOPPED, ByVal 0&
+        PostMessage HWND_BROADCAST, g_GlobalMessage(), SNARL_BROADCAST_STOPPED, ByVal 0&
 
         ' /* close all notifications */
         If Not (g_NotificationRoster Is Nothing) Then _
@@ -968,7 +979,7 @@ Dim dw As Long
 
         ' /* tell our applications we've stopped */
         If Not (g_AppRoster Is Nothing) Then _
-            g_AppRoster.SendAll SNARL_QUIT
+            g_AppRoster.SendAll SNARL_BROADCAST_QUIT
 
         ' /* set master flag last */
         g_IsRunning = False
@@ -1145,7 +1156,7 @@ Dim dw As Long
 
 End Function
 
-Public Function gfSetAlertDefault(ByVal pid As Long, ByVal Class As String, ByVal Element As SNARL_ATTRIBUTES, ByVal Value As String) As M_RESULT
+Public Function gfSetAlertDefault(ByVal pid As Long, ByVal Class As String, ByVal Element As Long, ByVal Value As String) As M_RESULT
 Dim pa As TApp
 Dim pc As TAlert
 
@@ -1307,53 +1318,100 @@ Dim pe As ConfigEntry
 
 End Function
 
-Public Sub g_AddDNDLock()
-
-    gPrefs.SysDnDCount = gPrefs.SysDnDCount + 1
-
-    If (g_IsDNDModeEnabled) And (Not (g_NotificationRoster Is Nothing)) Then _
-        g_NotificationRoster.ResetMissedCount
-
-End Sub
-
-Public Sub g_RemDNDLock()
-
-    gPrefs.SysDnDCount = gPrefs.SysDnDCount - 1
-    g_CheckMissed
-
-End Sub
-
-Public Sub g_CheckMissed()
+Public Sub g_LockDoNotDisturb(ByVal AddLock As Boolean)
 
     If (g_NotificationRoster Is Nothing) Then _
         Exit Sub
 
-    ' /* if DnD mode is now disabled and there were some missed notifications, show notification explaining this */
+'Dim i As Long
 
-Dim iToken As Long
+    If AddLock Then
+        ' /* increase count */
+        mDoNotDisturbLock = mDoNotDisturbLock + 1
 
-    If (Not g_IsDNDModeEnabled()) And (g_NotificationRoster.ActualMissedCount > 0) Then
-        iToken = g_PrivateNotify("", "While you were away...", _
-                                 "You missed " & CStr(g_NotificationRoster.ActualMissedCount) & " notification" & IIf(g_NotificationRoster.ActualMissedCount > 1, "s", ""), _
-                                 -1, _
-                                 g_MakePath(App.Path) & "etc\icons\snarl.png", , , SNARL41_NOTIFICATION_AUTO_DISMISS)
+        ' /* if we're moving from disabled to enabled, reset missed tracking count */
+        If mDoNotDisturbLock = 1 Then _
+            g_NotificationRoster.ResetMissedCount
 
-        If iToken > 0 Then _
-            sn42AddAction iToken, "Missed Notifications...", "!snarl show_missed_panel"
-            
+'        If (g_IsDNDModeEnabled) And (Not (g_NotificationRoster Is Nothing)) Then _
+            g_NotificationRoster.ResetMissedCount
+
+    Else
+        ' /* decrease count */
+        mDoNotDisturbLock = mDoNotDisturbLock - 1
+
+        ' /* if we're moving from enabled to disabled, check missed count */
+        If (mDoNotDisturbLock = 0) And (g_NotificationRoster.ActualMissedCount > 0) Then
+            g_PrivateNotify "", "While you were away...", _
+                                "You missed " & CStr(g_NotificationRoster.ActualMissedCount) & " notification" & IIf(g_NotificationRoster.ActualMissedCount > 1, "s", ""), _
+                                -1, _
+                                g_MakePath(App.Path) & "etc\icons\snarl.png", _
+                                , _
+                                "!snarl show_missed_panel"
+
+        End If
     End If
 
 End Sub
 
+Public Sub g_ForceUnlockDoNotDisturb()
+
+    ' /* special function used by tray icon menu */
+
+    mDoNotDisturbLock = 1
+    g_LockDoNotDisturb False
+
+End Sub
+
+'Public Sub g_AddDNDLock()
+'
+'    gPrefs.SysDnDCount = gPrefs.SysDnDCount + 1
+'
+'    If (g_IsDNDModeEnabled) And (Not (g_NotificationRoster Is Nothing)) Then _
+'        g_NotificationRoster.ResetMissedCount
+'
+'End Sub
+'
+'Public Sub g_RemDNDLock()
+'
+'    gPrefs.SysDnDCount = gPrefs.SysDnDCount - 1
+'    g_CheckMissed
+'
+'End Sub
+'
+'Public Sub g_CheckMissed()
+'
+'    If (g_NotificationRoster Is Nothing) Then _
+'        Exit Sub
+'
+'    ' /* if DnD mode is now disabled and there were some missed notifications, show notification explaining this */
+'
+'Dim iToken As Long
+'
+'    If (Not g_IsDNDModeEnabled()) And (g_NotificationRoster.ActualMissedCount > 0) Then
+'        iToken = g_PrivateNotify("", "While you were away...", _
+'                                 "You missed " & CStr(g_NotificationRoster.ActualMissedCount) & " notification" & IIf(g_NotificationRoster.ActualMissedCount > 1, "s", ""), _
+'                                 -1, _
+'                                 g_MakePath(App.Path) & "etc\icons\snarl.png")
+'
+'        If iToken > 0 Then _
+'            g_QuickAddAction iToken, "Missed Notifications...", "!snarl show_missed_panel"
+'
+'    End If
+'
+'End Sub
+
 Public Function g_IsDNDModeEnabled() As Boolean
 
-    ' /* DND mode is considered enabled if:
-    '       1. the user has enabled it (gPrefs.do_not_disturb is True)
-    '       2. an app has enabled it (gPrefs.SysDnDCount > 0)
-    ' */
+'    ' /* DND mode is considered enabled if:
+'    '       1. the user has enabled it (gPrefs.do_not_disturb is True)
+'    '       2. an app has enabled it (gPrefs.SysDnDCount > 0)
+'    ' */
+'
+'    If (gPrefs.UserDnD) Or (gPrefs.SysDnDCount > 0) Then _
+'        g_IsDNDModeEnabled = True
 
-    If (gPrefs.UserDnD) Or (gPrefs.SysDnDCount > 0) Then _
-        g_IsDNDModeEnabled = True
+    g_IsDNDModeEnabled = (mDoNotDisturbLock > 0)
 
 End Function
 
@@ -1494,12 +1552,13 @@ Dim pInfo As T_NOTIFICATION_INFO
         .SchemeName = LCase$(Scheme)
         .Position = E_START_DEFAULT_POS
         .Priority = (Flags And 1)
+        Set .ClassObj = New TAlert
 
     End With
 
-    g_KludgeNotificationInfo pInfo
+'    g_KludgeNotificationInfo pInfo
 
-    If g_NotificationRoster.Add(New TAlert, pInfo) <> 0 Then
+    If g_NotificationRoster.Add(pInfo, Nothing) <> 0 Then
         g_DoSchemePreview = M_OK
 
     Else
@@ -1701,7 +1760,7 @@ Dim pti As BTagItem
 
 End Sub
 
-Public Sub gSetLastError(ByVal Error As SNARL_STATUS_41)
+Public Sub gSetLastError(ByVal Error As SNARL_STATUS_CODE)
 
     SetProp ghWndMain, "last_error", Error
 
@@ -1869,7 +1928,7 @@ Public Sub g_KludgeNotificationInfo(ByRef nInfo As T_NOTIFICATION_INFO)
         .Title = Replace$(.Title, "\n", vbCrLf)
         .Text = Replace$(.Text, "\n", vbCrLf)
 
-        .OriginalContent = "id::" & .Class & _
+        .OriginalContent = "id::" & .ClassObj.Name & _
                            "#?title::" & .Title & _
                            "#?text::" & .Text & _
                            "#?timeout::" & CStr(.Timeout) & _
@@ -1878,8 +1937,8 @@ Public Sub g_KludgeNotificationInfo(ByRef nInfo As T_NOTIFICATION_INFO)
                            "#?ack::" & .DefaultAck & _
                            "#?value::" & .Value
 
-        If (.Flags And SNARL41_NOTIFICATION_ALLOWS_MERGE) Then _
-            .OriginalContent = .OriginalContent & "#?merge::1"
+'        If (.Flags And SNARL41_NOTIFICATION_ALLOWS_MERGE) Then _
+'            .OriginalContent = .OriginalContent & "#?merge::1"
 
     End With
 
@@ -2085,7 +2144,36 @@ Private Function uCreatePacked(ByVal ClassId As String, ByVal Title As String, B
 
 End Function
 
-Public Function g_PrivateNotify(ByVal ClassId As String, Optional ByVal Title As String, Optional ByVal Text As String, Optional ByVal Timeout As Long = -1, Optional ByVal Icon As String, Optional ByVal Priority As Long = 0, Optional ByVal Ack As String, Optional ByVal Flags As SNARL41_NOTIFICATION_FLAGS, Optional ByVal IntFlags As SNRL_NOTIFICATION_FLAGS) As Long
+Public Function g_QuickAddAction(ByVal Token As Long, ByVal Label As String, ByVal Command As String) As Long
+
+    g_QuickAddAction = g_NotificationRoster.AddAction(Token, g_newBPackedData("label::" & Label & "#?cmd::" & Command))
+
+End Function
+
+Public Function g_QuickLastError() As Long
+
+    g_QuickLastError = GetProp(ghWndMain, "last_error")
+
+End Function
+
+Public Function g_QuickAddClass(ByVal AppToken As Long, ByVal Id As String, ByVal Name As String, Optional ByVal Enabled As Boolean, Optional ByVal Password As String) As Long
+Dim pp As BPackedData
+
+    Set pp = New BPackedData
+    With pp
+        .Add "id", Id
+        .Add "name", Name
+        .Add "enabled", IIf(Enabled, "1", "0")
+        If Password <> "" Then _
+            .Add "password", Password
+
+    End With
+
+    g_QuickAddClass = g_DoAction("addclass", AppToken, pp)
+
+End Function
+
+Public Function g_PrivateNotify(ByVal ClassId As String, Optional ByVal Title As String, Optional ByVal Text As String, Optional ByVal Timeout As Long = -1, Optional ByVal Icon As String, Optional ByVal Priority As Long = 0, Optional ByVal Ack As String, Optional ByVal Flags As SNARL41_NOTIFICATION_FLAGS, Optional ByVal IntFlags As S_SYS_FLAGS) As Long
 
     ' /* internal notification generator
     '
@@ -2099,7 +2187,7 @@ Public Function g_PrivateNotify(ByVal ClassId As String, Optional ByVal Title As
 
 End Function
 
-Public Function g_DoNotify(ByVal AppToken As Long, ByRef pData As BPackedData, Optional ByRef ReplySocket As CSocket, Optional ByVal IntFlags As SNRL_NOTIFICATION_FLAGS) As Long
+Public Function g_DoNotify(ByVal AppToken As Long, ByRef pData As BPackedData, Optional ByRef ReplySocket As CSocket, Optional ByVal IntFlags As S_SYS_FLAGS, Optional ByVal RemoteHost As String) As Long
 
     ' /* master notification generator
     '
@@ -2109,51 +2197,237 @@ Public Function g_DoNotify(ByVal AppToken As Long, ByRef pData As BPackedData, O
 
     If (g_AppRoster Is Nothing) Or (g_NotificationRoster Is Nothing) Then
         g_Debug "g_DoNotify(): app and/or notification roster missing", LEMON_LEVEL_CRITICAL
-        gSetLastError SNARL41_ERROR_SYSTEM
+        gSetLastError SNARL_ERROR_SYSTEM
         Exit Function
 
     End If
 
     If (pData Is Nothing) Then
         g_Debug "g_DoNotify(): arg missing", LEMON_LEVEL_CRITICAL
-        gSetLastError SNARL41_ERROR_ARG_MISSING
+        gSetLastError SNARL_ERROR_ARG_MISSING
         Exit Function
 
+    End If
+
+
+    ' /* look for the new "replace" and "update" args: "replace" will remove the
+    '    notification with the specified token if it's still on-screen; "update"
+    '    will cause the specified notification to be updated with this content */
+
+    If pData.Exists("replace") Then
+        g_NotificationRoster.Hide g_SafeLong(pData.ValueOf("replace"))
+
+    ElseIf pData.Exists("update") Then
+        If g_NotificationRoster.Update(g_SafeLong(pData.ValueOf("update")), pData) Then
+            g_DoNotify = g_SafeLong(pData.ValueOf("update"))
+            Exit Function
+
+        End If
     End If
 
 Dim szClass As String
 Dim pApp As TApp
+Dim sz As String
 
-    ' /* special case: if the app token is 0 we use ourself as the sending app  */
+    ' /* R2.4 DR7: if "app-sig" argument is specified then look for the app by signature */
 
-    If AppToken = 0 Then
-        If g_AppRoster.FindByToken(gSnarlToken, pApp, gSnarlPassword) Then
-            ' /* if we're using the Snarl app, we need the anonymous class */
-            g_Debug "g_DoNotify(): using Snarl anonymous class"
-            szClass = IIf((IntFlags And SNRL_NOTIFICATION_REMOTE) = 0, SNARL_CLASS_ANON, SNARL_CLASS_ANON_NET)
+    sz = pData.ValueOf("app-sig")
+    If sz <> "" Then
+        If g_AppRoster.FindBySignature(sz, pApp, pData.ValueOf("password")) Then
+            szClass = pData.ValueOf("id")
 
         Else
-            ' /* Snarl's registration not found */
-            g_Debug "g_DoNotify(): Snarl internal app not in roster", LEMON_LEVEL_CRITICAL
-            gSetLastError SNARL41_ERROR_SYSTEM
+            ' /* not found / auth failure (lasterror will have been set) */
             Exit Function
 
         End If
 
-    ElseIf g_AppRoster.FindByToken(AppToken, pApp, pData.ValueOf("password")) Then
-        szClass = pData.ValueOf("id")
+    Else
+        ' /* special case: if the app token is 0 we use ourself as the sending app  */
+        If AppToken = 0 Then
+            If g_AppRoster.FindByToken(gSnarlToken, pApp, gSnarlPassword) Then
+                ' /* if we're using the Snarl app, we need the anonymous class */
+                g_Debug "g_DoNotify(): using Snarl anonymous class"
+                szClass = IIf((IntFlags And S_NOTIFICATION_REMOTE) = 0, SNARL_CLASS_ANON, SNARL_CLASS_ANON_NET)
+
+            Else
+               ' /* Snarl's registration not found */
+                g_Debug "g_DoNotify(): Snarl internal app not in roster", LEMON_LEVEL_CRITICAL
+                gSetLastError SNARL_ERROR_SYSTEM
+                Exit Function
+
+            End If
+
+        ElseIf Not g_AppRoster.FindByToken(AppToken, pApp, pData.ValueOf("password")) Then
+            ' /* not found / auth failure (lasterror will have been set) */
+            Exit Function
+
+        Else
+            szClass = pData.ValueOf("id")
+
+        End If
+
+    End If
+
+
+    ' /* include the remote sender (if there is one) - small kludge here for
+    '    Growl/UDP which doesn't have a reply socket */
+
+Dim szRemoteHost As String
+
+    If Not (ReplySocket Is Nothing) Then
+        If ReplySocket.RemoteHost <> "" Then
+            szRemoteHost = ReplySocket.RemoteHost & " (" & ReplySocket.RemoteHostIP & ")"
+
+        Else
+            szRemoteHost = ReplySocket.RemoteHostIP
+
+        End If
 
     Else
-        ' /* not found / auth failure (lasterror will have been set) */
+        szRemoteHost = RemoteHost
+
+    End If
+
+    ' /* R2.4 DR7 - merging is now controlled via an internal flag */
+
+    If pData.ValueOf("merge") = "1" Then _
+        IntFlags = IntFlags Or S_NOTIFICATION_MERGE
+
+    ' /* now we have the app object and we know the class, we can pass it over */
+
+    g_DoNotify = pApp.Show41(szClass, pData, ReplySocket, IntFlags, szRemoteHost)
+
+End Function
+
+Public Function g_DoAction(ByVal action As String, ByVal Token As Long, ByRef Args As BPackedData, Optional ByVal IsRemoteApp As Boolean, Optional ByRef ReplySocket As CSocket) As Long
+
+    ' /* this is the central hub for all incoming requests, be they from SNP, Growl/UDP
+    '    or Win32.  "Token" here can be either the app token or the notification token;
+    '    the action determines which one */
+
+
+    ' /* special case: works any time and must be handled before we reset LastError */
+
+    If action = "lasterror" Then
+        g_DoAction = GetProp(ghWndMain, "last_error")
         Exit Function
 
     End If
 
-    ' /* now we have the app object and we know the class, we can pass it over */
+    ' /* pretty much all of these require either or both rosters to be
+    '    available, so let's bail out now if something's really wrong */
 
-    g_DoNotify = pApp.Show41(szClass, pData, ReplySocket, IntFlags)
+    If (g_AppRoster Is Nothing) Or (g_NotificationRoster Is Nothing) Or (Args Is Nothing) Then
+        gSetLastError SNARL_ERROR_SYSTEM
+        Exit Function
+
+    End If
+
+Dim pApp As TApp
+
+    ' /* assume all okay... */
+
+    gSetLastError 0
+
+    Select Case action
+
+    Case "addaction"
+        g_DoAction = g_NotificationRoster.AddAction(Token, Args)
+
+    Case "addclass"
+        g_DoAction = uAddClass(Token, Args)
+
+    Case "clearclasses", "killclasses"
+        If g_AppRoster.FindByToken(Token, pApp, Args.ValueOf("password")) Then _
+            g_DoAction = pApp.RemClass(Args, True)
+
+    Case "clearactions"
+        g_DoAction = g_NotificationRoster.ClearActions(Token)
+
+    Case "hello"
+        ' /* just reply with SUCCESS but it means the sender will
+        '    be able to tell which version of SNP we support */
+        ' /* To-do: reply with an error message if Snarl isn't
+        '    accepting requests, or DND mode enabled? */
+        g_DoAction = -1
+
+    Case "hide"
+        g_DoAction = CLng(g_NotificationRoster.Hide(Token))
+
+    Case "isvisible"
+        g_DoAction = CLng(g_NotificationRoster.IsVisible(Token))
+
+    Case "notify"
+        g_DoAction = g_DoNotify(Token, Args, ReplySocket, IIf(IsRemoteApp, S_NOTIFICATION_REMOTE, 0))
+
+    Case "reg", "register"
+        g_DoAction = g_AppRoster.Add41(Args, IsRemoteApp)
+
+    Case "remclass"
+        ' /* FindByToken() will set lasterror for us */
+        If g_AppRoster.FindByToken(Token, pApp, Args.ValueOf("password")) Then _
+            g_DoAction = pApp.RemClass(Args)
+
+    Case "test"
+        ' /* only available when Snarl is running in debug mode */
+        If gDebugMode Then
+            g_PrivateNotify "", _
+                            IIf(Args.ValueOf("alpha") = "", "Snarl", Args.ValueOf("alpha")), _
+                            IIf(Args.ValueOf("beta") = "", "Test Message", Args.ValueOf("beta"))
+            g_DoAction = -1
+
+        Else
+            gSetLastError SNARL_ERROR_UNKNOWN_COMMAND
+            g_DoAction = 0
+
+        End If
+
+    Case "unreg", "unregister"
+        ' /* R2.4 DR7: can unregister using signature/password combo */
+        If Args.Exists("app-sig") Then
+            g_DoAction = g_AppRoster.UnregisterBySig(Args.ValueOf("app-sig"), Args.ValueOf("password"))
+
+        Else
+            g_DoAction = g_AppRoster.Unregister(Token, Args.ValueOf("password"))
+
+        End If
+
+    Case "update"
+        g_DoAction = g_NotificationRoster.Update(Token, Args)
+
+    Case "updateapp", "update_app"
+        g_DoAction = g_AppRoster.Update(Token, Args)
+
+    Case "version"
+        g_DoAction = GetProp(ghWndMain, "_version")
+
+    Case "request"
+        ' /* PRIVATE: for internal use only under V42 */
+        g_DoAction = g_ShowRequest(Token, Args)
+
+    Case Else
+        gSetLastError SNARL_ERROR_UNKNOWN_COMMAND
+        g_DoAction = 0
+
+    End Select
 
 End Function
+
+Public Function g_newBPackedData(ByVal Content As String) As BPackedData
+
+    Set g_newBPackedData = New BPackedData
+    g_newBPackedData.SetTo Content
+
+End Function
+
+
+
+
+
+
+
+
 
 'Public Function g_DoNotify(ByVal Token As Long, ByRef pData As BPackedData, Optional ByRef ReplySocket As CSocket) As Long
 '
@@ -2161,14 +2435,14 @@ End Function
 '
 '    If (g_AppRoster Is Nothing) Or (g_NotificationRoster Is Nothing) Then
 '        g_Debug "g_DoNotify(): app and/or notification roster missing", LEMON_LEVEL_CRITICAL
-'        gSetLastError SNARL41_ERROR_SYSTEM
+'        gSetLastError SNARL_ERROR_SYSTEM
 '        Exit Function
 '
 '    End If
 '
 '    If (pData Is Nothing) Then
 '        g_Debug "g_DoNotify(): arg missing", LEMON_LEVEL_CRITICAL
-'        gSetLastError SNARL41_ERROR_ARG_MISSING
+'        gSetLastError SNARL_ERROR_ARG_MISSING
 '        Exit Function
 '
 '    End If
@@ -2187,7 +2461,7 @@ End Function
 '        Else
 '            ' /* Snarl's registration not found */
 '            g_Debug "g_DoNotify(): Snarl internal app not in roster", LEMON_LEVEL_CRITICAL
-'            gSetLastError SNARL41_ERROR_SYSTEM
+'            gSetLastError SNARL_ERROR_SYSTEM
 '            Exit Function
 '
 '        End If
@@ -2255,7 +2529,7 @@ End Function
 '
 '    ' /* return -1 on success, 0 on failure */
 '
-'    gSetLastError SNARL41_ERROR_SYSTEM
+'    gSetLastError SNARL_ERROR_SYSTEM
 '    If (g_NotificationRoster Is Nothing) Then _
 '        Exit Function
 '
@@ -2305,122 +2579,29 @@ End Function
 '
 'End Function
 
-Public Function g_DoAction(ByVal Action As String, ByVal Token As Long, ByRef Args As BPackedData, Optional ByVal IsRemoteApp As Boolean, Optional ByRef ReplySocket As CSocket) As Long
+Public Function g_GlobalMessage() As Long
 
-    ' /* this is the central hub for all incoming requests, be they from SNP, Growl/UDP
-    '    or Win32.  "Token" here can be either the app token or the notification token;
-    '    the action determines which one */
+    g_GlobalMessage = RegisterWindowMessage(SNARL_XXX_GLOBAL_MSG)
 
+End Function
 
-    ' /* special case: works any time and must be handled before we reset LastError */
-
-    If Action = "lasterror" Then
-        g_DoAction = GetProp(ghWndMain, "last_error")
-        Exit Function
-
-    End If
-
-    ' /* pretty much all of these require either or both rosters to be
-    '    available, so let's bail out now if something's really wrong */
-
-    If (g_AppRoster Is Nothing) Or (g_NotificationRoster Is Nothing) Or (Args Is Nothing) Then
-        gSetLastError SNARL41_ERROR_SYSTEM
-        Exit Function
-
-    End If
-
+Private Function uAddClass(ByVal Token As Long, ByRef Args As BPackedData) As Long
+Dim sz As String
 Dim pApp As TApp
 
-    ' /* assume all okay... */
+    sz = Args.ValueOf("app-sig")
+    If sz <> "" Then
+        ' /* FindByToken() will set lasterror for us */
+        If g_AppRoster.FindBySignature(sz, pApp, Args.ValueOf("password")) Then _
+            uAddClass = pApp.AddClass(Args)
 
-    gSetLastError 0
-
-    Select Case Action
-
-    Case "addaction"
-        g_DoAction = g_NotificationRoster.AddAction(Token, Args)
-
-    Case "addclass"
+    Else
         ' /* FindByToken() will set lasterror for us */
         If g_AppRoster.FindByToken(Token, pApp, Args.ValueOf("password")) Then _
-            g_DoAction = pApp.AddClass(Args)
+            uAddClass = pApp.AddClass(Args)
 
-    Case "clearclasses", "killclasses"
-        If g_AppRoster.FindByToken(Token, pApp, Args.ValueOf("password")) Then _
-            g_DoAction = pApp.RemClass(Args, True)
-
-    Case "clearactions"
-        g_DoAction = g_NotificationRoster.ClearActions(Token)
-
-    Case "alert"
-        g_DoAction = g_ShowRequest(Token, Args)
-
-    Case "hello"
-        ' /* just reply with SUCCESS but it means the sender will
-        '    be able to tell which version of SNP we support */
-        ' /* To-do: reply with an error message if Snarl isn't
-        '    accepting requests, or DND mode enabled? */
-        g_DoAction = -1
-
-    Case "hide"
-        g_DoAction = CLng(g_NotificationRoster.Hide(Token))
-
-    Case "isvisible"
-        g_DoAction = CLng(g_NotificationRoster.IsVisible(Token))
-
-    Case "notify"
-        g_DoAction = g_DoNotify(Token, Args, ReplySocket, IIf(IsRemoteApp, SNRL_NOTIFICATION_REMOTE, 0))
-
-    Case "reg", "register"
-        g_DoAction = g_AppRoster.Add41(Args, IsRemoteApp)
-
-    Case "remclass"
-        ' /* FindByToken() will set lasterror for us */
-        If g_AppRoster.FindByToken(Token, pApp, Args.ValueOf("password")) Then _
-            g_DoAction = pApp.RemClass(Args)
-
-    Case "test"
-        ' /* only available when Snarl is running in debug mode */
-        If gDebugMode Then
-            g_PrivateNotify "", _
-                            IIf(Args.ValueOf("alpha") = "", "Snarl", Args.ValueOf("alpha")), _
-                            IIf(Args.ValueOf("beta") = "", "Test Message", Args.ValueOf("beta"))
-            g_DoAction = -1
-
-        Else
-            gSetLastError SNARL41_ERROR_UNKNOWN_COMMAND
-            g_DoAction = 0
-
-        End If
-
-    Case "unreg", "unregister"
-        g_DoAction = g_AppRoster.Unregister(Token, Args.ValueOf("password"))
-
-    Case "update"
-        g_DoAction = g_NotificationRoster.Update(Token, Args)
-
-    Case "updateapp", "update_app"
-        g_DoAction = g_AppRoster.Update(Token, Args)
-
-    Case "version"
-        g_DoAction = GetProp(ghWndMain, "_version")
-
-    Case Else
-        gSetLastError SNARL41_ERROR_UNKNOWN_COMMAND
-        g_DoAction = 0
-
-    End Select
+    End If
 
 End Function
-
-Public Function g_newBPackedData(ByVal Content As String) As BPackedData
-
-    Set g_newBPackedData = New BPackedData
-    g_newBPackedData.SetTo (Content)
-
-End Function
-
-
-
 
 

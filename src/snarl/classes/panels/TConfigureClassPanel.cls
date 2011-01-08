@@ -33,7 +33,7 @@ Dim mhWndPanel As Long
 Dim mIgnoreChanges As Boolean           ' // when set KPrefsPage_ControlChanged() doesn't update config
 Dim mCurrentForward As Long
 
-Public Event Done()
+Public Event done()
 
 Implements KPrefsPanel
 Implements KPrefsPage
@@ -182,7 +182,7 @@ End Sub
 Private Sub KPrefsPanel_Quit()
 Dim rc As RECT
 
-    RaiseEvent Done
+    RaiseEvent done
     g_ShowWindow mhWndPanel, True, True
 
     GetWindowRect mhWndPanel, rc
@@ -266,9 +266,9 @@ Dim pm As CTempMsg
             .Add new_BPrefsControl("fancytoggle2", "use_custom_sound", "Play custom sound?", "")
             .Add new_BPrefsControl("fancyfilepicker", "custom_sound", , "Sound:")
 
-            ' /* R2.31: custom ack */
-            .Add new_BPrefsControl("fancytoggle2", "use_custom_ack", "Custom acknowledge?", "")
-            .Add new_BPrefsControl("fancyedit", "custom_ack", , "Command:")
+            ' /* R2.31: custom ack - renamed in R2.4 DR7 to "Callback" */
+            .Add new_BPrefsControl("fancytoggle2", "use_custom_ack", "Custom callback?", "")
+            .Add new_BPrefsControl("fancyedit", "custom_ack", , "Callback:")
 
             ' /* view-only */
             .Add new_BPrefsControl("fancytoggle2", "ignore_input", "Ignore mouse and other input events?", "Interaction:")

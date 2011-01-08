@@ -50,8 +50,8 @@ Option Explicit
     '
     ' */
 
-Private Const LIB_DATE = "20-Dec-2010"
-Private Const LIB_RELEASE = "1.21"
+Private Const LIB_DATE = "4-Jan-2011"
+Private Const LIB_RELEASE = "1.3"
 Private Const EXT_NAME = "SNP/HTTP"
 Private Const EXT_COMMENT = "Provides support for SNP 2.0 over HTTP"
 
@@ -162,9 +162,9 @@ Private Function ISnarlExtension_Initialize() As Long
     l3OpenLog "%APPDATA%\full phat\snarl\snphttp.log", True
     g_Debug "pwd: " & g_MakePath(App.Path)
 
-    If sn41GetVersion = 0 Then
-        g_Debug "Needs Snarl V41 or better", LEMON_LEVEL_CRITICAL
-        mLastErr = "Requires Snarl V41 or greater"
+    If snDoRequest("version") = 0 Then
+        g_Debug "Needs Snarl V42 or better", LEMON_LEVEL_CRITICAL
+        mLastErr = "Requires Snarl V42 or greater"
         ISnarlExtension_Initialize = -1
         Exit Function
 
@@ -172,10 +172,12 @@ Private Function ISnarlExtension_Initialize() As Long
 
     ' /* load our config here so we can fail if we can't listen on the specified port */
 
-Dim szUser As String
+'Dim szUser As String
+Dim szPath As String
 
     Set mConfig = New CConfFile
-    mConfig.SetTo sn41GetConfigPath() & ".snphttp"
+    If snGetConfigPath(szPath) Then _
+        mConfig.SetTo szPath & ".snphttp"
 
     Set theSocket = New CSocket
 

@@ -1,6 +1,18 @@
 Attribute VB_Name = "mGrowlSupport"
 Option Explicit
 
+    '/*********************************************************************************************
+    '/
+    '/  File:           mGrowlSupport.bas
+    '/
+    '/  Description:    Growl UDP support routines
+    '/
+    '/  © 2010 full phat products
+    '/
+    '/  This file may be used under the terms of the Simplified BSD Licence
+    '/
+    '*********************************************************************************************/
+
 Private Type T_GROWL_NOTIFICATION_TYPE
     Name As String
     Enabled As Boolean
@@ -14,6 +26,7 @@ Private Type T_GROWL_NOTIFICATION
     Title As String
     Description As String
     AppName As String
+    Sender As String
 
 End Type
 
@@ -194,6 +207,8 @@ Dim sptr As Long
         Debug.Print "type name=" & pgn.TypeName & " app=" & pgn.AppName
         Debug.Print "title=" & pgn.Title & " desc=" & pgn.Description
 
+        pgn.Sender = Sender
+
         i = uIndexOfApp(pgn.AppName)
         If i = 0 Then
             g_Debug "mGrowlSupport.g_ProcessGrowlUDP(): '" & pgn.AppName & "' is not registered", LEMON_LEVEL_CRITICAL
@@ -217,7 +232,7 @@ Static i As Long
     If mRegCount Then
         For i = mRegCount To 1 Step -1
             If mGrowlReg(i).SnarlToken Then _
-                sn41UnregisterApp mGrowlReg(i).SnarlToken
+                g_AppRoster.Unregister mGrowlReg(i).SnarlToken, ""
 
         Next i
     End If
@@ -276,9 +291,9 @@ Private Sub uRegister(ByRef pgr As T_GROWL_REGISTRATION)
 Dim ppd As BPackedData
 
     Set ppd = New BPackedData
-    ppd.Add "id", pgr.ApplicationName & "_" & pgr.RemoteHost
+    ppd.Add "id", Replace$(pgr.ApplicationName, " ", "_") & "_" & pgr.RemoteHost
     ppd.Add "title", pgr.ApplicationName
-    ppd.Add "icon", g_MakePath(App.Path) & "etc\icons\growl_app.png"
+    ppd.Add "icon", g_MakePath(App.Path) & "etc\icons\growl-no_icon.png"
 
     g_Debug "mGrowlSupport.uRegister(): '" & pgr.ApplicationName & "_" & pgr.RemoteHost & "'"
 
@@ -343,6 +358,6 @@ Dim ppd As BPackedData
 
     End With
 
-    uNotify = g_DoNotify(AppToken, ppd, , SNRL_NOTIFICATION_REMOTE)
+    uNotify = g_DoNotify(AppToken, ppd, , S_NOTIFICATION_REMOTE, pgn.Sender)
 
 End Function

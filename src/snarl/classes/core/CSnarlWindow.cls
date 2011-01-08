@@ -58,7 +58,7 @@ Dim mTick As Long                       '// timeout/100
     ' /* R2.3 */
 Dim mClickThru As Boolean               '// set during Create() - taken from class settings and then modified by style flags
 Dim mStylePath As String
-Dim mClass As TAlert
+'Dim mClass As TAlert
 Dim mMenuOpen As Boolean
 
     ' /* R2.4 */
@@ -77,9 +77,11 @@ Dim mActionsRect As BRect
 
 Implements MWndProcSink
 
-Friend Function Create(ByRef Class As TAlert, ByRef Info As T_NOTIFICATION_INFO, ByRef Instance As IStyleInstance, ByVal StyleFlags As S_STYLE_FLAGS, ByVal StylePath As String) As M_RESULT
+Friend Function Create(ByRef Info As T_NOTIFICATION_INFO, ByRef Instance As IStyleInstance, ByVal StyleFlags As S_STYLE_FLAGS, ByVal StylePath As String) As M_RESULT
 
-    If (Class Is Nothing) Then
+    ' /* must have a class */
+
+    If (Info.ClassObj Is Nothing) Then
         Create = M_INVALID_ARGS
         Exit Function
 
@@ -87,11 +89,9 @@ Friend Function Create(ByRef Class As TAlert, ByRef Info As T_NOTIFICATION_INFO,
 
 '    Info.StyleToUse = style_GetSchemeName(Info.StyleToUse)
 
-    mClickThru = Class.IsClickThru
-    mStylePath = StylePath
-    Set mClass = Class
-
     LSet mInfo = Info
+    mClickThru = mInfo.ClassObj.IsClickThru
+    mStylePath = StylePath
 
 Dim pbm As mfxBitmap
 Dim rc As RECT
@@ -185,7 +185,7 @@ Dim pt As POINTAPI
 
             Me.SetTimeout mOriginalTimeout
             
-Debug.Print "TIMEOUT " & mOriginalTimeout
+'Debug.Print "TIMEOUT " & mOriginalTimeout
             
             mVisible = True
 
@@ -195,7 +195,7 @@ Debug.Print "TIMEOUT " & mOriginalTimeout
 
     End If
 
-Debug.Print "SHOW: " & m_Alpha
+'Debug.Print "SHOW: " & m_Alpha
 
     If Not (theWindow Is Nothing) Then
         uSetTargetAlpha m_Alpha
@@ -315,7 +315,7 @@ Static f As Boolean
                     Else
                         ' /* just close ourself */
                         bPaused = True                  ' // don't count down while we're doing this...
-                        uNotify SNARL_NOTIFICATION_CLOSED
+                        uNotify SNARL_CALLBACK_CLOSED
                         bPaused = False
                         Hide
 
@@ -327,10 +327,15 @@ Static f As Boolean
     
                     ' /* V38.94 - if an ACK string has been specified, launch it now */
     
-                    If mInfo.DefaultAck <> "" Then _
+                    If mInfo.DefaultAck <> "" Then
                         g_ProcessAck mInfo.DefaultAck
 
-                    uNotify SNARL_NOTIFICATION_ACK
+                    Else
+                        ' /* R2.4 DR7: only do the callback if no static callback defined */
+                        uNotify SNARL_CALLBACK_INVOKED
+
+                    End If
+
                     bPaused = False
                     Hide
 
@@ -375,15 +380,16 @@ Static f As Boolean
                         End If
 
                     Else
-                        uNotify SNARL_NOTIFICATION_CLICKED
+                        ' /* this is deprecated as of R2.4 DR7 */
+                        uNotify SNARL_CALLBACK_R_CLICK
 
                     End If
 
                     bPaused = False
 
-                    ' /* R2.4: hide when right-clicked? */
-                    If (mInfo.Flags And SNARL41_NOTIFICATION_AUTO_DISMISS) Then _
-                        Hide
+'                    ' /* R2.4: hide when right-clicked? */
+'                    If (mInfo.Flags And SNARL41_NOTIFICATION_AUTO_DISMISS) Then _
+'                        Hide
 
                 End Select
             Else
@@ -410,12 +416,13 @@ Static f As Boolean
                 Case "client"
 
                     bPaused = True
-                    uNotify SNARL_NOTIFICATION_MIDDLE_BUTTON
+                    ' /* Deprecated as of R2.4 DR7, retained for backwards compatibility */
+                    uNotify SNARL_CALLBACK_M_CLICK
                     bPaused = False
 
-                    ' /* R2.4: hide when middle button clicked? */
-                    If (mInfo.Flags And SNARL41_NOTIFICATION_AUTO_DISMISS) Then _
-                        Hide
+'                    ' /* R2.4: hide when middle button clicked? */
+'                    If (mInfo.Flags And SNARL41_NOTIFICATION_AUTO_DISMISS) Then _
+'                        Hide
 
                 End Select
             Else
@@ -437,7 +444,7 @@ Static f As Boolean
 Debug.Print "SNARL_NOTIFICATION_TIMED_OUT " & mTick
                 
                 bPaused = True
-                uNotify SNARL_NOTIFICATION_TIMED_OUT
+                uNotify SNARL_CALLBACK_TIMED_OUT
                 bPaused = False
                 Hide
 
@@ -463,7 +470,7 @@ Debug.Print "SNARL_NOTIFICATION_TIMED_OUT " & mTick
                         
                         ' /* R2.4: if this was a low priority notification, check the queue */
                         
-                        If mInfo.Priority < 0 Then _
+'                        If mInfo.Priority < 0 Then _
                             g_NotificationRoster.QueueNext
 
                     End If
@@ -577,7 +584,7 @@ Dim pr As BRect
 
     End If
 
-    Debug.Print uHitTest
+'    Debug.Print uHitTest
 
 'Dim n As Integer
 '
@@ -690,7 +697,7 @@ End Property
 
 Public Sub uSetTargetAlpha(ByVal Alpha As Long)
 
-Debug.Print "SET TARGET ALPHA " & Alpha
+'Debug.Print "SET TARGET ALPHA " & Alpha
 
     If Alpha < mCurrent Then
         ' /* fade out */
@@ -827,7 +834,7 @@ Dim n As Long
         ' /* can only ever have one low priority notification visible at any one time
         '    (obviously this excludes visible non-windowed styles) */
 
-        If mInfo.Priority < 0 Then _
+'        If mInfo.Priority < 0 Then _
             n = g_NotificationRoster.QueueCount
 
         ' /* if we have queued notifications, draw the number in a badge */
@@ -901,10 +908,10 @@ Dim pm As OMMenu
         .AddItem .CreateItem(" ", "Details", , , , , , uDetailsMenu())          ' // R2.3
         .AddSeparator
 
-        If mClass.App.HasConfig Then _
-            .AddItem .CreateItem("acfg", mClass.App.Name & " Settings...", , mClass.App.HasConfig)
+        If mInfo.ClassObj.App.HasConfig Then _
+            .AddItem .CreateItem("acfg", mInfo.ClassObj.App.Name & " Settings...", , mInfo.ClassObj.App.HasConfig)
 
-        .AddItem .CreateItem("$" & mClass.App.Name & "#?" & mClass.Name, "Notification Settings...")
+        .AddItem .CreateItem("$" & mInfo.ClassObj.App.Name & "#?" & mInfo.ClassObj.Name, "Notification Settings...")
 
         .AddSeparator
 
@@ -918,7 +925,7 @@ Dim pm As OMMenu
         .AddSeparator
         .AddItem .CreateItem("clse", "Close")
         .AddSeparator
-        .AddItem .CreateItem("capp", "Close all from " & mClass.App.Name)
+        .AddItem .CreateItem("capp", "Close all from " & mInfo.ClassObj.App.Name)
         .AddItem .CreateItem("call", "Close all")
 
         If g_IsPressed(VK_CONTROL) Then
@@ -943,7 +950,7 @@ Dim sz() As String
             Hide
 
         Case "capp"
-            g_NotificationRoster.CloseMultiple mClass.App.Token
+            g_NotificationRoster.CloseMultiple mInfo.ClassObj.App.Token
 
         Case "call"
             g_NotificationRoster.CloseMultiple 0
@@ -961,7 +968,7 @@ Dim sz() As String
             Clipboard.SetText mInfo.Title & vbCrLf & mInfo.Text
 
         Case "acfg"
-            mClass.App.DoSettings
+            mInfo.ClassObj.App.DoSettings
 
         Case Else
             
@@ -1171,22 +1178,13 @@ Dim pmi As OMMenuItem
 
     EnableWindow hWndOwner, -1          ' // item was selected so re-enable the window
 
-    If g_IsNumeric(pmi.Name) Then
-        ' /* it's an id, so send it as a SNARL_NOTIFICATION_MENU notification */
-
-        uNotify SNARL_NOTIFICATION_MENU, Val(pmi.Name)
-
-'        If (IsWindow(mInfo.hWndReply) <> 0) And (mInfo.uReplyMsg <> 0) Then
-'            PostMessage mInfo.hWndReply, mInfo.uReplyMsg, MAKELONG(SNARL_NOTIFICATION_MENU, Val(pmi.Name)), ByVal mInfo.Token
-'
-'        Else
-'            g_Debug "CSnarlWindow.uTrackMenu(): can't send notification: invalid window or reply message", LEMON_LEVEL_WARNING
-'
-'        End If
-
-    ElseIf g_SafeLeftStr(pmi.Name, 1) = "!" Then
-        ' /* R2.4: menu id's can be bang commands */
+    If g_SafeLeftStr(pmi.Name, 1) = "!" Then
+        ' /* R2.4: menu id's can be bang commands, paths, urls, etc. */
         g_ProcessAck pmi.Name
+
+    Else
+        ' /* send it as a SNARL_NOTIFICATION_MENU notification */
+        uNotify SNARL_CALLBACK_MENU_SELECTED, pmi.Name
 
     End If
 
@@ -1194,52 +1192,79 @@ Dim pmi As OMMenuItem
 
 End Function
 
-Private Sub uNotify(ByVal Notification As Integer, Optional ByVal Data As Integer)
+Private Sub uNotify(ByVal Code As Integer, Optional ByVal Data As String)
+Dim szData As String
+Dim n As Integer
 
     If Not (mInfo.Socket Is Nothing) Then
         ' /* if we have a socket, then reply to that */
-        g_Debug "CSnarlWindow.uNotify(): replying to " & mInfo.Socket.RemoteHostIP & ":" & CStr(mInfo.Socket.RemotePort) & "..."
-        mInfo.Socket.SendData "SNP/2.0/" & CStr(Notification + 270) & "/" & uNotifyStr(Notification + 270) & "/" & CStr(mInfo.Token) & IIf(Data = 0, "", "/" & CStr(Data)) & vbCrLf
+
+        ' /* FIXFIXFIX - what about GNTP? */
+
+        Code = Code + 270
+
+        ' /* most callbacks are deprecated as of V42 - INVOKED, EXPIRED and ACTION are the only
+        '    ones which aren't, so we only do these for SNP */
+
+        Select Case Code
+        Case SNARL_NOTIFY_INVOKED, SNARL_NOTIFY_EXPIRED
+            ' /* nothing special to do here */
+
+        Case SNARL_NOTIFY_ACTION, SNARL_NOTIFY_MENU
+            ' /* send the data verbatim */
+            szData = "/" & Data
+
+        Case Else
+            g_Debug "CSnarlWindow.uNotify(): not sending deprecated command " & CStr(Code)
+            Exit Sub
+
+        End Select
+
+        g_Debug "CSnarlWindow.uNotify(): dest=" & mInfo.Socket.RemoteHostIP & ":" & CStr(mInfo.Socket.RemotePort)
+
+        mInfo.Socket.SendData "SNP/2.0/" & CStr(Code) & _
+                              "/" & uSNP2CallbackResponse(Code) & _
+                              "/" & CStr(mInfo.Token) & szData & _
+                              vbCrLf
 
     ElseIf (IsWindow(mInfo.hWndReply) <> 0) And (mInfo.uReplyMsg <> 0) Then
+
         ' /* otherwise, if we have a valid window and message, reply to that */
 
-        g_Debug "CSnarlWindow.uNotify(): sending #" & CStr(Notification) & " to hWnd=" & g_HexStr(mInfo.hWndReply) & " msg=" & g_HexStr(mInfo.uReplyMsg) & " id=" & g_HexStr(mInfo.Token), LEMON_LEVEL_INFO
-        PostMessage mInfo.hWndReply, mInfo.uReplyMsg, MAKELONG(Notification, Data), ByVal mInfo.Token
+        n = LoWord(g_SafeLong(g_SafeRightStr(Data, Len(Data) - 1)))
+
+        g_Debug "CSnarlWindow.uNotify(): sending " & CStr(Code) & " to 0x" & g_HexStr(mInfo.hWndReply) & _
+                " using 0x" & g_HexStr(mInfo.uReplyMsg, 4) & " token=" & CStr(mInfo.Token) & " data=" & CStr(n), LEMON_LEVEL_INFO
+
+        PostMessage mInfo.hWndReply, mInfo.uReplyMsg, MAKELONG(Code, n), ByVal mInfo.Token
 
     Else
-        g_Debug "CSnarlWindow.uNotify(): no reply socket or window", LEMON_LEVEL_WARNING
+        g_Debug "CSnarlWindow.uNotify(): no reply socket or window"
 
     End If
 
 End Sub
 
-Private Function uNotifyStr(ByVal Id As Long) As String
+Private Function uSNP2CallbackResponse(ByVal Id As Long) As String
+Dim sz As String
 
     Select Case Id
-    
-    Case SNARL42_NOTIFY_CLICK
-        uNotifyStr = "Clicked"
 
-    Case SNARL42_NOTIFY_TIMED_OUT
-        uNotifyStr = "Expired"
+    Case SNARL_NOTIFY_INVOKED                   '// notification was left-clicked
+        sz = "INVOKED"
 
-    Case SNARL42_NOTIFY_ACK                      '// notification was left-clicked
-        uNotifyStr = "Ack"
+    Case SNARL_NOTIFY_ACTION                    '// user picked an action from the pop-up
+        sz = "ACTION"
 
-    Case SNARL42_NOTIFY_MENU_SELECTED            '// indicates an item was selected from user-defined menu (deprecated as of V42)
-        uNotifyStr = "Menu"
+    Case SNARL_NOTIFY_EXPIRED
+        sz = "EXPIRED"
 
-    Case SNARL42_NOTIFY_EX_CLICK                 '// user clicked the middle mouse button (deprecated as of V42)
-        uNotifyStr = "ExtendedClick"
-
-    Case SNARL42_NOTIFY_CLOSED                   '// user clicked the notification's close gadget
-        uNotifyStr = "Closed"
-
-    Case SNARL42_NOTIFY_ACTION                   '// user picked an action from the pop-up
-        uNotifyStr = "Action"
+    Case Else
+        sz = "(undefined)"
 
     End Select
+
+    uSNP2CallbackResponse = sz
 
 End Function
 
@@ -1421,31 +1446,33 @@ Dim n As Long
     ' /* emblems */
 
 Dim pt As BPoint
+Const EMBLEM_SIZE = 12
 
-    Set pt = new_BPoint(pv.Width - 16 - 2, pv.Height - 16 - 2)
+
+    Set pt = new_BPoint(pv.Width - EMBLEM_SIZE - 3, pv.Height - EMBLEM_SIZE - 3)
 
     ' /* if notification isn't click-through and the mouse pointer isn't
     '    over it, and it has actions, draw the actions indicator emblem */
 
     If (Not mClickThru) And (Not mCloseButtonVisible) And (mActions > 0) Then
-        pv.DrawScaledImage bm_HasActions, pt, new_BPoint(16, 16)
-        pt.OffsetBy -17, 0
+        pv.DrawScaledImage bm_HasActions, pt, new_BPoint(EMBLEM_SIZE, EMBLEM_SIZE), 190
+        pt.OffsetBy -(EMBLEM_SIZE + 1), 0
 
     End If
 
     ' /* if the notification was generated by a remote app */
 
-    If (mInfo.IntFlags And SNRL_NOTIFICATION_REMOTE) Then
-        pv.DrawScaledImage bm_Remote, pt, new_BPoint(16, 16)
-        pt.OffsetBy -17, 0
+    If (mInfo.IntFlags And S_NOTIFICATION_REMOTE) Then
+        pv.DrawScaledImage bm_Remote, pt, new_BPoint(EMBLEM_SIZE, EMBLEM_SIZE), 190
+        pt.OffsetBy -(EMBLEM_SIZE + 1), 0
 
     End If
 
     ' /* if the notification was generated by a secure app */
 
-    If (mInfo.IntFlags And SNRL_NOTIFICATION_SECURE) Then
-        pv.DrawScaledImage bm_Secure, pt, new_BPoint(16, 16)
-        pt.OffsetBy -17, 0
+    If (mInfo.IntFlags And S_NOTIFICATION_SECURE) Then
+        pv.DrawScaledImage bm_Secure, pt, new_BPoint(EMBLEM_SIZE, EMBLEM_SIZE), 190
+        pt.OffsetBy -(EMBLEM_SIZE + 1), 0
 
     End If
 
@@ -1532,7 +1559,7 @@ Dim pInfo As notification_info
 '        .Scheme = Replace$(LCase$(Info.SchemeName), Chr$(255), "")
 
         If (mStyleFlags And S_STYLE_V42_CONTENT) Then
-            .Title = Info.Sender
+            .Title = Info.ClassObj.App.Name
             .Text = Info.OriginalContent
 
         Else
@@ -1629,7 +1656,7 @@ Private Function uDetailsMenu() As OMMenu
     Set uDetailsMenu = New OMMenu
     With uDetailsMenu
         .AddItem .CreateItem("", "Received: " & uDateStamp())
-        .AddItem .CreateItem("$" & mClass.App.Name & "#?" & mClass.Name, "Generated by: " & mClass.App.Name & " (" & mClass.Description & ")")
+        .AddItem .CreateItem("$" & mInfo.ClassObj.App.Name & "#?" & mInfo.ClassObj.Name, "Generated by: " & mInfo.ClassObj.App.Name & " (" & mInfo.ClassObj.Description & " class)")
 
     End With
 
@@ -1655,13 +1682,10 @@ End Sub
 
 Public Function IsMergeCandidate(ByRef ComparisonClass As TAlert, ByVal ComparisonTitle As String) As Boolean
 
-    If (ComparisonClass Is Nothing) Then _
+    If (ComparisonClass Is Nothing) Or ((mInfo.IntFlags And S_NOTIFICATION_MERGE) = 0) Then _
         Exit Function
 
-    If (mInfo.Flags And SNARL41_NOTIFICATION_ALLOWS_MERGE) = 0 Then _
-        Exit Function
-
-    If (ComparisonClass.App.Signature = mClass.App.Signature) And (ComparisonClass.Name = mClass.Name) Then _
+    If (ComparisonClass.App.Signature = mInfo.ClassObj.App.Signature) And (ComparisonClass.Name = mInfo.ClassObj.Name) Then _
         IsMergeCandidate = (ComparisonTitle = mInfo.Title) Or (ComparisonTitle = "")
 
 End Function
@@ -1726,7 +1750,7 @@ Dim i As Long
 
     With New OMMenu
         For i = 1 To mActions
-            .AddItem .CreateItem(IIf(mAction(i).Command <> "", mAction(i).Command, "\\" & CStr(i)), mAction(i).Label)
+            .AddItem .CreateItem(CStr(i), mAction(i).Label)
             If i < mActions Then _
                 .AddSeparator
 
@@ -1739,18 +1763,23 @@ Dim i As Long
     If (pmi Is Nothing) Then _
         Exit Sub
 
-    If g_SafeLeftStr(pmi.Name, 2) = "\\" Then
-        i = Val(g_SafeRightStr(pmi.Name, Len(pmi.Name) - 2))
-        uNotify SNARL_NOTIFICATION_ACTION, i
+    ' /* get selected action */
+
+    i = Val(pmi.Name)
+
+    If g_SafeLeftStr(mAction(i).Command, 1) = "@" Then
+        ' /* dynamic callback */
+        uNotify SNARL_NOTIFY_ACTION, mAction(i).Command
 
     Else
-        g_ProcessAck pmi.Name
+        ' /* static callback - process but don't do a callback */
+        g_ProcessAck mAction(i).Command
 
     End If
         
     EnableWindow theWindow.hWnd, -1           ' // item was selected so re-enable the window
 
-    If (mInfo.Flags And SNARL41_NOTIFICATION_AUTO_DISMISS) Then _
+'    If (mInfo.Flags And SNARL41_NOTIFICATION_AUTO_DISMISS) Then _
         Me.Hide
 
 End Sub

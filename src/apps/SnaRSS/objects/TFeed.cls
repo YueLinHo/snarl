@@ -237,7 +237,7 @@ Static i As Long
 
     g_Debug "TFeed.ShowHeadline()", LEMON_LEVEL_PROC_ENTER
 
-    If Not (theFeed Is Nothing) Then
+    If (Not (theFeed Is Nothing)) And (gToken <> 0) Then
         If theFeed.CountItems > 0 Then
 
             With theFeed.ItemAt(1)
@@ -267,43 +267,61 @@ Static i As Long
 End Sub
 
 Public Sub ShowSummary()
-Static i As Long
+
+    g_Debug "TFeed.ShowSummary()", LEMON_LEVEL_PROC_ENTER
+
 Static sz As String
+Static i As Long
 
-    If (theFeed Is Nothing) Then _
-        Exit Sub
+    If (Not (theFeed Is Nothing)) And (gToken <> 0) Then
+        If theFeed.CountItems > 0 Then
 
-    If theFeed.CountItems < 1 Then _
-        Exit Sub
+            sz = ""
 
-    With theFeed
-        For i = 1 To MIN(8, .CountItems)
-            sz = sz & "• " & .ItemAt(i).Title & IIf(i < .CountItems, vbCrLf, "")
+            With theFeed
+                For i = 1 To MIN(8, .CountItems)
+                    sz = sz & "• " & .ItemAt(i).Title & IIf(i < .CountItems, vbCrLf, "")
 
-        Next i
+                Next i
 
-        i = sn41EZNotify(gToken, "", _
-                         .Channel.Title, _
-                         sz, _
-                         , _
-                         .Channel.ImageUrl, , _
-                         .Channel.Link)
+                i = sn41EZNotify(gToken, "", _
+                                 .Channel.Title, _
+                                 sz, _
+                                 , _
+                                 .Channel.ImageUrl, , _
+                                 .Channel.Link)
 
-    End With
+            End With
+
+        Else
+            g_Debug "feed has no entries", LEMON_LEVEL_CRITICAL
+
+        End If
+
+    Else
+        g_Debug "bad feed or not registered with Snarl", LEMON_LEVEL_CRITICAL
+
+    End If
+
+    g_Debug "", LEMON_LEVEL_PROC_EXIT
 
 End Sub
 
 Public Function Refresh() As Boolean
 
+    g_Debug "TFeed.Refresh()", LEMON_LEVEL_PROC_ENTER
+
     If mRefreshing Then
-        g_Debug "TFeed.Refresh(): called but busy"
-        Exit Function
+        g_Debug "busy...", LEMON_LEVEL_WARNING
+
+    Else
+        g_Debug "asking '" & mURL & "' to refresh..."
+        Refresh = (theFeed.GetContent(mURL) = B_OK)
+        mRefreshing = True
 
     End If
 
-    g_Debug "TFeed.Refresh(): asking '" & mURL & "' to refresh"
-    Refresh = (theFeed.GetContent(mURL) = B_OK)
-    mRefreshing = True
+    g_Debug "", LEMON_LEVEL_PROC_EXIT
 
 End Function
 
@@ -314,45 +332,54 @@ End Function
 'End Function
 
 Public Sub FeedInfo()
-Static sz As String
-Static i As Long
 
     On Error Resume Next
 
-    If (theFeed Is Nothing) Then _
-        Exit Sub
+    g_Debug "TFeed.FeedInfo()", LEMON_LEVEL_PROC_ENTER
 
-    If Not theFeed.IsValid Then
-        i = sn41EZNotify(gToken, "", _
-                         "Could not retrieve feed", _
-                         "There may be a problem with your Internet connection, or the server providing the feed may be off-line - try accessing the feed from a browser", , _
-                         g_MakePath(App.Path) & "failed.png")
+Static sz As String
+Static i As Long
 
-    ElseIf (theFeed.Channel Is Nothing) Then
-        i = sn41EZNotify(gToken, "", _
-                         "Invalid RSS Feed", _
-                         "Data was returned but it does not appear to be a valid RSS feed", , _
-                         g_MakePath(App.Path) & "failed.png")
+    If (Not (theFeed Is Nothing)) And (gToken <> 0) Then
+        If Not theFeed.IsValid Then
+            i = sn41EZNotify(gToken, "", _
+                             "Could not retrieve feed", _
+                             "There may be a problem with your Internet connection, or the server providing the feed may be off-line - try accessing the feed from a browser", , _
+                             g_MakePath(App.Path) & "failed.png")
+
+        ElseIf (theFeed.Channel Is Nothing) Then
+            i = sn41EZNotify(gToken, "", _
+                             "Invalid RSS Feed", _
+                             "Data was returned but it does not appear to be a valid RSS feed", , _
+                             g_MakePath(App.Path) & "failed.png")
+
+        Else
+            With theFeed
+
+                g_Debug .RawXML
+
+                sz = IIf(.Channel.Description <> "", .Channel.Description & vbCrLf, "") & _
+                     IIf(.Channel.Copyright <> "", .Channel.Copyright & vbCrLf, "") & _
+                     IIf(.FeedVersion <> "", "Version " & .FeedVersion, "")
+
+                If sz <> "" Then _
+                    i = sn41EZNotify(gToken, "", _
+                                     .Channel.Title, _
+                                     sz, _
+                                     , _
+                                     .Channel.ImageUrl, , _
+                                     .Channel.Link)
+
+            End With
+
+        End If
 
     Else
-        With theFeed
+        g_Debug "bad feed or not registered with Snarl", LEMON_LEVEL_CRITICAL
 
-            Debug.Print .RawXML
-
-            sz = IIf(.Channel.Description <> "", .Channel.Description & vbCrLf, "") & _
-                 IIf(.Channel.Copyright <> "", .Channel.Copyright & vbCrLf, "") & _
-                 IIf(.FeedVersion <> "", "Version " & .FeedVersion, "")
-
-            If sz <> "" Then _
-                i = sn41EZNotify(gToken, "", _
-                                 .Channel.Title, _
-                                 sz, _
-                                 , _
-                                 .Channel.ImageUrl, , _
-                                 .Channel.Link)
-
-        End With
     End If
+
+    g_Debug "", LEMON_LEVEL_PROC_EXIT
 
 End Sub
 

@@ -81,31 +81,37 @@ Attribute VB_PredeclaredId = True
 Attribute VB_Exposed = False
 Option Explicit
 
-Dim mToken As Long
+Dim mAppToken As Long
 Dim mMsg As Long
 
 Private Sub Command4_Click()
 
-    If mToken Then _
-        mMsg = sn41EZNotify(mToken, "", Text1.Text, Text2.Text, 0, App.Path & "\icon.png", , , , SNARL41_NOTIFICATION_ALLOWS_MERGE)
+    If mAppToken Then _
+        mMsg = snDoRequest("notify?token=" & CStr(mAppToken) & _
+                           "&title=" & Text1.Text & _
+                           "&text=" & Text2.Text & _
+                           "&icon=" & App.Path & "\icon.png" & _
+                           "&merge=1")
+
+'        mMsg = sn41EZNotify(mAppToken, "", Text1.Text, Text2.Text, 0, App.Path & "\icon.png", , , , SNARL41_NOTIFICATION_ALLOWS_MERGE)
 
 End Sub
 
 Private Sub Form_Load()
 Dim hr As Long
 
-    If Not sn41IsSnarlRunning() Then
+    If Not snIsSnarlRunning() Then
         MsgBox "Snarl isn't running - launch Snarl, then run this demo.", vbExclamation Or vbOKOnly, App.Title
         Unload Me
 
     Else
-        hr = sn41RegisterApp(App.ProductName, App.Title, App.Path & "\icon.png")
+        hr = snDoRequest("reg?id=" & App.ProductName & "&title=" & App.Title & "&icon=" & App.Path & "\icon.png")
         If hr = 0 Then
-            Me.Caption = "Error registering with Snarl: " & sn41GetLastError()
+            Me.Caption = "Error registering with Snarl: " & snGetLastError()
 
         Else
-            Me.Caption = "Registered with Snarl V" & CStr(sn41GetVersion()) & " (" & Hex$(hr) & ")"
-            mToken = hr
+            Me.Caption = "Registered with Snarl V" & CStr(snDoRequest("version")) & " (" & Hex$(hr) & ")"
+            mAppToken = hr
 
         End If
 
@@ -116,9 +122,9 @@ End Sub
 Private Sub Form_Unload(Cancel As Integer)
 Dim hr As Long
 
-    hr = sn41UnregisterApp(mToken)
+    hr = snDoRequest("unreg?token=" & CStr(mAppToken))
     If hr = 0 Then
-        Debug.Print "FAILED: " & sn41GetLastError()
+        Debug.Print "FAILED: " & snGetLastError()
 
     Else
         Debug.Print "OK: " & hr
