@@ -17,7 +17,7 @@ Option Explicit
     '/
     '/  File:           TInternalStyle.cls
     '/
-    '/  Description:    Implements our single internal style (and associated style engine)
+    '/  Description:    Implements our internal styles (and associated style engine)
     '/
     '/  Created:        11-May-2009
     '/
@@ -27,22 +27,28 @@ Option Explicit
     '/
     '*********************************************************************************************/
 
-Private Const ENG_DATE = "8-Mar-2010"
+Private Const ENG_DATE = "13-Jan-2011"
 
 Private Const STYLE_NAME = "Default"
 Private Const DEF_STYLE_DATE = "6-Apr-2009"
 Private Const DEF_STYLE_COPY = "© 2009 full phat products"
 
 Private Const IP_STYLE_NAME = "IP Forwarder"
-Private Const IP_STYLE_DATE = "8-Mar-2010"
+Private Const IP_STYLE_DATE = "12-Dec-2010"
 Private Const IP_STYLE_COPY = "© 2010 full phat products"
+
+Private Const RUN_STYLE_NAME = "Run File"
+Private Const RUN_STYLE_DATE = "13-Jan-2011"
+Private Const RUN_STYLE_COPY = "© 2011 full phat products"
 
 Private Const BORDER_SIZE = 6
 Private Const ICON_SIZE = 32
 
 Public IsIPForwarder As Boolean
+Public IsFileRunner As Boolean
 
 Dim theView As mfxView
+Dim mPanel As TRunFilePanel
 
 Implements IStyleInstance
 Implements IStyleEngine
@@ -55,7 +61,7 @@ End Sub
 
 Private Function IStyleEngine_CountStyles() As Long
 
-    IStyleEngine_CountStyles = 2
+    IStyleEngine_CountStyles = 3
 
 End Function
 
@@ -65,6 +71,11 @@ Dim pStyle As TInternalStyle
     If StyleName = IP_STYLE_NAME Then
         Set pStyle = New TInternalStyle
         pStyle.IsIPForwarder = True
+        Set IStyleEngine_CreateInstance = pStyle
+
+    ElseIf StyleName = RUN_STYLE_NAME Then
+        Set pStyle = New TInternalStyle
+        pStyle.IsFileRunner = True
         Set IStyleEngine_CreateInstance = pStyle
 
     Else
@@ -87,6 +98,12 @@ Private Function IStyleEngine_Description() As String
 End Function
 
 Private Function IStyleEngine_GetConfigWindow(ByVal StyleName As String) As Long
+
+    If StyleName = "Run File" Then
+        Set mPanel = New TRunFilePanel
+        IStyleEngine_GetConfigWindow = mPanel.Go
+
+    End If
 
 End Function
 
@@ -120,7 +137,7 @@ End Function
 
 Private Sub IStyleEngine_StyleAt(ByVal Index As Long, Style As libSnarlStyles.style_info)
 
-    If (Index < 1) Or (Index > 2) Then _
+    If (Index < 1) Or (Index > IStyleEngine_CountStyles()) Then _
         Exit Sub
 
         With Style
@@ -149,11 +166,21 @@ Private Sub IStyleEngine_StyleAt(ByVal Index As Long, Style As libSnarlStyles.st
             .Flags = S_STYLE_IS_WINDOWLESS Or S_STYLE_WANT_APP_NAME
             .IconPath = g_MakePath(App.Path) & "etc\icons\network.png"
             .Major = 0
-            .Minor = 1
+            .Minor = 8
             .Name = IP_STYLE_NAME
 
-        End Select
+        Case 3
+            .Copyright = RUN_STYLE_COPY
+            .Date = RUN_STYLE_DATE
+            .Description = "Runs a user-defined file"
+            .Flags = S_STYLE_IS_WINDOWLESS Or S_STYLE_WANT_APP_NAME Or S_STYLE_IS_CONFIGURABLE
+            .IconPath = g_MakePath(App.Path) & "etc\icons\runfile.png"
+            .Major = 0
+            .Minor = 1
+            .Name = RUN_STYLE_NAME
+            .Schemes = uGetRunFileSchemes()
 
+        End Select
 
     End With
 
@@ -186,10 +213,17 @@ Private Sub IStyleInstance_Show(ByVal Visible As Boolean)
 End Sub
 
 Private Sub IStyleInstance_UpdateContent(NotificationInfo As libSnarlStyles.notification_info)
+Dim sz() As String
 
     If IsIPForwarder Then
         uIPFStyleUpdate NotificationInfo
-    
+
+    ElseIf IsFileRunner Then
+        sz = Split(Replace$(NotificationInfo.Title, vbCrLf, "\n"), "#?")
+        ShellExecute 0, "open", NotificationInfo.Scheme, Chr$(34) & sz(1) & Chr$(34) & " " & _
+                                                         Chr$(34) & Replace$(NotificationInfo.Text, vbCrLf, "\n") & Chr$(34) & " " & _
+                                                         Chr$(34) & sz(0) & Chr$(34), vbNullString, SW_SHOW
+
     Else
         uDefStyleUpdate NotificationInfo
 
@@ -305,4 +339,20 @@ Dim prFrame As BRect
 
 End Sub
 
+Private Function uGetRunFileSchemes() As String
+Dim sd As String
+Dim sn As String
 
+    With New CConfFile
+        If .SetTo(g_MakePath(App.Path) & "etc\runfile.conf", True) Then
+            .Rewind
+            Do While .GetEntry(sn, sd)
+                uGetRunFileSchemes = uGetRunFileSchemes & sd & "|"
+
+            Loop
+        End If
+    End With
+
+    uGetRunFileSchemes = g_SafeLeftStr(uGetRunFileSchemes, Len(uGetRunFileSchemes) - 1)
+
+End Function

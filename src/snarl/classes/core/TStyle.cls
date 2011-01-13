@@ -57,6 +57,12 @@ Dim i As Long
 
     On Error Resume Next
 
+    With mContent
+        .SchemeCount = 0
+        ReDim .Scheme(0)
+
+    End With
+
     sz() = Split(mContent.Info.Schemes, "|")
     c = UBound(sz()) + 1
     If c > 0 Then
@@ -237,7 +243,14 @@ Public Function Release() As String
 
 End Function
 
-Public Function GetSchemeList() As String
+Public Function GetSchemeList(Optional ByVal Refresh As Boolean) As String
+
+    If Refresh Then
+        uUpdateStyleInfo
+        uGetSchemes
+
+    End If
+
 Dim i As Long
 
     With mContent
@@ -256,3 +269,22 @@ Dim i As Long
 
 End Function
 
+Private Sub uUpdateStyleInfo()
+Dim ps As style_info
+Dim i As Long
+
+    With mContent.Engine
+        For i = 1 To .CountStyles
+            .StyleAt i, ps
+            If ps.Name = mContent.Info.Name Then
+                LSet mContent.Info = ps
+                Exit Sub
+
+            End If
+        Next i
+
+    End With
+
+    Debug.Print "TStyle.uUpdateStyleInfo(): couldn't find style '" & mContent.Info.Name & "'"
+
+End Sub

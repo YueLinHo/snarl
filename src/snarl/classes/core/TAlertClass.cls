@@ -50,7 +50,7 @@ Private Type T_ALERT
     App As TApp                             '// app who this class belongs to
     Config As ConfigSection                 '// V41: persistent settings
     Defaults As BPackedData
-    Forward As BPackedData                  '// each style/scheme to use
+    Forward As BTagList                    '// each style/scheme to use
 
 End Type
 
@@ -116,12 +116,25 @@ Dim bEnabled As Boolean
                         "log_during_dnd::1#?" & _
                         "block_spam::0"
 
-        Set .Forward = New BPackedData
+        Set .Forward = new_BTagList()
 
         ' /* read forwarding info */
 
-        If Not (Settings Is Nothing) Then _
-            .Forward.SetTo Settings.GetValueWithDefault("forward", "")
+Dim sn As String
+Dim sv As String
+
+        If Not (Settings Is Nothing) Then
+            With New BPackedData
+                .SetTo Settings.GetValueWithDefault("forward", "")
+
+                .Rewind
+                Do While .GetNextItem(sn, sv)
+                    mContent.Forward.Add new_BTagItem(sn, sv)
+
+                Loop
+
+            End With
+        End If
 
     End With
 
@@ -226,7 +239,7 @@ Dim s2 As String
 
         Loop
 
-        Set .Forward = New BPackedData
+        Set .Forward = new_BTagList
 
     End With
 
@@ -457,9 +470,15 @@ Public Sub AddForward(ByVal StyleAndScheme As String)
     If (mContent.Forward Is Nothing) Then _
         Exit Sub
 
+    ' /* R2.4 DR8: forwarder now has flags (and is a taglist) */
+
     With mContent
-        .Forward.Add LCase$(Replace$(StyleAndScheme, ": ", "/")), ""    ' // add the forwarder
-        .Config.Update "forward", .Forward.AsString()                   ' // translate the packed data into a string
+
+        .Forward.Add new_BTagItem(LCase$(Replace$(StyleAndScheme, ": ", "/")), "2")
+        .Config.Update "forward", taglist_as_string(.Forward)
+
+'        .Forward.Add LCase$(Replace$(StyleAndScheme, ": ", "/")), "2"   ' // add the forwarder
+'        .Config.Update "forward", .Forward.AsString()                   ' // translate the packed data into a string
         .App.WriteConfig                                                ' // write the config
 
     End With
@@ -473,41 +492,69 @@ Public Sub RemForward(ByVal StyleAndScheme As String)
 
     StyleAndScheme = LCase$(Replace$(StyleAndScheme, ": ", "/"))
 
-    ' /* BPackedData doesn't have a Remove method (oops) so we rebuild without the removed one */
-
-Dim ppd As BPackedData
-Dim sz As String
-
-    Set ppd = New BPackedData
-
-    With mContent.Forward
-        .Rewind
-        Do While .GetNextItem(sz, "")
-            If sz <> StyleAndScheme Then _
-                ppd.Add sz, ""
-
-        Loop
-
-    End With
-
     With mContent
-        Set .Forward = ppd
-        .Config.Update "forward", .Forward.AsString()           ' // translate the packed data into a string
+        .Forward.Remove .Forward.IndexOf(StyleAndScheme)
+        .Config.Update "forward", taglist_as_string(.Forward)
         .App.WriteConfig
 
     End With
+
+'    ' /* BPackedData doesn't have a Remove method (oops) so we rebuild without the removed one */
+'
+'Dim ppd As BPackedData
+'Dim sz As String
+'
+'    Set ppd = New BPackedData
+'
+'    With mContent.Forward
+'        .Rewind
+'        Do While .GetNextItem(sz, "")
+'            If sz <> StyleAndScheme Then _
+'                ppd.Add sz, ""
+'
+'        Loop
+'
+'    End With
+'
+'    With mContent
+'        Set .Forward = ppd
+'        .Config.Update "forward", .Forward.AsString()           ' // translate the packed data into a string
+'        .App.WriteConfig
+'
+'    End With
 
 End Sub
 
 Public Function HasForward(ByVal StyleAndScheme As String) As Boolean
 
     If Not (mContent.Forward Is Nothing) Then _
-        HasForward = mContent.Forward.Exists(LCase$(Replace$(StyleAndScheme, ": ", "/")))
+        HasForward = (mContent.Forward.IndexOf(LCase$(Replace$(StyleAndScheme, ": ", "/"))) <> 0)
 
 End Function
 
-Public Function ForwardList() As BPackedData
+Public Function ForwardList() As BTagList
 
     Set ForwardList = mContent.Forward
 
 End Function
+
+Public Sub SetForward(ByVal Name As String, ByVal Value As Long, ByVal Combine As Boolean)
+Dim i As Long
+
+    i = Val(mContent.Forward.ValueOf(Name))
+
+    If Combine Then
+        i = i Or Value
+
+    Else
+        i = i And (Not Value)
+
+    End If
+
+    If i = 0 Then _
+        i = 2
+
+    mContent.Forward.Update Name, CStr(i)
+    Debug.Print "setting '" & Name & "' to 0x" & g_HexStr(i)
+
+End Sub

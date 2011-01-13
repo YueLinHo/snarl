@@ -32,6 +32,8 @@ Dim mhWndPanel As Long
 
 Dim mIgnoreChanges As Boolean           ' // when set KPrefsPage_ControlChanged() doesn't update config
 Dim mCurrentForward As Long
+Dim mCurrentForwardName0 As String
+Dim mCurrentCondition As Long
 
 Public Event done()
 
@@ -112,6 +114,11 @@ Dim sz As String
 
     Case "lb>notify"
         mCurrentForward = Val(Value)
+        mCurrentForwardName0 = LCase$(Replace$(prefskit_GetItem(Control), ": ", "/"))
+        uSetConditions
+
+    Case "when_list"
+        mCurrentCondition = Val(Value)
 
     End Select
 
@@ -134,6 +141,7 @@ Private Sub KPrefsPage_ControlInvoked(Control As prefs_kit_d2.BControl)
 End Sub
 
 Private Sub KPrefsPage_ControlNotify(Control As prefs_kit_d2.BControl, ByVal Notification As String, Data As melon.MMessage)
+Dim fChecked As Boolean
 Dim sz As String
 
     Debug.Print Control.GetName & " - " & Notification
@@ -154,6 +162,36 @@ Dim sz As String
                 gSelectedClass.RemForward sz
 
             End If
+
+            uSetConditions
+
+        End If
+
+
+    Case "when_list"
+        ' /* user is ticking items */
+        If (Notification = "checked") And (mCurrentCondition <> 0) Then
+
+            ' /* get tickbox state */
+            fChecked = (prefskit_GetItem(Control, "checked", mCurrentCondition) = "1")
+
+            Select Case mCurrentCondition
+            Case 1
+                ' /* always (0x20) */
+'                gSelectedClass.ForwardList.Update mCurrentForwardName0, "2"
+                gSelectedClass.SetForward mCurrentForwardName0, 2, fChecked
+
+            Case 2
+                ' /* when away */
+                gSelectedClass.SetForward mCurrentForwardName0, 4, fChecked
+
+            Case 3
+                ' /* when busy */
+                gSelectedClass.SetForward mCurrentForwardName0, 8, fChecked
+
+            End Select
+
+            uSetConditions
 
         End If
 
@@ -204,6 +242,7 @@ End Sub
 Public Sub Go(ByVal hWndPanel As Long)
 Dim pp As BPrefsPage
 Dim pm As CTempMsg
+Dim pc As BControl
 
     mhWndPanel = hWndPanel
     Set mPanel = New BPrefsPanel
@@ -286,16 +325,45 @@ Dim pm As CTempMsg
 
 
 
-        Set pp = new_BPrefsPage("Extras", load_image_obj(g_MakePath(App.Path) & "etc\icons\class-ext.png"), Me)
+        Set pp = new_BPrefsPage("Forwarding", load_image_obj(g_MakePath(App.Path) & "etc\icons\class-fwd.png"), Me)
+        With pp
+            .SetMargin 0
+            .SetWidth 300
+
+            .Add new_BPrefsControl("label", "", "Send the notification content to the following:")
+
+            ' /* list */
+
+            Set pm = New CTempMsg
+            pm.Add "checkboxes", 1
+            Set pc = new_BPrefsControl("listbox", "lb>notify", g_StyleRoster.GetNonWindowStyleList(), "", "1", pm)
+            pc.SizeTo 0, 136
+            .Add pc
+            mCurrentForward = 1
+
+            ' /* R2.4 DR8: when to forward */
+
+            .Add new_BPrefsControl("label", "", "When the following conditions are met:")
+
+            Set pm = New CTempMsg
+            pm.Add "checkboxes", 1
+            Set pc = new_BPrefsControl("listbox", "when_list", "(Default)|When away|When busy", "", "", pm)
+            pc.SizeTo 0, 68
+            .Add pc
+
+            ' /* R2.31: test button here too */
+            .Add new_BPrefsSeparator
+            .Add new_BPrefsControl("fancybutton2", "test", "Test")
+
+        End With
+
+        .AddPage pp
+
+
+        Set pp = new_BPrefsPage("Advanced", load_image_obj(g_MakePath(App.Path) & "etc\icons\class-ext.png"), Me)
         With pp
             .SetMargin 90
             .SetWidth 300
-
-            ' /* forwarding */
-            Set pm = New CTempMsg
-            pm.Add "checkboxes", 1
-            .Add new_BPrefsControl("listbox", "lb>notify", g_StyleRoster.GetNonWindowStyleList(), "Forwarding:", "1", pm)
-            mCurrentForward = 1
 
             ' /* duplicates */
 '            .Add new_BPrefsControl("fancycycle", "duplicates", "Allow|Block|Delay", "Flooding:")
@@ -315,7 +383,6 @@ Dim pm As CTempMsg
         End With
 
         .AddPage pp
-
 
 
 
@@ -741,3 +808,27 @@ Dim pc As BControl
         uSelectedItem = prefskit_GetItem(pc)
 
 End Function
+
+Private Sub uSetConditions()
+Dim pc As BControl
+
+    If (Not mPanel.Find("when_list", pc)) Or (gSelectedClass Is Nothing) Or (mCurrentForward = 0) Then _
+        Exit Sub
+
+Dim pm As CTempMsg
+Dim i As Long
+
+    i = Val(gSelectedClass.ForwardList.ValueOf(mCurrentForwardName0))
+    Debug.Print "current forward: " & mCurrentForwardName0 & " flags=" & g_HexStr(i)
+
+Dim n As Long
+
+    For n = 1 To 3
+        Set pm = New CTempMsg
+        pm.Add "index", n
+        pm.Add "checked", IIf((i And 2 ^ n), 1&, 0&)
+        pc.DoExCmd B_SET_ITEM, pm
+
+    Next n
+
+End Sub

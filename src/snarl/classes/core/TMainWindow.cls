@@ -452,13 +452,13 @@ Dim sz As String
         End If
 
     Case SNARL_HIDE
-        uDoCmd = g_NotificationRoster.Hide(pss.Id)
+        uDoCmd = g_NotificationRoster.Hide(pss.Id, "", "", "")
 
     Case SNARL_UPDATE
         uDoCmd = uOldUpdate(pss.Id, g_UTF8(pss.Title), g_UTF8(pss.Text), g_UTF8(pss.Icon))
 
     Case SNARL_IS_VISIBLE
-        uDoCmd = g_NotificationRoster.IsVisible(pss.Id)
+        uDoCmd = g_NotificationRoster.IsVisible(pss.Id, "", "", "")
 
     Case SNARL_GET_VERSION
         uDoCmd = MAKELONG(APP_SUB_VER, APP_VER)
@@ -576,14 +576,14 @@ Dim sz As String
 
         End If
 
-    Case SNARL_COUNT_NOTIFICATIONS
-        If Not (g_NotificationRoster Is Nothing) Then
-            uDoCmd = g_NotificationRoster.GetCount(pss.Timeout, (pss.LngData2 = 1), g_UTF8(pss.Text))
-
-        Else
-            uDoCmd = M_ABORTED
-
-        End If
+'    Case SNARL_COUNT_NOTIFICATIONS
+'        If Not (g_NotificationRoster Is Nothing) Then
+'            uDoCmd = g_NotificationRoster.GetCount(pss.Timeout, (pss.LngData2 = 1), g_UTF8(pss.Text))
+'
+'        Else
+'            uDoCmd = M_ABORTED
+'
+'        End If
 
     Case SNARL_PREVIEW_SCHEME
         ' /*
@@ -746,6 +746,14 @@ Dim lToken As Long
 
     uDoV42Request = g_DoAction(szAction, lToken, pData)
 
+    If uDoV42Request = 0 Then
+        uDoV42Request = -g_QuickLastError()
+
+    ElseIf uDoV42Request = -1 Then
+        uDoV42Request = 0
+
+    End If
+
 End Function
 
 Private Function uDoV41Request(ByVal lpRequest As Long, ByVal SenderPID As Long) As Long
@@ -786,7 +794,9 @@ Dim pData As BPackedData
         szAction = "remclass"
 
     Case SNARLX41_LAST_ERROR
-        szAction = "lasterror"
+        ' /* old error handling */
+        uDoV41Request = Abs(GetProp(ghWndMain, "last_error"))
+        Exit Function
 
     Case SNARLX41_NOTIFY
         szAction = "notify"

@@ -30,6 +30,7 @@ End Sub
 Private Sub KPrefsPage_ControlChanged(Control As prefs_kit_d2.BControl, ByVal Value As String)
 Dim pc As BControl
 Dim sz As String
+Dim i As Long
 
     Select Case Control.GetName()
     Case "lb>missed"
@@ -39,14 +40,17 @@ Dim sz As String
         ' /* toolbar */
         prefskit_SafeEnable mPanel, "toolbar_options", (Value <> "0")
 
-        If mPanel.Find("toolbar_options", pc) Then _
+        If mPanel.Find("toolbar_options", pc) Then
             prefskit_SetItem pc, 1, "enabled", IIf(mSelected.DefaultAck <> "", 1&, 0&)
+            prefskit_SetItem pc, 2, "enabled", IIf(mSelected.Actions.CountItems, 1&, 0&)
+
+        End If
 
         prefskit_SafeSetText mPanel, "the_title", Replace$(mSelected.Title, vbCrLf, "¶ ")
         prefskit_SafeSetText mPanel, "the_text", Replace$(mSelected.Text, vbCrLf, "¶ ")
         prefskit_SafeEnable mPanel, "fb>ack", (mSelected.DefaultAck <> "")
 
-Debug.Print "*********************************"
+Debug.Print "********************************* " & mSelected.Actions.CountItems
 
         sz = "Created " & Format$(mSelected.DateStamp, "hh:mm:ss") & _
              IIf(DateDiff("d", Now, mSelected.DateStamp) = "0", " today", " on " & Format$(mSelected.DateStamp, "short date")) & _
@@ -72,9 +76,24 @@ Debug.Print "*********************************"
                 g_ProcessAck mSelected.DefaultAck
 
         Case 2
-            Clipboard.SetText mSelected.Title & vbCrLf & mSelected.Text
+            With New OMMenu
+                For i = 1 To mSelected.Actions.CountItems
+                    .AddItem .CreateItem("", mSelected.Actions.TagAt(i).Name)
+                    If i < mSelected.Actions.CountItems Then _
+                        .AddSeparator
+
+                Next i
+
+                .Track Control.Page.Panel.hWnd
+            
+            End With
 
         Case 3
+            ' /* copy to clipboard */
+            Clipboard.SetText mSelected.Title & vbCrLf & mSelected.Text
+
+        Case 4
+            ' /* display */
             If Not g_IsDNDModeEnabled Then _
                 g_NotificationRoster.Add mSelected, Nothing
 
@@ -199,7 +218,7 @@ Dim pm As CTempMsg
 '                .Add new_BPrefsControl("label", "", "Callback")
 '                .Add new_BPrefsControl("label", "the_callback", "")
 
-                .Add new_BPrefsControl("fancytoolbar", "toolbar_options", "Invoke|Copy to Clipboard|Display", , , , False)
+                .Add new_BPrefsControl("fancytoolbar", "toolbar_options", "Invoke|Actions|Copy to Clipboard|Display", , , , False)
 
 '                .Add new_BPrefsControl("fancybutton2", "fb>ack", "Invoke Callback", , , , False)
         

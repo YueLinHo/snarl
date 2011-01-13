@@ -474,7 +474,7 @@ Dim pc As BControl
 
     ' /* set the listbox content */
 
-    pc.SetText mStyle.GetSchemeList()
+    pc.SetText mStyle.GetSchemeList(True)
 '    MsgBox "selected item: " & pc.GetValue
 
     ' /* set the icons */

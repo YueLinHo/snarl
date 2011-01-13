@@ -20,6 +20,9 @@ Private Declare Function RegisterClipboardFormat Lib "user32" Alias "RegisterCli
 'Private Declare Function GetModuleHandle Lib "kernel32" Alias "GetModuleHandleA" (ByVal lpModuleName As String) As Long
 'Private Declare Sub CoFreeLibrary Lib "ole32.dll" (ByVal hInst As Long)
 
+Private Declare Function LockWorkStation Lib "user32.dll" () As Long
+Private Declare Sub ShellAbout Lib "SHELL32.DLL" Alias "ShellAboutA" (ByVal hWndOwner As Long, ByVal lpszAppName As String, ByVal lpszMoreInfo As String, ByVal hIcon As Long)
+
 Private Const WINDOW_CLASS = "w>Snarl"
 
 Public Const WM_SNARL_INIT = WM_USER + 1
@@ -88,6 +91,8 @@ Public Type T_NOTIFICATION_INFO
     IntFlags As S_SYS_FLAGS             ' // internal notification flags
     RemoteHost As String                ' // sender (as string) for remote connections that do not have reply sockets
     ClassObj As TAlert                  ' // object
+    CustomUID As String                 ' // R2.4 DR7: custom UID (set during <notify>)
+    Actions As BTagList                 ' // R2.4 DR7: should have been here all along
 
 End Type
 
@@ -168,6 +173,7 @@ Public bm_Actions As MImage
 Public bm_HasActions As MImage
 Public bm_Remote As MImage
 Public bm_Secure As MImage
+Public bm_IsSticky As MImage
 
 Public Enum E_START_POSITIONS
     ' /* IMPORTANT!! These have now changed under V41 */
@@ -466,6 +472,7 @@ Dim dwFlags As Long
     load_image g_MakePath(App.Path) & "etc\icons\has_actions.png", bm_HasActions
     load_image g_MakePath(App.Path) & "etc\icons\remote_app.png", bm_Remote
     load_image g_MakePath(App.Path) & "etc\icons\secure.png", bm_Secure
+    load_image g_MakePath(App.Path) & "etc\icons\is_sticky.png", bm_IsSticky
 
     If Not g_IsValidImage(bm_Close) Then
         Set bm_Close = g_CreateBadge("X")
@@ -1750,11 +1757,77 @@ Dim pti As BTagItem
 
     Select Case LCase$(pti.Name)
 
-    Case "shutdown_dialog"
+    Case "shutdown_dialog", "shutdown"
         SHShutdownDialog 0
 
-    Case "run_dialog"
+    Case "run_dialog", "run"
         SHRunDialog 0, 0, vbNullString, vbNullString, vbNullString, SHRD_DEFAULT
+
+    Case "lock"
+        LockWorkStation
+
+    Case "about"
+        ShellAbout 0, vbNullString, vbNullString, 0
+
+    Case "access"
+        ShellExecute 0, "open", "RUNDLL32.EXE", "SHELL32.DLL,Control_RunDLL access.cpl,,0", vbNullString, SW_SHOW
+    
+    Case "datetime"
+        ShellExecute 0, "open", "RUNDLL32.EXE", "SHELL32.DLL,Control_RunDLL timedate.cpl,,0", vbNullString, SW_SHOW
+    
+    Case "display"
+        ShellExecute 0, "open", "RUNDLL32.EXE", "SHELL32.DLL,Control_RunDLL desk.cpl,,3", vbNullString, SW_SHOW
+    
+    Case "fonts"
+        ShellExecute 0, "open", "control.exe", "fonts", vbNullString, SW_SHOW
+    
+    Case "game"
+        ShellExecute 0, "open", "RUNDLL32.EXE", "SHELL32.DLL,Control_RunDLL joy.cpl,,0", vbNullString, SW_SHOW
+    
+    Case "software"
+        ShellExecute 0, "open", "RUNDLL32.EXE", "SHELL32.DLL,Control_RunDLL appwiz.cpl,,0", vbNullString, SW_SHOW
+
+    Case "keyboard"
+        ShellExecute 0, "open", "RUNDLL32.EXE", "SHELL32.DLL,Control_RunDLL main.cpl,@1,0", vbNullString, SW_SHOW
+
+    Case "locale"
+        ShellExecute 0, "open", "RUNDLL32.EXE", "SHELL32.DLL,Control_RunDLL intl.cpl,,0", vbNullString, SW_SHOW
+    
+    Case "mouse"
+        ShellExecute 0, "open", "RUNDLL32.EXE", "SHELL32.DLL,Control_RunDLL main.cpl,,0", vbNullString, SW_SHOW
+    
+    Case "network"
+        ShellExecute 0, "open", "RUNDLL32.EXE", "SHELL32.DLL,Control_RunDLL ncpa.cpl,,0", vbNullString, SW_SHOW
+
+    Case "power"
+        ShellExecute 0, "open", "RUNDLL32.EXE", "SHELL32.DLL,Control_RunDLL powercfg.cpl,,0", vbNullString, SW_SHOW
+
+    Case "printers"
+        ShellExecute 0, "open", "control.exe", "printers", vbNullString, SW_SHOW
+
+    Case "screensaver"
+        ShellExecute 0, "open", "RUNDLL32.EXE", "SHELL32.DLL,Control_RunDLL desk.cpl,,1", vbNullString, SW_SHOW
+
+    Case "sounds"
+        ShellExecute 0, "open", "RUNDLL32.EXE", "SHELL32.DLL,Control_RunDLL mmsys.cpl,,1", vbNullString, SW_SHOW
+
+    Case "admin"
+        ShellExecute 0, "open", "RUNDLL32.EXE", "SHELL32.DLL,Control_RunDLL sysdm.cpl,,0", vbNullString, SW_SHOW
+
+    Case "telephony"
+        ShellExecute 0, "open", "RUNDLL32.EXE", "SHELL32.DLL,Control_RunDLL telephon.cpl,,0", vbNullString, SW_SHOW
+
+    Case "theme"
+        ShellExecute 0, "open", "RUNDLL32.EXE", "SHELL32.DLL,Control_RunDLL desk.cpl,,2", vbNullString, SW_SHOW
+
+    Case "users"
+        ShellExecute 0, "open", "control.exe", "userpasswords", vbNullString, SW_SHOW
+
+    Case "wallpaper"
+        ShellExecute 0, "open", "RUNDLL32.EXE", "SHELL32.DLL,Control_RunDLL desk.cpl,,0", vbNullString, SW_SHOW
+
+    Case "controlpanel"
+        ShellExecute 0, "open", "control.exe", vbNullString, vbNullString, SW_SHOW
 
     End Select
 
@@ -2192,7 +2265,7 @@ Public Function g_DoNotify(ByVal AppToken As Long, ByRef pData As BPackedData, O
     ' /* master notification generator
     '
     '    all roads should lead here - there should be no use of sn41EZNotify() or any other
-    '    win32 api function.  Similarly, there should be no by-passing of this function,
+    '    Win32 API function.  Similarly, there should be no by-passing of this function,
     '    except in very specific circumstances (style previews, for example) */
 
     If (g_AppRoster Is Nothing) Or (g_NotificationRoster Is Nothing) Then
@@ -2210,19 +2283,63 @@ Public Function g_DoNotify(ByVal AppToken As Long, ByRef pData As BPackedData, O
     End If
 
 
-    ' /* look for the new "replace" and "update" args: "replace" will remove the
-    '    notification with the specified token if it's still on-screen; "update"
-    '    will cause the specified notification to be updated with this content */
+    ' /* look for the new "replace-uid" and "update-uid" and "merge-uid" args:
+    '    "replace" will remove the notification with the specified uid if it's
+    '    still on-screen; "update-uid" will cause the specified notification
+    '    to be updated with this content and "merge-uid" will cause the
+    '    provided content to be merged with the existing notification */
 
-    If pData.Exists("replace") Then
-        g_NotificationRoster.Hide g_SafeLong(pData.ValueOf("replace"))
+Dim i As Long
 
-    ElseIf pData.Exists("update") Then
-        If g_NotificationRoster.Update(g_SafeLong(pData.ValueOf("update")), pData) Then
-            g_DoNotify = g_SafeLong(pData.ValueOf("update"))
+    If pData.Exists("replace-uid") Then
+        ' /* if the specified uid (NOT token) exists, remove it */
+        g_NotificationRoster.Hide 0, pData.ValueOf("replace-uid"), pData.ValueOf("app-sig"), pData.ValueOf("password")
+
+    ElseIf pData.Exists("update-uid") Then
+        ' /* if the specified uid (NOT token) exists, update with this content otherwise create a new notification */
+
+        Debug.Print "looking for update-uid " & pData.ValueOf("update-uid")
+        g_DoNotify = g_NotificationRoster.TokenFromUID(pData.ValueOf("update-uid"), pData.ValueOf("app-sig"), pData.ValueOf("password"))
+        Debug.Print "is token " & CStr(g_DoNotify)
+
+        If g_DoNotify Then
+            ' /* we need to add this */
+            If Not pData.Exists("uid") Then _
+                pData.Add "uid", pData.ValueOf("update-uid")
+
+            g_NotificationRoster.Update g_DoNotify, pData
             Exit Function
 
         End If
+
+        Debug.Print "uid not found"
+
+    ElseIf pData.Exists("merge-uid") Then
+        ' /* if the specified uid (NOT token) exists, merge this content with that one, otherwise create a new notificaton */
+'            ' /* merge - this would mean:
+'            '
+'            '   title = no change?
+'            '   text = added to existing text
+'            '   icon = replaced with new (if any)
+'            '
+'            ' */
+    
+        Debug.Print "looking for merge-uid " & pData.ValueOf("merge-uid")
+        g_DoNotify = g_NotificationRoster.TokenFromUID(pData.ValueOf("merge-uid"), pData.ValueOf("app-sig"), pData.ValueOf("password"))
+        Debug.Print "is token " & CStr(g_DoNotify)
+
+        If g_DoNotify Then
+            ' /* we need to add this */
+            If Not pData.Exists("uid") Then _
+                pData.Add "uid", pData.ValueOf("update-uid")
+
+            g_NotificationRoster.Merge g_DoNotify, pData
+            Exit Function
+
+        End If
+
+        Debug.Print "uid not found"
+
     End If
 
 Dim szClass As String
@@ -2306,19 +2423,9 @@ Public Function g_DoAction(ByVal action As String, ByVal Token As Long, ByRef Ar
     '    or Win32.  "Token" here can be either the app token or the notification token;
     '    the action determines which one */
 
-
-    ' /* special case: works any time and must be handled before we reset LastError */
-
-    If action = "lasterror" Then
-        g_DoAction = GetProp(ghWndMain, "last_error")
-        Exit Function
-
-    End If
-
-    ' /* pretty much all of these require either or both rosters to be
-    '    available, so let's bail out now if something's really wrong */
-
     If (g_AppRoster Is Nothing) Or (g_NotificationRoster Is Nothing) Or (Args Is Nothing) Then
+        ' /* pretty much all of these require either or both rosters to be
+        '    available, so let's bail out now if something's really wrong */
         gSetLastError SNARL_ERROR_SYSTEM
         Exit Function
 
@@ -2343,7 +2450,7 @@ Dim pApp As TApp
             g_DoAction = pApp.RemClass(Args, True)
 
     Case "clearactions"
-        g_DoAction = g_NotificationRoster.ClearActions(Token)
+        g_DoAction = g_NotificationRoster.ClearActions(Token, Args)
 
     Case "hello"
         ' /* just reply with SUCCESS but it means the sender will
@@ -2353,10 +2460,10 @@ Dim pApp As TApp
         g_DoAction = -1
 
     Case "hide"
-        g_DoAction = CLng(g_NotificationRoster.Hide(Token))
+        g_DoAction = CLng(g_NotificationRoster.Hide(Token, Args.ValueOf("uid"), Args.ValueOf("app-sig"), Args.ValueOf("password")))
 
     Case "isvisible"
-        g_DoAction = CLng(g_NotificationRoster.IsVisible(Token))
+        g_DoAction = CLng(g_NotificationRoster.IsVisible(Token, Args.ValueOf("uid"), Args.ValueOf("app-sig"), Args.ValueOf("password")))
 
     Case "notify"
         g_DoAction = g_DoNotify(Token, Args, ReplySocket, IIf(IsRemoteApp, S_NOTIFICATION_REMOTE, 0))
@@ -2402,9 +2509,24 @@ Dim pApp As TApp
     Case "version"
         g_DoAction = GetProp(ghWndMain, "_version")
 
+
+    ' /* V42 only (no corresponding V41 command ID) */
+
+
     Case "request"
         ' /* PRIVATE: for internal use only under V42 */
         g_DoAction = g_ShowRequest(Token, Args)
+
+    Case "wasmissed"
+        g_DoAction = g_NotificationRoster.WasMissed(Token, Args.ValueOf("uid"), Args.ValueOf("app-sig"), Args.ValueOf("password"))
+
+'    Case "merge"
+'        ' /* specify an existing token or uid/app-sig pair that identifies the notification
+'        '    to merge with.  Creates a new notification (same uid, different token) if
+'        '    specified notification doesn't exist */
+'        g_DoAction = g_NotificationRoster.Merge(Token, Args)
+
+
 
     Case Else
         gSetLastError SNARL_ERROR_UNKNOWN_COMMAND
@@ -2421,9 +2543,53 @@ Public Function g_newBPackedData(ByVal Content As String) As BPackedData
 
 End Function
 
-
-
-
+'Public Function g_DoMerge(ByRef Args As BPackedData) As Boolean
+'
+'    ' /* token may be null, in which case we must have an app-sig/uid pair */
+'
+'Dim i As Long
+'
+'    If (Args.Exists("app-sig")) And (Args.Exists("uid")) Then
+'        i = g_NotificationRoster.UIDToToken(Args.ValueOf("app-sig"), Args.ValueOf("uid"), Args.ValueOf("password"))
+'
+'    Else
+'        i = g_SafeLong(Args.ValueOf("token"))
+'
+'    End If
+'
+'
+'    If i Then
+'        ' /* merge with this one */
+''        mItem(i).Window.MergeWith
+'
+'    Else
+'        ' /* not found? create new... */
+'
+'
+'
+'    End If
+'
+'    gSetLastError SNARL_ERROR_UNKNOWN_COMMAND
+'    Exit Function
+'
+'
+''    If i Then
+''        g_Debug "TNotificationRoster.Update(): '" & g_HexStr(Token) & "' found"
+''        Update = mItem(i).Window.Update(Args)
+''
+''    Else
+''        i = uFindInMissedList(Token)
+''        If i Then
+''            g_Debug "TNotificationRoster.Update(): '" & g_HexStr(Token) & "' is in missed list"
+''
+''        Else
+''            Update = False
+''
+''        End If
+''
+''    End If
+'
+'End Function
 
 
 
@@ -2601,6 +2767,27 @@ Dim pApp As TApp
             uAddClass = pApp.AddClass(Args)
 
     End If
+
+End Function
+
+Public Function taglist_as_string(ByRef aList As BTagList) As String
+
+    If (aList Is Nothing) Then _
+        Exit Function
+
+Dim pt As BTagItem
+Dim sz As String
+
+    With aList
+        .Rewind
+        Do While .GetNextTag(pt) = B_OK
+            sz = sz & pt.Name & "::" & pt.Value & "#?"
+
+        Loop
+
+    End With
+
+    taglist_as_string = g_SafeLeftStr(sz, Len(sz) - 2)
 
 End Function
 

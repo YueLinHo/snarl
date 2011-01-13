@@ -63,14 +63,14 @@ Dim mMenuOpen As Boolean
 
     ' /* R2.4 */
 
-Private Type T_ACTION
-    Label As String
-    Command As String
-
-End Type
-
-Dim mAction() As T_ACTION
-Dim mActions As Long
+'Private Type T_ACTION
+'    Label As String
+'    Command As String
+'
+'End Type
+'
+'Dim mAction() As T_ACTION
+'Dim mActions As Long
 
 Dim mCloseRect As BRect
 Dim mActionsRect As BRect
@@ -576,7 +576,7 @@ Dim pr As BRect
     If mCloseRect.Contains(pp) Then
         uHitTest = "close"
 
-    ElseIf (mActions > 0) And (mActionsRect.Contains(pp)) Then
+    ElseIf (mInfo.Actions.CountItems > 0) And (mActionsRect.Contains(pp)) Then
         uHitTest = "action"
 
     Else
@@ -806,7 +806,7 @@ Dim pr As BRect
             .DrawScaledImage bm_Close, mCloseRect.TopLeft, new_BPoint(mCloseRect.Width, mCloseRect.Height)
 
             ' /* R2.4: if the notification has actions, draw the actions button */
-            If mActions > 0 Then _
+            If mInfo.Actions.CountItems > 0 Then _
                 .DrawScaledImage bm_Actions, mActionsRect.TopLeft, new_BPoint(mActionsRect.Width, mActionsRect.Height)
 
         End If
@@ -1276,7 +1276,7 @@ Private Sub uQuickUpdate()
 End Sub
 
 ' /*---------------------------------------------------------------------------------------
-'   uUpdate() -- intelligent update
+'   Update() -- intelligent update
 '
 '   This function updates the existing notification's content, then asks the style instance
 '   for an updated position (the style instance can resize the content during the update
@@ -1284,7 +1284,7 @@ End Sub
 '
 ' ---------------------------------------------------------------------------------------*/
 
-Private Function uUpdate(ByRef Info As T_NOTIFICATION_INFO) As Boolean
+Friend Function Update(ByRef Info As T_NOTIFICATION_INFO) As Boolean
 
     ' /* ask our style instance to update */
 
@@ -1319,7 +1319,7 @@ Dim pt As POINTAPI
     ' /* draw it */
 
     uDrawContent mCurrent
-    uUpdate = True
+    Update = True
 
 End Function
 
@@ -1454,7 +1454,7 @@ Const EMBLEM_SIZE = 12
     ' /* if notification isn't click-through and the mouse pointer isn't
     '    over it, and it has actions, draw the actions indicator emblem */
 
-    If (Not mClickThru) And (Not mCloseButtonVisible) And (mActions > 0) Then
+    If (Not mClickThru) And (Not mCloseButtonVisible) And (mInfo.Actions.CountItems > 0) Then
         pv.DrawScaledImage bm_HasActions, pt, new_BPoint(EMBLEM_SIZE, EMBLEM_SIZE), 190
         pt.OffsetBy -(EMBLEM_SIZE + 1), 0
 
@@ -1472,6 +1472,14 @@ Const EMBLEM_SIZE = 12
 
     If (mInfo.IntFlags And S_NOTIFICATION_SECURE) Then
         pv.DrawScaledImage bm_Secure, pt, new_BPoint(EMBLEM_SIZE, EMBLEM_SIZE), 190
+        pt.OffsetBy -(EMBLEM_SIZE + 1), 0
+
+    End If
+
+    ' /* if the notification is sticky */
+
+    If mInfo.Timeout = 0 Then
+        pv.DrawScaledImage bm_IsSticky, pt, new_BPoint(EMBLEM_SIZE, EMBLEM_SIZE), 190
         pt.OffsetBy -(EMBLEM_SIZE + 1), 0
 
     End If
@@ -1699,39 +1707,27 @@ Friend Sub MergeWith(ByRef Info As T_NOTIFICATION_INFO)
 
     g_KludgeNotificationInfo Info
 
-    uUpdate Info                                    ' // update icon and title (if applicable)
+    Update Info                                     ' // update icon and title (if applicable)
     SetTimeout mInfo.Timeout                        ' // set new timeout
 
 End Sub
 
-Public Function AddAction(ByVal Label As String, ByVal Cmd As String) As Boolean
+Public Sub RethinkActions()
 
-'    If (IsWindow(mInfo.hWndReply) = 0) Or (mInfo.uReplyMsg = 0) Then
-'        g_Debug "CSnarlWindow.AddAction(): bad reply-to window or reply message", LEMON_LEVEL_CRITICAL
-'        Exit Function
-'
-'    End If
-
-    mActions = mActions + 1
-    ReDim Preserve mAction(mActions)
-    With mAction(mActions)
-        .Label = Label
-        .Command = Cmd
-
-    End With
-
-    ' /* if we've added our first action, update content */
-
-    If mActions = 1 Then _
+    If (mInfo.Actions.CountItems = 1) Or (mInfo.Actions.CountItems = 0) Then _
         uQuickUpdate
 
-    AddAction = True
+End Sub
+
+Public Function HasActions() As Boolean
+
+    HasActions = (mInfo.Actions.CountItems <> 0)
 
 End Function
 
 Private Sub uDoActionsMenu()
 
-    If mActions = 0 Then
+    If mInfo.Actions.CountItems = 0 Then
         g_Debug "CSnarlWindow.uDoActionsMenu(): no actions defined", LEMON_LEVEL_CRITICAL
         Exit Sub
 
@@ -1749,9 +1745,9 @@ Dim pmi As OMMenuItem
 Dim i As Long
 
     With New OMMenu
-        For i = 1 To mActions
-            .AddItem .CreateItem(CStr(i), mAction(i).Label)
-            If i < mActions Then _
+        For i = 1 To mInfo.Actions.CountItems
+            .AddItem .CreateItem(CStr(i), mInfo.Actions.TagAt(i).Name)
+            If i < mInfo.Actions.CountItems Then _
                 .AddSeparator
 
         Next i
@@ -1763,17 +1759,18 @@ Dim i As Long
     If (pmi Is Nothing) Then _
         Exit Sub
 
-    ' /* get selected action */
+    ' /* get selected command */
+
+Dim szCmd As String
 
     i = Val(pmi.Name)
+    szCmd = mInfo.Actions.TagAt(i).Value
 
-    If g_SafeLeftStr(mAction(i).Command, 1) = "@" Then
-        ' /* dynamic callback */
-        uNotify SNARL_NOTIFY_ACTION, mAction(i).Command
+    If g_SafeLeftStr(szCmd, 1) = "@" Then
+        uNotify SNARL_NOTIFY_ACTION, szCmd          ' /* dynamic callback */
 
     Else
-        ' /* static callback - process but don't do a callback */
-        g_ProcessAck mAction(i).Command
+        g_ProcessAck szCmd                          ' /* static callback - process but don't do a callback */
 
     End If
         
@@ -1784,54 +1781,55 @@ Dim i As Long
 
 End Sub
 
-Public Sub ClearActions()
+'Public Sub ClearActions()
+'
+'    mActions = 0
+'    ReDim mAction(0)
+'
+'End Sub
 
-    mActions = 0
-    ReDim mAction(0)
-
-End Sub
-
-Public Function Update(ByRef Args As BPackedData) As Boolean
-Dim pInfo As T_NOTIFICATION_INFO
-Dim sz As String
-
-    ' /* get our current content */
-
-    LSet pInfo = mInfo
-
-    ' /* update content with only what's provided */
-
-    With pInfo
-
-        If Args.Exists("title") Then
-            sz = Replace$(Args.ValueOf("title"), "\n", vbCrLf)
-            sz = Replace$(sz, "\+", .Title)                         ' // specfic to Update() - replace '\+' with existing title
-            .Title = g_TrimLines(sz)
-
-        End If
-
-        If Args.Exists("text") Then
-            sz = Replace$(Args.ValueOf("text"), "\n", vbCrLf)
-            sz = Replace$(sz, "\+", .Text)                          ' // specfic to Update() - replace '\+' with existing text
-            .Text = g_TrimLines(sz)
-
-        End If
-
-        If Args.Exists("icon") Then _
-            .IconPath = Args.ValueOf("icon")
-
-        If Args.Exists("timeout") Then _
-            .Timeout = g_SafeLong(Args.ValueOf("timeout"))          ' // g_SafeLong() returns 0 on error - not good...
-
-    End With
-
-    ' /* create the OriginalContent value */
-
-    g_KludgeNotificationInfo pInfo
-    LSet mInfo = pInfo
-
-    ' /* tell the style to apply the changes and redraw */
-
-    Update = uUpdate(pInfo)
-
-End Function
+'Friend Function Update(ByRef Info As T_NOTIFICATION_INFO) As Boolean
+''Dim pInfo As T_NOTIFICATION_INFO
+''Dim sz As String
+'
+'    ' /* get our current content */
+'
+''    LSet pInfo = mInfo
+'
+'    ' /* update content with only what's provided */
+'
+''    With mInfo
+''
+''        If Args.Exists("title") Then
+''            sz = Replace$(Args.ValueOf("title"), "\n", vbCrLf)
+''            sz = Replace$(sz, "\+", .Title)                         ' // specfic to Update() - replace '\+' with existing title
+''            .Title = g_TrimLines(sz)
+''
+''        End If
+''
+''        If Args.Exists("text") Then
+''            sz = Replace$(Args.ValueOf("text"), "\n", vbCrLf)
+''            sz = Replace$(sz, "\+", .Text)                          ' // specfic to Update() - replace '\+' with existing text
+''            .Text = g_TrimLines(sz)
+''
+''        End If
+''
+''        If Args.Exists("icon") Then _
+''            .IconPath = Args.ValueOf("icon")
+''
+''        If Args.Exists("timeout") Then _
+''            .Timeout = g_SafeLong(Args.ValueOf("timeout"))          ' // g_SafeLong() returns 0 on error - not good...
+''
+''    End With
+''
+''    ' /* create the OriginalContent value */
+''
+''    uFixupContent
+''    g_KludgeNotificationInfo pInfo
+''    LSet mInfo = pInfo
+'
+'    ' /* tell the style to apply the changes and redraw */
+'
+'    Update = uUpdate(Info)
+'
+'End Function

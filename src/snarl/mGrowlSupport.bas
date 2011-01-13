@@ -293,7 +293,7 @@ Dim ppd As BPackedData
     Set ppd = New BPackedData
     ppd.Add "id", Replace$(pgr.ApplicationName, " ", "_") & "_" & pgr.RemoteHost
     ppd.Add "title", pgr.ApplicationName
-    ppd.Add "icon", g_MakePath(App.Path) & "etc\icons\growl-no_icon.png"
+    ppd.Add "icon", g_MakePath(App.Path) & "etc\icons\growl_app.png"
 
     g_Debug "mGrowlSupport.uRegister(): '" & pgr.ApplicationName & "_" & pgr.RemoteHost & "'"
 

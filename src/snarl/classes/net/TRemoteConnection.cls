@@ -74,15 +74,15 @@ Private Sub Class_Terminate()
 '//
 End Sub
 
-Public Sub Accept(ByVal ID As Long, ByVal IsGNTP As Boolean)
+Public Sub Accept(ByVal Id As Long, ByVal IsGNTP As Boolean)
 
-    g_Debug "TRemoteConnection.Accept(): Id=0x" & g_HexStr(ID), LEMON_LEVEL_PROC
+    g_Debug "TRemoteConnection.Accept(): Id=0x" & g_HexStr(Id), LEMON_LEVEL_PROC
 
-    mId = ID
+    mId = Id
     mIsGNTP = IsGNTP
 
     Set theSocket = New CSocket
-    theSocket.Accept ID
+    theSocket.Accept Id
 
 End Sub
 
@@ -656,40 +656,50 @@ Private Sub uDoGNTP(ByVal bytesTotal As Long)
 Dim sz As String
 Dim h As Long
 
+Dim szResponseHeaders As String
+
     theSocket.PeekData sz
 
     If g_SafeRightStr(sz, 4) = vbCrLf & vbCrLf Then
         Debug.Print "TRemoteConnection.uDoGNTP(): end of packet"
         mGNTPRequest = ""
         theSocket.GetData mGNTPRequest
-        h = gntp_Process(mGNTPRequest, theSocket)
+        h = gntp_Process(mGNTPRequest, theSocket, szResponseHeaders)
 
         ' /* build response */
 
-        sz = "GNTP/1.0 "
+        sz = "GNTP/1.0 -"
 
         Select Case h
         Case 0
-            sz = sz & "-OK"
+            sz = sz & "OK"
 
         Case Else
-            sz = sz & "-ERROR"
+            sz = sz & "ERROR"
 
         End Select
 
+        ' /* response encryption type (always NONE for now) */
+
         sz = sz & " NONE" & vbCrLf
+
+        ' /* response headers */
+        
+        sz = sz & szResponseHeaders
+
+        Debug.Print "uDoGNTP(): replying with '" & sz & "'"
 
         ' /* generic headers */
 
-'    sz = sz & "Origin-Machine-Name: " & get_host_name() & vbCrLf
-'    sz = sz & "Origin-Software-Name: Snarl" & vbCrLf
-'    sz = sz & "Origin-Software-Version: 2.4 (00.000)" & vbCrLf
-'    sz = sz & "Origin-Platform-Name: Windows" & vbCrLf
-'    sz = sz & "Origin-Platform-Version: 1.0" & vbCrLf
-
+        sz = sz & "Origin-Machine-Name: " & get_host_name() & vbCrLf
+        sz = sz & "Origin-Software-Name: Snarl" & vbCrLf
+        sz = sz & "Origin-Software-Version: " & App.Comments & " (" & App.Major & "." & App.Revision & ")" & vbCrLf
+        sz = sz & "Origin-Platform-Name: " & g_GetOSName() & " " & g_GetServicePackName() & vbCrLf
+        sz = sz & "Origin-Platform-Version: " & g_GetOSVersionString() & vbCrLf
+        sz = sz & "X-Message-Daemon: Snarl" & vbCrLf
         sz = sz & "X-Timestamp: " & Format$(Now(), "MM/DD/YYYY HH:MM:SS AMPM")
 
-        Debug.Print "uDoGNTP(): replying with '" & sz & "'"
+        ' /* reply */
 
         theSocket.SendData sz & vbCrLf & vbCrLf
 

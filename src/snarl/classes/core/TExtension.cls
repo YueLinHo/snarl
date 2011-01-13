@@ -684,7 +684,7 @@ Dim sz As String
 
     End With
 
-    g_NotificationRoster.Hide gExtDetailsToken
+    g_NotificationRoster.Hide gExtDetailsToken, "", "", ""
 
     gExtDetailsToken = g_PrivateNotify("", mInfo.Name & " " & mInfo.Release, sz, , mInfo.IconPath)
 

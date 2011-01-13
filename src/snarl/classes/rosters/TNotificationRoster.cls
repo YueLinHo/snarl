@@ -29,14 +29,11 @@ Private Declare Function IntersectRect Lib "user32" (lpDestRect As RECT, lpSrc1R
 Private Declare Function GetTempPath Lib "kernel32" Alias "GetTempPathA" (ByVal nBufferLength As Long, ByVal lpBuffer As String) As Long
 
 Private Type T_NOTIFICATION
-    hWndReply As Long
     Window As CSnarlWindow
     Column As Integer           ' // used to help determine placement of other notifications
-    pid As Long
-    ClassObj As TAlert          ' // R2.31: object is saved
     StyleName As String         ' // R2.31: expanded
     SchemeName As String        ' // R2.31: expanded
-    AppToken As Long            ' // V40.47: creating app - all registered apps should now have a token
+    Info As T_NOTIFICATION_INFO ' // R2.4 DR7: full originating information
 
 End Type
 
@@ -278,38 +275,53 @@ Dim lQuantum As Long
 
     gSetLastError SNARL_SUCCESS
 
-    ' /* R2.31 - copy these across from the class object */
-
-'    Info.Sender = Info.ClassObj.App.Name
-'    Info.Class = Info.ClassObj.Description
-
     ' /* R2.3: set datestamp */
 
     Info.DateStamp = Now()
-
 
     ' /* R2.4: generate the "OriginalContent" content */
 
     uFixupContent Info
 
+    ' /* R2.4 DR7 - can include actions in request */
+
+    Set Info.Actions = new_BTagList()
+
+Dim sn As String
+Dim sv As String
+Dim act() As String
+
+    If Not (Args Is Nothing) Then
+        With Args
+            .Rewind
+            Do While .GetNextItem(sn, sv)
+                If sn = "action" Then
+                    act = Split(sv, ",")
+                    If UBound(act) = 1 Then _
+                        Info.Actions.Add new_BTagItem(act(0), act(1))
+
+                End If
+            Loop
+
+        End With
+    End If
 
     ' /* R2.3: send to any selected non-window styles */
 
-Dim pCopyList As BPackedData
 Dim pCopyInfo As T_NOTIFICATION_INFO
-Dim itemName As String
+Dim pt As BTagItem
 
-    Set pCopyList = Info.ClassObj.ForwardList()
-    If Not (pCopyList Is Nothing) Then
-        With pCopyList
+    If Not (Info.ClassObj.ForwardList Is Nothing) Then
+        With Info.ClassObj.ForwardList
             .Rewind
-            Do While .GetNextItem(itemName, "")
+            Do While .GetNextTag(pt) = B_OK
                 LSet pCopyInfo = Info
-                pCopyInfo.StyleName = style_GetStyleName(itemName)
-                pCopyInfo.SchemeName = style_GetSchemeName(itemName)
+                pCopyInfo.StyleName = style_GetStyleName(pt.Name)
+                pCopyInfo.SchemeName = style_GetSchemeName(pt.Name)
                 uCopyTo pCopyInfo, Info.ClassObj
 
             Loop
+
         End With
     End If
 
@@ -390,8 +402,8 @@ Dim pIcon As mfxBitmap
 
     If Info.Priority < 0 Then
 
-        If Me.IsVisible(gCurrentLowPriorityId) Then _
-            Me.Hide gCurrentLowPriorityId
+        If Me.IsVisible(gCurrentLowPriorityId, "", "", "") Then _
+            Me.Hide gCurrentLowPriorityId, "", "", ""
 
 '            ' /* we need to queue it */
 '
@@ -654,15 +666,15 @@ Dim dwStyleFlags As S_STYLE_FLAGS
     With mItem(mItems)
         Set .Window = psw
         .Column = i
-        .hWndReply = Info.hWndReply
+'        .hWndReply = Info.hWndReply
         ' /* for V40 (V39.13) */
-        .pid = Info.pid
+'        .pid = Info.pid
 
-        If Not (Class Is Nothing) Then
-            Set .ClassObj = Info.ClassObj
-            .AppToken = Info.ClassObj.App.Token
-
-        End If
+'        If Not (Class Is Nothing) Then
+''            Set .ClassObj = Info.ClassObj
+'            .AppToken = Info.ClassObj.App.Token
+'
+'        End If
 
 '        MsgBox "added: " & Info.StyleToUse
 
@@ -672,6 +684,9 @@ Dim dwStyleFlags As S_STYLE_FLAGS
         ' /* R2.31 */
         .StyleName = Info.StyleName
         .SchemeName = Info.SchemeName
+
+        ' /* R2.4 DR7 */
+        LSet .Info = Info
 
         .Window.Window.MoveTo ar.Left, ar.Top
         .Window.Show
@@ -685,34 +700,12 @@ Dim dwStyleFlags As S_STYLE_FLAGS
     If Info.Priority < 0 Then _
         gCurrentLowPriorityId = Add
 
-    ' /* R2.4 DR7 - can include actions in request */
-
-Dim sn As String
-Dim sv As String
-Dim act() As String
-
-    If Not (Args Is Nothing) Then
-        With Args
-            .Rewind
-            Do While .GetNextItem(sn, sv)
-                If sn = "action" Then
-                    act = Split(sv, ",")
-                    If UBound(act) = 1 Then _
-                        psw.AddAction act(0), act(1)
-
-                End If
-            Loop
-
-        End With
-
-    End If
-
 End Function
 
 Public Function Remove(ByVal Id As Long) As Boolean
 Dim i As Long
 
-    i = uFind(Id)
+    i = uFind(Id, "", "", "")
     If i Then _
         Remove = uRemove(i)
 
@@ -754,42 +747,108 @@ Dim i As Long
 
 End Function
 
-Private Function uFind(ByVal Id As Long) As Long
-Dim i As Long
+Private Function uFind(ByVal Token As Long, ByVal UID As String, ByVal AppSig As String, ByVal Password As String) As Long
 
-    If mItems Then
+    ' /* searches visible (on-screen) notifications and returns *index*
+    '    of specified notification or zero if not found/error */
+
+    gSetLastError SNARL_ERROR_NOTIFICATION_NOT_FOUND
+    If (mItems = 0) Then _
+        Exit Function
+
+Static i As Long
+
+    If Token <> 0 Then
+        ' /* search on token */
         For i = 1 To mItems
-            If mItem(i).Window.Id = Id Then
+            If mItem(i).Window.Id = Token Then
                 uFind = i
-                Exit Function
+                Exit For
+
+            End If
+        Next i
+
+    ElseIf UID <> "" Then
+        ' /* search on UID/App-Sig pair */
+        For i = 1 To mItems
+            If (mItem(i).Info.ClassObj.App.Signature = AppSig) And (mItem(i).Info.CustomUID = UID) Then
+                uFind = i
+                Exit For
 
             End If
         Next i
     End If
 
+    ' /* found? */
+
+    If uFind = 0 Then _
+        Exit Function
+
+    ' /* check password */
+
+    If mItem(i).Info.ClassObj.App.Password = Password Then
+        gSetLastError SNARL_SUCCESS
+
+    Else
+        gSetLastError SNARL_ERROR_AUTH_FAILURE
+
+    End If
+
 End Function
 
-Private Function uFindInMissedList(ByVal Token As Long) As Long
+Private Function uFindInMissedList(ByVal Token As Long, ByVal UID As String, ByVal AppSig As String, ByVal Password As String) As Long
 
-    If mMissedCount = 0 Then _
+    ' /* searches missed notifications and returns *index* of
+    '    specified notification or zero if not found/error */
+
+    gSetLastError SNARL_ERROR_NOTIFICATION_NOT_FOUND
+    If (mMissedCount = 0) Then _
         Exit Function
 
 Static i As Long
 
-    For i = 1 To mMissedCount
-        If mMissed(i).Token = Token Then
-            uFindInMissedList = i
-            Exit Function
+    If Token <> 0 Then
+        ' /* search on token */
+        For i = 1 To mMissedCount
+            If mMissed(i).Token = Token Then
+                uFindInMissedList = i
+                Exit For
 
-        End If
-    Next i
+            End If
+        Next i
+
+    ElseIf UID <> "" Then
+        ' /* search on UID/App-Sig pair */
+        For i = 1 To mItems
+            If (mMissed(i).ClassObj.App.Signature = AppSig) And (mMissed(i).CustomUID = UID) Then
+                uFindInMissedList = i
+                Exit For
+
+            End If
+        Next i
+    End If
+
+    ' /* found? */
+
+    If uFindInMissedList = 0 Then _
+        Exit Function
+
+    ' /* check password */
+
+    If mMissed(i).ClassObj.App.Password = Password Then
+        gSetLastError SNARL_SUCCESS
+
+    Else
+        gSetLastError SNARL_ERROR_AUTH_FAILURE
+
+    End If
 
 End Function
 
-Public Function Hide(ByVal Id As Long) As Boolean
+Public Function Hide(ByVal Token As Long, ByVal UID As String, ByVal AppSig As String, ByVal Password As String) As Boolean
 Static i As Long
 
-    i = uFind(Id)
+    i = uFind(Token, UID, AppSig, Password)
     If i Then
         mItem(i).Window.Hide
         gSetLastError SNARL_SUCCESS
@@ -797,13 +856,13 @@ Static i As Long
 
     Else
 
-        i = uFindInMissedList(Id)
+        i = uFindInMissedList(Token, UID, AppSig, Password)
         If i Then
-            g_Debug "TNotificationRoster.Hide(): " & g_HexStr(Id) & " is in missed list"
+            g_Debug "TNotificationRoster.Hide(): " & g_HexStr(Token) & " is in missed list"
             uRemoveFromMissedList i
 
         Else
-            g_Debug "TNotificationRoster.Hide(): " & g_HexStr(Id) & " not found", LEMON_LEVEL_WARNING
+            g_Debug "TNotificationRoster.Hide(): " & g_HexStr(Token) & " not found", LEMON_LEVEL_WARNING
             gSetLastError SNARL_ERROR_NOTIFICATION_NOT_FOUND
 
         End If
@@ -812,28 +871,17 @@ Static i As Long
 
 End Function
 
-Public Function IsVisible(ByVal Id As Long) As Boolean
+Public Function IsVisible(ByVal Token As Long, ByVal UID As String, ByVal AppSig As String, ByVal Password As String) As Boolean
 
-    g_Debug "TNotificationRoster.IsVisible(" & g_HexStr(Id) & ")", LEMON_LEVEL_PROC_ENTER
+    ' /* uFind sets lasterror for us */
+    IsVisible = (uFind(Token, UID, AppSig, Password) <> 0)
 
-    If uFind(Id) > 0 Then
-        g_Debug "found/visible"
-        gSetLastError SNARL_SUCCESS
-        IsVisible = True
+End Function
 
-    ElseIf uFindInMissedList(Id) Then
-        g_Debug "found/missed"
-        gSetLastError SNARL_SUCCESS
-        IsVisible = False
+Public Function WasMissed(ByVal Token As Long, ByVal UID As String, ByVal AppSig As String, ByVal Password As String) As Long
 
-    Else
-        g_Debug "not found"
-        gSetLastError SNARL_ERROR_NOTIFICATION_NOT_FOUND
-        IsVisible = False
-
-    End If
-
-    g_Debug "", LEMON_LEVEL_PROC_EXIT
+    ' /* uFindInMissedList sets lasterror for us */
+    WasMissed = CLng(uFindInMissedList(Token, UID, AppSig, Password))
 
 End Function
 
@@ -994,7 +1042,7 @@ Dim i As Long
             For n = 255 To 0 Step -(Val(g_ConfigGet("step_size")) * 8)
                 For i = 1 To mItems
                     With mItem(i)
-                        If .AppToken = AppToken Then _
+                        If .Info.ClassObj.App.Token = AppToken Then _
                             .Window.bSetAlpha n
 
                     End With
@@ -1005,14 +1053,14 @@ Dim i As Long
 
             For i = 1 To mItems
                 With mItem(i)
-                    If .AppToken = AppToken Then _
+                    If .Info.ClassObj.App.Token = AppToken Then _
                         .Window.bSetAlpha 0
 
                 End With
             Next i
             
             For i = mItems To 1 Step -1
-                If mItem(i).AppToken = AppToken Then
+                If mItem(i).Info.ClassObj.App.Token = AppToken Then
                     If Not (mItem(i).Window Is Nothing) Then _
                         mItem(i).Window.Zap
 
@@ -1029,7 +1077,7 @@ Public Function SetAttribute(ByVal Id As Long, ByVal Attr As Long, ByVal Value A
 Dim pw As CSnarlWindow
 Dim i As Long
 
-    i = uFind(Id)
+    i = uFind(Id, "", "", "")
     If i = 0 Then
         g_Debug "TNotificationRoster.SetAttribute(): notification 0x" & g_HexStr(Id) & " not found", LEMON_LEVEL_CRITICAL
         SetAttribute = M_NOT_FOUND
@@ -1102,36 +1150,6 @@ End Function
 '    uRectIntersect = CBool(IntersectRect(rc3, rc1, rc2))
 '
 'End Function
-
-Public Function GetCount(ByVal pid As Long, ByVal ByClass As Boolean, ByVal Class As String) As Long
-Dim i As Long
-
-    g_Debug "TNotificationRoster.GetCount(pid=" & CStr(pid) & " ByClass=" & ByClass & " Class=" & Class & " ) [V40]", LEMON_LEVEL_PROC
-
-    If mItems = 0 Then
-        g_Debug "TNotificationRoster.GetCount(): no notifications"
-        Exit Function
-
-    End If
-
-    For i = 1 To mItems
-
-        g_Debug ">> " & CStr(mItem(i).pid) & " >> " & mItem(i).ClassObj.Name
-
-        If mItem(i).pid = pid Then
-            If ByClass Then
-                If Class = mItem(i).ClassObj.Name Then _
-                    GetCount = GetCount + 1
-
-            Else
-                GetCount = GetCount + 1
-
-            End If
-        End If
-
-    Next i
-
-End Function
 
 Public Sub ShowMissedPanel()
 
@@ -1690,40 +1708,83 @@ Public Function AddAction(ByVal Token As Long, ByRef Data As BPackedData) As Lon
 
     End If
 
+    ' /* TO-DO: if notification is in missed list, need to update record */
+
 Dim i As Long
 
-    i = uFind(Token)
-    If i = 0 Then
-        g_Debug "TNotificationRoster.AddAction(): token '" & g_HexStr(Token) & " not found", LEMON_LEVEL_WARNING
-        gSetLastError SNARL_ERROR_NOTIFICATION_NOT_FOUND
-        Exit Function
+    ' /* uFind sets lasterror for us */
 
-    End If
+    i = uFind(Token, Data.ValueOf("uid"), Data.ValueOf("app-sig"), Data.ValueOf("password"))
+    If i Then
+        ' /* still visible */
+        If uAddAction(mItem(i).Info.Actions, Data.ValueOf("label"), Data.ValueOf("cmd")) Then
+            mItem(i).Window.RethinkActions
+            AddAction = -1
 
-    If Not mItem(i).Window.AddAction(Data.ValueOf("label"), Data.ValueOf("cmd")) Then
-        gSetLastError SNARL_ERROR_FAILED
+        End If
 
     Else
-        gSetLastError SNARL_SUCCESS
-        AddAction = -1
+        ' /* to-do: check missed list */
+        i = uFindInMissedList(Token, Data.ValueOf("uid"), Data.ValueOf("app-sig"), Data.ValueOf("password"))
+        If i Then
+            If uAddAction(mMissed(i).Actions, Data.ValueOf("label"), Data.ValueOf("cmd")) Then
+                ' /* update missed panel */
+                AddAction = -1
 
+            End If
+        End If
     End If
 
 End Function
 
-Public Function ClearActions(ByVal Token As Long) As Long
-Dim i As Long
+Private Function uAddAction(ByRef List As BTagList, ByVal Label As String, ByVal Command As String) As Boolean
 
-    i = uFind(Token)
-    If i = 0 Then
-        g_Debug "TNotificationRoster.AddAction(): token '" & g_HexStr(Token) & " not found", LEMON_LEVEL_WARNING
-        gSetLastError SNARL_ERROR_NOTIFICATION_NOT_FOUND
-        Exit Function
+    With List
+        If .IndexOf(Label) = 0 Then
+            ' /* add new */
+            .Add new_BTagItem(Label, Command)
+
+        Else
+            ' /* if duplicate label, update command */
+            .Update Label, Command
+
+        End If
+
+        ' /* Need to check for duplicate command and fail */
+
+    End With
+
+    uAddAction = True
+
+End Function
+
+Public Function ClearActions(ByVal Token As Long, ByRef Data As BPackedData) As Long
+Static i As Long
+
+    ' /* uFind sets lasterror for us */
+
+    i = uFind(Token, Data.ValueOf("uid"), Data.ValueOf("app-sig"), Data.ValueOf("password"))
+    If i Then
+        If mItem(i).Info.Actions.CountItems <> 0 Then
+            mItem(i).Info.Actions.MakeEmpty
+            mItem(i).Window.RethinkActions
+
+        End If
+
+        ClearActions = -1
+
+    Else
+        i = uFindInMissedList(Token, Data.ValueOf("uid"), Data.ValueOf("app-sig"), Data.ValueOf("password"))
+        If i Then
+            Debug.Print "TNotificationRoster.ClearActions(): in missed list"
+            mMissed(i).Actions.MakeEmpty
+            '//update missed panel if open
+
+            ClearActions = -1
+
+        End If
 
     End If
-
-    mItem(i).Window.ClearActions
-    ClearActions = -1
 
 End Function
 
@@ -1789,26 +1850,108 @@ Static i As Long
 End Sub
 
 Public Function Update(ByVal Token As Long, ByRef Args As BPackedData) As Boolean
+Dim sz As String
 Dim i As Long
 
-    i = uFind(Token)
+    g_Debug "TNotificationRoster.Update()", LEMON_LEVEL_PROC_ENTER
+
+    i = uFind(Token, Args.ValueOf("uid"), Args.ValueOf("app-sig"), Args.ValueOf("password"))
     If i Then
-        g_Debug "TNotificationRoster.Update(): '" & g_HexStr(Token) & "' found"
-        Update = mItem(i).Window.Update(Args)
+        g_Debug "found visible"
+
+        With mItem(i).Info
+
+            If Args.Exists("title") Then
+                sz = Replace$(Args.ValueOf("title"), "\n", vbCrLf)
+                sz = Replace$(sz, "\+", .Title)                         ' // specfic to Update() - replace '\+' with existing title
+                .Title = g_TrimLines(sz)
+
+            End If
+
+            If Args.Exists("text") Then
+                sz = Replace$(Args.ValueOf("text"), "\n", vbCrLf)
+                sz = Replace$(sz, "\+", .Text)                          ' // specfic to Update() - replace '\+' with existing text
+                .Text = g_TrimLines(sz)
+
+            End If
+
+            If Args.Exists("icon") Then _
+                .IconPath = Args.ValueOf("icon")
+
+            If Args.Exists("timeout") Then _
+                .Timeout = g_SafeLong(Args.ValueOf("timeout"))          ' // g_SafeLong() returns 0 on error - not good...
+
+        End With
+
+        uFixupContent mItem(i).Info                     ' // re-creates T_NOTIFICATION->OriginalContent
+        Update = mItem(i).Window.Update(mItem(i).Info)
 
     Else
-        i = uFindInMissedList(Token)
+        i = uFindInMissedList(Token, Args.ValueOf("uid"), Args.ValueOf("app-sig"), Args.ValueOf("password"))
         If i Then
-            g_Debug "TNotificationRoster.Update(): '" & g_HexStr(Token) & "' is in missed list"
+            g_Debug "in missed list"
+            ' /* TO-DO: update in missed list */
+'            Update = True
 
         Else
-            g_Debug "TNotificationRoster.Update(): '" & g_HexStr(Token) & "' not found", LEMON_LEVEL_WARNING
-            gSetLastError SNARL_ERROR_NOTIFICATION_NOT_FOUND
-            Update = False
+            g_Debug "not found", LEMON_LEVEL_WARNING
 
         End If
-    
+
     End If
+
+    g_Debug "", LEMON_LEVEL_PROC_EXIT
+
+End Function
+
+Public Function Merge(ByVal Token As Long, ByRef Args As BPackedData) As Boolean
+Dim sz As String
+Dim i As Long
+
+    g_Debug "TNotificationRoster.Merge()", LEMON_LEVEL_PROC_ENTER
+
+    i = uFind(Token, Args.ValueOf("uid"), Args.ValueOf("app-sig"), Args.ValueOf("password"))
+    If i Then
+        g_Debug "found visible"
+
+        With mItem(i).Info
+
+'            If Args.Exists("title") Then
+'                sz = Replace$(Args.ValueOf("title"), "\n", vbCrLf)
+'                sz = Replace$(sz, "\+", .Title)                         ' // specfic to Update() - replace '\+' with existing title
+'                .Title = g_TrimLines(sz)
+'
+'            End If
+
+            If Args.Exists("text") Then _
+                .Text = g_TrimLines(.Text & " " & Replace$(Args.ValueOf("text"), "\n", vbCrLf))
+
+            If Args.Exists("icon") Then _
+                .IconPath = Args.ValueOf("icon")
+
+'            If Args.Exists("timeout") Then _
+'                .Timeout = g_SafeLong(Args.ValueOf("timeout"))          ' // g_SafeLong() returns 0 on error - not good...
+
+        End With
+
+        uFixupContent mItem(i).Info                     ' // re-creates T_NOTIFICATION->OriginalContent
+        Merge = mItem(i).Window.Update(mItem(i).Info)
+
+    Else
+        i = uFindInMissedList(Token, Args.ValueOf("uid"), Args.ValueOf("app-sig"), Args.ValueOf("password"))
+        If i Then
+            g_Debug "in missed list"
+            ' /* TO-DO: update in missed list */
+'            Update = True
+
+        Else
+            g_Debug "not found", LEMON_LEVEL_WARNING
+
+        End If
+
+    End If
+
+    g_Debug "", LEMON_LEVEL_PROC_EXIT
 
 End Function
 
@@ -1868,5 +2011,48 @@ Dim szv As String
 
 End Sub
 
+Public Function TokenFromUID(ByVal UID As String, ByVal AppSig As String, ByVal Password As String) As Long
+Static i As Long
 
+    i = uFind(0, UID, AppSig, Password)
+    If i Then
+        TokenFromUID = mItem(i).Info.Token
+
+    Else
+        i = uFindInMissedList(0, UID, AppSig, Password)
+        If i Then _
+            TokenFromUID = mMissed(i).Token
+
+    End If
+
+
+
+'    ' /* returns token or zero if not found / not authorised */
+'
+'    gSetLastError SNARL_ERROR_NOTIFICATION_NOT_FOUND
+'
+'    Debug.Print mItems & " " & AppSig & " " & UID
+'
+'    If (mItems = 0) Or (AppSig = "") Or (UID = "") Then _
+'        Exit Function
+'
+'Static i As Long
+'
+'    For i = 1 To mItems
+'        If (mItem(i).Info.ClassObj.App.Signature = AppSig) And (mItem(i).Info.CustomUID = UID) Then
+'            If mItem(i).Info.ClassObj.App.Password = Password Then
+'                UIDToToken = mItem(i).Info.Token
+'                gSetLastError SNARL_SUCCESS
+'
+'            Else
+'                gSetLastError SNARL_ERROR_AUTH_FAILURE
+'
+'            End If
+'
+'            Exit Function
+'
+'        End If
+'    Next i
+
+End Function
 

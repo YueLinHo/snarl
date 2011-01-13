@@ -58,6 +58,44 @@
 
 	Snarl Change Log
 
+	- Improved way notification forwarding is managed - 
+
+	- Prefs icons changed to use Faenza set.  (42.35)
+
+	- Split class configuration [Extras] page into [Forwarding] and
+	  [Advanced] pages.  (42.35)
+
+	- Added emblem which identifies sticky notifications.  (42.35)
+
+	- Reworked the way actions are managed.  Most significant advantage
+	  is that actions can now be stored (and accessed) for missed
+	  notifications.  (42.35)
+
+	- API return value changes mean we can no longer use the result-plus-
+	  last-error model so <IsVisible> now returns SNARL_SUCCESS if the
+	  requested notification is still on-screen and a new (V42 only)
+	  <WasMissed> action will return SNARL_SUCCESS if the notification
+	  was placed in the missed list.  (42.35)
+
+	- <Notify> action "replace" and "update" args renamed to "replace-
+	  uid" and "update-uid" respectively and now expect a notification
+	  UID rather than a token.  (42.35)
+
+	- All V42 Windows API functions now signal an error in the return
+	  value of snDoAction().  The return value can be one of three
+	  possibilities: zero (success), +ve (success and a usable number),
+	  or -ve (an error).  The actual error can be determined by
+	  checking ABS(return_value) against the error list.  "lasterror"
+	  is thus no longer a recognised action under V42.  (42.35)
+
+	- Added new "uid" argument to <Notify> which can be used to uniquely
+	  identify a notification on a per-app basis.  (42.34)
+
+	- Internal T_NOTIFICATION struct used by Notification Roster stream-
+	  lined.  (42.34)
+
+	- Private SNARL_COUNT_NOTIFICATIONS command removed.  (42.34)
+
 	- Can now include zero or more "action=<label>,<command>" arguments
 	  in a <Notify> request.  (42.34)
 

@@ -127,7 +127,7 @@ End Enum
 
     ' /* local variables */
 
-Dim mLocalErr As SNARL_STATUS_CODE
+'Dim mLocalErr As SNARL_STATUS_CODE
 
     ' /*
     '
@@ -194,7 +194,7 @@ Dim hWnd As Long
     hWnd = FindWindow("w>Snarl", "Snarl")
     If IsWindow(hWnd) = 0 Then
         ' /* pseudo error */
-        mLocalErr = SNARL_ERROR_NOT_RUNNING
+        snDoRequest = -SNARL_ERROR_NOT_RUNNING
         Exit Function
 
     End If
@@ -218,14 +218,11 @@ Dim dw As Long
     ' /* return zero on failure */
 
     If SendMessageTimeout(hWnd, WM_COPYDATA, GetCurrentProcessId(), pcds, SMTO_ABORTIFHUNG, ReplyTimeout, dw) <> 0 Then
-        ' /* return result and cache LastError */
-        mLocalErr = GetProp(hWnd, "last_error")             ' // needs reworking
         snDoRequest = dw
 
     Else
-        ' /* pseudo error: timed out */
-        mLocalErr = SNARL_ERROR_TIMED_OUT
-        snDoRequest = 0
+        ' /* pseudo error: timed out (note the negation of the error code) */
+        snDoRequest = -SNARL_ERROR_TIMED_OUT
 
     End If
 
@@ -272,12 +269,6 @@ Dim pwzBuffer As Long
 ex:
 End Function
 
-Public Function snGetLastError() As SNARL_STATUS_CODE
-
-    snGetLastError = mLocalErr
-
-End Function
-
 Public Function snIsSnarlRunning() As Boolean
 
     snIsSnarlRunning = (IsWindow(FindWindow("w>Snarl", "Snarl")) <> 0)
@@ -318,5 +309,57 @@ Dim sz As String
     snGetConfigPath = (Path <> "")
 
 End Function
+
+
+
+' /****************************************************************************************
+' /*
+' /*
+' /*                                Public helper functions
+' /*
+' /*
+' /****************************************************************************************/
+
+Public Function snarl_register(ByVal Signature As String, ByVal Name As String, ByVal Icon As String, Optional ByVal Password As String, Optional ByVal ReplyTo As Long, Optional ByVal Reply As Long) As Long
+
+    snarl_register = snDoRequest("register?app-sig=" & Signature & "&title=" & Name & "&icon=" & Icon & _
+                                 IIf(Password <> "", "&password=" & Password, "") & _
+                                 IIf(ReplyTo <> 0, "&reply-to=" & CStr(ReplyTo), "") & _
+                                 IIf(Reply <> 0, "&reply=" & CStr(Reply), ""))
+
+End Function
+
+Public Function snarl_unregister(ByVal TokenOrSignature As Variant, Optional ByVal Password As String) As Long
+Dim sz As String
+
+    sz = "unregister?"
+
+    If varType(TokenOrSignature) = vbLong Then
+        sz = sz & "token=" & CStr(TokenOrSignature)
+
+    ElseIf varType(TokenOrSignature) = vbString Then
+        sz = sz & "app-sig=" & CStr(TokenOrSignature)
+
+    Else
+        snarl_unregister = SNARL_ERROR_ARG_MISSING
+        Exit Function
+
+    End If
+
+    If Password <> "" Then _
+        sz = sz & "&password=" & Password
+
+    snarl_unregister = snDoRequest(sz)
+
+End Function
+
+Public Function snarl_version() As Long
+
+    snarl_version = snDoRequest("version")
+
+End Function
+
+
+
 
 

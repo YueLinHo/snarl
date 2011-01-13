@@ -34,6 +34,7 @@ Dim mAlerts As Long
 Dim mSettings As ConfigFile     ' // persistent settings
 Dim mAppConfig As ConfigSection ' // persistent app settings
 Dim mIsUnknown As Boolean       ' // new app (or, one without persistent settings anyway)
+Dim mLastError As Long
 
 Implements MObject
 
@@ -339,6 +340,8 @@ End Function
 
 Public Function Show41(ByVal ClassId As String, ByRef pData As BPackedData, Optional ByRef ReplySocket As CSocket, Optional ByVal IntFlags As S_SYS_FLAGS, Optional ByVal RemoteHost As String) As Long
 
+    ' /* this is where we transition from a BPackedData into a T_NOTIFICATION_INFO struct */
+
     If (pData Is Nothing) Then _
         Exit Function
 
@@ -377,8 +380,9 @@ Dim i As Long
 
     With pInfo
 
+        ' /* R2.4 DR7: "callback" is now preferred over "ack" */
+
         If pData.Exists("callback") Then
-            ' /* R2.4 DR7: name change */
             .DefaultAck = pData.ValueOf("callback")
 
         Else
@@ -386,21 +390,41 @@ Dim i As Long
 
         End If
 
+        ' /* R2.4 DR7: new "uid" arg */
+
+        If pData.Exists("uid") Then _
+            .CustomUID = pData.ValueOf("uid")
+
+        ' /* R2.4 DR7: new "value" arg */
+
+        .Value = pData.ValueOf("value")
+
+        ' /* R2.4 DR7: internal-only args (can only be set at g_DoNotify() level) */
+
+        .IntFlags = IntFlags
+
+        ' /* R2.4 DR7: static copy of sender */
+
+        .RemoteHost = RemoteHost
+
+        ' /* flags: deprecated */
+
         If pData.Exists("flags") Then
             i = Val("&H" & pData.ValueOf("flags"))
             .Flags = (i And &HFFFF&)                ' // only keep user flags
 
         End If
 
+        ' /* R2.4 DR7: "reply-to" is now preferred over "hwnd" */
+
         .hWndReply = Val(pData.ValueOf("reply-to"))
         If .hWndReply = 0 Then _
             .hWndReply = Val(pData.ValueOf("hwnd"))
 
         If .hWndReply = 0 Then _
-            .hWndReply = mInfo.hWnd                 ' // use app-defined value
+            .hWndReply = mInfo.hWnd                 ' // if still no reply window, use app-defined value (which may still be 0)
 
         .IconPath = pData.ValueOf("icon")
-        .IntFlags = IntFlags
         .Priority = Val(pData.ValueOf("priority"))
         Set .Socket = ReplySocket
 
@@ -412,21 +436,18 @@ Dim i As Long
 
         .Title = Replace$(pData.ValueOf("title"), "\n", vbCrLf)
 
+        ' /* R2.4 DR7: "reply" is now preferred over "umsg" */
 
         .uReplyMsg = Val(pData.ValueOf("reply"))
         If .uReplyMsg = 0 Then _
             .uReplyMsg = Val(pData.ValueOf("umsg"))
 
         If .uReplyMsg = 0 Then _
-            .uReplyMsg = mInfo.uMsg                 ' // use app-defined value
-
-        .Value = pData.ValueOf("value")
+            .uReplyMsg = mInfo.uMsg                 ' // if still no reply message, use app-defined value (which may still be 0)
 
         ' /* V42 styles need the unabridged content */
 
         .OriginalContent = Replace$(pData.AsString(), "\n", vbCrLf)
-
-        .RemoteHost = RemoteHost
 
     End With
 
@@ -726,5 +747,17 @@ End Function
 Public Function IsNew() As Boolean
 
     IsNew = mIsUnknown
+
+End Function
+
+Public Sub SetLastError(ByVal err As Long)
+
+    mLastError = err
+
+End Sub
+
+Public Function LastError() As Long
+
+    LastError = mLastError
 
 End Function

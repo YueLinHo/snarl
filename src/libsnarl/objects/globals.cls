@@ -251,11 +251,11 @@ Dim sz As String
 
 End Function
 
-Public Function last_error() As Long
-
-    last_error = snGetLastError()
-
-End Function
+'Public Function last_error() As Long
+'
+'    last_error = snGetLastError()
+'
+'End Function
 
 Public Function get_snarl() As Snarl
 
