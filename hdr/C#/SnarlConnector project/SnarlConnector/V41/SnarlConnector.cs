@@ -39,6 +39,7 @@ namespace Snarl.V41
 	/// </summary>
 	/// 
 	/// <VersionHistory>
+	/// 2011-01-15 : Added MessagePriority enum
 	/// 2010-09-12 : Made AppMsg, Broadcast, IsSnarlRunning, GetSnarlWindow static (to be the same as C++ version)
 	/// 2010-08-25 : Added overloaded versions of RegisterApp, EZNotify and EZUpdate.
 	/// 2010-08-20 : Fixed not sending correct PackedData string in UpdateApp.
@@ -107,6 +108,17 @@ namespace Snarl.V41
 			ErrorClassBlocked,
 			ErrorClassNotFound,
 			ErrorNotificationNotFound
+		}
+
+		/// <summary>
+		/// The priority of messages.
+		/// See <cref>http://sourceforge.net/apps/mediawiki/snarlwin/index.php?title=Generic_API#notify</cref>
+		/// </summary>
+		public enum MessagePriority
+		{
+			Low = -1,
+			Normal = 0,
+			High = 1
 		}
 
 		/// <summary>
@@ -332,11 +344,11 @@ namespace Snarl.V41
 		/// <param name="text"></param>
 		/// <param name="timeout">Optional (Default -1)</param>
 		/// <param name="icon">Optional  ("" or null)</param>
-		/// <param name="priority">Optional (Default 0)</param>
+		/// <param name="priority">Optional (Default Normal)</param>
 		/// <param name="acknowledge">Optional ("" or null)</param>
 		/// <param name="value">Optional ("" or null)</param>
 		/// <returns></returns>
-		public Int32 EZNotify(String className, String title, String text, Int32 timeout, String icon, Int32 priority, String acknowledge, String value)
+		public Int32 EZNotify(String className, String title, String text, Int32 timeout, String icon, MessagePriority priority, String acknowledge, String value)
 		{
 			SnarlMessage msg;
 			msg.Command = SnarlCommand.Notify;
@@ -347,7 +359,7 @@ namespace Snarl.V41
 				"#?text::" + text +
 				"#?timeout::" + timeout.ToString() +
 				"#?icon::" + ((icon != null) ? icon : "") +
-				"#?priority::" + priority.ToString() +
+				"#?priority::" + (int)priority +
 				"#?ack::" + ((acknowledge != null) ? acknowledge : "") +
 				"#?value::" + ((value != null) ? value : ""));
 
