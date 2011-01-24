@@ -318,12 +318,12 @@ Dim fc As Long
             Do While .GetNextTag(pt) = B_OK
                 fc = Val(pt.Value)
 
-                Debug.Print "TNotificationRoster.Add(): is_dnd=" & gDNDMode & " is_away=" & g_IsAway(SP_AWAY_MASK) & "cond=" & g_HexStr(fc)
+                Debug.Print "TNotificationRoster.Add(): is_dnd=" & g_IsDND() & " is_away=" & g_IsAway() & "cond=" & g_HexStr(fc)
 
-                If (gDNDMode) And ((fc And 1) <> 0) Then
+                If (g_IsDND()) And ((fc And 1) <> 0) Then
                     fc = -1
 
-                ElseIf (g_IsAway(SP_AWAY_MASK)) And ((fc And 2) <> 0) Then
+                ElseIf (g_IsAway()) And ((fc And 2) <> 0) Then
                     fc = -1
 
                 ElseIf (fc And 4) <> 0 Then
@@ -413,7 +413,7 @@ Dim pDelayed As TDelayedNotification
     '
     ' */
 
-    Debug.Print "++ current presence: away=" & g_HexStr(gAwayFlags) & " dnd=" & gDNDMode
+    Debug.Print "++ current presence: " & g_HexStr(g_GetPresence())
 
     ' /* sticky snarls take precendence, then DND mode setting, then Away mode setting */
 
@@ -425,7 +425,7 @@ Dim nPMode As SP_PRESENCE_ACTIONS
 
         Info.Timeout = 0
 
-    ElseIf gDNDMode Then
+    ElseIf g_IsDND() Then
 
         ' /* Do Not Disturb (Busy) mode */
 
@@ -2166,3 +2166,15 @@ Static i As Long
 
 End Function
 
+Public Sub CheckMissed()
+
+    ' /* check missed count */
+    If mActualMissed > 0 Then _
+        g_PrivateNotify SNARL_CLASS_GENERAL, "While you were away...", _
+                            "You missed " & CStr(g_NotificationRoster.ActualMissedCount) & " notification" & IIf(g_NotificationRoster.ActualMissedCount > 1, "s", ""), _
+                            -1, _
+                            g_MakePath(App.Path) & "etc\icons\snarl.png", _
+                            , _
+                            "!snarl show_missed_panel"
+
+End Sub

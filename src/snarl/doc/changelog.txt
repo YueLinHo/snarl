@@ -58,6 +58,22 @@
 
 	Snarl Change Log
 
+	- Snarl Welcome Message notification class renamed to SNARL_CLASS_GENERAL
+	  and extended to cover other notifications such as the "update available"
+	  and "missed notifications" ones.  (42.40)
+
+	- SNARL_USER_AWAY and SNARL_USER_BACK are now sent to all registered
+	  applications when the user's presence switches to and from Away mode.
+	  (42.40)
+
+	- Added [Set Away when Screensaver] option as Windows NT systems don't
+	  actually lock the computer until input is detected while the screensaver
+	  is running.  (42.40)
+
+	- Full-screen app detection now sets/clears DND mode rather than away
+	  mode.  User-enabled DND is now a flag as well.  May still re-add an API
+	  to allow external apps to set and clear DND status.  (42.40)
+
 	- A successful re-registration now updates the application's icon, reply-
 	  to window and reply messages if any of these are provided.  (42.40)
 

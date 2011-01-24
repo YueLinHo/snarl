@@ -106,7 +106,7 @@ Dim pmi As OMMenuItem
 
         Case 4
             ' /* display */
-            If Not gDNDMode Then _
+            If Not g_IsDND() Then _
                 g_NotificationRoster.Add mSelected, Nothing
 
         End Select

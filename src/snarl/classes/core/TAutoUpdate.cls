@@ -110,7 +110,7 @@ Dim i As Long
 
                             g_Debug "TAutoUpdate.uDecodeUpdateFile(): update found - version = " & sz, LEMON_LEVEL_INFO
 
-                            i = g_PrivateNotify("", _
+                            i = g_PrivateNotify(SNARL_CLASS_GENERAL, _
                                                 "Update Available", _
                                                 sz & " is available for download (you have " & App.Comments & ")." & vbCrLf & vbCrLf & "Click this notification to go to the download website.", _
                                                 40, _
@@ -122,7 +122,7 @@ Dim i As Long
                             g_Debug "TAutoUpdate.uDecodeUpdateFile(): this version is the most current"
 
                             If mManual Then _
-                                i = g_PrivateNotify("", "Good news!", "You are running the latest version of Snarl.")
+                                i = g_PrivateNotify(SNARL_CLASS_GENERAL, "Good news!", "You are running the latest version of Snarl.")
 
                             Exit Sub
 

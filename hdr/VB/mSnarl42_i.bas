@@ -147,11 +147,16 @@ Private Const SNARL_GLOBAL_MSG = "SnarlGlobalEvent"
     '
     ' */
 
-Public Const SNARL_BROADCAST_LAUNCHED = 1       ' // Snarl has just started running
-Public Const SNARL_BROADCAST_QUIT = 2           ' // Snarl is about to stop running
-Public Const SNARL_BROADCAST_STOPPED = 3        ' // sent when stopped by user
-Public Const SNARL_BROADCAST_STARTED = 4        ' // sent when started by user
+Public Enum SNARL_GLOBAL_EVENTS
+    SNARL_BROADCAST_LAUNCHED = 1       ' // Snarl has just started running
+    SNARL_BROADCAST_QUIT = 2           ' // Snarl is about to stop running
+    SNARL_BROADCAST_STOPPED = 3        ' // sent when stopped by user
+    SNARL_BROADCAST_STARTED = 4        ' // sent when started by user
+    ' /* R2.4 DR8 */
+    SNARL_BROADCAST_USER_AWAY          ' // away mode was enabled
+    SNARL_BROADCAST_USER_BACK          ' // away mode was disabled
 
+End Enum
 
     ' /* application flags */
 

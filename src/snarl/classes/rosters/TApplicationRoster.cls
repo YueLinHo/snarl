@@ -44,7 +44,7 @@ Private Function MLibrary_Close() As melon.M_RESULT
         ' /* run tidyup code */
 
         Me.Unregister gSnarlToken, gSnarlPassword
-        SendAll SNARL_BROADCAST_QUIT
+        SendToAll SNARL_BROADCAST_QUIT
 
         ReDim mApp(0)
         mCount = 0
@@ -81,15 +81,11 @@ Dim pSnarlApp As TApp
         ' /* register ourselves with, er, ourself! */
 
         g_IsRunning = True
-'        snRegisterConfig2 frmAbout.hWnd, App.Title, &H555, g_MakePath(App.Path) & "etc\icons\snarl.png"
-
         g_Debug "TApplicationRoster.Open(): registering ourself..."
-'        snRegisterApp App.Title, g_MakePath(App.Path) & "etc\icons\snarl.png", g_MakePath(App.Path) & "etc\icons\snarl.png", frmAbout.hWnd, &H555
 
         ' /* V42: password protect Snarl */
 
 '        gSnarlPassword = uGenerateSnarlPassword()
-'        gSnarlToken = sn41RegisterApp(App.ProductName, App.Title, g_MakePath(App.Path) & "etc\icons\snarl.png", frmAbout.hWnd, &H555, , gSnarlPassword)
 
         With pAppInfo
             .hWnd = frmAbout.hWnd
@@ -106,43 +102,30 @@ Dim pSnarlApp As TApp
         gSnarlToken = uAddByStruct(pAppInfo, pSnarlApp)
 
         If gSnarlToken = 0 Then
-        
             ' /* panic? */
 
         Else
             g_Debug "TApplicationRoster.Open(): registered as " & g_HexStr(gSnarlToken) & ", adding classes..."
 
             With pSnarlApp
-                .AddClass g_newBPackedData("id::" & SNARL_CLASS_WELCOME & "#?name::Welcome Message#?password::" & gSnarlPassword)
-                .AddClass g_newBPackedData("id::" & SNARL_CLASS_APP_REG & "#?name::Application Registered#?password::" & gSnarlPassword)
-                .AddClass g_newBPackedData("id::" & SNARL_CLASS_APP_UNREG & "#?name::Application Unregistered#?password::" & gSnarlPassword)
+                .AddClass g_newBPackedData("id::" & SNARL_CLASS_GENERAL & "#?name::Welcome Message and other notifications#?password::" & gSnarlPassword)
+                .AddClass g_newBPackedData("id::" & SNARL_CLASS_APP_REG & "#?name::Application registered#?password::" & gSnarlPassword)
+                .AddClass g_newBPackedData("id::" & SNARL_CLASS_APP_UNREG & "#?name::Application unregistered#?password::" & gSnarlPassword)
 
                 ' /* V38.97 */
-                .AddClass g_newBPackedData("id::" & SNARL_CLASS_JSON & "#?name::Incoming JSON Notifications#?password::" & gSnarlPassword)
+                .AddClass g_newBPackedData("id::" & SNARL_CLASS_JSON & "#?name::Incoming JSON notifications#?password::" & gSnarlPassword)
 
                 ' /* V38.142 */
-                .AddClass g_newBPackedData("id::" & SNARL_CLASS_ANON_NET & "#?name::Anonymous Remote Notifications#?password::" & gSnarlPassword)
+                .AddClass g_newBPackedData("id::" & SNARL_CLASS_ANON_NET & "#?name::Anonymous remote notifications#?password::" & gSnarlPassword)
 
                 ' /* V39.21 */
-                .AddClass g_newBPackedData("id::" & SNARL_CLASS_ANON & "#?name::Anonymous Local Notifications#?password::" & gSnarlPassword)
+                .AddClass g_newBPackedData("id::" & SNARL_CLASS_ANON & "#?name::Anonymous local notifications#?password::" & gSnarlPassword)
 
                 ' /* R2.4 */
-                .AddClass g_newBPackedData("id::" & SNARL_CLASS_LOW_PRIORITY & "#?name::Low Priority Notifications#?password::" & gSnarlPassword)
-
-'            sn41AddClass gSnarlToken, SNARL_CLASS_WELCOME, "Welcome Message"
-'            sn41AddClass gSnarlToken, SNARL_CLASS_APP_REG, "Application Registered"
-'            sn41AddClass gSnarlToken, SNARL_CLASS_APP_UNREG, "Application Unregistered"
-'            ' /* V38.97 */
-'            sn41AddClass gSnarlToken, SNARL_CLASS_JSON, "Incoming JSON Notifications"
-'            ' /* V38.142 */
-'            sn41AddClass gSnarlToken, SNARL_CLASS_ANON_NET, "Anonymous Remote Notifications"
-'            ' /* V39.21 */
-'            sn41AddClass gSnarlToken, SNARL_CLASS_ANON, "Anonymous Local Notifications"
-'            ' /* R2.4 */
-'            sn41AddClass gSnarlToken, SNARL_CLASS_LOW_PRIORITY, "Low Priority Notifications"
+'                .AddClass g_newBPackedData("id::" & SNARL_CLASS_LOW_PRIORITY & "#?name::Low priority notifications#?password::" & gSnarlPassword)
+'                .AddClass g_newBPackedData("id::" & SNARL_CLASS_SYSTEM & "#?name::Snarl Internal Notifications#?password::" & gSnarlPassword)
 
             End With
-
         End If
 
         g_IsRunning = False
@@ -698,16 +681,19 @@ Public Function AppAt(ByVal Index As Long) As TApp
 
 End Function
 
-Public Sub SendAll(ByVal Id As Long)
-Dim i As Long
+Public Sub SendToAll(ByVal EventId As SNARL_GLOBAL_EVENTS)
+Static i As Long
 
-    If mCount Then
-        For i = mCount To 1 Step -1
-            If (IsWindow(mApp(i).hWnd) <> 0) And (mApp(i).uMsg <> 0) Then _
-                SendMessage mApp(i).hWnd, mApp(i).uMsg, Id, ByVal 0&
+    If mCount = 0 Then _
+        Exit Sub
 
-        Next i
-    End If
+    g_Debug "TApplicationRoster.SendToAll(): sending event " & CStr(EventId) & " to all apps..."
+
+    For i = mCount To 1 Step -1
+        If (IsWindow(mApp(i).hWnd) <> 0) And (mApp(i).uMsg <> 0) Then _
+            PostMessage mApp(i).hWnd, mApp(i).uMsg, EventId, ByVal 0&
+
+    Next i
 
 End Sub
 

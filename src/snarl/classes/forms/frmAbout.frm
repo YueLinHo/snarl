@@ -743,12 +743,12 @@ Dim dw As Long
         Case WTS_SESSION_LOCK
             Debug.Print "WM_WTSSESSION_CHANGE: =locked= " & Now()
             If g_ConfigGet("away_when_locked") = "1" Then _
-                gAwayFlags = gAwayFlags Or SP_AWAY_COMPUTER_LOCKED
+                g_SetPresence SP_AWAY_COMPUTER_LOCKED
 
         Case WTS_SESSION_UNLOCK
             Debug.Print "WM_WTSSESSION_CHANGE: =unlocked= " & Now()
             If g_ConfigGet("away_when_locked") = "1" Then _
-                gAwayFlags = gAwayFlags And (Not SP_AWAY_COMPUTER_LOCKED)
+                g_ClearPresence SP_AWAY_COMPUTER_LOCKED
 
         End Select
 
@@ -804,7 +804,7 @@ Dim update_config   As Boolean
         .AddItem .CreateItem("sticky", "Sticky Notifications", , , (g_ConfigGet("sticky_snarls") = "1"))
         .AddSeparator
 
-        .AddItem .CreateItem("dnd", "Do Not Disturb", , , gDNDMode)
+        .AddItem .CreateItem("dnd", "Do Not Disturb", , , g_IsPresence(SP_DND_USER))
         .AddItem .CreateItem("missed", IIf(g_NotificationRoster.ActualMissedCount > 0, CStr(g_NotificationRoster.ActualMissedCount) & " ", "") & "Missed Notification" & IIf(g_NotificationRoster.ActualMissedCount = 1, "", "s") & "...")
         .AddSeparator
         .AddItem .CreateItem("restart", "Restart Snarl", , g_IsRunning)
@@ -863,24 +863,16 @@ Dim update_config   As Boolean
             g_ConfigSet "sticky_snarls", IIf(g_ConfigGet("sticky_snarls") = "1", "0", "1")
 
         Case "dnd"
-            gDNDMode = Not gDNDMode
+            If g_IsPresence(SP_DND_USER) Then
+                ' /* clear it */
+                g_ClearPresence SP_DND_USER
 
-            If gDNDMode Then
-                ' /* was enabled */
+            Else
+                ' /* set it */
+                g_SetPresence SP_DND_USER
                 g_NotificationRoster.ResetMissedCount
 
-            ElseIf g_NotificationRoster.ActualMissedCount > 0 Then
-                ' /* was disabled and missed some notifications */
-
-                g_PrivateNotify "", "While you were away...", _
-                                    "You missed " & CStr(g_NotificationRoster.ActualMissedCount) & " notification" & IIf(g_NotificationRoster.ActualMissedCount > 1, "s", ""), _
-                                    -1, _
-                                    g_MakePath(App.Path) & "etc\icons\snarl.png", _
-                                    , _
-                                    "!snarl show_missed_panel"
-
             End If
-
 
         Case "missed"
             If Not (g_NotificationRoster Is Nothing) Then _
@@ -966,12 +958,12 @@ Dim pm As CTempMsg
 
                 .Add new_BPrefsControl("fancytoggle2", "away_when_locked", "Enable away mode when computer is locked?", , g_ConfigGet("away_when_locked"))
                 .Add new_BPrefsControl("fancytoggle2", "away_when_screensaver", "Enable away mode when the screensaver starts?", , g_ConfigGet("away_when_screensaver"))
-                .Add new_BPrefsControl("fancytoggle2", "away_when_fullscreen", "Enable away mode when the foreground application is fullscreen?", , g_ConfigGet("away_when_fullscreen"))
+                .Add new_BPrefsControl("fancytoggle2", "away_when_fullscreen", "Enable DND mode when the foreground application is fullscreen?", , g_ConfigGet("away_when_fullscreen"))
 
                 .Add new_BPrefsControl("fancycycle", "away_mode", "Log Notification as Missed|Make Notification Sticky|Do Nothing|Display Notification", "When Away:", g_ConfigGet("away_mode"))
                 .Add new_BPrefsControl("fancycycle", "busy_mode", "Log Notification as Missed|Make Notification Sticky|Do Nothing|Display Notification", "When Busy:", g_ConfigGet("busy_mode"))
 
-                .Add new_BPrefsControl("label", "", "Note that the above settings only apply to normal priority notifications.")
+                .Add new_BPrefsControl("label", "", "Note that the above settings only apply to normal priority notifications.  More granular settings are available in the class configuration preferences panel.")
 
                 ' /* miscellaneous */
 
@@ -1412,17 +1404,17 @@ Static b As Boolean
     If g_ConfigGet("away_when_fullscreen") = "1" Then
         ' /* track foreground app state */
         b = uIsFullScreenMode()
-        If b <> g_IsAway(SP_AWAY_FULLSCREEN_APP) Then
+        If b <> g_IsPresence(SP_DND_FULLSCREEN_APP) Then
             ' /* full screen app state changed */
             If b Then
-                g_SetAwayFlags SP_AWAY_FULLSCREEN_APP
+                g_SetPresence SP_DND_FULLSCREEN_APP
 
             Else
-                g_ClearAwayFlags SP_AWAY_FULLSCREEN_APP
+                g_ClearPresence SP_DND_FULLSCREEN_APP
 
             End If
 
-            g_Debug "_theIdleTimer.Pulse(): " & Now() & " fullscreen app: " & g_IsAway(SP_AWAY_FULLSCREEN_APP)
+            g_Debug "_theIdleTimer.Pulse(): " & Now() & " fullscreen app: " & g_IsPresence(SP_DND_FULLSCREEN_APP)
 
         End If
     End If
@@ -1434,17 +1426,17 @@ Dim n As Long
         ' /* track screensaver state */
 
         If SystemParametersInfo(SPI_GETSCREENSAVERRUNNING, 0, n, 0) <> 0 Then
-            If b <> g_IsAway(SP_AWAY_SCREENSAVER_ACTIVE) Then
+            If b <> g_IsPresence(SP_AWAY_SCREENSAVER_ACTIVE) Then
                 ' /* screensaver state has changed */
                 If b Then
-                    g_SetAwayFlags SP_AWAY_SCREENSAVER_ACTIVE
+                    g_SetPresence SP_AWAY_SCREENSAVER_ACTIVE
         
                 Else
-                    g_ClearAwayFlags SP_AWAY_SCREENSAVER_ACTIVE
+                    g_ClearPresence SP_AWAY_SCREENSAVER_ACTIVE
         
                 End If
         
-                g_Debug "_theIdleTimer.Pulse(): " & Now() & " screensaver: " & g_IsAway(SP_AWAY_SCREENSAVER_ACTIVE)
+                g_Debug "_theIdleTimer.Pulse(): " & Now() & " screensaver: " & g_IsPresence(SP_AWAY_SCREENSAVER_ACTIVE)
 
             End If
         End If
@@ -1471,17 +1463,17 @@ Dim lii As LASTINPUTINFO
 '    Debug.Print "_theIdleTimer.Pulse(): idle time is now " & CStr(lii.dwTime) & " needs to be " & CStr(n)
 
     b = (lii.dwTime > n)
-    If b <> g_IsAway(SP_AWAY_USER_IDLE) Then
+    If b <> g_IsPresence(SP_AWAY_USER_IDLE) Then
         ' /* idle state has changed */
         If b Then
-            g_SetAwayFlags SP_AWAY_USER_IDLE
+            g_SetPresence SP_AWAY_USER_IDLE
 
         Else
-            g_ClearAwayFlags SP_AWAY_USER_IDLE
+            g_ClearPresence SP_AWAY_USER_IDLE
 
         End If
 
-        g_Debug "_theIdleTimer.Pulse(): " & Now() & " user idle: " & g_IsAway(SP_AWAY_USER_IDLE)
+        g_Debug "_theIdleTimer.Pulse(): " & Now() & " user idle: " & g_IsPresence(SP_AWAY_USER_IDLE)
 
     End If
 

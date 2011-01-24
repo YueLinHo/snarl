@@ -37,14 +37,14 @@ Public Const TIMER_UPDATES = 32
 
     ' /* Snarl app class id's */
 
-Public Const SNARL_CLASS_WELCOME = "_WLC"
+Public Const SNARL_CLASS_GENERAL = "_WLC"
 Public Const SNARL_CLASS_APP_UNREG = "_APU"
 Public Const SNARL_CLASS_APP_REG = "_APR"
 Public Const SNARL_CLASS_JSON = "_ANJ"
 Public Const SNARL_CLASS_ANON_NET = "_ANN"
 Public Const SNARL_CLASS_ANON = "_ANL"
-Public Const SNARL_CLASS_LOW_PRIORITY = "_LOW"
-
+'Public Const SNARL_CLASS_LOW_PRIORITY = "_LOW"
+'Public Const SNARL_CLASS_SYSTEM = "_SYS"
 
     ' /* internal notification flags */
 
@@ -276,21 +276,22 @@ Public gSnarlPassword As String         ' // created on the fly
 
     ' /* R2.4 DR8 */
 
-Public Enum SP_AWAY_FLAGS
+Public Enum SP_PRESENCE_FLAGS
     ' /* Away flags occupy bottom 16 bits */
     SP_AWAY_USER_IDLE = 1
     SP_AWAY_COMPUTER_LOCKED = 2
-    SP_AWAY_FULLSCREEN_APP = 4
     SP_AWAY_SCREENSAVER_ACTIVE = 8
     SP_AWAY_MASK = &HFFFF&
 
     ' /* DnD flags occupy top 16 bits */
+    SP_DND_FULLSCREEN_APP = &H10000
+    SP_DND_USER = &H20000                       ' // from the tray icon menu
+    SP_DND_EXTERNAL = &H40000                   ' // for future use
     SP_DND_MASK = &HFFFF0000
 
 End Enum
 
-Public gAwayFlags As SP_AWAY_FLAGS
-Public gDNDMode As Boolean              ' // can only be set by user via menu
+Dim mPresFlags As SP_PRESENCE_FLAGS
 
 Public Enum SP_PRESENCE_ACTIONS
     SP_LOG_AS_MISSED = 1
@@ -659,7 +660,7 @@ Dim i As Long
     ' /* display welcome message */
 
     If (g_ConfigGet("show_msg_on_start") = "1") Or (gDebugMode) Then
-        i = g_PrivateNotify(SNARL_CLASS_WELCOME, "Welcome to Snarl!", _
+        i = g_PrivateNotify(SNARL_CLASS_GENERAL, "Welcome to Snarl!", _
                             "Snarl " & g_Version() & vbCrLf & App.LegalCopyright & vbCrLf & "http://www.fullphat.net" & IIf(gDebugMode, vbCrLf & vbCrLf & "Debug mode enabled", ""), , _
                             g_MakePath(App.Path) & "etc\icons\snarl.png")
 
@@ -988,7 +989,7 @@ Dim dw As Long
 
         ' /* tell our applications we're starting */
         If Not (g_AppRoster Is Nothing) Then _
-            g_AppRoster.SendAll SNARL_BROADCAST_LAUNCHED
+            g_AppRoster.SendToAll SNARL_BROADCAST_LAUNCHED
 
         ' /* R2.4: broadcast a started message */
 
@@ -1024,7 +1025,7 @@ Dim dw As Long
 
         ' /* tell our applications we've stopped */
         If Not (g_AppRoster Is Nothing) Then _
-            g_AppRoster.SendAll SNARL_BROADCAST_QUIT
+            g_AppRoster.SendToAll SNARL_BROADCAST_QUIT
 
         ' /* set master flag last */
         g_IsRunning = False
@@ -2175,22 +2176,22 @@ Public Function g_QuickLastError() As Long
 
 End Function
 
-Public Function g_QuickAddClass(ByVal AppToken As Long, ByVal Id As String, ByVal Name As String, Optional ByVal Enabled As Boolean, Optional ByVal Password As String) As Long
-Dim pp As BPackedData
-
-    Set pp = New BPackedData
-    With pp
-        .Add "id", Id
-        .Add "name", Name
-        .Add "enabled", IIf(Enabled, "1", "0")
-        If Password <> "" Then _
-            .Add "password", Password
-
-    End With
-
-    g_QuickAddClass = g_DoAction("addclass", AppToken, pp)
-
-End Function
+'Public Function g_QuickAddClass(ByVal AppToken As Long, ByVal Id As String, ByVal Name As String, Optional ByVal Enabled As Boolean, Optional ByVal Password As String) As Long
+'Dim pp As BPackedData
+'
+'    Set pp = New BPackedData
+'    With pp
+'        .Add "id", Id
+'        .Add "name", Name
+'        .Add "enabled", IIf(Enabled, "1", "0")
+'        If Password <> "" Then _
+'            .Add "password", Password
+'
+'    End With
+'
+'    g_QuickAddClass = g_DoAction("addclass", AppToken, pp)
+'
+'End Function
 
 Public Function g_PrivateNotify(ByVal ClassId As String, Optional ByVal Title As String, Optional ByVal Text As String, Optional ByVal Timeout As Long = -1, Optional ByVal Icon As String, Optional ByVal Priority As Long = 0, Optional ByVal Ack As String, Optional ByVal Flags As SNARL41_NOTIFICATION_FLAGS, Optional ByVal IntFlags As S_SYS_FLAGS) As Long
 
@@ -2737,26 +2738,59 @@ Dim sz As String
 
 End Function
 
-Public Sub g_SetAwayFlags(ByVal Flags As SP_AWAY_FLAGS)
+Public Sub g_SetPresence(ByVal Flags As SP_PRESENCE_FLAGS)
+Dim fWasAway As Boolean
 
-    gAwayFlags = gAwayFlags Or Flags
+    fWasAway = g_IsAway()
+    mPresFlags = mPresFlags Or Flags
 
-    ' /* TO-DO: maybe change the tray icon? */
+    ' /* if we've transitioned to Away, notify registered apps */
 
-End Sub
-
-Public Sub g_ClearAwayFlags(ByVal Flags As SP_AWAY_FLAGS)
-
-    gAwayFlags = gAwayFlags And (Not Flags)
-
-45$
-
-    '// check missed count!!!
+    If (Not fWasAway) And ((mPresFlags And SP_AWAY_MASK) <> 0) Then _
+        g_AppRoster.SendToAll SNARL_BROADCAST_USER_AWAY
+        ' /* TO-DO: change the tray icon? */
 
 End Sub
 
-Public Function g_IsAway(Optional ByVal Flags As SP_AWAY_FLAGS = SP_AWAY_MASK) As Boolean
+Public Sub g_ClearPresence(ByVal Flags As SP_PRESENCE_FLAGS)
+Dim fWasAway As Boolean
 
-    g_IsAway = ((gAwayFlags And Flags) <> 0)
+    fWasAway = g_IsAway()
+    mPresFlags = mPresFlags And (Not Flags)
+
+    ' /* is the user now back/not busy? if so, check missed log */
+
+    If mPresFlags = 0 Then _
+        g_NotificationRoster.CheckMissed
+
+    ' /* if we've transitioned from Away, notify registered apps */
+
+    If (fWasAway) And ((mPresFlags And SP_AWAY_MASK) = 0) Then _
+        g_AppRoster.SendToAll SNARL_BROADCAST_USER_BACK
+        ' /* TO-DO: change the tray icon? */
+
+End Sub
+
+Public Function g_IsAway() As Boolean
+
+    g_IsAway = ((mPresFlags And SP_AWAY_MASK) <> 0)
+
+End Function
+
+Public Function g_IsDND() As Boolean
+
+    g_IsDND = ((mPresFlags And SP_DND_MASK) <> 0)
+
+End Function
+
+Public Function g_IsPresence(ByVal Flags As SP_PRESENCE_FLAGS) As Boolean
+
+    g_IsPresence = ((mPresFlags And Flags) <> 0)
+
+End Function
+
+Public Function g_GetPresence() As Long
+
+    g_GetPresence = mPresFlags
 
 End Function

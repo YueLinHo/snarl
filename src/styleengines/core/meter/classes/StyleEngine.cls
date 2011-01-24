@@ -30,6 +30,7 @@ Option Explicit
     '   value-:         must be a numeric value, may be a decimal or integer
     '   label-:         may be alphanumeric
     '   colour-:        may use HTML notation (i.e. #RRGGBB) or rgb notation (i.e. r,g,b)
+    '   data-:          free for custom use
     '
     '   Defined Entries
     '   ---------------
