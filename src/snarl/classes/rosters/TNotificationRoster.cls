@@ -82,7 +82,7 @@ Dim i As Long
         g_Debug "TNotificationRoster.Close(): count=" & CStr(mItems)
         For i = mItems To 1 Step -1
             If Not (mItem(i).Window Is Nothing) Then _
-                mItem(i).Window.Zap
+                mItem(i).Window.Remove
 
         Next i
     End If
@@ -310,15 +310,39 @@ Dim act() As String
 
 Dim pCopyInfo As T_NOTIFICATION_INFO
 Dim pt As BTagItem
+Dim fc As Long
 
     If Not (Info.ClassObj.ForwardList Is Nothing) Then
         With Info.ClassObj.ForwardList
             .Rewind
             Do While .GetNextTag(pt) = B_OK
-                LSet pCopyInfo = Info
-                pCopyInfo.StyleName = style_GetStyleName(pt.Name)
-                pCopyInfo.SchemeName = style_GetSchemeName(pt.Name)
-                uCopyTo pCopyInfo, Info.ClassObj
+                fc = Val(pt.Value)
+
+                Debug.Print "TNotificationRoster.Add(): is_dnd=" & gDNDMode & " is_away=" & g_IsAway(SP_AWAY_MASK) & "cond=" & g_HexStr(fc)
+
+                If (gDNDMode) And ((fc And 1) <> 0) Then
+                    fc = -1
+
+                ElseIf (g_IsAway(SP_AWAY_MASK)) And ((fc And 2) <> 0) Then
+                    fc = -1
+
+                ElseIf (fc And 4) <> 0 Then
+                    fc = -1
+
+                Else
+                    fc = 0
+
+                End If
+
+                If fc <> 0 Then
+                    Debug.Print "TNotificationRoster.Add(): forwarding to " & pt.Name
+
+                    LSet pCopyInfo = Info
+                    pCopyInfo.StyleName = style_GetStyleName(pt.Name)
+                    pCopyInfo.SchemeName = style_GetSchemeName(pt.Name)
+                    uCopyTo pCopyInfo, Info.ClassObj
+
+                End If
 
             Loop
 
@@ -361,49 +385,165 @@ Dim pDelayed As TDelayedNotification
     End If
 
 
-    ' /* Do Not Disturb mode */
+    ' /* R2.4: low-priority notifications cannot be sticky */
 
+    If (Info.Priority < 0) And (Info.Timeout = 0) Then
+        Info.Timeout = Val(g_ConfigGet("default_duration"))
 
-Dim pIcon As mfxBitmap
-
-    ' /* while DnD is in effect, normal priority notifications are added
-    '    to the missed list (unless the user has blocked them); high
-    '    priority notifications are still displayed */
-
-    If (g_IsDNDModeEnabled()) And (Info.Priority < 1) Then
-
-        ' /* R2.31: only add if "Log During DND" is enabled for the notification class */
-
-        gSetLastError SNARL_ERROR_DO_NOT_DISTURB
-
-        If (Info.Priority = 0) And (Info.ClassObj.GetValue("log_during_dnd") = "1") Then
-
-            uAddToMissedList Info
-
-            ' /* special case: we return a valid token but we set LastError
-            '    to ERROR_DO_NOT_DISTURB to indicate the notification wasn't
-            '    actually displayed */
-
-            Add = Info.Token
-            Exit Function
-
-        Else
-            ' /* otherwise, it's discarded */
-            Add = 0
-            Exit Function
-
-        End If
+    ElseIf Info.Timeout = -1 Then
+        ' /* V41: if timeout is -1 then use global default timeout */
+        Info.Timeout = Val(g_ConfigGet("default_duration"))
 
     End If
 
 
-    ' /* R2.4: for low priority notifications only one may be visible
-    '    at any one time, so zap any existing */
+    ' /*
+    '   R2.4 DR8: presence management, as follows:
+    '
+    '   Make Sticky takes priority over Do Not Disturb Mode, which in turn take priority over Away Mode
+    '
+    '   End result is:
+    '                       Low         Normal      High
+    '                       ----------------------------------
+    '   Sticky              Sticky      Sticky      Sticky
+    '   Busy (DND=true)     Discarded   <user>      Displayed
+    '   Away                Discarded   <user>      Missed
+    '
+    '   Items marked <user> are user configurable.
+    '
+    ' */
+
+    Debug.Print "++ current presence: away=" & g_HexStr(gAwayFlags) & " dnd=" & gDNDMode
+
+    ' /* sticky snarls take precendence, then DND mode setting, then Away mode setting */
+
+Dim nPMode As SP_PRESENCE_ACTIONS
+
+    If g_ConfigGet("sticky_snarls") = "1" Then
+
+        ' /* R2.4 DR8: *all* notifications are sticky */
+
+        Info.Timeout = 0
+
+    ElseIf gDNDMode Then
+
+        ' /* Do Not Disturb (Busy) mode */
+
+        If Info.Priority < 0 Then
+            ' /* low priority = ignored */
+            Exit Function
+
+        ElseIf Info.Priority = 0 Then
+            ' /* determine what to do with normal priority notifications */
+            nPMode = Val(g_ConfigGet("busy_mode"))
+
+        End If
+
+    ElseIf g_IsAway() Then
+        
+        ' /* Away mode */
+
+        If Info.Priority < 0 Then
+            ' /* low priority = ignored */
+            Exit Function
+
+        ElseIf Info.Priority = 0 Then
+            ' /* determine what to do with normal priority notifications */
+            nPMode = Val(g_ConfigGet("away_mode"))
+
+        Else
+            ' /* high priority = logged as missed irrespective of class setting */
+            uAddToMissedList Info
+            Add = Info.Token
+
+        End If
+    End If
+
+    Debug.Print "mode action = " & nPMode
+
+    If nPMode <> 0 Then
+
+        ' /* we have something specific to do with the notification */
+
+        Select Case nPMode
+
+        Case SP_LOG_AS_MISSED
+            ' /* put in missed list (unless class setting says otherwise) and return the token */
+            If Info.ClassObj.GetValue("log_during_dnd") = "1" Then
+                uAddToMissedList Info
+                Add = Info.Token
+
+            End If
+
+            Exit Function
+
+        Case SP_MAKE_STICKY
+            Info.Timeout = 0
+
+        Case SP_DO_NOTHING
+            ' /* bin it */
+            Exit Function
+
+        Case SP_DISPLAY
+            ' /* allow it through */
+
+        End Select
+
+    End If
+
+'    ' /* while DnD is in effect, normal priority notifications are added
+'    '    to the missed list (unless the user has blocked them); high
+'    '    priority notifications are still displayed */
+'
+'    If (gDNDMode) And (Info.Priority < 1) Then
+'
+'        ' /* R2.31: only add if "Log During DND" is enabled for the notification class */
+'
+'        gSetLastError SNARL_ERROR_DO_NOT_DISTURB
+'
+'        If (Info.Priority = 0) And (Info.ClassObj.GetValue("log_during_dnd") = "1") Then
+'            uAddToMissedList Info
+'            Add = Info.Token
+'            Exit Function
+'
+'        Else
+'            ' /* otherwise, it's discarded */
+'            Add = 0
+'            Exit Function
+'
+'        End If
+'
+'    End If
+'
+'
+'    ElseIf (g_IsAway()) And (Info.Priority > 0) Then
+'        ' /* R2.4 DR8: if away, force timeout to 0 for priority notifications */
+'        Info.Timeout = 0
+'
+'    ElseIf Info.Timeout = -1 Then
+'        ' /* V41: if timeout is -1 then use global default timeout */
+'        Info.Timeout = Val(g_ConfigGet("default_duration"))
+'
+'    ElseIf (Info.Priority < 0) And (Info.Timeout = 0) Then
+'        ' /* R2.4: low-priority notifications cannot be sticky */
+'        Info.Timeout = Val(g_ConfigGet("default_duration"))
+'
+'    End If
+
+
+    ' /* == if we're here we need to create an on-screen instance of the notification == */
+
 
     If Info.Priority < 0 Then
 
+        ' /* R2.4: for low priority notifications only one may be visible
+        '    at any one time, so zap any existing */
+
         If Me.IsVisible(gCurrentLowPriorityId, "", "", "") Then _
             Me.Hide gCurrentLowPriorityId, "", "", ""
+
+        
+
 
 '            ' /* we need to queue it */
 '
@@ -433,22 +573,6 @@ Dim pIcon As mfxBitmap
 '
 '            Add = Info.Token
 '            Exit Function
-
-    End If
-
-    ' /* if we're here we need to create an on-screen instance of the notification */
-
-    If (g_IsSticky()) And (Info.Priority > 0) Then
-        ' /* R2.3: if sticky, force timeout to 0 for priority notifications */
-        Info.Timeout = 0
-
-    ElseIf Info.Timeout = -1 Then
-        ' /* V41: (not sure it's documented) - if timeout is -1 then use global default timeout */
-        Info.Timeout = Val(g_ConfigGet("default_duration"))
-
-    ElseIf (Info.Priority < 0) And (Info.Timeout = 0) Then
-        ' /* R2.4: low-priority notifications cannot be sticky */
-        Info.Timeout = Val(g_ConfigGet("default_duration"))
 
     End If
 
@@ -530,23 +654,12 @@ Dim psi As IStyleInstance
     '    a notification of this style on-screen */
 
     If (pStyle.Flags And S_STYLE_SINGLE_INSTANCE) Then
-'        MsgBox Info.StyleToUse
-
         p = uFindbyStyleName(Info.StyleName)
         If p Then
-
-'            MsgBox p, , Info.StyleName
-
             ' /* notification found, so decide what to do next... */
             If (pStyle.Flags And S_STYLE_DONT_QUEUE) Then
-                ' /* don't queue notifications - so update and return the existing id */
-
+                ' /* don't queue notifications - so remove the existing one and create new */
                 mItem(p).Window.Hide
-
-''                Info.StyleToUse = style_GetSchemeName(Info.StyleToUse)
-'                mItem(p).Window.Update2 Info
-'                Add = mItem(p).Window.Id
-'                Exit Function
 
             Else
                 ' /* TO DO: add to queue */
@@ -555,49 +668,6 @@ Dim psi As IStyleInstance
             End If
         End If
     End If
-
-    ' /* figure out sound to play */
-
-Dim szSound As String
-
-    If g_ConfigGet("enable_sounds") = "1" Then
-
-        szSound = trim(Info.SndFile)
-
-        If g_ConfigGet("use_style_sounds") = "1" Then
-            If (szSound = "") Or ((szSound <> "") And (g_ConfigGet("prefer_style_sounds") = "1")) Then _
-                szSound = ""        ' // get_style_sound()
-
-        End If
-
-        ' /* no specific or style-provided sound? */
-
-        If szSound = "" Then _
-            szSound = IIf(Info.Priority > 0, g_ConfigGet("default_priority_sound"), g_ConfigGet("default_notification_sound"))
-
-        ' /* play what we have - if we have something */
-
-        g_QuickPlaySound szSound
-
-    End If
-
-'    If Info.SndFile <> "" Then
-'        If g_SafeLeftStr(Info.SndFile, 1) = "+" Then
-'            ' /* system sound */
-'            Info.SndFile = g_SafeRightStr(Info.SndFile, Len(Info.SndFile) - 1)
-'            g_Debug "TNotificationRoster.Add2(): playing system sound '" & Info.SndFile & "'...", LEMON_LEVEL_INFO
-'            If Not g_PlaySound(Info.SndFile, SND_ALIAS Or SND_NOSTOP Or SND_NOWAIT Or SND_ASYNC) Then _
-'                g_Debug "TNotificationRoster.Add2(): PlaySound() failed", LEMON_LEVEL_CRITICAL
-'
-'        Else
-'            ' /* file */
-'            g_Debug "TNotificationRoster.Add2(): playing sound '" & Info.SndFile & "'...", LEMON_LEVEL_INFO
-'            If Not g_PlaySound(Info.SndFile, SND_FILENAME Or SND_NOSTOP Or SND_NOWAIT Or SND_ASYNC) Then _
-'                g_Debug "TNotificationRoster.Add2(): PlaySound() failed", LEMON_LEVEL_CRITICAL
-'
-'        End If
-'    End If
-
 
     ' /* if the token hasn't been pre-allocated set it here */
 
@@ -700,6 +770,46 @@ Dim dwStyleFlags As S_STYLE_FLAGS
     If Info.Priority < 0 Then _
         gCurrentLowPriorityId = Add
 
+    ' /* R2.4 DR8: last thing to do - play the sound */
+
+Dim szSound As String
+
+    If g_ConfigGet("enable_sounds") = "1" Then
+        szSound = trim(Info.SndFile)
+        If g_ConfigGet("use_style_sounds") = "1" Then
+            If (szSound = "") Or ((szSound <> "") And (g_ConfigGet("prefer_style_sounds") = "1")) Then _
+                szSound = ""        ' // get_style_sound()
+
+        End If
+
+        ' /* no specific or style-provided sound? */
+
+        If szSound = "" Then _
+            szSound = IIf(Info.Priority > 0, g_ConfigGet("default_priority_sound"), g_ConfigGet("default_notification_sound"))
+
+        ' /* play what we have - if we have something */
+
+        g_QuickPlaySound szSound
+
+    End If
+
+'    If Info.SndFile <> "" Then
+'        If g_SafeLeftStr(Info.SndFile, 1) = "+" Then
+'            ' /* system sound */
+'            Info.SndFile = g_SafeRightStr(Info.SndFile, Len(Info.SndFile) - 1)
+'            g_Debug "TNotificationRoster.Add2(): playing system sound '" & Info.SndFile & "'...", LEMON_LEVEL_INFO
+'            If Not g_PlaySound(Info.SndFile, SND_ALIAS Or SND_NOSTOP Or SND_NOWAIT Or SND_ASYNC) Then _
+'                g_Debug "TNotificationRoster.Add2(): PlaySound() failed", LEMON_LEVEL_CRITICAL
+'
+'        Else
+'            ' /* file */
+'            g_Debug "TNotificationRoster.Add2(): playing sound '" & Info.SndFile & "'...", LEMON_LEVEL_INFO
+'            If Not g_PlaySound(Info.SndFile, SND_FILENAME Or SND_NOSTOP Or SND_NOWAIT Or SND_ASYNC) Then _
+'                g_Debug "TNotificationRoster.Add2(): PlaySound() failed", LEMON_LEVEL_CRITICAL
+'
+'        End If
+'    End If
+
 End Function
 
 Public Function Remove(ByVal Id As Long) As Boolean
@@ -721,7 +831,7 @@ Private Function uRemove(ByVal Index As Long) As Boolean
 
 Dim i As Long
 
-    Debug.Print "-- removing index " & Index & " --"
+'    Debug.Print "-- removing index " & Index & " --"
 
     Set mItem(Index).Window = Nothing
     If Index < mItems Then
@@ -1024,7 +1134,7 @@ Dim i As Long
 
             For i = mItems To 1 Step -1
                 If Not (mItem(i).Window Is Nothing) Then _
-                    mItem(i).Window.Zap
+                    mItem(i).Window.Remove
 
             Next i
         End If
@@ -1062,7 +1172,7 @@ Dim i As Long
             For i = mItems To 1 Step -1
                 If mItem(i).Info.ClassObj.App.Token = AppToken Then
                     If Not (mItem(i).Window Is Nothing) Then _
-                        mItem(i).Window.Zap
+                        mItem(i).Window.Remove
 
                     uRemove i
 

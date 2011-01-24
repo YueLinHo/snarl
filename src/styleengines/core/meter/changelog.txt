@@ -1,6 +1,19 @@
 
 
+
+
+
+
+
+
 	Meter Style Engine Change Log
+
+	- Fixed some bugs in the Corporate style.  (39.84)
+
+	- Added new "OS X-ish" style.  (39.84)
+
+	- Beginning standardisation of custom V42 entries which
+	  styles can make use of.  (39.84)
 
 	- Fixed bug in Corporate style which caused a meter to be
 	  incorrectly displayed in certain circumstances.  (39.82)

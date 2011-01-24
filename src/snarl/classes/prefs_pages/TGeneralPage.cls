@@ -29,7 +29,7 @@ Dim pm As CTempMsg
     With mPage
 '        .Add new_BPrefsControl("banner", "", "Launch Options")
 
-        .SetMargin 96
+        .SetMargin 48
 
         .Add new_BPrefsControl("banner", "", "Launch Options")
 
@@ -38,33 +38,43 @@ Dim pm As CTempMsg
         pm.Add "align", 1
         pm.Add "inset_by", 0
         .Add new_BPrefsControl("fullphat/fancytoggle", "run_on_logon", , "", g_ConfigGet("run_on_logon"), pm)
-        .Add new_BPrefsControl("fancybutton2", "start", "Stop Snarl", "")
-        .Add new_BPrefsControl("label", "lbl_running", "Snarl is running", "")
+'        .Add new_BPrefsControl("fancybutton2", "start", "Stop Snarl", "")
+'        .Add new_BPrefsControl("label", "lbl_running", "Snarl is running", "")
 '        .Add new_BPrefsControl("separator", "")
-'        .Add new_BPrefsControl("banner", "", "Miscellaneous")
+        .Add new_BPrefsControl("fancytoggle2", "auto_update", "Check for updates on launch?", "", g_ConfigGet("auto_update"))
+        .Add new_BPrefsControl("fancybutton2", "update_now", "Check now...")
+
+        ' /* away mode */
+
+'Dim nIdle As Long
+
+        .Add new_BPrefsControl("banner", "", "Presence")
+        .Add new_BPrefsControl("label", "", "Enable away mode after the following period of inactivity:")
+
+'        nIdle = ROUNDUP(Val(g_ConfigGet("idle_timeout")) / 300)
+'        If (nIdle < 0) Or (nIdle > 3) Then _
+'            nIdle = 0
+
+        Set pm = New CTempMsg
+        pm.Add "min", 0&
+        pm.Add "max", 30&
+        pm.Add "freq", 5&
+        pm.Add "label_size", 56&
+        .Add new_BPrefsControl("fancyslider", "idle_minutes", "", "", IIf(g_ConfigGet("idle_minutes") = "2", "1", "2"), pm)
+
+        .Add new_BPrefsControl("fancytoggle2", "away_when_locked", "Enable away mode when computer is locked?", , g_ConfigGet("away_when_locked"))
+        .Add new_BPrefsControl("fancytoggle2", "away_when_fullscreen", "Enable away mode when the foreground application is fullscreen?", , g_ConfigGet("away_when_fullscreen"))
 
         ' /* miscellaneous */
 
         .Add new_BPrefsControl("banner", "", "Miscellaneous")
         .Add new_BPrefsControl("fancytoggle2", "show_msg_on_start", "Show message on startup?", "", g_ConfigGet("show_msg_on_start"), pm)
-        .Add new_BPrefsControl("fancytoggle2", "sticky_snarls", "Sticky notifications?", , g_ConfigGet("sticky_snarls"))
+'        .Add new_BPrefsControl("fancytoggle2", "sticky_snarls", "Sticky notifications?", , g_ConfigGet("sticky_snarls"))
         .Add new_BPrefsControl("fancytoggle2", "log_only", "Log only (don't display)?", , g_ConfigGet("log_only"))
-        .Add new_BPrefsControl("fancytoggle2", "notify_on_first_register", "Show notification on first registration only?", , g_ConfigGet("notify_on_first_register"))
-        .Add new_BPrefsControl("fancytoggle2", "auto_update", "Check for updates on launch?", "", g_ConfigGet("auto_update"))
 
-        .Add new_BPrefsControl("fancybutton2", "update_now", "Check now...")
 
-'Dim nIdle As Long
-'
-'        .Add new_BPrefsControl("banner", "", "Behaviour")
-'        .Add new_BPrefsControl("label", "", "Enable sticky notifications after the following period of inactivity:")
-'
-'        nIdle = ROUNDUP(Val(g_ConfigGet("idle_timeout")) / 300)
-'        If (nIdle < 0) Or (nIdle > 3) Then _
-'            nIdle = 0
-'
 '        .Add new_BPrefsControl("fancycycle", "idle_timeout", "Never|5 Minutes|10 Minutes|15 Minutes", "", CStr(nIdle + 1))
-'
+
 ''        .Add new_BPrefsControl("fancytoggle2", "auto_sticky_on_screensaver", "Enable sticky notifications when screensaver starts?", "", g_ConfigGet("auto_sticky_on_screensaver"))
 '
 ''        ' /* hotkey */
@@ -105,22 +115,32 @@ Dim pc As BControl
 
     Select Case Control.GetName()
 
-    Case "auto_sticky_on_screensaver", "notify_on_first_register", "auto_update", "sticky_snarls", "log_only", "show_msg_on_start", "run_on_logon"
+    Case "auto_sticky_on_screensaver", "notify_on_first_register", "auto_update", "sticky_snarls", _
+         "log_only", "show_msg_on_start", "run_on_logon", "away_when_locked", "away_when_fullscreen"
+
         g_ConfigSet Control.GetName, Value
-        
+
         If Control.GetName = "run_on_logon" Then _
             g_SetAutoRun2
 
         Exit Sub
 
 
-    Case "idle_timeout"
+    Case "idle_minutes"
 
-Dim dw2 As Long
+        Select Case Val(Value)
+        Case 0
+            Control.SetText "Never"
 
-        dw2 = (Val(Value) - 1) * 300
-        Debug.Print "new idle = " & dw2 & " secs"
-        g_ConfigSet Control.GetName, CStr(dw2)
+        Case 1
+            Control.SetText "1 min"
+
+        Case Else
+            Control.SetText Value & " mins"
+
+        End Select
+
+        g_ConfigSet Control.GetName, Value
         Exit Sub
 
 
@@ -139,15 +159,15 @@ Dim pc As BControl
     Debug.Print "[" & mPage.GetName() & "]: ControlInvoked '" & Control.GetName() & "'"
 
     Select Case Control.GetName()
-    Case "start"
-        ' /* toggle running state */
-        g_SetRunning Not g_IsRunning
-        Control.SetText IIf(g_IsRunning, "Stop Snarl", "Start Snarl")
-        If Control.Page.Find("lbl_running", pc) Then _
-            pc.SetText IIf(g_IsRunning, "Snarl is running", "Snarl is stopped")
-
-    Case "go_app_manager"
-        ShellExecute 0, "open", g_MakePath(App.Path) & "SNARLAPP_Manager.exe", vbNullString, vbNullString, SW_SHOW
+'    Case "start"
+'        ' /* toggle running state */
+'        g_SetRunning Not g_IsRunning
+'        Control.SetText IIf(g_IsRunning, "Stop Snarl", "Start Snarl")
+''        If Control.Page.Find("lbl_running", pc) Then _
+'            pc.SetText IIf(g_IsRunning, "Snarl is running", "Snarl is stopped")
+'
+'    Case "go_app_manager"
+'        ShellExecute 0, "open", g_MakePath(App.Path) & "SNARLAPP_Manager.exe", vbNullString, vbNullString, SW_SHOW
 
     Case "update_now"
         g_DoManualUpdateCheck

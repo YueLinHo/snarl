@@ -58,7 +58,64 @@
 
 	Snarl Change Log
 
-	- Improved way notification forwarding is managed - 
+	- A successful re-registration now updates the application's icon, reply-
+	  to window and reply messages if any of these are provided.  (42.40)
+
+	- Added priority emblem which is drawn over any high priority
+	  notifications.  (42.40)
+
+	- Improvements to the scheme preview code.  (42.40)
+
+	- Removed ununsed internal E_DEFAULT_DURATION constant.  (42.40)
+
+	- Merged the [General] and [Advanced] page content into the main form,
+	  doing away with the two class objects.  (42.40)
+
+	- Fixed a number of cosmetic bugs in the scheme preview code.  (42.40)
+
+	- Changes made to Away and Busy (DnD) logic.  Now only the user can enable
+	  and disable Do Not Disturb mode (via the tray icon menu).  Similarly, Away
+	  mode can only be set programmatically in response to certain system events.
+	  (42.40)
+
+	- Removed support for private E_SET_DONOTDISTURB external API, making
+	  the DND extension redundant.  (42.40)
+
+	- Moved full-screen app and computer lock/unlock detection into Snarl,
+	  effectively doing away with the DND extension.  (42.40)
+
+	- We now use the "no_icon" icon when applications without icons register
+	  and unregister.  (42.39)
+
+	- Fixed a number of bugs and glitches within the notification drawing
+	  and fading code.  (42.38)
+
+	- Click-through notifications were grabbing the keyboard focus on mouse-
+	  over.  Now fixed.  (42.38)
+
+	- GNTP and GrowlNet priorities are now passed through unchanged allowing
+	  V42 styles to handle different priorities.  (As an aside, although
+	  the only official Snarl priorities are -1, 0 and +1, the unofficial
+	  position is that the priority should be treated as signed byte, thus
+	  allowing for priorities ranging from -128 to +127).  (42.38)
+
+	- Added code to handle restoring the tray icon after an Explorer
+	  crash.  (42.38)
+
+	- Improved distinction between sticky and away functionality.  When
+	  sticky notifications are enabled, *all* notifications are sticky,
+	  regardless of priority.  When away mode is enabled, only high
+	  priority notifications are made sticky.  (42.38)
+
+	- Re-instated idle timer and associated user-definable delay setting.
+	  This now enables away mode when the delay is reached with no user
+	  activity in between.  (42.38)
+
+	- Released as R2.4 DR7.  (42.37)
+
+	- Improved way notification forwarding is managed.  Notifications
+	  may now be forwarded based on one or more of the following 
+	  conditions being met: away, busy or any other time.  (42.36)
 
 	- Prefs icons changed to use Faenza set.  (42.35)
 

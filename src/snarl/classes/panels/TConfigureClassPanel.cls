@@ -32,7 +32,7 @@ Dim mhWndPanel As Long
 
 Dim mIgnoreChanges As Boolean           ' // when set KPrefsPage_ControlChanged() doesn't update config
 Dim mCurrentForward As Long
-Dim mCurrentForwardName0 As String
+Dim mCurrentForwardName As String
 Dim mCurrentCondition As Long
 
 Public Event done()
@@ -114,7 +114,7 @@ Dim sz As String
 
     Case "lb>notify"
         mCurrentForward = Val(Value)
-        mCurrentForwardName0 = LCase$(Replace$(prefskit_GetItem(Control), ": ", "/"))
+        mCurrentForwardName = LCase$(Replace$(prefskit_GetItem(Control), ": ", "/"))
         uSetConditions
 
     Case "when_list"
@@ -176,18 +176,18 @@ Dim sz As String
             fChecked = (prefskit_GetItem(Control, "checked", mCurrentCondition) = "1")
 
             Select Case mCurrentCondition
+
             Case 1
-                ' /* always (0x20) */
-'                gSelectedClass.ForwardList.Update mCurrentForwardName0, "2"
-                gSelectedClass.SetForward mCurrentForwardName0, 2, fChecked
+                ' /* when away */
+                gSelectedClass.SetForward mCurrentForwardName, 1, fChecked
 
             Case 2
-                ' /* when away */
-                gSelectedClass.SetForward mCurrentForwardName0, 4, fChecked
+                ' /* when busy */
+                gSelectedClass.SetForward mCurrentForwardName, 2, fChecked
 
             Case 3
-                ' /* when busy */
-                gSelectedClass.SetForward mCurrentForwardName0, 8, fChecked
+                ' /* (other times) */
+                gSelectedClass.SetForward mCurrentForwardName, 4, fChecked
 
             End Select
 
@@ -347,7 +347,7 @@ Dim pc As BControl
 
             Set pm = New CTempMsg
             pm.Add "checkboxes", 1
-            Set pc = new_BPrefsControl("listbox", "when_list", "(Default)|When away|When busy", "", "", pm)
+            Set pc = new_BPrefsControl("listbox", "when_list", "When away|When busy|(All other times)", "", "", pm)
             pc.SizeTo 0, 68
             .Add pc
 
@@ -439,6 +439,8 @@ Public Sub ClassChanged()
 
     uSetValues
     uSetControls
+
+    uSetConditions
 
     mIgnoreChanges = False
 
@@ -818,14 +820,14 @@ Dim pc As BControl
 Dim pm As CTempMsg
 Dim i As Long
 
-    i = Val(gSelectedClass.ForwardList.ValueOf(mCurrentForwardName0))
-    Debug.Print "current forward: " & mCurrentForwardName0 & " flags=" & g_HexStr(i)
+    i = Val(gSelectedClass.ForwardList.ValueOf(mCurrentForwardName))
+    Debug.Print "current forward: " & mCurrentForwardName & " flags=" & g_HexStr(i)
 
 Dim n As Long
 
-    For n = 1 To 3
+    For n = 0 To 2
         Set pm = New CTempMsg
-        pm.Add "index", n
+        pm.Add "index", n + 1
         pm.Add "checked", IIf((i And 2 ^ n), 1&, 0&)
         pc.DoExCmd B_SET_ITEM, pm
 

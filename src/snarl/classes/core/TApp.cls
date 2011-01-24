@@ -34,7 +34,7 @@ Dim mAlerts As Long
 Dim mSettings As ConfigFile     ' // persistent settings
 Dim mAppConfig As ConfigSection ' // persistent app settings
 Dim mIsUnknown As Boolean       ' // new app (or, one without persistent settings anyway)
-Dim mLastError As Long
+'Dim mLastError As Long
 
 Implements MObject
 
@@ -250,11 +250,11 @@ Public Function Icon() As String
 
 End Function
 
-Public Function LargeIcon() As String
-
-    LargeIcon = mInfo.LargeIcon
-
-End Function
+'Public Function LargeIcon() As String
+'
+'    LargeIcon = mInfo.LargeIcon
+'
+'End Function
 
 Public Function UseSameSettingsForAllClasses() As Boolean
 
@@ -750,14 +750,24 @@ Public Function IsNew() As Boolean
 
 End Function
 
-Public Sub SetLastError(ByVal err As Long)
+'Public Sub SetLastError(ByVal err As Long)
+'
+'    mLastError = err
+'
+'End Sub
+'
+'Public Function LastError() As Long
+'
+'    LastError = mLastError
+'
+'End Function
 
-    mLastError = err
+Public Sub SetReply(ByVal ReplyTo As Long, ByVal ReplyMessage As Long)
+
+    If ReplyTo <> 0 Then _
+        mInfo.hWnd = ReplyTo
+
+    If ReplyMessage <> 0 Then _
+        mInfo.uMsg = ReplyMessage
 
 End Sub
-
-Public Function LastError() As Long
-
-    LastError = mLastError
-
-End Function

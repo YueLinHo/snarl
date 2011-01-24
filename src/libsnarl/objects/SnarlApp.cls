@@ -129,20 +129,28 @@ Private Function BWndProcSink_WndProc(ByVal hWnd As Long, ByVal uMsg As Long, By
 
 End Function
 
-Public Sub SetTo(ByVal RemoteHost As String, ByVal Signature As String, ByVal Title As String, ByVal Icon As String, ByRef Classes As NotificationClasses, Optional ByVal Password As String)
+Public Function SetTo(ByVal RemoteHost As String, ByVal Signature As String, ByVal Title As String, ByVal Icon As String, ByRef Classes As NotificationClasses, Optional ByVal Password As String) As S_STATUS_CODE
 
-    ' /* if the socket is in use should we fail or close it? */
+    If (Not (theSocket Is Nothing)) Or (mhWnd <> 0) Then
+        Debug.Print "SnarlApp.SetTo(): either socket or window created"
+        SetTo = S_ERROR_ACCESS_DENIED
 
-    With mCached
-        .RemoteHost = RemoteHost
-        .Signature = Signature
-        .Title = Title
-        Set .Classes = Classes
-        .Password = Password
+    Else
 
-    End With
+        With mCached
+            .RemoteHost = RemoteHost
+            .Signature = Signature
+            .Title = Title
+            Set .Classes = Classes
+            .Password = Password
 
-End Sub
+        End With
+
+        SetTo = S_SUCCESS
+
+    End If
+
+End Function
 
 Public Function Register() As S_STATUS_CODE
 
@@ -158,7 +166,7 @@ End Function
 
 Private Function uRegisterLocal() As S_STATUS_CODE
 
-    ' /* return true if registered (or re-registered) successfully */
+    ' /* return */
 
     If (mCached.Signature = "") Or (mCached.Title = "") Or (mCached.Classes Is Nothing) Then
         Debug.Print "SnarlApp.uRegisterLocal(): invalid args"
@@ -201,9 +209,9 @@ Dim sz As String
         sz = sz & "&password=" & mCached.Password
 
     mCached.zToken = snDoRequest(sz)
-
-    If mCached.zToken = 0 Then
-        uRegisterLocal = snGetLastError()
+    If mCached.zToken <= 0 Then
+        ' /* failed */
+        uRegisterLocal = Abs(mCached.zToken)
         Debug.Print "SnarlApp.uRegisterLocal(): failed: " & CStr(uRegisterLocal)
         EZRemoveWindow mhWnd
         EZUnregisterClass CLASS_NAME
@@ -225,6 +233,8 @@ Dim i As Long
     End With
 
     Debug.Print "SnarlApp.uRegisterLocal(): token=" & CStr(mCached.zToken)
+
+    uRegisterLocal = S_SUCCESS
 
 End Function
 

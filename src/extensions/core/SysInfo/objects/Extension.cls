@@ -50,8 +50,8 @@ Option Explicit
     '
     ' */
 
-Private Const LIB_DATE = "24-Dec-2010"
-Private Const LIB_RELEASE = "3.01"
+Private Const LIB_DATE = "20-Jan-2011"
+Private Const LIB_RELEASE = "3.02"
 Private Const EXT_NAME = "SysInfo"
 Private Const EXT_COMMENT = "Tracks events specific to this computer"
 
@@ -599,16 +599,17 @@ Dim l As Long
 
     l = sn41EZNotify(mToken, CLASS_HIGH_CPU, "High processor utilisation", _
                      "The system has been at least " & CStr(LoadPercent) & "% busy for " & CStr(Duration) & " seconds", , _
-                     "!system-warning")
+                     "!system-warning", , , , "action::Task Manager...,taskmgr.exe#?action::Run...,!system run_dialog#?action::Shutdown...,!system shutdown_dialog")
 
     ' /* if we have a valid notification token and we're running V42+, add actions */
 
-    If (l) And (sn41GetVersion() > 41) Then
-        sn42AddAction l, "Task Manager...", "taskmgr.exe"
-        sn42AddAction l, "Run...", "!system run_dialog"
-        sn42AddAction l, "Shutdown...", "!system shutdown_dialog"
-
-    End If
+'    If (l) And (sn41GetVersion() > 41) Then
+'
+'        sn42AddAction l, "Task Manager...", "taskmgr.exe"
+'        sn42AddAction l, "Run...", "!system run_dialog"
+'        sn42AddAction l, "Shutdown...", "!system shutdown_dialog"
+'
+'    End If
 
 End Sub
 
@@ -668,9 +669,9 @@ Dim l As Long
     l = sn41EZNotify(mToken, _
                      CLASS_LOW_DISK, _
                      szTitle, _
-                     szText, , "!disk-low_space")
+                     szText, , "!disk-low_space", , , , "action::Open," & Path)
 
-    If l Then _
+'    If l Then _
         sn42AddAction l, "Open", Path
 
 End Sub
@@ -849,7 +850,7 @@ Dim sz As String
                                        CLASS_POWER_DISCONNECT, _
                                        IIf(mConfig.ValueOf("power.show_text") = "1", "Power disconnected", ""), _
                                        sz, _
-                                       0, _
+                                       , _
                                        "!power-disconnected" _
                                        )
 
@@ -968,16 +969,16 @@ Dim i As Long
         ' /* V42: add "open" as action instead */
         i = sn41EZNotify(mToken, CLASS_VOL_MNT, _
                          "Voume mounted", _
-                         uLabel(Label, Path) & uCapacityInfo(Path), , uIcon(Path), , , , SNARL41_NOTIFICATION_ALLOWS_MERGE)
+                         uLabel(Label, Path) & uCapacityInfo(Path), , uIcon(Path), , , , "action::Open," & Path)
 
-        If i Then _
+'        If i Then _
             sn42AddAction i, "Open", Path
 
     Else
         ' /* pre-V42: default ack is "open" */
         i = sn41EZNotify(mToken, CLASS_VOL_MNT, _
                          "Voume mounted", _
-                         uLabel(Label, Path) & uCapacityInfo(Path), , uIcon(Path), , Path, , SNARL41_NOTIFICATION_ALLOWS_MERGE)
+                         uLabel(Label, Path) & uCapacityInfo(Path), , uIcon(Path), , Path)
 
     End If
 
@@ -988,7 +989,7 @@ Dim i As Long
 
     i = sn41EZNotify(mToken, CLASS_VOL_UMNT, _
                      "Volume unmounted", _
-                     uLabel(Label, Path), , "!vol-unmounted", , , , SNARL41_NOTIFICATION_ALLOWS_MERGE)
+                     uLabel(Label, Path), , "!vol-unmounted", , , , "merge::1")
 
 End Sub
 

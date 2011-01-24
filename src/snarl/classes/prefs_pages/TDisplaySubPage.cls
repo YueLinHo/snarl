@@ -238,12 +238,12 @@ Dim i As Long
 
     ' /* notification settings */
 
-    Case "font_smoothing"
-        gPrefs.font_smoothing = Val(Control.GetValue()) - 1
-        If mPage.Find("melontype_contrast", pc) Then _
-            pc.SetEnabled (Val(Value) = 1)
-
-        fUpdate = True
+'    Case "font_smoothing"
+'        gPrefs.font_smoothing = Val(Control.GetValue()) - 1
+'        If mPage.Find("melontype_contrast", pc) Then _
+'            pc.SetEnabled (Val(Value) = 1)
+'
+'        fUpdate = True
 
 
     Case "ft>use_dropshadow"

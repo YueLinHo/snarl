@@ -29,8 +29,8 @@ Dim mOriginalTimeout As Long            ' // in seconds!
 Dim mInfo As T_NOTIFICATION_INFO
 
 Dim mCurrent As Long
-Dim m_Target As Long
-Dim m_step As Long
+Dim mTargetAlpha As Long
+Dim mAlphaStep As Single
 
     ' /* 37.33 */
 Dim m_Disable As Long                   ' // >0 = timer paused, <=0 timer running
@@ -58,22 +58,15 @@ Dim mTick As Long                       '// timeout/100
     ' /* R2.3 */
 Dim mClickThru As Boolean               '// set during Create() - taken from class settings and then modified by style flags
 Dim mStylePath As String
-'Dim mClass As TAlert
 Dim mMenuOpen As Boolean
 
     ' /* R2.4 */
 
-'Private Type T_ACTION
-'    Label As String
-'    Command As String
-'
-'End Type
-'
-'Dim mAction() As T_ACTION
-'Dim mActions As Long
-
 Dim mCloseRect As BRect
 Dim mActionsRect As BRect
+
+Dim mFadeStart As Long
+Dim mOriginalAlpha As Long
 
 Implements MWndProcSink
 
@@ -97,8 +90,9 @@ Dim pbm As mfxBitmap
 Dim rc As RECT
 Dim i As Long
 
-    m_Alpha = 255 * (Val(g_ConfigGet("global_opacity")) / 100)
-    mOriginalTimeout = IIf(g_ConfigGet("sticky_snarls") = "1", 0, Info.Timeout)
+    m_Alpha = 255 * (g_SafeLong(g_ConfigGet("global_opacity")) / 100)
+    mOriginalAlpha = m_Alpha
+    mOriginalTimeout = Info.Timeout
     Set mInstance = Instance
     mStyleFlags = StyleFlags
 
@@ -117,7 +111,7 @@ Dim dwExStyle As Long
     If mClickThru Then
         dwExStyle = dwExStyle Or WS_EX_TRANSPARENT
         If mOriginalTimeout = 0 Then
-            g_Debug "CSnarlWindow.Create(): timeout cannot be zero if E_CLASS_NOTIFICATION_ONLY is set", LEMON_LEVEL_WARNING
+            g_Debug "CSnarlWindow.Create(): timeout cannot be zero if click-through", LEMON_LEVEL_WARNING
             mOriginalTimeout = IIf(Val(g_ConfigGet("default_duration")) > 0, Val(g_ConfigGet("default_duration")), 10)
 
         End If
@@ -218,6 +212,8 @@ Public Sub Quit()
     If mQuitting Then _
         Exit Sub
 
+    Debug.Print "CSnarlWindow.Quit(): closing..."
+
     mVisible = False
     If Not (theWindow Is Nothing) Then
         mQuitting = True                                    '// set this notification as no longer valid...
@@ -234,11 +230,28 @@ Public Sub Quit()
 
 End Sub
 
-Public Sub Zap()
+Public Sub Remove()
 
-    m_step = 0
+    Debug.Print "CSnarlWindow.Remove(): removing window..."
+
+    mAlphaStep = 0
+
+    If Not (theWindow Is Nothing) Then _
+        KillTimer theWindow.hWnd, TIMER_ASYNC_FADE
+
     nto_DestroyWindow theWindow
     Set theView = Nothing
+
+        ' /* R2.4: if this was a low priority notification, check the queue */
+
+'                        If mInfo.Priority < 0 Then _
+            g_NotificationRoster.QueueNext
+
+End Sub
+
+Private Sub Class_Terminate()
+
+    Debug.Print "CSnarlWindow.Terminate"
 
 End Sub
 
@@ -247,17 +260,21 @@ Static bPaused As Boolean
 Static pt As POINTAPI
 Static sz As String
 Static f As Boolean
+Static t As Long
 
     Select Case uMsg
     Case WM_SETCURSOR
         SetCursor LoadCursor(0, IDC_ARROW)
 
-        If LoWord(lParam) = HTERROR Then
+'    Debug.Print gNotificationMenuOpen
+
+        If (LoWord(lParam) = HTERROR) Then
             ' /* window is disabled which means a menu is active */
             Select Case HiWord(lParam)
             Case WM_LBUTTONDOWN, WM_RBUTTONDOWN, WM_MBUTTONDOWN
                 Debug.Print "-- enabling --"
                 ' /* enable the window but don't process the message */
+'                gNotificationMenuOpen = False
                 EnableWindow hWnd, -1
                 ReturnValue = -1
                 MWndProcSink_WndProc = True
@@ -267,19 +284,20 @@ Static f As Boolean
         ElseIf Not mCloseButtonVisible Then
             mCloseButtonVisible = True
             uDrawContent mCurrent
-            SetWindowPos hWnd, HWND_TOP, 0, 0, 0, 0, SWP_NOSIZE Or SWP_NOMOVE Or SWP_NOACTIVATE
+
+            If Not mClickThru Then _
+                SetWindowPos hWnd, HWND_TOP, 0, 0, 0, 0, SWP_NOSIZE Or SWP_NOMOVE Or SWP_NOACTIVATE
+
             SetTimer hWnd, TIMER_TRACK_POINTER, 100, 0
 
         End If
-
-
-
 
 
     Case WM_LBUTTONDOWN, WM_RBUTTONDOWN, WM_MBUTTONDOWN
         ' /* V38.131: better way of working - button pressed now does a SetCapture() and we only respond
         '    if the mouse button is released over the same item */
         sz = uHitTest(lParam)
+        Debug.Print "--> " & sz
         f = True
         SetCapture hWnd
 
@@ -293,15 +311,10 @@ Static f As Boolean
                     g_Debug "CSnarlWindow.WndProc(): close button invoked - not sending ACK"
                     If (g_IsPressed(VK_LCONTROL)) Or (g_IsPressed(VK_RCONTROL)) Then
                         ' /* CTRL held down... */
-    
-    '                    g_Debug "CTRL " & g_HexStr(m_hWndReply)
-    
                         If (g_IsPressed(VK_LSHIFT)) Or (g_IsPressed(VK_RSHIFT)) Then
                             ' /* SHIFT held down: close all */
                             g_NotificationRoster.CloseMultiple 0
-    
-    '                        g_Debug "SHIFT"
-    
+
                         ElseIf mInfo.hWndReply <> 0 Then
                             ' /* just from the provided window */
                             g_NotificationRoster.CloseMultiple mInfo.hWndReply
@@ -311,7 +324,7 @@ Static f As Boolean
                             Hide
     
                         End If
-    
+
                     Else
                         ' /* just close ourself */
                         bPaused = True                  ' // don't count down while we're doing this...
@@ -324,10 +337,9 @@ Static f As Boolean
                 Case "client"
                     g_Debug "CSnarlWindow.WndProc(): client area invoked"
                     bPaused = True                  ' // don't count down while we're doing this...
-    
-                    ' /* V38.94 - if an ACK string has been specified, launch it now */
-    
+
                     If mInfo.DefaultAck <> "" Then
+                        ' /* V38.94 - if an ACK string has been specified, launch it now */
                         g_ProcessAck mInfo.DefaultAck
 
                     Else
@@ -440,40 +452,25 @@ Static f As Boolean
         If (wParam = TIMER_MAIN_TICK) And (Not bPaused) And (Not mCloseButtonVisible) And (Not mFuzzy) Then
             mTick = mTick - 1
             If mTick = 0 Then
-                
-Debug.Print "SNARL_NOTIFICATION_TIMED_OUT " & mTick
-                
                 bPaused = True
                 uNotify SNARL_CALLBACK_TIMED_OUT
+                Debug.Print "timed out"
                 bPaused = False
                 Hide
 
             End If
 
         ElseIf wParam = TIMER_ASYNC_FADE Then
-            If m_step < 0 Then
+            If mAlphaStep < 0 Then
                 ' /* fading down */
-
-'Debug.Print "FADING DOWN"
-
-                If mCurrent <= m_Target Then
+                If mCurrent <= mTargetAlpha Then
                     ' /* done! */
-                    mCurrent = m_Target
+                    mCurrent = mTargetAlpha
                     KillTimer hWnd, wParam
-'                    g_NotificationRoster.Remove m_Id
-                    m_step = 0
-
-                    If mQuitting Then
-                        KillTimer hWnd, TIMER_PULSE
-                        nto_DestroyWindow theWindow
-                        Set theView = Nothing
-                        
-                        ' /* R2.4: if this was a low priority notification, check the queue */
-                        
-'                        If mInfo.Priority < 0 Then _
-                            g_NotificationRoster.QueueNext
-
-                    End If
+                    mAlphaStep = 0
+                    
+                    If mQuitting Then _
+                        Remove
 
                     Exit Function
 
@@ -481,26 +478,27 @@ Debug.Print "SNARL_NOTIFICATION_TIMED_OUT " & mTick
 
             Else
                 ' /* fading up */
-                If mCurrent >= m_Target Then
+                If mCurrent >= mTargetAlpha Then
                     ' /* done! */
-                    mCurrent = m_Target
+                    Debug.Print "*** Fading took: " & GetTickCount() - mFadeStart & " ms ***"
+                    mCurrent = mTargetAlpha
                     KillTimer hWnd, wParam
-                    m_step = 0
+                    apply_view_to_window theView, hWnd, mCurrent        ' // re-apply in case we've overshot
+                    mAlphaStep = 0
                     Exit Function
 
                 End If
-
             End If
 
-            ' /* keep fading */
-            mCurrent = mCurrent + m_step
-            apply_view_to_window theView, hWnd, mCurrent
+'            Debug.Print GetTickCount() - t
+'            t = GetTickCount()
 
+            ' /* keep fading */
+            mCurrent = mCurrent + mAlphaStep
+            apply_view_to_window theView, hWnd, mCurrent
 
         ElseIf (wParam = TIMER_TRACK_POINTER) And (Not f) And (Not mMenuOpen) Then
             GetCursorPos pt
-'            Debug.Print pt.x & "," & pt.y
-
             If Not theWindow.Frame.Contains(nto_NewPoint(pt.x, pt.y)) Then
                 KillTimer hWnd, wParam
                 mCloseButtonVisible = False
@@ -526,27 +524,12 @@ Debug.Print "SNARL_NOTIFICATION_TIMED_OUT " & mTick
     Case WM_CAPTURECHANGED
         f = False
 
-
     Case WM_NCACTIVATE
         If wParam = 0 Then _
             EnableWindow hWnd, -1
 
     Case WM_ENTERMENULOOP, WM_EXITMENULOOP
         mMenuOpen = (uMsg = WM_ENTERMENULOOP)
-
-'    Case WM_EXITMENULOOP
-'        PostMessage hWnd, &H666, 0, ByVal 0&
-'        GetCursorPos pt
-'        If Not theWindow.Frame.Contains(nto_NewPoint(pt.x, pt.y)) Then _
-'            EnableWindow hWnd, -1
-
-
-
-'        Debug.Print "-- exit menu --"
-'        EnableWindow hWnd, -1
-
-'    Case WM_KEYDOWN
-'        Debug.Print wParam & " " & g_HexStr(lParam)
 
     End Select
 
@@ -642,17 +625,21 @@ Dim pt As POINTAPI
 
             Loop While Not bDone
 
-            nto_DestroyWindow theWindow
-            Set theView = Nothing
+            Remove
 
             Exit Sub
 
+        Else
+            Debug.Print "CSnarlWindow.Hide(): no custom hide required"
+
         End If
+
+    Else
+        Debug.Print "CSnarlWindow.Hide(): no instance"
 
     End If
 
     theWindow.RemoveTimer TIMER_MAIN_TICK
-'    g_RemoveSnarl theWindow.hWnd
     Quit
 
 End Sub
@@ -697,28 +684,42 @@ End Property
 
 Public Sub uSetTargetAlpha(ByVal Alpha As Long)
 
-'Debug.Print "SET TARGET ALPHA " & Alpha
+    Debug.Print "CSnarlWindow.uSetTargetAlpha(): current=" & mCurrent & " requested=" & Alpha
 
-    If Alpha < mCurrent Then
-        ' /* fade out */
-        m_step = -Val(g_ConfigGet("step_size")) * 12
+    If (Alpha = 0) And (mCurrent = 0) And (mQuitting) Then
+        ' /* R2.4 DR8: handles an unusual case whereby the notification is being
+        '    removed before async fading has even begun.  */
+        Remove
+        Exit Sub
 
-    ElseIf Alpha > mCurrent Then
-        ' /* fade in */
-        m_step = Val(g_ConfigGet("step_size")) * 8
-
-    Else
+    ElseIf Alpha = mCurrent Then
+        ' /* nothing to do */
         Exit Sub
 
     End If
 
-    ' /* R2.4: low priority notifications fade faster */
+    ' /* figure out granularity */
 
-    If mInfo.Priority < 0 Then _
-        m_step = m_step * 2
+Dim s As Single
 
-    m_Target = Alpha
-    SetTimer theWindow.hWnd, TIMER_ASYNC_FADE, 2, 0
+    s = Abs(mCurrent - Alpha)
+
+'    Debug.Print "alpha delta = " & s
+
+    s = (s / 300) * (10 + 6)
+
+    If Alpha < mCurrent Then _
+        s = -s
+
+'    Debug.Print "step size = " & s
+
+    mAlphaStep = CLng(s)
+
+    ' /* kick off the fade process */
+
+    mTargetAlpha = Alpha
+    SetTimer theWindow.hWnd, TIMER_ASYNC_FADE, 10, 0
+    mFadeStart = GetTickCount()
 
 End Sub
 
@@ -1334,7 +1335,6 @@ Public Sub MakeFuzzy(ByVal Enabled As Boolean)
     If (mFuzzy = Enabled) Or (Not mVisible) Then _
         Exit Sub
 
-Static iPrevAlpha As Long
 Static bmOld As mfxBitmap
 
     mFuzzy = Enabled
@@ -1346,22 +1346,8 @@ Static bmOld As mfxBitmap
 
         ' /* R2.4: bring window to front - required? */
 
-        SetWindowPos theWindow.hWnd, HWND_TOP, 0, 0, 0, 0, SWP_NOSIZE Or SWP_NOMOVE
-
-        iPrevAlpha = mCurrent
-        uSetTargetAlpha MIN(102, Fix(mCurrent / 2))
-
-'        uFadeTo MIN(102, Fix(mCurrent / 2))
-'
-'
-''        bSetAlpha MIN(60, Fix(mCurrent / 2))
-'
-''        Set pv = New mfxView
-''        pv.SizeTo theView.Width * 4, theView.Height * 4
-''        pv.DrawScaledImage theView.ConvertToBitmap, , create_point(pv.Width, pv.Height)
-''
-''        theView.Clear
-''        theView.DrawScaledImage pv.ConvertToBitmap, , create_point(theView.Width, theView.Height)
+        SetWindowPos theWindow.hWnd, HWND_TOP, 0, 0, 0, 0, SWP_NOSIZE Or SWP_NOMOVE Or SWP_NOACTIVATE
+        uSetTargetAlpha MIN(102, Fix(mOriginalAlpha / 2))
 
     Else
 
@@ -1369,44 +1355,10 @@ Static bmOld As mfxBitmap
         Set bmOld = Nothing
         uDrawContent
 
-        Debug.Print "resetting to " & iPrevAlpha
-'        'bSetAlpha iPrevAlpha
-'        uFadeTo iPrevAlpha
-
-        uSetTargetAlpha iPrevAlpha
+        Debug.Print "CSnarlWindow.MakeFuzzy(): restoring to alpha " & mOriginalAlpha
+        uSetTargetAlpha mOriginalAlpha
 
     End If
-
-End Sub
-
-Private Sub uFadeTo(ByVal Alpha As Long)
-Dim i As Long
-
-    If Alpha < 0 Then
-        Alpha = 0
-
-    ElseIf Alpha > 255 Then
-        Alpha = 255
-
-    End If
-
-    If mCurrent > Alpha Then
-        ' /* fade down */
-        For i = mCurrent To Alpha Step -3
-            uDrawContent i
-
-        Next i
-
-    ElseIf mCurrent < Alpha Then
-        ' /* fade up */
-        For i = mCurrent To Alpha Step 3
-            uDrawContent i
-
-        Next i
-
-    End If
-
-    mCurrent = Alpha
 
 End Sub
 
@@ -1446,16 +1398,31 @@ Dim n As Long
     ' /* emblems */
 
 Dim pt As BPoint
-Const EMBLEM_SIZE = 12
-
+Const EMBLEM_SIZE = 14
 
     Set pt = new_BPoint(pv.Width - EMBLEM_SIZE - 3, pv.Height - EMBLEM_SIZE - 3)
+
+    ' /* if the notification is high priority */
+
+    If mInfo.Priority > 0 Then
+        pv.DrawScaledImage bm_Priority, pt, new_BPoint(EMBLEM_SIZE, EMBLEM_SIZE), 230
+        pt.OffsetBy -(EMBLEM_SIZE + 1), 0
+
+    End If
+
+    ' /* if the notification is sticky */
+
+    If mOriginalTimeout = 0 Then
+        pv.DrawScaledImage bm_IsSticky, pt, new_BPoint(EMBLEM_SIZE, EMBLEM_SIZE), 230
+        pt.OffsetBy -(EMBLEM_SIZE + 1), 0
+
+    End If
 
     ' /* if notification isn't click-through and the mouse pointer isn't
     '    over it, and it has actions, draw the actions indicator emblem */
 
     If (Not mClickThru) And (Not mCloseButtonVisible) And (mInfo.Actions.CountItems > 0) Then
-        pv.DrawScaledImage bm_HasActions, pt, new_BPoint(EMBLEM_SIZE, EMBLEM_SIZE), 190
+        pv.DrawScaledImage bm_HasActions, pt, new_BPoint(EMBLEM_SIZE, EMBLEM_SIZE), 230
         pt.OffsetBy -(EMBLEM_SIZE + 1), 0
 
     End If
@@ -1463,7 +1430,7 @@ Const EMBLEM_SIZE = 12
     ' /* if the notification was generated by a remote app */
 
     If (mInfo.IntFlags And S_NOTIFICATION_REMOTE) Then
-        pv.DrawScaledImage bm_Remote, pt, new_BPoint(EMBLEM_SIZE, EMBLEM_SIZE), 190
+        pv.DrawScaledImage bm_Remote, pt, new_BPoint(EMBLEM_SIZE, EMBLEM_SIZE), 230
         pt.OffsetBy -(EMBLEM_SIZE + 1), 0
 
     End If
@@ -1471,18 +1438,11 @@ Const EMBLEM_SIZE = 12
     ' /* if the notification was generated by a secure app */
 
     If (mInfo.IntFlags And S_NOTIFICATION_SECURE) Then
-        pv.DrawScaledImage bm_Secure, pt, new_BPoint(EMBLEM_SIZE, EMBLEM_SIZE), 190
+        pv.DrawScaledImage bm_Secure, pt, new_BPoint(EMBLEM_SIZE, EMBLEM_SIZE), 230
         pt.OffsetBy -(EMBLEM_SIZE + 1), 0
 
     End If
 
-    ' /* if the notification is sticky */
-
-    If mInfo.Timeout = 0 Then
-        pv.DrawScaledImage bm_IsSticky, pt, new_BPoint(EMBLEM_SIZE, EMBLEM_SIZE), 190
-        pt.OffsetBy -(EMBLEM_SIZE + 1), 0
-
-    End If
 
     ' /* draw with or without dropshadow */
 
@@ -1833,3 +1793,4 @@ End Sub
 '    Update = uUpdate(Info)
 '
 'End Function
+

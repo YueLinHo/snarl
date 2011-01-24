@@ -174,6 +174,7 @@ Public bm_HasActions As MImage
 Public bm_Remote As MImage
 Public bm_Secure As MImage
 Public bm_IsSticky As MImage
+Public bm_Priority As MImage
 
 Public Enum E_START_POSITIONS
     ' /* IMPORTANT!! These have now changed under V41 */
@@ -189,8 +190,8 @@ End Enum
 
 Public Enum E_NOTIFICATION_DURATION
     ' /* IMPORTANT!! These have now changed under V41 */
-    E_DURATION_DEFAULT = 0
-    E_DURATION_APP_DECIDES
+'    E_DURATION_DEFAULT = 0
+    E_DURATION_APP_DECIDES = 1
     E_DURATION_CUSTOM           ' // "custom_timeout" contains value in seconds
 
 End Enum
@@ -205,26 +206,26 @@ Public g_StyleRoster As TStyleRoster
 Public g_AppRoster As TApplicationRoster
 Public g_NotificationRoster As TNotificationRoster
 
-Public Enum E_FONTSMOOTHING
-    E_MELONTYPE
-    E_NONE
-    E_ANTIALIAS
-    E_CLEARTYPE
-    E_WINDOWS_DEFAULT
-
-End Enum
+'Public Enum E_FONTSMOOTHING
+'    E_MELONTYPE
+'    E_NONE
+'    E_ANTIALIAS
+'    E_CLEARTYPE
+'    E_WINDOWS_DEFAULT
+'
+'End Enum
 
 Private Const SNARL_XXX_GLOBAL_MSG = "SnarlGlobalEvent"
 
 Public Type T_CONFIG
 
 '    run_on_logon As Boolean
-    font_smoothing As E_FONTSMOOTHING
+'    font_smoothing As E_FONTSMOOTHING
 '    suppress_delay As Long          ' // in ms
 '    hotkey_prefs As Long            ' // MAKELONG(mods,key)
 '    last_sound_folder As String
 '    use_hotkey As Boolean
-    UserDnD As Boolean      ' // not persitent: user-controlled DND setting
+'    UserDnD As Boolean      ' // not persitent: user-controlled DND setting
 '    SysDnDCount As Long             ' // set using WM_MANAGE_SNARL
 '    MissedCountOnDnD As Long
     use_dropshadow As Boolean
@@ -251,7 +252,7 @@ Dim m_Alerts As ConfigSection
 Public g_IgnoreLock As Long         ' // if >0 don't alert when app registers - overrides class setting
 Public gSelectedClass As TAlert
 Public gDebugMode As Boolean
-'Public gIsIdle As Boolean
+'Public mAwayCount As Long           ' // R2.4 DR8: renamed and reimplemented
 
 Public gLastNotification As Date    ' // V41.47 - last notification timestamp
 
@@ -270,7 +271,35 @@ Public gCurrentLowPriorityId As Long    ' // only one can be on-screen at any on
 Public gSnarlToken As Long              ' // when Snarl registers with itself
 Public gSnarlPassword As String         ' // created on the fly
 
-Dim mDoNotDisturbLock As Long           ' // >0 means enabled, <=0 means disabled
+'Dim mDoNotDisturbLock As Long           ' // >0 means enabled, <=0 means disabled
+'Public gNotificationMenuOpen As Boolean
+
+    ' /* R2.4 DR8 */
+
+Public Enum SP_AWAY_FLAGS
+    ' /* Away flags occupy bottom 16 bits */
+    SP_AWAY_USER_IDLE = 1
+    SP_AWAY_COMPUTER_LOCKED = 2
+    SP_AWAY_FULLSCREEN_APP = 4
+    SP_AWAY_SCREENSAVER_ACTIVE = 8
+    SP_AWAY_MASK = &HFFFF&
+
+    ' /* DnD flags occupy top 16 bits */
+    SP_DND_MASK = &HFFFF0000
+
+End Enum
+
+Public gAwayFlags As SP_AWAY_FLAGS
+Public gDNDMode As Boolean              ' // can only be set by user via menu
+
+Public Enum SP_PRESENCE_ACTIONS
+    SP_LOG_AS_MISSED = 1
+    SP_MAKE_STICKY = 2
+    SP_DO_NOTHING = 3
+    SP_DISPLAY = 4
+
+End Enum
+
 
     ' /* requesters */
 Dim mReq() As TRequester
@@ -473,6 +502,7 @@ Dim dwFlags As Long
     load_image g_MakePath(App.Path) & "etc\icons\remote_app.png", bm_Remote
     load_image g_MakePath(App.Path) & "etc\icons\secure.png", bm_Secure
     load_image g_MakePath(App.Path) & "etc\icons\is_sticky.png", bm_IsSticky
+    load_image g_MakePath(App.Path) & "etc\icons\is_priority.png", bm_Priority
 
     If Not g_IsValidImage(bm_Close) Then
         Set bm_Close = g_CreateBadge("X")
@@ -766,12 +796,12 @@ Public Function g_ConfigInit() As Boolean
 
     With gPrefs
 '        .run_on_logon = True
-        .font_smoothing = E_MELONTYPE
+'        .font_smoothing = E_MELONTYPE
 '        .suppress_delay = 2000
 '        If g_GetSystemFolder(CSIDL_PERSONAL, sz) Then _
             .last_sound_folder = sz
 
-        .UserDnD = False
+'        .UserDnD = False
         .use_dropshadow = True
 
     End With
@@ -793,7 +823,7 @@ Public Function g_ConfigInit() As Boolean
         .Add "default_duration", "10"
 
         ' /* R2.04 (V38.82) - no longer used */
-        .Add "font_smoothing", CStr(E_MELONTYPE)
+'        .Add "font_smoothing", CStr(E_MELONTYPE)
         .Add "melontype_contrast", "10"
 
         ' /* R2.1 (V39) */
@@ -831,6 +861,14 @@ Public Function g_ConfigInit() As Boolean
         ' /* R2.4: style-usable settings are prefixed with 'style.' */
         
         .Add "style.overflow_limit", "7"
+
+        ' /* R2.4 DR8 */
+
+        .Add "away_when_locked", "1"
+        .Add "away_when_fullscreen", "1"
+        .Add "away_when_screensaver", "1"
+        .Add "away_mode", "2"               ' // sticky
+        .Add "busy_mode", "1"               ' // log missed
 
     End With
 
@@ -1107,61 +1145,61 @@ Dim sz As String
 End Function
 
 
-Public Function gSetUpFontSmoothing(ByRef aView As mfxView, ByVal TextColour As Long, ByVal SmoothingColour As Long) As MFX_DRAWSTRING_FLAGS
-Dim dw As Long
-
-    aView.SetHighColour TextColour
-
-    Select Case gPrefs.font_smoothing
-    Case E_MELONTYPE
-        If SmoothingColour = 0 Then
-            ' /* calculate it (only really works for dark colours at present) */
-            aView.SetLowColour rgba(get_red(TextColour), _
-                                    get_green(TextColour), _
-                                    get_blue(TextColour), _
-                                    (Val(g_ConfigGet("melontype_contrast")) / 100) * 255)
-
-        Else
-            aView.SetLowColour SmoothingColour
-
-        End If
-
-        gSetUpFontSmoothing = MFX_SIMPLE_OUTLINE
-
-    Case E_NONE
-        aView.TextMode = MFX_TEXT_PLAIN
-
-    Case E_ANTIALIAS
-        aView.TextMode = MFX_TEXT_ANTIALIAS
-
-    Case E_CLEARTYPE
-        aView.TextMode = MFX_TEXT_CLEARTYPE
-
-    Case E_WINDOWS_DEFAULT
-        SystemParametersInfo SPI_GETFONTSMOOTHING, 0, dw, 0
-        If dw = 0 Then
-            ' /* none */
-            aView.TextMode = MFX_TEXT_PLAIN
-
-        Else
-            ' /* enabled - but which type? */
-            aView.TextMode = MFX_TEXT_ANTIALIAS     ' // assume antialias...
-            If g_IsWinXPOrBetter() Then
-                dw = 0
-                SystemParametersInfo SPI_GETFONTSMOOTHINGTYPE, 0, dw, 0
-
-                If dw = FE_FONTSMOOTHINGCLEARTYPE Then _
-                    aView.TextMode = MFX_TEXT_CLEARTYPE
-
-'                FE_FONTSMOOTHINGSTANDARD and
-
-            End If
-
-        End If
-
-    End Select
-
-End Function
+'Public Function gSetUpFontSmoothing(ByRef aView As mfxView, ByVal TextColour As Long, ByVal SmoothingColour As Long) As MFX_DRAWSTRING_FLAGS
+'Dim dw As Long
+'
+'    aView.SetHighColour TextColour
+'
+'    Select Case gPrefs.font_smoothing
+'    Case E_MELONTYPE
+'        If SmoothingColour = 0 Then
+'            ' /* calculate it (only really works for dark colours at present) */
+'            aView.SetLowColour rgba(get_red(TextColour), _
+'                                    get_green(TextColour), _
+'                                    get_blue(TextColour), _
+'                                    (Val(g_ConfigGet("melontype_contrast")) / 100) * 255)
+'
+'        Else
+'            aView.SetLowColour SmoothingColour
+'
+'        End If
+'
+'        gSetUpFontSmoothing = MFX_SIMPLE_OUTLINE
+'
+'    Case E_NONE
+'        aView.TextMode = MFX_TEXT_PLAIN
+'
+'    Case E_ANTIALIAS
+'        aView.TextMode = MFX_TEXT_ANTIALIAS
+'
+'    Case E_CLEARTYPE
+'        aView.TextMode = MFX_TEXT_CLEARTYPE
+'
+'    Case E_WINDOWS_DEFAULT
+'        SystemParametersInfo SPI_GETFONTSMOOTHING, 0, dw, 0
+'        If dw = 0 Then
+'            ' /* none */
+'            aView.TextMode = MFX_TEXT_PLAIN
+'
+'        Else
+'            ' /* enabled - but which type? */
+'            aView.TextMode = MFX_TEXT_ANTIALIAS     ' // assume antialias...
+'            If g_IsWinXPOrBetter() Then
+'                dw = 0
+'                SystemParametersInfo SPI_GETFONTSMOOTHINGTYPE, 0, dw, 0
+'
+'                If dw = FE_FONTSMOOTHINGCLEARTYPE Then _
+'                    aView.TextMode = MFX_TEXT_CLEARTYPE
+'
+''                FE_FONTSMOOTHINGSTANDARD and
+'
+'            End If
+'
+'        End If
+'
+'    End Select
+'
+'End Function
 
 Public Function gfSetAlertDefault(ByVal pid As Long, ByVal Class As String, ByVal Element As Long, ByVal Value As String) As M_RESULT
 Dim pa As TApp
@@ -1325,103 +1363,6 @@ Dim pe As ConfigEntry
 
 End Function
 
-Public Sub g_LockDoNotDisturb(ByVal AddLock As Boolean)
-
-    If (g_NotificationRoster Is Nothing) Then _
-        Exit Sub
-
-'Dim i As Long
-
-    If AddLock Then
-        ' /* increase count */
-        mDoNotDisturbLock = mDoNotDisturbLock + 1
-
-        ' /* if we're moving from disabled to enabled, reset missed tracking count */
-        If mDoNotDisturbLock = 1 Then _
-            g_NotificationRoster.ResetMissedCount
-
-'        If (g_IsDNDModeEnabled) And (Not (g_NotificationRoster Is Nothing)) Then _
-            g_NotificationRoster.ResetMissedCount
-
-    Else
-        ' /* decrease count */
-        mDoNotDisturbLock = mDoNotDisturbLock - 1
-
-        ' /* if we're moving from enabled to disabled, check missed count */
-        If (mDoNotDisturbLock = 0) And (g_NotificationRoster.ActualMissedCount > 0) Then
-            g_PrivateNotify "", "While you were away...", _
-                                "You missed " & CStr(g_NotificationRoster.ActualMissedCount) & " notification" & IIf(g_NotificationRoster.ActualMissedCount > 1, "s", ""), _
-                                -1, _
-                                g_MakePath(App.Path) & "etc\icons\snarl.png", _
-                                , _
-                                "!snarl show_missed_panel"
-
-        End If
-    End If
-
-End Sub
-
-Public Sub g_ForceUnlockDoNotDisturb()
-
-    ' /* special function used by tray icon menu */
-
-    mDoNotDisturbLock = 1
-    g_LockDoNotDisturb False
-
-End Sub
-
-'Public Sub g_AddDNDLock()
-'
-'    gPrefs.SysDnDCount = gPrefs.SysDnDCount + 1
-'
-'    If (g_IsDNDModeEnabled) And (Not (g_NotificationRoster Is Nothing)) Then _
-'        g_NotificationRoster.ResetMissedCount
-'
-'End Sub
-'
-'Public Sub g_RemDNDLock()
-'
-'    gPrefs.SysDnDCount = gPrefs.SysDnDCount - 1
-'    g_CheckMissed
-'
-'End Sub
-'
-'Public Sub g_CheckMissed()
-'
-'    If (g_NotificationRoster Is Nothing) Then _
-'        Exit Sub
-'
-'    ' /* if DnD mode is now disabled and there were some missed notifications, show notification explaining this */
-'
-'Dim iToken As Long
-'
-'    If (Not g_IsDNDModeEnabled()) And (g_NotificationRoster.ActualMissedCount > 0) Then
-'        iToken = g_PrivateNotify("", "While you were away...", _
-'                                 "You missed " & CStr(g_NotificationRoster.ActualMissedCount) & " notification" & IIf(g_NotificationRoster.ActualMissedCount > 1, "s", ""), _
-'                                 -1, _
-'                                 g_MakePath(App.Path) & "etc\icons\snarl.png")
-'
-'        If iToken > 0 Then _
-'            g_QuickAddAction iToken, "Missed Notifications...", "!snarl show_missed_panel"
-'
-'    End If
-'
-'End Sub
-
-Public Function g_IsDNDModeEnabled() As Boolean
-
-'    ' /* DND mode is considered enabled if:
-'    '       1. the user has enabled it (gPrefs.do_not_disturb is True)
-'    '       2. an app has enabled it (gPrefs.SysDnDCount > 0)
-'    ' */
-'
-'    If (gPrefs.UserDnD) Or (gPrefs.SysDnDCount > 0) Then _
-'        g_IsDNDModeEnabled = True
-
-    g_IsDNDModeEnabled = (mDoNotDisturbLock > 0)
-
-End Function
-
 Public Sub g_GetIconThemes()
 Dim pn As storage_kit.Node
 
@@ -1506,23 +1447,27 @@ Public Function g_IsValidImage(ByRef Image As MImage) As Boolean
 
 End Function
 
-Public Function g_DoSchemePreview(ByVal Name As String, ByVal Scheme As String, ByVal Flags As Long, ByVal Timeout As Long, ByVal Percent As Integer) As M_RESULT
+Public Function g_DoSchemePreview2(ByVal Name As String, ByVal Scheme As String, ByVal IsPriority As Boolean, ByVal Percent As Integer) As M_RESULT
 
-    g_DoSchemePreview = M_FAILED
+    ' /* this handles external requests to Snarl to display a notification in a particular
+    '    style and scheme - only the SNARL_PREVIEW_SCHEME message handler calls this */
+
     If (g_NotificationRoster Is Nothing) Or (g_StyleRoster Is Nothing) Then _
         Exit Function
 
 Dim pStyle As TStyle
 
-    g_DoSchemePreview = M_INVALID_ARGS
+    ' /* find the style */
+
     If Not g_StyleRoster.Find(Name, pStyle) Then _
         Exit Function
 
     If Scheme = "" Then
+        ' /* if no scheme, use "<Default>" */
         Scheme = "<Default>"
 
     Else
-        ' /* supplied scheme must exist */
+        ' /* otherwise, supplied scheme must exist */
         If pStyle.SchemeIndex(Scheme) = 0 Then _
             Exit Function
 
@@ -1531,47 +1476,48 @@ Dim pStyle As TStyle
 Dim szText As String
 
     If (Percent > 0) And (Percent <= 100) Then
+        ' /* text is actually just a number (i.e. meter-friendly) */
         szText = CStr(Percent)
 
     Else
-        If Scheme <> "<Default>" Then _
-            szText = " using the " & Scheme & " scheme"
-
-
-        If (Flags And 1) Then
-            szText = "This is a preview of a priority notification using the " & pStyle.Name & " style" & szText
+        
+        szText = "otification using the " & pStyle.Name
+        
+        If Scheme <> "<Default>" Then
+            szText = szText & "/" & Scheme & " style and scheme"
 
         Else
-            szText = "This is a preview of the " & pStyle.Name & " style" & szText
+            szText = szText & " style"
+
+        End If
+
+        If IsPriority Then
+            szText = "Priority n" & szText
+
+        Else
+            szText = "N" & szText
 
         End If
 
     End If
+
 
 Dim pInfo As T_NOTIFICATION_INFO
 
     With pInfo
         .Title = "Scheme Preview"
         .Text = szText
-        .Timeout = Timeout
+        .Timeout = -1
         .IconPath = IIf(pStyle.IconPath = "", g_MakePath(App.Path) & "etc\icons\style_preview.png", pStyle.IconPath)
         .StyleName = pStyle.Name
         .SchemeName = LCase$(Scheme)
         .Position = E_START_DEFAULT_POS
-        .Priority = (Flags And 1)
+        .Priority = IIf(IsPriority, 1, 0)
         Set .ClassObj = New TAlert
 
     End With
 
-'    g_KludgeNotificationInfo pInfo
-
-    If g_NotificationRoster.Add(pInfo, Nothing) <> 0 Then
-        g_DoSchemePreview = M_OK
-
-    Else
-        g_DoSchemePreview = M_FAILED
-
-    End If
+    g_DoSchemePreview2 = (g_NotificationRoster.Add(pInfo, Nothing) <> 0)
 
 End Function
 
@@ -1622,11 +1568,11 @@ End Sub
 '
 'End Function
 
-Public Function g_IsSticky() As Boolean
-
-    g_IsSticky = (g_ConfigGet("sticky_snarls") = "1") 'Or (gIsIdle)
-
-End Function
+'Public Function g_StickyNotifications() As Boolean
+'
+'    g_StickyNotifications = (g_ConfigGet("sticky_snarls") = "1") 'Or (gIsAway)
+'
+'End Function
 
 Public Function g_GetStylePath(ByVal StyleToUse As String) As String
 
@@ -2791,4 +2737,26 @@ Dim sz As String
 
 End Function
 
+Public Sub g_SetAwayFlags(ByVal Flags As SP_AWAY_FLAGS)
 
+    gAwayFlags = gAwayFlags Or Flags
+
+    ' /* TO-DO: maybe change the tray icon? */
+
+End Sub
+
+Public Sub g_ClearAwayFlags(ByVal Flags As SP_AWAY_FLAGS)
+
+    gAwayFlags = gAwayFlags And (Not Flags)
+
+45$
+
+    '// check missed count!!!
+
+End Sub
+
+Public Function g_IsAway(Optional ByVal Flags As SP_AWAY_FLAGS = SP_AWAY_MASK) As Boolean
+
+    g_IsAway = ((gAwayFlags And Flags) <> 0)
+
+End Function

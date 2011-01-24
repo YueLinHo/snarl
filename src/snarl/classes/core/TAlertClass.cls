@@ -374,8 +374,8 @@ Dim lDur As E_NOTIFICATION_DURATION
     Case E_DURATION_CUSTOM
         Info.Timeout = Val(Me.GetValue("custom_timeout"))
 
-    Case E_DURATION_DEFAULT
-        Info.Timeout = Val(Me.GetValue("default_duration"))
+'    Case E_DURATION_DEFAULT
+'        Info.Timeout = Val(Me.GetValue("default_duration"))
 
     Case Else
         g_Debug "TAlert.ShowNotification(): invalid duration setting '" & CStr(lDur) & "'", LEMON_LEVEL_WARNING
@@ -405,6 +405,8 @@ Dim lDur As E_NOTIFICATION_DURATION
 
     If Info.IconPath = "" Then _
         Info.IconPath = Me.App.Icon
+
+'MsgBox Info.IconPath
 
     ' /* R2.31d3: custom ack */
 
@@ -473,12 +475,8 @@ Public Sub AddForward(ByVal StyleAndScheme As String)
     ' /* R2.4 DR8: forwarder now has flags (and is a taglist) */
 
     With mContent
-
-        .Forward.Add new_BTagItem(LCase$(Replace$(StyleAndScheme, ": ", "/")), "2")
+        .Forward.Add new_BTagItem(LCase$(Replace$(StyleAndScheme, ": ", "/")), "7")
         .Config.Update "forward", taglist_as_string(.Forward)
-
-'        .Forward.Add LCase$(Replace$(StyleAndScheme, ": ", "/")), "2"   ' // add the forwarder
-'        .Config.Update "forward", .Forward.AsString()                   ' // translate the packed data into a string
         .App.WriteConfig                                                ' // write the config
 
     End With
@@ -498,30 +496,6 @@ Public Sub RemForward(ByVal StyleAndScheme As String)
         .App.WriteConfig
 
     End With
-
-'    ' /* BPackedData doesn't have a Remove method (oops) so we rebuild without the removed one */
-'
-'Dim ppd As BPackedData
-'Dim sz As String
-'
-'    Set ppd = New BPackedData
-'
-'    With mContent.Forward
-'        .Rewind
-'        Do While .GetNextItem(sz, "")
-'            If sz <> StyleAndScheme Then _
-'                ppd.Add sz, ""
-'
-'        Loop
-'
-'    End With
-'
-'    With mContent
-'        Set .Forward = ppd
-'        .Config.Update "forward", .Forward.AsString()           ' // translate the packed data into a string
-'        .App.WriteConfig
-'
-'    End With
 
 End Sub
 
@@ -551,10 +525,16 @@ Dim i As Long
 
     End If
 
-    If i = 0 Then _
-        i = 2
+    ' /* if the mask/combine mode causes us to reach zero, ignore the change */
 
-    mContent.Forward.Update Name, CStr(i)
-    Debug.Print "setting '" & Name & "' to 0x" & g_HexStr(i)
+    If i = 0 Then _
+        Exit Sub
+
+    With mContent
+        .Forward.Update Name, CStr(i)
+        .Config.Update "forward", taglist_as_string(.Forward)
+        .App.WriteConfig                                                ' // write the config
+
+    End With
 
 End Sub

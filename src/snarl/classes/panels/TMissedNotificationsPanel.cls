@@ -52,12 +52,13 @@ Dim i As Long
 
 Debug.Print "********************************* " & mSelected.Actions.CountItems
 
-        sz = "Created " & Format$(mSelected.DateStamp, "hh:mm:ss") & _
-             IIf(DateDiff("d", Now, mSelected.DateStamp) = "0", " today", " on " & Format$(mSelected.DateStamp, "short date")) & _
-             " by " & Replace$(mSelected.ClassObj.App.Name, vbCrLf, "¶ ")
+        sz = Format$(mSelected.DateStamp, "hh:mm:ss") & _
+             IIf(DateDiff("d", Now, mSelected.DateStamp) = "0", " today", " on " & Format$(mSelected.DateStamp, "short date")) & vbCrLf & _
+             Replace$(mSelected.ClassObj.App.Name, vbCrLf, "¶ ") & " (" & mSelected.ClassObj.Description & ")"
 
+        If mSelected.RemoteHost <> "" Then _
         If Not (mSelected.Socket Is Nothing) Then _
-            sz = sz & " on " & mSelected.Socket.RemoteHostIP
+            sz = sz & " on " & mSelected.RemoteHost
 
 '        If mSelected.DefaultAck <> "" Then _
             sz = sz & "  Callback: " & mSelected.DefaultAck
@@ -70,6 +71,8 @@ Debug.Print "********************************* " & mSelected.Actions.CountItems
 
     Case "toolbar_options"
 
+Dim pmi As OMMenuItem
+
         Select Case Val(Value)
         Case 1
             If mSelected.DefaultAck <> "" Then _
@@ -78,14 +81,23 @@ Debug.Print "********************************* " & mSelected.Actions.CountItems
         Case 2
             With New OMMenu
                 For i = 1 To mSelected.Actions.CountItems
-                    .AddItem .CreateItem("", mSelected.Actions.TagAt(i).Name)
+                    .AddItem .CreateItem(mSelected.Actions.TagAt(i).Value, mSelected.Actions.TagAt(i).Name)
                     If i < mSelected.Actions.CountItems Then _
                         .AddSeparator
 
                 Next i
 
-                .Track Control.Page.Panel.hWnd
-            
+                Set pmi = .Track(Control.Page.Panel.hWnd)
+                If Not (pmi Is Nothing) Then
+                    If g_SafeLeftStr(pmi.Name, 1) = "@" Then
+                        ' /* TO-DO: dynamic callback */
+
+                    Else
+                        g_ProcessAck pmi.Name
+
+                    End If
+                End If
+
             End With
 
         Case 3
@@ -94,7 +106,7 @@ Debug.Print "********************************* " & mSelected.Actions.CountItems
 
         Case 4
             ' /* display */
-            If Not g_IsDNDModeEnabled Then _
+            If Not gDNDMode Then _
                 g_NotificationRoster.Add mSelected, Nothing
 
         End Select

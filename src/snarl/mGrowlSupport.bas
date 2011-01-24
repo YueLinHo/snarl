@@ -354,7 +354,8 @@ Dim ppd As BPackedData
         .Add "text", pgn.Description
         .Add "timeout", IIf(pgn.Sticky, "0", "-1")
         ' /* Growl supports two additional priorities that we don't */
-        .Add "priority", IIf(pgn.Priority > 0, "1", IIf(pgn.Priority < 0, "-1", "0"))
+'        .Add "priority", IIf(pgn.Priority > 0, "1", IIf(pgn.Priority < 0, "-1", "0"))
+        .Add "priority", IIf(pgn.Priority > 0, "1", CStr(pgn.Priority))                 ' // R2.4 DR8: pass through unchanged
 
     End With
 

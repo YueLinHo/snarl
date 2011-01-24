@@ -2,7 +2,7 @@ VERSION 5.00
 Begin VB.Form Form1 
    BorderStyle     =   1  'Fixed Single
    Caption         =   "@"
-   ClientHeight    =   5850
+   ClientHeight    =   5295
    ClientLeft      =   45
    ClientTop       =   435
    ClientWidth     =   4530
@@ -18,46 +18,46 @@ Begin VB.Form Form1
    Icon            =   "Form1.frx":0000
    LinkTopic       =   "Form1"
    MaxButton       =   0   'False
-   MinButton       =   0   'False
-   ScaleHeight     =   5850
+   ScaleHeight     =   5295
    ScaleWidth      =   4530
    StartUpPosition =   3  'Windows Default
    Begin VB.TextBox Text5 
       Height          =   315
       Left            =   60
-      TabIndex        =   14
-      Text            =   "primary::36°"
-      Top             =   4740
+      TabIndex        =   8
+      Text            =   "label-tagline=36°"
+      Top             =   4320
       Width           =   4395
    End
    Begin VB.CheckBox Check3 
       Caption         =   "Custom background colour (web format #rrggbb)"
       Height          =   255
       Left            =   60
-      TabIndex        =   13
-      Top             =   2880
+      TabIndex        =   4
+      Top             =   2640
       Width           =   3915
    End
    Begin VB.TextBox Text4 
       Height          =   315
       Left            =   60
-      TabIndex        =   12
-      Top             =   3240
+      TabIndex        =   5
+      Text            =   "#789abc"
+      Top             =   2940
       Width           =   4395
    End
    Begin VB.TextBox Text3 
       Height          =   315
       Left            =   60
-      TabIndex        =   10
-      Top             =   4020
+      TabIndex        =   7
+      Top             =   3660
       Width           =   4395
    End
    Begin VB.CheckBox Check2 
       Caption         =   "Show Icon"
       Height          =   255
       Left            =   60
-      TabIndex        =   9
-      Top             =   3660
+      TabIndex        =   6
+      Top             =   3360
       Value           =   1  'Checked
       Width           =   1215
    End
@@ -65,8 +65,8 @@ Begin VB.Form Form1
       Caption         =   "Show meter"
       Height          =   255
       Left            =   60
-      TabIndex        =   8
-      Top             =   1800
+      TabIndex        =   2
+      Top             =   1680
       Value           =   1  'Checked
       Width           =   1215
    End
@@ -75,8 +75,8 @@ Begin VB.Form Form1
       LargeChange     =   10
       Left            =   60
       Max             =   100
-      TabIndex        =   7
-      Top             =   2460
+      TabIndex        =   3
+      Top             =   2220
       Value           =   23
       Width           =   4395
    End
@@ -84,25 +84,26 @@ Begin VB.Form Form1
       Caption         =   "Update"
       Height          =   495
       Left            =   1680
-      TabIndex        =   5
-      Top             =   5220
+      TabIndex        =   10
+      Top             =   4740
+      Visible         =   0   'False
       Width           =   1455
    End
    Begin VB.TextBox Text2 
       Height          =   615
       Left            =   60
       MultiLine       =   -1  'True
-      TabIndex        =   3
+      TabIndex        =   1
       Text            =   "Form1.frx":000C
-      Top             =   1080
+      Top             =   960
       Width           =   4395
    End
    Begin VB.TextBox Text1 
       Height          =   315
       Left            =   60
-      TabIndex        =   1
+      TabIndex        =   0
       Text            =   "Notification Title"
-      Top             =   360
+      Top             =   300
       Width           =   4395
    End
    Begin VB.CommandButton Command4 
@@ -110,8 +111,8 @@ Begin VB.Form Form1
       Default         =   -1  'True
       Height          =   495
       Left            =   60
-      TabIndex        =   0
-      Top             =   5220
+      TabIndex        =   9
+      Top             =   4740
       Width           =   1455
    End
    Begin VB.Label Label5 
@@ -119,7 +120,7 @@ Begin VB.Form Form1
       Height          =   195
       Left            =   60
       TabIndex        =   15
-      Top             =   4440
+      Top             =   4080
       Width           =   1155
    End
    Begin VB.Label Label4 
@@ -127,31 +128,31 @@ Begin VB.Form Form1
       Caption         =   "@"
       Height          =   195
       Left            =   3720
-      TabIndex        =   11
-      Top             =   2160
+      TabIndex        =   14
+      Top             =   1980
       Width           =   735
    End
    Begin VB.Label Label3 
       Caption         =   "Percent"
       Height          =   195
       Left            =   60
-      TabIndex        =   6
-      Top             =   2160
+      TabIndex        =   13
+      Top             =   1980
       Width           =   1155
    End
    Begin VB.Label Label2 
       Caption         =   "Text"
       Height          =   195
       Left            =   60
-      TabIndex        =   4
-      Top             =   780
+      TabIndex        =   12
+      Top             =   720
       Width           =   1155
    End
    Begin VB.Label Label1 
       Caption         =   "Title"
       Height          =   195
       Left            =   60
-      TabIndex        =   2
+      TabIndex        =   11
       Top             =   60
       Width           =   1155
    End
@@ -168,44 +169,66 @@ Dim mMsg As Long
 
 Private Sub Command1_Click()
 
-    If mMsg Then _
+'    If mMsg Then _
         sn41EZUpdate mMsg, , Text2.Text, , , IIf(Check1.Value = vbChecked, "percent::" & CStr(HScroll1.Value), "")
 
 End Sub
 
 Private Sub Command4_Click()
 Dim szIcon As String
+Dim sz As String
+
+    If mToken = 0 Then _
+        Exit Sub
 
     szIcon = Text3.Text
     If g_SafeLeftStr(szIcon, 2) = ".\" Then _
         szIcon = g_MakePath(App.Path) & g_SafeRightStr(szIcon, Len(szIcon) - 2)
 
+    ' /* base request */
+    sz = "notify?token=" & mToken & "&title=" & Text1.Text & "&text=" & Text2.Text
 
-    If mToken Then _
-        mMsg = sn41EZNotify(mToken, "", _
-                            Text1.Text, Text2.Text, 0, _
-                            IIf(Check2.Value = vbChecked, szIcon, ""), , , , , _
-                            IIf(Check1.Value = vbChecked, "percent::" & CStr(HScroll1.Value), "") & _
-                                IIf(Check3.Value = vbChecked, "#?col::" & Text4.Text, "") & _
-                                IIf(Text5.Text <> "", "#?" & Text5.Text, ""))
+    ' /* add icon? */
+    If Check2.Value = vbChecked Then _
+        sz = sz & "&icon=" & szIcon
+
+    ' /* add value-percent? */
+    If Check1.Value = vbChecked Then _
+        sz = sz & "&value-percent=" & CStr(HScroll1.Value)
+
+    ' /* colour */
+    If Check3.Value = vbChecked Then _
+        sz = sz & "&colour-background=" & Text4.Text
+
+    ' /* free-form */
+    If Text5.Text <> "" Then _
+        sz = sz & "&" & Text5.Text
+
+'                            IIf(Check2.Value = vbChecked, szIcon, ""), , , , , _
+'                            IIf(Check1.Value = vbChecked, "percent::" & CStr(HScroll1.Value), "") & _
+'                                IIf(Check3.Value = vbChecked, "#?col::" & Text4.Text, "") & _
+'                                IIf(Text5.Text <> "", "#?" & Text5.Text, ""))
+
+    mMsg = snDoRequest(sz)
+    Debug.Print mMsg
 
 End Sub
 
 Private Sub Form_Load()
 Dim hr As Long
 
-    If Not sn41IsSnarlRunning() Then
+    If Not snIsSnarlRunning() Then
         MsgBox "Snarl isn't running - launch Snarl, then run this demo.", vbExclamation Or vbOKOnly, App.Title
         Unload Me
 
     Else
-        hr = sn41RegisterApp(App.ProductName, App.Title, App.Path & "\icon.png")
-        If hr = 0 Then
-            Me.Caption = "Error registering with Snarl: " & sn41GetLastError()
-
-        Else
-            Me.Caption = "Registered with Snarl V" & CStr(sn41GetVersion()) & " (" & Hex$(hr) & ")"
+        hr = snarl_register(App.ProductName, App.Title, App.Path & "\icon.png")
+        If hr > 0 Then
+            Me.Caption = "Registered with Snarl V" & CStr(snarl_version()) & " (" & Hex$(hr) & ")"
             mToken = hr
+            
+        Else
+            Me.Caption = "Error registering with Snarl: " & Abs(hr)
 
         End If
 
@@ -219,12 +242,12 @@ End Sub
 Private Sub Form_Unload(Cancel As Integer)
 Dim hr As Long
 
-    hr = sn41UnregisterApp(mToken)
+    hr = snarl_unregister(mToken)
     If hr = 0 Then
-        Debug.Print "FAILED: " & sn41GetLastError()
+        Debug.Print "unregistered ok"
 
     Else
-        Debug.Print "OK: " & hr
+        Debug.Print "failed to unregister: " & Abs(hr)
 
     End If
 

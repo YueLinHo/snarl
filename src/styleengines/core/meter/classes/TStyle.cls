@@ -27,7 +27,8 @@ Public Enum E_METER_STYLE_FLAGS
     E_METER_STYLE_CAN_SET_FG_ALPHA = &H400
     E_METER_STYLE_HAS_SPECTRUMS = &H800
     E_METER_STYLE_NO_SHOW_PERCENT = &H1000
-
+    E_METER_STYLE_CAN_SET_BG_ALPHA = &H2000
+    E_METER_STYLE_SINGLE_PREVIEW = &H4000
     E_METER_STYLE_HAS_OWN_PAGE = &H8000&
 
 End Enum
@@ -184,7 +185,10 @@ Dim sz() As String
     On Error Resume Next
 
     sz = Split(mInfo.Schemes, "|")
-    snPrivatePreviewScheme mInfo.Name, sz(0), , 20
+
+    If (mFlags And E_METER_STYLE_SINGLE_PREVIEW) = 0 Then _
+        snPrivatePreviewScheme mInfo.Name, sz(0), , 20
+
     snPrivatePreviewScheme mInfo.Name, sz(0), , 20, 75
 
 End Sub

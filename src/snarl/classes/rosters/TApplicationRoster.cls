@@ -279,6 +279,9 @@ Dim i As Long
 
                 Else
                     g_Debug "'" & sz & "' already registered (token=" & mApp(i).Token & ")", LEMON_LEVEL_PROC_EXIT
+
+                    uUpdate i, Data
+
                     Add41 = mApp(i).Token
                     Exit Function
 
@@ -382,8 +385,9 @@ Dim i As Long
                             "Application registered", _
                             pa.Name & " registered successfully with Snarl", _
                             -1, _
-                            IIf(pa.LargeIcon = "", g_MakePath(App.Path) & "etc\icons\snarl.png", pa.LargeIcon), , , _
-                            , lFlags)
+                            IIf(pa.Icon = "", g_MakePath(App.Path) & "etc\icons\no_icon.png", pa.Icon), _
+                            , , , _
+                            lFlags)
 
         If i Then
             ' /* add the action(s) */
@@ -785,7 +789,7 @@ Dim sz As String
 Dim i As Long
 
     sz = mApp(Index).Name
-    szIcon = IIf(mApp(Index).LargeIcon = "", g_MakePath(App.Path) & "etc\icons\snarl.png", mApp(Index).LargeIcon)
+    szIcon = IIf(mApp(Index).Icon = "", g_MakePath(App.Path) & "etc\icons\no_icon.png", mApp(Index).Icon)
 
     If Index < mCount Then
         For i = Index To (mCount - 1)
@@ -1078,3 +1082,42 @@ End Function
 '    End If
 '
 'End Function
+
+Private Sub uUpdate(ByVal Index As Long, ByRef Data As BPackedData)
+
+    If (Index < 1) Or (Index > mCount) Or (Data Is Nothing) Then _
+        Exit Sub
+
+    ' /* can only change certain things */
+
+Dim rm As Long
+Dim rt As Long
+
+    With mApp(Index)
+
+        If Data.Exists("icon") Then _
+            .SetIcon Data.ValueOf("icon")
+
+        If Data.Exists("reply-to") Then
+            rt = Val(Data.ValueOf("reply-to"))
+
+        Else
+            rt = Val(Data.ValueOf("hwnd"))
+
+        End If
+
+        If Data.Exists("reply") Then
+            ' /* V42.22: new name */
+            rm = Val(Data.ValueOf("reply"))
+
+        Else
+            rm = Val(Data.ValueOf("umsg"))
+
+        End If
+
+        .SetReply rt, rm
+
+    End With
+
+End Sub
+

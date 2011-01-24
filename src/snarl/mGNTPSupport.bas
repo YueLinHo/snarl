@@ -553,14 +553,16 @@ Dim px As BPackedData
         'Optional - A higher number indicates a higher priority. This is a display hint for the receiver which may be ignored. (valid
         'values are between -2 and 2, defaults to 0)
         ' /* translate priority into a Snarl-friendly one */
-        Select Case g_SafeLong(pp.ValueOf("Notification-Priority"))
-        Case 1, 2
-            .Add "priority", "1"
+'        Select Case g_SafeLong(pp.ValueOf("Notification-Priority"))
+'        Case 1, 2
+'            .Add "priority", "1"
+'
+'        Case -1, -2
+'            .Add "priority", "-1"
+'
+'        End Select
 
-        Case -1, -2
-            .Add "priority", "-1"
-
-        End Select
+        .Add "priority", g_SafeLong(pp.ValueOf("Notification-Priority"))        ' // R2.4 DR8: pass through unchanged
 
         'Notification-Callback-Target: <string>
         'Optional - An alternate target for callbacks from this notification. If passed, the standard behavior of performing the

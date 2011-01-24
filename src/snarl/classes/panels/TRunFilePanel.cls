@@ -33,6 +33,9 @@ Dim mSelIndex As Long
 Dim mFile() As String
 Dim mFiles As Long
 
+Dim mIsRunFile As Boolean
+Dim mConfFile As String
+
 Implements KPrefsPanel
 Implements KPrefsPage
 
@@ -116,12 +119,21 @@ End Sub
 Private Sub KPrefsPanel_Selected(ByVal Command As String)
 End Sub
 
-Public Function Go() As Long
+Public Function Go(ByVal IsRunFile As Boolean) As Long
 Dim pPage As BPrefsPage
 Dim pc As BControl
 Dim pm As CTempMsg
 Dim sn As String
 Dim sd As String
+
+    mIsRunFile = IsRunFile
+    If mIsRunFile Then
+        mConfFile = "runfile"
+
+    Else
+        mConfFile = "image"
+
+    End If
 
     If (mPanel Is Nothing) Then
 
@@ -129,7 +141,7 @@ Dim sd As String
         ReDim mFile(0)
 
         With New CConfFile
-            If .SetTo(g_MakePath(App.Path) & "etc\runfile.conf", True) Then
+            If .SetTo(g_MakePath(App.Path) & "etc\" & mConfFile & ".conf", True) Then
                 .Rewind
                 Do While .GetEntry(sn, sd)
                     mFiles = mFiles + 1
@@ -154,8 +166,11 @@ Dim sd As String
             With pPage
                 .SetMargin 0
 
-                .Add new_BPrefsControl("label", "", "Each scheme represents a file to run.  Snarl includes arguments as follows:")
-                .Add new_BPrefsControl("label", "", "<file> ""<notification title>"" ""<notification text>"" ""<application>""")
+                If mIsRunFile Then
+                    .Add new_BPrefsControl("label", "", "Each scheme represents a file to run.  Snarl includes arguments as follows:")
+                    .Add new_BPrefsControl("label", "", "<file> ""<notification title>"" ""<notification text>"" ""<application>""")
+
+                End If
 
                 Set pm = New CTempMsg
 '                pm.Add "item-height", 36&
@@ -276,7 +291,7 @@ Dim i As Long
 
         Next i
 
-        .Save g_MakePath(App.Path) & "etc\runfile.conf"
+        .Save g_MakePath(App.Path) & "etc\" & mConfFile & ".conf"
 
     End With
 
@@ -304,7 +319,7 @@ Dim i As Long
 
         Next i
 
-        .Save g_MakePath(App.Path) & "etc\runfile.conf"
+        .Save g_MakePath(App.Path) & "etc\" & mConfFile & ".conf"
 
     End With
 

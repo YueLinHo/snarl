@@ -40,14 +40,25 @@ Dim pm As CTempMsg
         .Add new_BPrefsControl("key_picker", "", , , CStr(MOD_WIN) & "," & g_ConfigGet("hotkey_prefs"), , False)
         .Add new_BPrefsControl("label", "", "Press the key you want to use in the boxes above.  Note that the modifiers (the combination of SHIFT and CTRL keys) used are automatically set.")
 
+        ' /* applications */
+
+        .Add new_BPrefsControl("banner", "", "Applications")
+        .Add new_BPrefsControl("fancytoggle2", "notify_on_first_register", "Only notify the first time an application registers?", , g_ConfigGet("notify_on_first_register"))
+
+        ' /* presence management */
+
+        .Add new_BPrefsControl("banner", "", "Presence Management")
+        .Add new_BPrefsControl("fancycycle", "away_mode", "Log as Missed|Make Sticky|Discard|Display", "When Away:", g_ConfigGet("away_mode"))
+        .Add new_BPrefsControl("fancycycle", "busy_mode", "Log as Missed|Make Sticky|Discard|Display", "When Busy:", g_ConfigGet("busy_mode"))
+
         ' /* other stuff */
 
-        .Add new_BPrefsControl("banner", "", "System Functions")
+'        .Add new_BPrefsControl("banner", "", "System Functions")
 '        .Add new_BPrefsControl("fancybutton2", "go_app_manager", "Launch App Manager")
 '        .Add new_BPrefsControl("label", "", "The App Manager allows you to control other Snarl applications which don't have their own user interface.")
 
-        .Add new_BPrefsControl("fancybutton2", "restart_style_roster", "Reload Styles")
-        .Add new_BPrefsControl("label", "", "Forces Snarl to reload all installed styles.  Under normal circumstances you shouldn't need to do this; it's provided for users who are developing their own styles and want to test them without restarting Snarl.")
+'        .Add new_BPrefsControl("fancybutton2", "restart_style_roster", "Reload Styles")
+'        .Add new_BPrefsControl("label", "", "Forces Snarl to reload all installed styles.  Under normal circumstances you shouldn't need to do this; it's provided for users who are developing their own styles and want to test them without restarting Snarl.")
 
 '        .Add new_BPrefsControl("separator", "")
 '        .Add new_BPrefsControl("fancybutton2", "dnd_settings", "Applications", "Do Not Disturb Mode:")
@@ -93,6 +104,11 @@ Dim sz() As String
         End If
 
         Control.SetValue CStr(MOD_CONTROL) & "," & sz(1)
+
+
+    Case "notify_on_first_register", "away_mode", "busy_mode"
+        g_ConfigSet Control.GetName, Value
+
 
     End Select
 

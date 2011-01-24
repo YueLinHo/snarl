@@ -13,7 +13,39 @@ Attribute VB_PredeclaredId = False
 Attribute VB_Exposed = True
 Option Explicit
 
-Private Const LIB_DATE = "8-Nov-2010"
+    ' /*
+    '
+    '   StyleEngine.cls --
+    '
+    '   © 2010 full phat products.  Some Rights Reserved.
+    '   Licenced as per the Simplified BSD (http://www.opensource.org/licenses/bsd-license.php)
+    '
+    '   Notes
+    '   -----
+    '
+    '   Standardised V42 entries accepted:
+    '
+    '   Generic groups
+    '   --------------
+    '   value-:         must be a numeric value, may be a decimal or integer
+    '   label-:         may be alphanumeric
+    '   colour-:        may use HTML notation (i.e. #RRGGBB) or rgb notation (i.e. r,g,b)
+    '
+    '   Defined Entries
+    '   ---------------
+    '   value-percent:      must be a numeric value in the range 0 to 100.  May be fractional although styles may round to
+    '                       nearest integer at their discretion.
+    '
+    '   label-subtext:      text which is typically displayed inferior to the notification text.
+    '   label-tagline:      a short piece of text typically displayed in a prominent way.
+    '
+    '   colour-background:  requested background colour.
+    '   colour-text:        requested text colour.
+    '   colour-subtext:     requested subtext colour.
+    '
+    ' */
+
+Private Const LIB_DATE = "19-Jan-2011"
 
 Private Const STYLE_NAME_JUST_BLACK = "Just Black"
 Private Const STYLE_NAME_IPHONEY = "iPhoney"
@@ -25,6 +57,7 @@ Private Const STYLE_NAME_CLOCK = "Clock"
 Private Const STYLE_NAME_MUSIC = "Slideshow"
 Private Const STYLE_NAME_DROID = "Droid"
 Private Const STYLE_NAME_CORP = "Corporate"
+Private Const STYLE_NAME_OSX = "OSX-ish"
 
 Dim mLastErr As String
 
@@ -82,6 +115,9 @@ Dim pStyle As IMeterStyle
 
     Case STYLE_NAME_CORP
         Set pStyle = New TCorpInstance
+
+    Case STYLE_NAME_OSX
+        Set pStyle = New TOSXInstance
 
     End Select
 
@@ -197,7 +233,7 @@ Private Function IStyleEngine_Initialize() As melon.M_RESULT
          "A simple smooth style", _
          S_STYLE_IS_CONFIGURABLE Or S_STYLE_MULTI_INSTANCE, _
          "Smooth", _
-         0, 1, _
+         1, 0, _
          uCreatePackedStr("title_font::Arial#?title_size::10#?text_font::Arial#?text_size::9#?background::" & CStr(rgba(51, 102, 196)) & "#?show_graphically::1#?show_percent::1"), _
          E_METER_STYLE_CAN_CHANGE_FONT Or E_METER_STYLE_CAN_CHANGE_BKGND Or E_METER_STYLE_LOAD_SCHEMES_FROM_FILE Or E_METER_STYLE_HAS_CUSTOM_SCHEME
 
@@ -205,7 +241,7 @@ Private Function IStyleEngine_Initialize() As melon.M_RESULT
          "A modern style", _
          S_STYLE_IS_CONFIGURABLE Or S_STYLE_MULTI_INSTANCE, _
          "Custom", _
-         0, 1, _
+         1, 0, _
          uCreatePackedStr("title_font::Arial#?title_size::11#?text_font::Arial#?text_size::9#?background::" & CStr(rgba(255, 255, 255)) & "#?border::" & CStr(rgba(255, 176, 0)) & "#?foreground::" & CStr(rgba(82, 98, 160)) & "#?show_graphically::1#?show_percent::1"), _
          E_METER_STYLE_CAN_CHANGE_FONT Or E_METER_STYLE_CAN_CHANGE_BKGND Or E_METER_STYLE_CAN_CHANGE_BORDER Or E_METER_STYLE_CAN_CHANGE_FGND Or E_METER_STYLE_HAS_CUSTOM_SCHEME Or E_METER_STYLE_LOAD_SCHEMES_FROM_FILE
 
@@ -213,14 +249,14 @@ Private Function IStyleEngine_Initialize() As melon.M_RESULT
     uAdd STYLE_NAME_CLOCK, _
          "Displays notification text formatted as 'YYYYMMDDHHMMSS' as a time", S_STYLE_MULTI_INSTANCE, _
          "", _
-         0, 3, uCreatePackedStr(""), E_METER_STYLE_LOAD_SCHEMES_FROM_FILE Or E_METER_STYLE_HAS_OWN_PAGE, , , New TClockPage
+         1, 0, uCreatePackedStr(""), E_METER_STYLE_LOAD_SCHEMES_FROM_FILE Or E_METER_STYLE_HAS_OWN_PAGE, , , New TClockPage
 
 
     uAdd STYLE_NAME_MUSIC, _
          "Displays a fixed-size rectangular notification with the text part is limited to two lines.  Landscape icons with a height of more than 100px are recommended.", _
          S_STYLE_IS_CONFIGURABLE Or S_STYLE_MULTI_INSTANCE, _
          "Top and Bottom|Bottom|Top|None", _
-         0, 3, _
+         1, 0, _
          uCreatePackedStr("title_font::Arial#?title_size::8#?text_font::Arial#?text_size::7#?background::" & CStr(rgba(17, 17, 17)) & "#?show_graphically::1#?fg_alpha::100"), _
          E_METER_STYLE_CAN_CHANGE_FONT Or E_METER_STYLE_CAN_CHANGE_BKGND Or E_METER_STYLE_CAN_CHANGE_FGND Or E_METER_STYLE_CAN_SET_FG_ALPHA Or E_METER_STYLE_NO_SHOW_PERCENT
 
@@ -229,7 +265,7 @@ Private Function IStyleEngine_Initialize() As melon.M_RESULT
          "Droid Style", _
          S_STYLE_IS_CONFIGURABLE Or S_STYLE_MULTI_INSTANCE Or S_STYLE_V42_CONTENT Or S_STYLE_PULSE_NEEDED, _
          "Standard", _
-         0, 2, _
+         1, 0, _
          uCreatePackedStr("title_font::Droid Sans#?title_size::13#?text_font::Droid Sans#?text_size::9#?background::" & CStr(rgba(87, 87, 87)) & "#?fg_alpha::100"), _
          E_METER_STYLE_CAN_CHANGE_FONT Or E_METER_STYLE_NO_SHOW_PERCENT
 
@@ -238,9 +274,18 @@ Private Function IStyleEngine_Initialize() As melon.M_RESULT
          "Corporate Style", _
          S_STYLE_IS_CONFIGURABLE Or S_STYLE_MULTI_INSTANCE Or S_STYLE_V42_CONTENT Or S_STYLE_PULSE_NEEDED, _
          "Standard|Light", _
-         0, 3, _
+         1, 0, _
          uCreatePackedStr("title_font::Droid Sans#?title_size::11#?text_font::Droid Sans#?text_size::9#?background::" & CStr(rgba(15, 15, 15)) & "#?foreground::" & CStr(rgba(255, 255, 255)) & "#?fg_alpha::100"), _
          E_METER_STYLE_CAN_CHANGE_FONT Or E_METER_STYLE_NO_SHOW_PERCENT
+
+
+    uAdd STYLE_NAME_OSX, _
+         "A single-instance style inspired by the OS X On-Screen Display notification", _
+         S_STYLE_IS_CONFIGURABLE Or S_STYLE_SINGLE_INSTANCE Or S_STYLE_V42_CONTENT Or S_STYLE_CUSTOM_SHOW Or S_STYLE_CUSTOM_HIDE Or S_STYLE_DONT_QUEUE Or S_STYLE_NO_DROPSHADOW Or S_STYLE_CLICK_THROUGH, _
+         "Standard", _
+         0, 1, _
+         uCreatePackedStr("background::" & CStr(rgba(127, 127, 127)) & "#?bg_alpha::30"), _
+         E_METER_STYLE_CAN_CHANGE_BKGND Or E_METER_STYLE_CAN_SET_BG_ALPHA Or E_METER_STYLE_NO_SHOW_PERCENT Or E_METER_STYLE_SINGLE_PREVIEW
 
 
 Dim pPacked As BPackedData
@@ -503,6 +548,19 @@ Dim f As Boolean
 
         If (mCurrent.Flags And E_METER_STYLE_CAN_CHANGE_BKGND) Or (f) Then _
             .Add new_BPrefsControl("fancycolourpicker", "background", "", IIf(f, "Not just black:", "Background:"), mCurrent.ReadSetting("background"))
+
+        ' /* foreground opacity */
+
+        If (mCurrent.Flags And E_METER_STYLE_CAN_SET_BG_ALPHA) Then
+            Set pm = New CTempMsg
+            pm.Add "min", 0&
+            pm.Add "max", 100&
+            pm.Add "freq", 10&
+            pm.Add "suffix", "%"
+            .Add new_BPrefsControl("fancyslider", "bg_alpha", "", "Background opacity:", mCurrent.ReadSetting("bg_alpha"), pm)
+
+        End If
+
 
         ' /* foreground colour picker */
 

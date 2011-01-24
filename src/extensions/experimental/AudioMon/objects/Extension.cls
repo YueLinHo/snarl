@@ -50,15 +50,11 @@ Option Explicit
     '
     ' */
 
-Private Const LIB_DATE = "17-Dec-2010"
-Private Const LIB_REL = "2.0"
+Private Const LIB_DATE = "19-Jan-2010"
+Private Const LIB_REL = "2.0b3"
 
-'Private Const WINDOW_CLASS = "w>audiomon_extension"
-
-'Private Const CLASS_AUDIO_LEVEL_CHANGED = "audc"
-'Private Const CLASS_AUDIO_MUTED = "audm"
-'Private Const CLASS_AUDIO_UNMUTED = "audu"
 Private Const CLASS_AUDIO_CHANGE = "audx"
+Private Const CUSTOM_DURATION = 2
 
 Dim mLastErr As String
 Dim mAppToken As Long
@@ -70,12 +66,6 @@ Dim mPanel As BPrefsPanel           ' // our prefs panel
 
 Dim WithEvents InputMixer As BAudioMixer
 Attribute InputMixer.VB_VarHelpID = -1
-'Dim WithEvents VistaMixer As TVistaMixer
-
-'Dim mVolId As Long
-'Dim mMuteId As Long
-
-
 
 Dim mVol As Long
 Dim mCurrentId As Long
@@ -186,10 +176,10 @@ Private Sub ISnarlExtension_GetInfo(Info As libSnarlExtn.extension_info)
         .Description = "Notifies when the master volume changes state"
 
         If g_IsWinVistaOrBetter() Then
-            .Flags = 0
+            .flags = 0
 
         Else
-            .Flags = SNARL_EXTN_IS_CONFIGURABLE
+            .flags = SNARL_EXTN_IS_CONFIGURABLE
 
         End If
 
@@ -208,81 +198,60 @@ End Sub
 
 Private Function ISnarlExtension_Initialize() As Long
 
+    l3OpenLog "%APPDATA%\full phat\snarl\" & App.Title & ".log"
+
     g_Debug "ISnarlExtension.Initialize()", LEMON_LEVEL_PROC_ENTER
-
-    l3OpenLog "%APPDATA%\" & App.Title & ".log"
-
     g_Debug "pwd is '" & g_MakePath(App.Path) & "'"
 
     mLastErr = ""
-    g_Debug "checking o/s..."
 
     If g_IsWinVistaOrBetter() Then
-        g_Debug "Vista/Win7 detected", LEMON_LEVEL_CRITICAL Or LEMON_LEVEL_PROC_EXIT
-        mLastErr = "Not supported on Vista or Windows 7"
-        ISnarlExtension_Initialize = 201
-        Exit Function
+        g_Debug "Vista/Win7 or later"
 
-    End If
+    Else
+        g_Debug "XP or earlier"
 
-    g_Debug "ok"
+        ' /* have we got the right version of audio.resource? */
 
-    ' /* have we got the right version of audio.resource? */
+        g_Debug "checking audio.resource..."
+        If Not uAudioResourceOk() Then
+            g_Debug "need audio.resource V48 or later", LEMON_LEVEL_CRITICAL Or LEMON_LEVEL_PROC_EXIT
+            mLastErr = "Needs audio.resource V48 or later"
+            ISnarlExtension_Initialize = 202
+            Exit Function
 
-    g_Debug "checking audio.resource..."
-    If Not uAudioResourceOk() Then
-        g_Debug "need audio.resource V48 or later", LEMON_LEVEL_CRITICAL Or LEMON_LEVEL_PROC_EXIT
-        mLastErr = "Needs audio.resource V48 or later"
-        ISnarlExtension_Initialize = 202
-        Exit Function
+        End If
 
-    End If
+        g_Debug "ok"
 
-    g_Debug "ok"
+        ' /* have we got a mixer? */
 
-    ' /* have we got a mixer? */
+        g_Debug "checking mixers..."
+        If audio_resource.count_devices < 1 Then
+            g_Debug "no mixers", LEMON_LEVEL_CRITICAL Or LEMON_LEVEL_PROC_EXIT
+            mLastErr = "No audio devices detected"
+            ISnarlExtension_Initialize = 203
+            Exit Function
 
-    g_Debug "checking mixers..."
-    If audio_resource.count_devices < 1 Then
-        g_Debug "no mixers", LEMON_LEVEL_CRITICAL Or LEMON_LEVEL_PROC_EXIT
-        mLastErr = "No audio devices detected"
-        ISnarlExtension_Initialize = 203
-        Exit Function
+        End If
 
-    End If
-
-    g_Debug "ok: " & CStr(audio_resource.count_devices) & " mixer(s) found"
+        g_Debug "ok: " & CStr(audio_resource.count_devices) & " mixer(s) found"
 
 Dim i As Long
 
-    For i = 1 To audio_resource.count_devices
-        With audio_resource.device_at(i)
-            g_Debug .Name & ": line_count=" & .CountLines & " mfr=" & .ManufacturerId & " prd=" & .ProductId
+        For i = 1 To audio_resource.count_devices
+            With audio_resource.device_at(i)
+                g_Debug .Name & ": line_count=" & .CountLines & " mfr=" & .ManufacturerId & " prd=" & .ProductId
 
-        End With
-    Next i
+            End With
+        Next i
+
+    End If
 
     ' /* all tests passed */
 
     Set mConfigFile = New ConfigFile
     mConfigFile.File = sn41GetConfigPath() & ".audiomon"
-
-
-
-'    Set mHandler = New TWindow
-'    mhWnd = EZAddWindow(WINDOW_CLASS, mHandler) ', , , , HWND_MESSAGE)
-'    If IsWindow(mhWnd) = 0 Then
-'        ' /* no window */
-'        mLastErr = "Failed to create window"
-'        EZUnregisterClass WINDOW_CLASS
-'        Set mHandler = Nothing
-'        Exit Function
-'
-'    End If
-
-
-'    If g_IsWinVistaOrBetter Then _
-        ShellExecute 0, "open", g_MakePath(App.Path) & "audiomond.exe", CStr(mhWnd), vbNullString, SW_SHOW
 
     g_Debug "", LEMON_LEVEL_PROC_EXIT
 
@@ -295,15 +264,26 @@ Private Sub ISnarlExtension_LastError(Description As String)
 End Sub
 
 Private Sub ISnarlExtension_Pulse()
-
 End Sub
 
 Private Sub ISnarlExtension_Start()
 
     g_Debug "ISnarlExtension.Start()", LEMON_LEVEL_PROC_ENTER
 
-    Set InputMixer = device_at(1)
-    mVol = current_master_volume_percent()
+    If g_IsWinVistaOrBetter Then
+        ' /* create handler window */
+        EZRegisterClass CLASS_NAME
+        mhWnd = EZAddWindow(CLASS_NAME, Me, CLASS_NAME)
+
+        ' /* launch volume spy daemon */
+        ShellExecute mhWnd, "open", g_MakePath(App.Path) & "snarl-audiomon.exe", vbNullString, vbNullString, 5
+
+    Else
+        ' /* use audio.resource */
+        Set InputMixer = device_at(1)
+        mVol = current_master_volume_percent()
+
+    End If
 
     ' /* set up the config file */
 
@@ -327,43 +307,17 @@ Dim i As Long
             If .IndexOf("MeterStyleMode") = 0 Then _
                 .Add "MeterStyleMode", "0"
 
-'            If .IndexOf("SingleNotificationMode") = 0 Then _
-                .Add "SingleNotificationMode", "1"              ' // new for 1.7
-
-'            If .IndexOf("IncludeTitle") = 0 Then _
-'                .Add "IncludeTitle", "1"
-'
-'            If .IndexOf("IncludeText") = 0 Then _
-'                .Add "IncludeText", "1"
-
-            ' /* alpha one had 'SingleNotificationMode' - we now default
-            '    to this and use 'MultiNotificationMode' instead */
-
-'            If .IndexOf("MultiNotificationMode") = 0 Then _
-                .Add "MultiNotificationMode", "0"              ' // 1.7 Alpha 2
-
             If .IndexOf("mute_detail") = 0 Then _
                 .Add "mute_detail", "2"
 
             If .IndexOf("vol_detail") = 0 Then _
                 .Add "vol_detail", "2"
 
-
         End With
 
         .Save
 
     End With
-
-    If g_IsWinVistaOrBetter Then
-        ' /* create handler window */
-        EZRegisterClass CLASS_NAME
-        mhWnd = EZAddWindow(CLASS_NAME, Me, CLASS_NAME)
-
-        ' /* launch volume spy daemon */
-        ShellExecute mhWnd, "open", g_MakePath(App.Path) & "snarl-audiomon.exe", vbNullString, vbNullString, 5
-
-    End If
 
     ' /* register */
 
@@ -383,6 +337,8 @@ End Sub
 
 Private Sub ISnarlExtension_Stop()
 
+    g_Debug "ISnarlExtension.Stop()", LEMON_LEVEL_PROC_ENTER
+
     ' /* unregister */
 
     sn41UnregisterApp mAppToken
@@ -392,19 +348,25 @@ Private Sub ISnarlExtension_Stop()
         EZRemoveWindow mhWnd
         EZUnregisterClass CLASS_NAME
 
-        ' /* launch volume spy daemon */
+        ' /* kill volume spy daemon */
         ShellExecute mhWnd, "open", g_MakePath(App.Path) & "snarl-audiomon.exe", "-quit", vbNullString, 5
 
     End If
+
+    g_Debug "", LEMON_LEVEL_PROC_EXIT
 
 End Sub
 
 Private Sub ISnarlExtension_TidyUp()
 
+    g_Debug "ISnarlExtension.TidyUp()", LEMON_LEVEL_PROC_ENTER
+
     If Not (mPanel Is Nothing) Then _
         mPanel.Quit
 
     Set InputMixer = Nothing
+
+    g_Debug "", LEMON_LEVEL_PROC_EXIT
 
 End Sub
 
@@ -603,10 +565,15 @@ Private Sub uVolChanged(ByVal Value As Long) ', ByVal Detail As Long)
 
     ' /* bounds and arg checking */
 
-    If (Value = mVol) Or (current_master_mute() = True) Or (Value < 0) Or (Value > 100) Or (mSettings.GetValueWithDefault("show_vol", "1") <> "1") Then _
+    If (Value = mVol) Or (Value < 0) Or (Value > 100) Then _
         Exit Sub
 
     mVol = Value
+
+    ' /* if we're muted or not showing volume changes, ignore now */
+
+    If (current_master_mute() = True) Or (mSettings.GetValueWithDefault("show_vol", "1") <> "1") Then _
+        Exit Sub
 
     ' /* notify */
 
@@ -643,7 +610,7 @@ Dim szText As String
         sn41EZUpdate mCurrentId, szTitle, szText, , uGetIcon(mVol)
 
     Else
-        mCurrentId = sn41EZNotify(mAppToken, CLASS_AUDIO_CHANGE, szTitle, szText, -1, uGetIcon(mVol))
+        mCurrentId = sn41EZNotify(mAppToken, CLASS_AUDIO_CHANGE, szTitle, szText, CUSTOM_DURATION, uGetIcon(mVol))
 
     End If
 
@@ -691,7 +658,8 @@ Dim szText As String
         sn41EZUpdate mCurrentId, szTitle, szText, , IIf(Value = 1, "!audio-volume-mute", uGetIcon(mVol))
 
     Else
-        mCurrentId = sn41EZNotify(mAppToken, CLASS_AUDIO_CHANGE, szTitle, szText, , IIf(Value = 1, "!audio-volume-mute", uGetIcon(mVol)))
+        mCurrentId = sn41EZNotify(mAppToken, CLASS_AUDIO_CHANGE, szTitle, szText, _
+                                  CUSTOM_DURATION, IIf(Value = 1, "!audio-volume-mute", uGetIcon(mVol)))
 
     End If
 

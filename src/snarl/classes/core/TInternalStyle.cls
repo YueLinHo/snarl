@@ -41,11 +41,16 @@ Private Const RUN_STYLE_NAME = "Run File"
 Private Const RUN_STYLE_DATE = "13-Jan-2011"
 Private Const RUN_STYLE_COPY = "© 2011 full phat products"
 
+Private Const IMAGE_STYLE_NAME = "Image"
+Private Const IMAGE_STYLE_DATE = "21-Jan-2011"
+Private Const IMAGE_STYLE_COPY = "© 2011 full phat products"
+
 Private Const BORDER_SIZE = 6
 Private Const ICON_SIZE = 32
 
 Public IsIPForwarder As Boolean
 Public IsFileRunner As Boolean
+Public IsImage As Boolean
 
 Dim theView As mfxView
 Dim mPanel As TRunFilePanel
@@ -61,7 +66,7 @@ End Sub
 
 Private Function IStyleEngine_CountStyles() As Long
 
-    IStyleEngine_CountStyles = 3
+    IStyleEngine_CountStyles = 4
 
 End Function
 
@@ -76,6 +81,11 @@ Dim pStyle As TInternalStyle
     ElseIf StyleName = RUN_STYLE_NAME Then
         Set pStyle = New TInternalStyle
         pStyle.IsFileRunner = True
+        Set IStyleEngine_CreateInstance = pStyle
+
+    ElseIf StyleName = IMAGE_STYLE_NAME Then
+        Set pStyle = New TInternalStyle
+        pStyle.IsImage = True
         Set IStyleEngine_CreateInstance = pStyle
 
     Else
@@ -101,7 +111,11 @@ Private Function IStyleEngine_GetConfigWindow(ByVal StyleName As String) As Long
 
     If StyleName = "Run File" Then
         Set mPanel = New TRunFilePanel
-        IStyleEngine_GetConfigWindow = mPanel.Go
+        IStyleEngine_GetConfigWindow = mPanel.Go(True)
+
+    ElseIf StyleName = "Image" Then
+        Set mPanel = New TRunFilePanel
+        IStyleEngine_GetConfigWindow = mPanel.Go(False)
 
     End If
 
@@ -178,7 +192,18 @@ Private Sub IStyleEngine_StyleAt(ByVal Index As Long, Style As libSnarlStyles.st
             .Major = 0
             .Minor = 1
             .Name = RUN_STYLE_NAME
-            .Schemes = uGetRunFileSchemes()
+            .Schemes = uGetFileSchemes("runfile")
+
+        Case 4
+            .Copyright = IMAGE_STYLE_COPY
+            .Date = IMAGE_STYLE_DATE
+            .Description = "Runs a user-defined file"
+            .Flags = S_STYLE_MULTI_INSTANCE Or S_STYLE_IS_CONFIGURABLE
+            .IconPath = g_MakePath(App.Path) & "etc\icons\image_style.png"
+            .Major = 0
+            .Minor = 1
+            .Name = IMAGE_STYLE_NAME
+            .Schemes = uGetFileSchemes("image")
 
         End Select
 
@@ -224,6 +249,9 @@ Dim sz() As String
                                                          Chr$(34) & Replace$(NotificationInfo.Text, vbCrLf, "\n") & Chr$(34) & " " & _
                                                          Chr$(34) & sz(0) & Chr$(34), vbNullString, SW_SHOW
 
+    ElseIf IsImage Then
+        uImageStyleUpdate NotificationInfo
+
     Else
         uDefStyleUpdate NotificationInfo
 
@@ -233,8 +261,7 @@ End Sub
 
 Private Sub uIPFStyleUpdate(ByRef NotificationInfo As notification_info)
 
-
-        g_ForwardNotification NotificationInfo
+    g_ForwardNotification NotificationInfo
 
 End Sub
 
@@ -339,20 +366,43 @@ Dim prFrame As BRect
 
 End Sub
 
-Private Function uGetRunFileSchemes() As String
+Private Function uGetFileSchemes(ByVal Name As String) As String
 Dim sd As String
 Dim sn As String
 
     With New CConfFile
-        If .SetTo(g_MakePath(App.Path) & "etc\runfile.conf", True) Then
+        If .SetTo(g_MakePath(App.Path) & "etc\" & Name & ".conf", True) Then
             .Rewind
             Do While .GetEntry(sn, sd)
-                uGetRunFileSchemes = uGetRunFileSchemes & sd & "|"
+                uGetFileSchemes = uGetFileSchemes & sd & "|"
 
             Loop
         End If
     End With
 
-    uGetRunFileSchemes = g_SafeLeftStr(uGetRunFileSchemes, Len(uGetRunFileSchemes) - 1)
+    uGetFileSchemes = g_SafeLeftStr(uGetFileSchemes, Len(uGetFileSchemes) - 1)
 
 End Function
+
+Private Sub uImageStyleUpdate(ByRef NotificationInfo As notification_info)
+Dim pb As mfxBitmap
+
+    Set pb = load_image_obj(NotificationInfo.Scheme)
+    If Not is_valid_image(pb) Then _
+        Exit Sub
+
+    With theView
+        .SizeTo pb.Width, pb.Height
+        .EnableSmoothing False
+        .SetHighColour rgba(0, 0, 0, 1)
+        .FillRect .Bounds
+        .DrawScaledImage pb
+
+        Set pb = load_image_obj(NotificationInfo.Icon)
+        If is_valid_image(pb) Then _
+            .DrawScaledImage pb, new_BPoint(0, 0), new_BPoint(48, 48)
+
+    End With
+
+End Sub
+

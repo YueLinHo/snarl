@@ -257,7 +257,7 @@ End Function
 ' /*
 ' /****************************************************************************************/
 
-Public Function sn41RegisterApp(ByVal Signature As String, ByVal Title As String, ByVal Icon As String, Optional ByVal hWndReply As Long, Optional ByVal uMsgReply As Long, Optional ByVal flags As SNARL_APP_FLAGS, Optional ByVal Password As String) As Long
+Public Function sn41RegisterApp(ByVal Signature As String, ByVal Title As String, ByVal Icon As String, Optional ByVal hWndReply As Long, Optional ByVal uMsgReply As Long, Optional ByVal Flags As SNARL_APP_FLAGS, Optional ByVal Password As String) As Long
 Dim pReq As SNARLMSG
 
     With pReq
@@ -266,7 +266,7 @@ Dim pReq As SNARLMSG
         .PacketData = uToUTF8("id::" & Signature & "#?title::" & Title & "#?icon::" & Icon & "#?" & _
                               "hwnd::" & CStr(hWndReply) & "#?" & _
                               "umsg::" & CStr(uMsgReply) & "#?" & _
-                              "flags::" & CStr(flags) & _
+                              "flags::" & CStr(Flags) & _
                               IIf(Password <> "", "#?password::" & Password, "") _
                               )
 
@@ -373,7 +373,7 @@ Dim pReq As SNARLMSG
 
 End Function
 
-Public Function sn41EZNotify(ByVal AppToken As Long, ByVal ClassName As String, ByVal Title As String, ByVal Text As String, Optional ByVal Timeout As Long = -1, Optional ByVal Icon As String, Optional ByVal Priority As Long = 0, Optional ByVal Callback As String, Optional ByVal Value As String) As Long
+Public Function sn41EZNotify(ByVal AppToken As Long, ByVal ClassName As String, ByVal Title As String, ByVal Text As String, Optional ByVal Timeout As Long = -1, Optional ByVal Icon As String, Optional ByVal Priority As Long = 0, Optional ByVal Callback As String, Optional ByVal Value As String, Optional ByVal AdditionalData As String) As Long
 Dim pReq As SNARLMSG
 Dim sz As String
 
@@ -394,7 +394,7 @@ Dim sz As String
 '    If (Flags And SNARL41_NOTIFICATION_ALLOWS_MERGE) Then _
 '        sz = sz & "#?merge::1"
 
-'    If AdditionalData <> "" Then _
+    If AdditionalData <> "" Then _
         sz = sz & "#?" & AdditionalData
 
     With pReq

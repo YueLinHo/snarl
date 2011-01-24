@@ -36,12 +36,15 @@ Public Enum S_STATUS_CODE
     S_ERROR_FAILED = 101                '// miscellaneous failure
     S_ERROR_UNKNOWN_COMMAND             '// specified command not recognised
     S_ERROR_TIMED_OUT                   '// Snarl took too long to respond
-
+    '//104
+    '//105
     S_ERROR_BAD_SOCKET = 106            '// invalid socket (or some other socket-related error)
     S_ERROR_BAD_PACKET = 107            '// badly formed request
-
+    '//108
     S_ERROR_ARG_MISSING = 109           '// required argument missing
     S_ERROR_SYSTEM                      '// internal system error
+
+    S_ERROR_ACCESS_DENIED = 121         '// libsnarl only
 
     ' /* warnings */
 
@@ -59,7 +62,7 @@ Public Enum S_STATUS_CODE
 
     ' /* informational */
 
-    S_WAS_MERGED = 251                  '// notification was merged, returned token is the one we merged with
+'    S_WAS_MERGED = 251                  '// notification was merged, returned token is the one we merged with
 
     ' /* callbacks */
 

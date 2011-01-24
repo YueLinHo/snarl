@@ -328,14 +328,16 @@ Private Function uManageSnarl(ByVal wParam As Long, ByVal lParam As Long) As Lon
 
 
     Case E_SET_DND_MODE
-        ' /* lParam specifies the mode - 0 = disabled (decrement lock), 1 = enabled (increment lock) */
-        If lParam = 0 Then
-            g_LockDoNotDisturb False
+        g_Debug "TMainWindow.uManageSnarl(): E_SET_DND_MODE is no longer supported", LEMON_LEVEL_WARNING
 
-        ElseIf lParam = 1 Then
-            g_LockDoNotDisturb True
-
-        End If
+'        ' /* lParam specifies the mode - 0 = disabled (decrement lock), 1 = enabled (increment lock) */
+'        If lParam = 0 Then
+'            g_LockDoNotDisturb False
+'
+'        ElseIf lParam = 1 Then
+'            g_LockDoNotDisturb True
+'
+'        End If
 
 
     Case Else
@@ -589,12 +591,12 @@ Dim sz As String
         ' /*
         '  * snarlcmd->title = style name
         '  * snarlcmd->text = scheme name
-        '  * snarlcmd->timeout = timeout
+        '  * snarlcmd->timeout = UNUSED
         '  * snarlcmd->lngdata2 = flags (only 0x0001 [priority] defined)
-        '  * snarlcmd->id = percent value (must be 1<>100 to have any effect)
+        '  * snarlcmd->id = percent value (must be 1><100 to have any effect)
         '  */
 
-        g_DoSchemePreview g_UTF8(pss.Title), g_UTF8(pss.Text), pss.LngData2, pss.Timeout, pss.Id
+        g_DoSchemePreview2 g_UTF8(pss.Title), g_UTF8(pss.Text), ((pss.LngData2 And 1) <> 0), pss.Id
 
 
     Case SNARL_LOAD_STYLE_ENGINE

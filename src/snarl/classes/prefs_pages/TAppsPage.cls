@@ -44,7 +44,7 @@ Dim pm As CTempMsg
     On Error Resume Next
 
     With mPage
-        .SetMargin 96
+        .SetMargin 0
 
         .Add new_BPrefsControl("banner", "", "Registered Applications")
 
@@ -444,7 +444,8 @@ Dim pm As CTempMsg
         If .CountApps() Then
             For i = 1 To .CountApps()
                 pm.Replace "index", i
-                sz = IIf(.AppAt(i).LargeIcon <> "", .AppAt(i).LargeIcon, .AppAt(i).Icon)
+'                sz = IIf(.AppAt(i).LargeIcon <> "", .AppAt(i).LargeIcon, .AppAt(i).Icon)
+                sz = .AppAt(i).Icon
                 If Not g_Exists(sz) Then _
                     sz = g_MakePath(App.Path) & "etc\icons\no_icon.png"
 

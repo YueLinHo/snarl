@@ -80,12 +80,15 @@ Public Enum SNARL_STATUS_CODE
     SNARL_ERROR_FAILED = 101                '// miscellaneous failure
     SNARL_ERROR_UNKNOWN_COMMAND             '// specified command not recognised
     SNARL_ERROR_TIMED_OUT                   '// Snarl took too long to respond
-
+    '//104 gen critical #4
+    '//105 gen critical #5
     SNARL_ERROR_BAD_SOCKET = 106            '// invalid socket (or some other socket-related error)
     SNARL_ERROR_BAD_PACKET = 107            '// badly formed request
-
+    '//108 net critical #3
     SNARL_ERROR_ARG_MISSING = 109           '// required argument missing
     SNARL_ERROR_SYSTEM                      '// internal system error
+    '//120 libsnarl critical block
+    SNARL_ERROR_ACCESS_DENIED = 121         '// libsnarl only
 
     ' /* warnings */
 

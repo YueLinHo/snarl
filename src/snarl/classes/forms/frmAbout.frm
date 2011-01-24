@@ -224,6 +224,19 @@ Private Declare Function RegQueryValueEx Lib "advapi32.dll" Alias "RegQueryValue
 Private Declare Function GetCurrentProcess Lib "kernel32" () As Long
 Private Declare Function EmptyWorkingSet Lib "psapi.dll" (ByVal hProcess As Long) As Long
 
+Private Declare Function WTSRegisterSessionNotification Lib "Wtsapi32" (ByVal hWnd As Long, ByVal THISSESS As Long) As Long
+Private Declare Function WTSUnRegisterSessionNotification Lib "Wtsapi32" (ByVal hWnd As Long) As Long
+
+Private Const NOTIFY_FOR_ALL_SESSIONS As Long = 1
+
+Private Const WM_WTSSESSION_CHANGE As Long = &H2B1
+Private Const WTS_SESSION_LOCK As Long = 7
+Private Const WTS_SESSION_UNLOCK As Long = 8
+
+Private Declare Function SystemParametersInfo Lib "user32" Alias "SystemParametersInfoA" (ByVal uAction As Long, ByVal uParam As Long, ByRef lpvParam As Any, ByVal fuWinIni As Long) As Long
+Private Const SPI_GETSCREENSAVERRUNNING = &H72
+
+
 Dim mSysKeyPrefs As Long
 Dim mSysKeyTest As Long
 
@@ -251,37 +264,32 @@ Dim mListenerCount As Long
 Dim mJSONSocket() As CJSONSocket
 Dim mSockets As Long
 
-
 Dim mClickThruOver As CSnarlWindow
 Dim mMenuOpen As Boolean
-
 Dim mDownloadId As Long
-
-'Private Type T_REMOTENOTIFICATION
-'    Token As Long               ' // notification token
-'    Socket As TRemoteConnection
-'
-'End Type
-'
-'Dim mRemoteNotification() As T_REMOTENOTIFICATION
-'Dim mRemoteNotifications As Long
-
 Dim WithEvents theReadyTimer As BTimer
 Attribute theReadyTimer.VB_VarHelpID = -1
 
+Private Type LASTINPUTINFO
+    cbSize As Long
+    dwTime As Long
+
+End Type
+
+Private Declare Function GetLastInputInfo Lib "user32" (ByRef plii As LASTINPUTINFO) As Boolean
+
+Dim WithEvents theIdleTimer As BTimer
+Attribute theIdleTimer.VB_VarHelpID = -1
+
 Implements MMessageSink
 Implements KPrefsPanel
+Implements KPrefsPage
 Implements MWndProcSink
 
 Private Sub Form_Load()
 Dim sz As String
 Dim pm As OMMenu
 Dim n As Integer
-
-'Dim pss As SNARLSTRUCT
-'Dim pss2 As SNARLSTRUCT2
-'
-'    MsgBox LenB(pss) & " " & LenB(pss2)
 
     On Error Resume Next
 
@@ -301,9 +309,9 @@ Dim n As Integer
 
     ' /* add user messages to UIPI allowed filter */
 
-    g_Debug "frmAbout.Load(): relaxing UIPI message filter..."
-    g_Debug "frmAbout.Load(): o/s is 0x" & g_HexStr(g_GetNTVersion())
-
+'    g_Debug "frmAbout.Load(): relaxing UIPI message filter..."
+'    g_Debug "frmAbout.Load(): o/s is 0x" & g_HexStr(g_GetNTVersion())
+'
 '    If g_GetNTVersion() >= NTWIN7 Then
 '        g_Debug "Windows 7 / Windows 2008 R2 (or better)..."
 '        ChangeWindowMessageFilterEx Me.hWnd, WM_SNARL_TRAY_ICON, MSGFLT_ALLOW, 0&
@@ -339,10 +347,9 @@ Dim n As Integer
 
 
 
+    ' /* R2.4 DR8: register for TS session events */
 
-
-
-
+    WTSRegisterSessionNotification Me.hWnd, NOTIFY_FOR_ALL_SESSIONS
 
 
 
@@ -418,8 +425,8 @@ Dim n As Integer
 
     ' /* create the idle input timer */
 
-'    Set theIdleTimer = New BTimer
-'    theIdleTimer.SetTo 250
+    Set theIdleTimer = New BTimer
+    theIdleTimer.SetTo 250
 
 End Sub
 
@@ -446,9 +453,13 @@ Dim i As Long
     g_Debug "_Unload()", LEMON_LEVEL_PROC
     Me.Hide
 
+    ' /* R2.4 DR8: unregister session events */
+
+    WTSUnRegisterSessionNotification Me.hWnd
+
     ' /* stop the idle timer */
 
-'    Set theIdleTimer = Nothing
+    Set theIdleTimer = Nothing
 
     ' /* close our Snarl listeners */
 
@@ -459,6 +470,7 @@ Dim i As Long
 
     If g_ConfigGet("listen_for_json") = "1" Then _
         EnableJSON False
+
 
 
     If Not (mPanel Is Nothing) Then
@@ -509,6 +521,136 @@ End Sub
 
 Private Sub Label2_Click()
 
+End Sub
+
+Private Sub KPrefsPage_AllAttached()
+
+End Sub
+
+Private Sub KPrefsPage_Attached()
+
+End Sub
+
+Private Sub KPrefsPage_ControlChanged(Control As prefs_kit_d2.BControl, ByVal Value As String)
+Dim sz() As String
+
+    Select Case Control.GetName
+
+    Case "use_hotkey"
+        ' /* R2.2: we have a separate config entry now */
+        g_ConfigSet Control.GetName, Value
+        prefskit_SafeEnable Control.Page.Panel, "hotkey_prefs", (Value = "1")
+        frmAbout.bSetHotkeys
+
+    Case "hotkey_prefs"
+        ' /* the key picker control should return a pair of values separated by a comma.  The first
+        '    value is the set of modifiers; the second value is the keycode of the key pressed */
+
+        sz() = Split(Value, ",")
+        If UBound(sz()) <> 1 Then _
+            Exit Sub
+
+        ' /* we're only interested in the keycode here */
+
+        If sz(1) <> g_ConfigGet("hotkey_prefs") Then
+            If frmAbout.bSetHotkeys(Val(sz(1))) Then
+                ' /* registered okay so store the new keycode */
+                g_ConfigSet "hotkey_prefs", sz(1)
+                g_Debug "TGeneralPage.ControlChanged(): [hotkey_prefs]: hotkey changed to #" & sz(1)
+
+            Else
+                g_Debug "TGeneralPage.ControlChanged(): [hotkey_prefs]: couldn't set hotkey to #" & sz(1), LEMON_LEVEL_WARNING
+                sz(1) = g_ConfigGet("hotkey_prefs")
+
+            End If
+
+        End If
+
+        Control.SetValue CStr(MOD_CONTROL) & "," & sz(1)
+
+
+    Case "idle_minutes"
+
+        Select Case Val(Value)
+        Case 0
+            Control.SetText "Never"
+
+        Case 1
+            Control.SetText "1 min"
+
+        Case Else
+            Control.SetText Value & " mins"
+
+        End Select
+
+        g_ConfigSet Control.GetName, Value
+
+
+    Case Else
+        ' /* other controls */
+        g_ConfigSet Control.GetName, Value
+
+        If Control.GetName = "run_on_logon" Then _
+            g_SetAutoRun2
+
+    End Select
+
+End Sub
+
+Private Sub KPrefsPage_ControlInvoked(Control As prefs_kit_d2.BControl)
+'Dim pc As BControl
+'
+'    Debug.Print "[" & mPage.GetName() & "]: ControlInvoked '" & Control.GetName() & "'"
+'
+    Select Case Control.GetName()
+
+    Case "update_now"
+        g_DoManualUpdateCheck
+
+    End Select
+
+'    Case "go_app_manager"
+'        ShellExecute 0, "open", g_MakePath(App.Path) & "SNARLAPP_Manager.exe", vbNullString, vbNullString, SW_SHOW
+'
+'    Case "restart_style_roster"
+'        If Not (g_StyleRoster Is Nothing) Then
+'            melonLibClose g_StyleRoster
+'            Sleep 500
+''            MsgBox "Click OK when you're ready for the Style Roster to start up", vbInformation Or vbOKOnly, App.Title
+'            melonLibOpen g_StyleRoster
+'
+'            If mPage.Panel.Find("installed_styles", pc) Then _
+'                pc.Notify "update_list", Nothing
+'
+'
+'        End If
+'
+''    Case "dnd_settings"
+''        With New TStyleEnginePanel
+''            .Go mPage.Panel.hWnd
+''
+''        End With
+'
+'    End Select
+
+End Sub
+
+Private Sub KPrefsPage_ControlNotify(Control As prefs_kit_d2.BControl, ByVal Notification As String, Data As melon.MMessage)
+End Sub
+
+Private Sub KPrefsPage_Create(Page As prefs_kit_d2.BPrefsPage)
+End Sub
+
+Private Sub KPrefsPage_Destroy()
+End Sub
+
+Private Sub KPrefsPage_Detached()
+End Sub
+
+Private Function KPrefsPage_hWnd() As Long
+End Function
+
+Private Sub KPrefsPage_PanelResized(ByVal Width As Long, ByVal Height As Long)
 End Sub
 
 Private Function MWndProcSink_WndProc(ByVal hWnd As Long, ByVal uMsg As Long, ByVal wParam As Long, ByVal lParam As Long, ByVal PrevWndProc As Long, ReturnValue As Long) As Boolean
@@ -592,6 +734,25 @@ Dim dw As Long
         If LoWord(wParam) = SNARL_CALLBACK_INVOKED Then _
             ShellExecute hWnd, "open", g_MakePath(App.Path) & gUpdateFilename, vbNullString, vbNullString, SW_SHOW
 
+    Case RegisterWindowMessage("TaskbarCreated")
+        ' /* R2.4 DR8 */
+        uAddTrayIcon
+
+    Case WM_WTSSESSION_CHANGE
+        Select Case wParam
+        Case WTS_SESSION_LOCK
+            Debug.Print "WM_WTSSESSION_CHANGE: =locked= " & Now()
+            If g_ConfigGet("away_when_locked") = "1" Then _
+                gAwayFlags = gAwayFlags Or SP_AWAY_COMPUTER_LOCKED
+
+        Case WTS_SESSION_UNLOCK
+            Debug.Print "WM_WTSSESSION_CHANGE: =unlocked= " & Now()
+            If g_ConfigGet("away_when_locked") = "1" Then _
+                gAwayFlags = gAwayFlags And (Not SP_AWAY_COMPUTER_LOCKED)
+
+        End Select
+
+
 
 '    Case WM_REMOTENOTIFY
 '
@@ -640,10 +801,10 @@ Dim update_config   As Boolean
     SetForegroundWindow Me.hWnd
 
     With New OMMenu
-        .AddItem .CreateItem("sticky", "Sticky Notifications", , , g_IsSticky())
+        .AddItem .CreateItem("sticky", "Sticky Notifications", , , (g_ConfigGet("sticky_snarls") = "1"))
         .AddSeparator
 
-        .AddItem .CreateItem("dnd", "Do Not Disturb", , , g_IsDNDModeEnabled())
+        .AddItem .CreateItem("dnd", "Do Not Disturb", , , gDNDMode)
         .AddItem .CreateItem("missed", IIf(g_NotificationRoster.ActualMissedCount > 0, CStr(g_NotificationRoster.ActualMissedCount) & " ", "") & "Missed Notification" & IIf(g_NotificationRoster.ActualMissedCount = 1, "", "s") & "...")
         .AddSeparator
         .AddItem .CreateItem("restart", "Restart Snarl", , g_IsRunning)
@@ -702,25 +863,24 @@ Dim update_config   As Boolean
             g_ConfigSet "sticky_snarls", IIf(g_ConfigGet("sticky_snarls") = "1", "0", "1")
 
         Case "dnd"
-            If g_IsDNDModeEnabled Then
-                ' /* currently enabled so forcably unlock it */
-                g_ForceUnlockDoNotDisturb
+            gDNDMode = Not gDNDMode
 
-            Else
-                g_LockDoNotDisturb True
+            If gDNDMode Then
+                ' /* was enabled */
+                g_NotificationRoster.ResetMissedCount
+
+            ElseIf g_NotificationRoster.ActualMissedCount > 0 Then
+                ' /* was disabled and missed some notifications */
+
+                g_PrivateNotify "", "While you were away...", _
+                                    "You missed " & CStr(g_NotificationRoster.ActualMissedCount) & " notification" & IIf(g_NotificationRoster.ActualMissedCount > 1, "s", ""), _
+                                    -1, _
+                                    g_MakePath(App.Path) & "etc\icons\snarl.png", _
+                                    , _
+                                    "!snarl show_missed_panel"
 
             End If
 
-'            gPrefs.UserDnD = Not gPrefs.UserDnD
-'
-'            If gPrefs.UserDnD Then
-'                If Not (g_NotificationRoster Is Nothing) Then _
-'                    g_NotificationRoster.ResetMissedCount
-'
-'            Else
-'                g_CheckMissed
-'
-'            End If
 
         Case "missed"
             If Not (g_NotificationRoster Is Nothing) Then _
@@ -763,6 +923,10 @@ Public Sub NewDoPrefs(Optional ByVal PageToSelect As Integer)
 
     End If
 
+Dim pp As BPrefsPage
+Dim pc As BControl
+Dim pm As CTempMsg
+
     If (mPanel Is Nothing) Then
 
         Set mPanel = New BPrefsPanel
@@ -772,7 +936,53 @@ Public Sub NewDoPrefs(Optional ByVal PageToSelect As Integer)
             mPanel.SetTitle "Snarl Preferences"
             mPanel.SetWidth 500
 
-            .AddPage new_BPrefsPage("General", load_image_obj(g_MakePath(App.Path) & "etc\icons\general.png"), New TGeneralPage)
+            ' /* general page */
+
+            Set pp = new_BPrefsPage("General", load_image_obj(g_MakePath(App.Path) & "etc\icons\general.png"), Me)
+
+            With pp
+                .SetMargin 96
+                .Add new_BPrefsControl("banner", "", "Launch Options")
+
+'                Set pm = New CTempMsg
+'                pm.Add "text", "Start at login?"
+'                pm.Add "align", 1
+'                pm.Add "inset_by", 0
+                .Add new_BPrefsControl("fancytoggle2", "run_on_logon", "Start at login?", "", g_ConfigGet("run_on_logon"))
+                .Add new_BPrefsControl("fancytoggle2", "show_msg_on_start", "Show message on startup?", "", g_ConfigGet("show_msg_on_start"), pm)
+                .Add new_BPrefsControl("fancytoggle2", "log_only", "Log only (don't display)?", , g_ConfigGet("log_only"))
+
+                ' /* presence */
+
+                .Add new_BPrefsControl("banner", "", "Presence")
+                .Add new_BPrefsControl("label", "", "Enable away mode after the following period of inactivity:")
+
+                Set pm = New CTempMsg
+                pm.Add "min", 0&
+                pm.Add "max", 30&
+                pm.Add "freq", 5&
+                pm.Add "label_size", 56&
+                .Add new_BPrefsControl("fancyslider", "idle_minutes", "", "", IIf(g_ConfigGet("idle_minutes") = "2", "1", "2"), pm)
+
+                .Add new_BPrefsControl("fancytoggle2", "away_when_locked", "Enable away mode when computer is locked?", , g_ConfigGet("away_when_locked"))
+                .Add new_BPrefsControl("fancytoggle2", "away_when_screensaver", "Enable away mode when the screensaver starts?", , g_ConfigGet("away_when_screensaver"))
+                .Add new_BPrefsControl("fancytoggle2", "away_when_fullscreen", "Enable away mode when the foreground application is fullscreen?", , g_ConfigGet("away_when_fullscreen"))
+
+                .Add new_BPrefsControl("fancycycle", "away_mode", "Log Notification as Missed|Make Notification Sticky|Do Nothing|Display Notification", "When Away:", g_ConfigGet("away_mode"))
+                .Add new_BPrefsControl("fancycycle", "busy_mode", "Log Notification as Missed|Make Notification Sticky|Do Nothing|Display Notification", "When Busy:", g_ConfigGet("busy_mode"))
+
+                .Add new_BPrefsControl("label", "", "Note that the above settings only apply to normal priority notifications.")
+
+                ' /* miscellaneous */
+
+'                .Add new_BPrefsControl("banner", "", "Miscellaneous")
+    '        .Add new_BPrefsControl("fancytoggle2", "sticky_snarls", "Sticky notifications?", , g_ConfigGet("sticky_snarls"))
+
+            End With
+
+            .AddPage pp
+
+
 
             Set mAppsPage = New TAppsPage
             .AddPage new_BPrefsPage("Apps", load_image_obj(g_MakePath(App.Path) & "etc\icons\apps.png"), mAppsPage)
@@ -780,7 +990,52 @@ Public Sub NewDoPrefs(Optional ByVal PageToSelect As Integer)
             .AddPage new_BPrefsPage("Styles", load_image_obj(g_MakePath(App.Path) & "etc\icons\styles.png"), New TStylesPage)
             .AddPage new_BPrefsPage("Extensions", load_image_obj(g_MakePath(App.Path) & "etc\icons\extensions.png"), New TExtPage)
             .AddPage new_BPrefsPage("Network", load_image_obj(g_MakePath(App.Path) & "etc\icons\network.png"), New TNetworkPage)
-            .AddPage new_BPrefsPage("Advanced", load_image_obj(g_MakePath(App.Path) & "etc\icons\advanced.png"), New TAdvancedPage)
+
+            ' /* advanced page */
+
+            Set pp = new_BPrefsPage("Advanced", load_image_obj(g_MakePath(App.Path) & "etc\icons\advanced.png"), Me)
+
+            With pp
+                .SetMargin 96
+
+                ' /* hotkeys */
+
+                .Add new_BPrefsControl("banner", "", "Hotkeys")
+                .Add new_BPrefsControl("fancytoggle2", "use_hotkey", "Use a hotkey to activate Snarl's Preferences?", "", g_ConfigGet("use_hotkey"))
+                .Add new_BPrefsControl("key_picker", "hotkey_prefs", , , CStr(MOD_CONTROL) & "," & g_ConfigGet("hotkey_prefs"), , (g_ConfigGet("use_hotkey") = "1"))
+                .Add new_BPrefsControl("fancytoggle2", "", "Use a hotkey to activate Snarl's menu?", "", "0", , False)
+                .Add new_BPrefsControl("key_picker", "", , , CStr(MOD_WIN) & "," & g_ConfigGet("hotkey_prefs"), , False)
+                .Add new_BPrefsControl("label", "", "Press the key you want to use in the boxes above.  Note that the modifiers (the combination of SHIFT and CTRL keys) used are automatically set.")
+
+                ' /* applications */
+
+                .Add new_BPrefsControl("banner", "", "Applications")
+                .Add new_BPrefsControl("fancytoggle2", "notify_on_first_register", "Only notify the first time an application registers?", , g_ConfigGet("notify_on_first_register"))
+
+                .Add new_BPrefsControl("banner", "", "Miscellaneous")
+                .Add new_BPrefsControl("fancytoggle2", "auto_update", "Check for updates on launch?", "", g_ConfigGet("auto_update"))
+                .Add new_BPrefsControl("fancybutton2", "update_now", "Check now...")
+
+                ' /* presence management */
+
+'                .Add new_BPrefsControl("banner", "", "Presence Management")
+'                .Add new_BPrefsControl("fancycycle", "away_mode", "Log as Missed|Make Sticky|Discard|Display", "When Away:", g_ConfigGet("away_mode"))
+'                .Add new_BPrefsControl("fancycycle", "busy_mode", "Log as Missed|Make Sticky|Discard|Display", "When Busy:", g_ConfigGet("busy_mode"))
+
+        ' /* other stuff */
+
+'        .Add new_BPrefsControl("banner", "", "System Functions")
+'        .Add new_BPrefsControl("fancybutton2", "go_app_manager", "Launch App Manager")
+'        .Add new_BPrefsControl("label", "", "The App Manager allows you to control other Snarl applications which don't have their own user interface.")
+
+'        .Add new_BPrefsControl("fancybutton2", "restart_style_roster", "Reload Styles")
+'        .Add new_BPrefsControl("label", "", "Forces Snarl to reload all installed styles.  Under normal circumstances you shouldn't need to do this; it's provided for users who are developing their own styles and want to test them without restarting Snarl.")
+
+            End With
+
+            .AddPage pp
+
+
             .AddPage new_BPrefsPage("About", load_image_obj(g_MakePath(App.Path) & "etc\icons\about.png"), New TAboutPage)
 
             If gDebugMode Then _
@@ -822,6 +1077,10 @@ Dim pc As BControl
     If mPanel.Find("cb>apps", pc) Then _
         pc.SetValue "1"
 
+    ' /* R2.4 DR8: set here so we pick up the custom label change */
+
+    If mPanel.Find("idle_minutes", pc) Then _
+        pc.SetValue g_ConfigGet("idle_minutes")
 
     ' /* find our current style and select it in the 'Display' sub page */
 
@@ -849,8 +1108,8 @@ Dim j As Long
         End If
     End If
 
-    If mPanel.Find("melontype_contrast", pc) Then _
-        pc.SetEnabled (gPrefs.font_smoothing = E_MELONTYPE)
+'    If mPanel.Find("melontype_contrast", pc) Then _
+'        pc.SetEnabled (gPrefs.font_smoothing = E_MELONTYPE)
 
 End Sub
 
@@ -907,6 +1166,8 @@ Dim hIcon As Long
     hIcon = LoadImage(App.hInstance, 1&, IMAGE_ICON, 16, 16, 0)
     If hIcon = 0 Then _
         hIcon = Me.Icon.Handle
+
+    mTrayIcon.Remove "tray_icon"
 
     mTrayIcon.Add "tray_icon", hIcon, "Snarl"
 
@@ -1145,34 +1406,86 @@ End Sub
 '
 'End Sub
 
-'Private Sub theIdleTimer_Pulse()
-'
-'    ' /* ignore if no idle timeout set */
-'
-'    If Val(g_ConfigGet("idle_timeout")) <= 0 Then _
-'        Exit Sub
-'
-'Dim lii As LASTINPUTINFO
-'
-'    lii.cbSize = Len(lii)
-'    If GetLastInputInfo(lii) = False Then _
-'        Exit Sub
-'
-'    lii.dwTime = GetTickCount() - lii.dwTime
-''    g_Debug "_theIdleTimer.Pulse(): idle time is now " & CStr(lii.dwTime) & " needs to be " & CStr(gPrefs.idle_timeout * 1000)
-'
-'Static b As Boolean
-'
-'    b = (lii.dwTime > (Val(g_ConfigGet("idle_timeout")) * 1000))
-'    If b <> gIsIdle Then
-'        g_Debug "_theIdleTimer.Pulse(): " & Now() & " away mode: " & b
-'        gIsIdle = b
-'
-''        snShowMessage "Idle", "Idle mode is " & gIsIdle, 0
-'
-'    End If
-'
-'End Sub
+Private Sub theIdleTimer_Pulse()
+Static b As Boolean
+
+    If g_ConfigGet("away_when_fullscreen") = "1" Then
+        ' /* track foreground app state */
+        b = uIsFullScreenMode()
+        If b <> g_IsAway(SP_AWAY_FULLSCREEN_APP) Then
+            ' /* full screen app state changed */
+            If b Then
+                g_SetAwayFlags SP_AWAY_FULLSCREEN_APP
+
+            Else
+                g_ClearAwayFlags SP_AWAY_FULLSCREEN_APP
+
+            End If
+
+            g_Debug "_theIdleTimer.Pulse(): " & Now() & " fullscreen app: " & g_IsAway(SP_AWAY_FULLSCREEN_APP)
+
+        End If
+    End If
+
+
+Dim n As Long
+
+    If g_ConfigGet("away_when_screensaver") = "1" Then
+        ' /* track screensaver state */
+
+        If SystemParametersInfo(SPI_GETSCREENSAVERRUNNING, 0, n, 0) <> 0 Then
+            If b <> g_IsAway(SP_AWAY_SCREENSAVER_ACTIVE) Then
+                ' /* screensaver state has changed */
+                If b Then
+                    g_SetAwayFlags SP_AWAY_SCREENSAVER_ACTIVE
+        
+                Else
+                    g_ClearAwayFlags SP_AWAY_SCREENSAVER_ACTIVE
+        
+                End If
+        
+                g_Debug "_theIdleTimer.Pulse(): " & Now() & " screensaver: " & g_IsAway(SP_AWAY_SCREENSAVER_ACTIVE)
+
+            End If
+        End If
+    End If
+
+    ' /* ignore if no idle timeout set */
+
+    n = g_SafeLong(g_ConfigGet("idle_minutes"))
+    If n > 30 Then _
+        n = 30              ' // bounds-check
+
+    n = n * 60000           ' // convert to ms
+    If n < 1 Then _
+        Exit Sub
+
+
+Dim lii As LASTINPUTINFO
+
+    lii.cbSize = Len(lii)
+    If GetLastInputInfo(lii) = False Then _
+        Exit Sub
+
+    lii.dwTime = GetTickCount() - lii.dwTime
+'    Debug.Print "_theIdleTimer.Pulse(): idle time is now " & CStr(lii.dwTime) & " needs to be " & CStr(n)
+
+    b = (lii.dwTime > n)
+    If b <> g_IsAway(SP_AWAY_USER_IDLE) Then
+        ' /* idle state has changed */
+        If b Then
+            g_SetAwayFlags SP_AWAY_USER_IDLE
+
+        Else
+            g_ClearAwayFlags SP_AWAY_USER_IDLE
+
+        End If
+
+        g_Debug "_theIdleTimer.Pulse(): " & Now() & " user idle: " & g_IsAway(SP_AWAY_USER_IDLE)
+
+    End If
+
+End Sub
 
 Private Sub theReadyTimer_Pulse()
 
@@ -1576,3 +1889,115 @@ Private Sub uAddListener(ByVal IPAddr As String, ByVal IsGNTP As Boolean)
     mListener(mListenerCount).Go IPAddr, IsGNTP
 
 End Sub
+
+
+
+Private Function uIsFullScreenMode() As Boolean
+Static hWnd As Long
+Static h As Long
+
+    hWnd = uParentFromPoint(1, 1)
+
+'    g_Debug g_ClassName(hWnd) & " " & _
+            g_ClassName(uParentFromPoint(g_ScreenWidth() - 1, 1)) & " " & _
+            g_ClassName(uParentFromPoint(1, g_ScreenHeight() - 1)) & " " & _
+            g_ClassName(uParentFromPoint(g_ScreenWidth() - 1, g_ScreenHeight() - 1))
+
+    If hWnd = uParentFromPoint(uScreenWidth() - 1, 1) Then
+        If hWnd = uParentFromPoint(uScreenWidth() - 1, uScreenHeight() - 1) Then
+            If hWnd = uParentFromPoint(1, uScreenHeight() - 1) Then
+
+'                g_Debug "uIsFullScreenMode(): four points match: " & g_ClassName(hWnd) & " '" & g_WindowText(hWnd) & "'"
+
+                h = GetWindow(hWnd, GW_HWNDPREV)
+                Do While h
+                    If uIsAppWindow(h) Then _
+                        Exit Function
+
+                    h = GetWindow(h, GW_HWNDPREV)
+
+                Loop
+
+'                g_Debug "uIsFullScreenMode(): no higher app window"
+                uIsFullScreenMode = True
+
+            End If
+        End If
+    End If
+
+End Function
+
+Private Function uGetTopLevel(ByVal hWnd As Long) As Long
+Static h As Long
+
+    uGetTopLevel = hWnd
+    h = GetParent(uGetTopLevel)
+    Do While h
+        uGetTopLevel = h
+        h = GetParent(uGetTopLevel)
+
+    Loop
+
+End Function
+
+Private Function uParentFromPoint(ByVal x As Long, ByVal y As Long) As Long
+Static h As Long
+
+    h = WindowFromPoint(x, y)
+    If IsWindow(h) = 0 Then _
+        Exit Function
+
+    uParentFromPoint = uGetTopLevel(h)
+
+End Function
+
+Private Function uScreenWidth(Optional ByVal VirtualScreen As Boolean = False) As Long
+
+    uScreenWidth = GetSystemMetrics(SM_CXSCREEN)
+
+End Function
+
+Private Function uScreenHeight(Optional ByVal VirtualScreen As Boolean = False) As Long
+
+    uScreenHeight = GetSystemMetrics(SM_CYSCREEN)
+
+End Function
+
+Private Function uIsAppWindow(ByVal hWnd As Long) As Boolean
+Static lExStyle As Long
+Static Style As Long
+
+    ' /* more reliable version (although can pick up the 'wrong' window in cases
+    '    where there's a choice (e.g. VB IDE and Platform SDK) - code taken from
+    '    here: http://shell.franken.de/~sky/explorer-doc/taskbar_8cpp-source.html */
+
+    ' /* modified 7-Sep-09 to also include dialog windows where the owner is an
+    '    app window.  To filter these out, just exclude any hWnd where GW_OWNER is
+    '    not zero */
+
+    Style = GetWindowLong(hWnd, GWL_STYLE)
+    lExStyle = GetWindowLong(hWnd, GWL_EXSTYLE)
+
+    If (Style And WS_VISIBLE) = 0 Then _
+        Exit Function
+
+    If (lExStyle And WS_EX_APPWINDOW) Then
+        uIsAppWindow = True
+        Exit Function
+
+    End If
+
+    If (lExStyle And WS_EX_TOOLWINDOW) = 0 Then
+        If (GetParent(hWnd) = 0) And (GetWindow(hWnd, GW_OWNER) = 0) Then
+            uIsAppWindow = True
+
+        Else
+            uIsAppWindow = uIsAppWindow(GetWindow(hWnd, GW_OWNER))
+
+        End If
+    End If
+
+End Function
+
+
+

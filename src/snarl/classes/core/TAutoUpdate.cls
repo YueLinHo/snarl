@@ -122,7 +122,7 @@ Dim i As Long
                             g_Debug "TAutoUpdate.uDecodeUpdateFile(): this version is the most current"
 
                             If mManual Then _
-                                i = g_PrivateNotify("", , "You are running the latest version of Snarl")
+                                i = g_PrivateNotify("", "Good news!", "You are running the latest version of Snarl.")
 
                             Exit Sub
 

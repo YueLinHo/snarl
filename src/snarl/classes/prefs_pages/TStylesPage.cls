@@ -171,54 +171,15 @@ Dim szText As String
             ' /* preview or preview priority */
             If (mStyle.Name = "") Or (Not mPage.Find("installed_schemes", pc)) Then _
                 Exit Sub
-    
+
             ' /* must have a selected scheme - this should *always* be the case, but... */
-    
+
             dw = Val(pc.GetValue())
-            If dw = 0 Then _
-                Exit Sub
-    
-            ' /* if we have a scheme other than 'default' adjust the text accordingly... */
-    
-            If mStyle.SchemeAt(dw) <> "<Default>" Then
-                szText = " using the " & mStyle.SchemeAt(dw) & " scheme"
-                szScheme = mStyle.SchemeAt(dw)
-
-            End If
-
-            If Val(Value) = 3 Then
-                szText = "This is a preview of a priority notification using the " & mStyle.Name & " style" & szText
-
-            Else
-                szText = "This is a preview of the " & mStyle.Name & " style" & szText
-
-            End If
-
-'            szScheme = LCase$(mStyle.Name) & szScheme
-    
-    '        MsgBox "*****> " & mStyle.Info.Path
-
-            With pInfo
-                .Title = "Scheme Preview"
-                .Text = szText
-                .Timeout = E_DURATION_DEFAULT
-                .IconPath = IIf(mStyle.IconPath = "", g_MakePath(App.Path) & "etc\icons\style_preview.png", mStyle.IconPath)
-                .StyleName = mStyle.Name
-                .SchemeName = szScheme
-                .Position = E_START_DEFAULT_POS
-                .Priority = IIf(Val(Value) = 3, 1, 0)
-                Set .ClassObj = New TAlert              ' // we must have a class object, so create a default one (bit of a kludge)
-
-            End With
-
-'            g_KludgeNotificationInfo pInfo
-
-            g_NotificationRoster.Add pInfo, Nothing
-
+            If dw <> 0 Then _
+                g_DoSchemePreview2 mStyle.Name, mStyle.SchemeAt(dw), (Val(Value) = 3), 0
 
         Case 4
             ' /* make default */
-
             If (mStyle.Name = "") Or (Not mPage.Find("installed_schemes", pc)) Then _
                 Exit Sub
 
@@ -553,6 +514,8 @@ Dim pInfo As T_NOTIFICATION_INFO
         .SchemeName = LCase$(mScheme)
         ' /* R2.4 DR7 */
         Set .ClassObj = New TAlert
+        ' /* R2.4 DR8 */
+        Set .Actions = new_BTagList()
 
     End With
 
@@ -564,7 +527,7 @@ Dim pw As CSnarlWindow
     Set pw = New CSnarlWindow
     If pw.Create(pInfo, mStyle.CreateInstance(), mStyle.Flags, g_GetStylePath(mStyle.Name)) = M_OK Then
         pw.CaptureToFile uMakePreviewName()
-        pw.Zap
+        pw.Remove
         uCreatePreviewImage = True
 
     Else
