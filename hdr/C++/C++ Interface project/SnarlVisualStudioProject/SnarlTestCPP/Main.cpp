@@ -4,23 +4,27 @@
 #include "stdafx.h"
 
 #include "..\..\..\Depricated\SnarlInterface_v39.h"
-#include "..\..\..\SnarlInterface.h"
+#include "..\..\..\SnarlInterface_v41\SnarlInterface.h"
+#include "..\..\..\SnarlInterface_v42\SnarlInterface.h"
 
 #include "Main.h"
 #include "SnarlTestHelper.h"
 #include "SnarlV39Test.h"
 #include "SnarlV41Test.h"
+#include "SnarlV42Test.h"
 
 // ----------------------------------------------------------------------------
 
 static HWND hWnd       = NULL;
 static HWND hWndEdit   = NULL;
+static CSnarlTestHelper* pTestHelper = NULL;
 
 static Snarl::V39::SnarlInterface* pV39Snarl = NULL;
 static Snarl::V41::SnarlInterface* pV41Snarl = NULL;
-static CSnarlTestHelper* pTestHelper = NULL;
+static Snarl::V42::SnarlInterface* pV42Snarl = NULL;
 static CSnarlV39Test* pV39SnarlTest = NULL;
 static CSnarlV41Test* pV41SnarlTest = NULL;
+static CSnarlV42Test* pV42SnarlTest = NULL;
 
 // ----------------------------------------------------------------------------
 
@@ -66,16 +70,18 @@ int APIENTRY _tWinMain(HINSTANCE hInstance,
 
 	// ------------------------------------------------------------------------
 	// Create Snarl objects
+	pTestHelper = new CSnarlTestHelper(hWnd, hWndEdit);
+	
 	pV39Snarl = new Snarl::V39::SnarlInterface();
 	pV41Snarl = new Snarl::V41::SnarlInterface();
+	pV42Snarl = new Snarl::V42::SnarlInterface();
 	
-	pTestHelper = new CSnarlTestHelper(hWnd, hWndEdit);
-
 	pV39SnarlTest = new CSnarlV39Test(pV39Snarl, pTestHelper);
 	pV41SnarlTest = new CSnarlV41Test(pV41Snarl, pTestHelper);
+	pV42SnarlTest = new CSnarlV42Test(pV42Snarl, pTestHelper);
 
 	// Get the Snarl broadcast message
-	nSnarlGlobalMsg = pV41Snarl->Broadcast();
+	nSnarlGlobalMsg = pV42Snarl->Broadcast();
 
 	// ------------------------------------------------------------------------
 	// Main message loop:
@@ -95,7 +101,6 @@ int APIENTRY _tWinMain(HINSTANCE hInstance,
 
 	return (int)msg.wParam;
 }
-
 
 
 //
@@ -177,11 +182,11 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 	// Test if Snarl broadcast message
 	if (message == nSnarlGlobalMsg)
 	{
-		if (wParam == Snarl::V41::SnarlEnums::GlobalEvent::SnarlLaunched)
+		if (wParam == Snarl::V42::SnarlEnums::SnarlLaunched)
 		{
 			MessageBox(NULL, _T("Snarl Launched"), _T("Snarl C++ test app"), 0);
 		}
-		else if (wParam == Snarl::V41::SnarlEnums::GlobalEvent::SnarlQuit)
+		else if (wParam == Snarl::V42::SnarlEnums::SnarlQuit)
 		{
 			MessageBox(NULL, _T("Snarl Quit"), _T("Snarl C++ test app"), 0);
 		}
@@ -316,6 +321,19 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 
 		// ----------------------------------------------------------------------------------------
 
+		case IDM_SNARLV42_TEST1 :
+			pV42SnarlTest->Test1();
+			break;
+
+		case IDM_SNARLV42_TEST2 :
+			pV42SnarlTest->Test2();
+			break;
+
+		case IDM_SNARLV42_TEST3 :
+			pV42SnarlTest->Test3();
+			break;
+
+		// -----------------------------------------------------------------------------------------------------------
 		default:
 			return DefWindowProc(hWnd, message, wParam, lParam);
 		}

@@ -4,8 +4,8 @@
 
 #include "stdafx.h"
 
-#include "..\..\..\SnarlInterface.h"
-using namespace Snarl::V41;
+#include "..\..\..\SnarlInterface_v42\SnarlInterface.h"
+using namespace Snarl::V42;
 
 #ifdef UNICODE
 #define tout std::wcout
@@ -15,6 +15,7 @@ using namespace Snarl::V41;
 
 void Example1();
 void Example2();
+void Example3();
 
 
 int _tmain(int argc, _TCHAR* argv[])
@@ -26,6 +27,7 @@ int _tmain(int argc, _TCHAR* argv[])
 
 	Example1();
 	Example2();
+	Example3();
 
 	return 0;
 }
@@ -34,6 +36,12 @@ void Example1()
 {
 	SnarlInterface snarl;
 
+	// Manuel test
+	LONG32 ret = snarl.DoRequest(L"hello");
+	if (ret < 0)
+		tout << _T("Last call returned an error. Errorcode: ") << abs(ret) << std::endl;
+
+	// Simple test
 	snarl.RegisterApp(_T("CppTest"), _T("C++ test app"), NULL);
 	snarl.AddClass(_T("Class1"), _T("Class 1"));
 
@@ -43,14 +51,31 @@ void Example1()
 
 	tout << _T("Hit a key to unregister") << std::endl;
 	_getch();
-	snarl.UnregisterApp();		
+	snarl.UnregisterApp(_T("CppTest"));
 }
 
+// Strict example from SnarlInterface.cpp
 void Example2()
+{
+	const LPCTSTR APP_ID = _T("CppTest");
+
+	SnarlInterface snarl;
+	snarl.RegisterApp(APP_ID, _T("C++ test app"), NULL);
+
+	snarl.AddClass(_T("Class1"), _T("Some class description"));
+	snarl.EZNotify(_T("Class1"), _T("C++ example 1"), _T("Some text"), 10);
+
+	tout << _T("Hit a key to unregister") << std::endl;
+	_getch();
+	snarl.UnregisterApp(APP_ID);
+}
+
+void Example3()
 {
 	SnarlInterface snarl;
 
-	snarl.RegisterApp(_T("CppTest"), _T("C++ test app"), NULL);
+	const LPCTSTR APP_ID = _T("CppTest");
+	snarl.RegisterApp(APP_ID, _T("C++ test app"), NULL);
 	snarl.AddClass(_T("Class1"), _T("Class 1"));
 
 	tout << _T("Ready for action. Will post some messages...") << std::endl;
@@ -80,5 +105,5 @@ void Example2()
 
 	tout << _T("Hit a key to unregister") << std::endl;
 	_getch();
-	snarl.UnregisterApp();
+	snarl.UnregisterApp(APP_ID);
 }

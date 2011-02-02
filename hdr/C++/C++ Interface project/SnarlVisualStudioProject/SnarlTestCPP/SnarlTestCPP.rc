@@ -73,11 +73,17 @@ BEGIN
         MENUITEM "ShowNotification",            IDM_SNARLV39_SHOWNOTIFICATION
         MENUITEM "UnregisterApp",               IDM_SNARLV39_UNREGISTERAPP
     END
-    POPUP "&Snarl V41"
+    POPUP "Snarl V4&1"
     BEGIN
-        MENUITEM "Test &1",                     IDM_SNARLV41_TEST1
+        MENUITEM "Test &1",                     IDM_SNARLV41_TEST2
         MENUITEM "Test &2",                     IDM_SNARLV41_TEST2
         MENUITEM "Test &3",                     IDM_SNARLV41_TEST3
+    END
+    POPUP "Snarl V4&2"
+    BEGIN
+        MENUITEM "Test &1",                     IDM_SNARLV42_TEST1
+        MENUITEM "Test &2",                     32822
+        MENUITEM "Test &3",                     32823
     END
     MENUITEM "&About ...",                  IDM_ABOUT
 END

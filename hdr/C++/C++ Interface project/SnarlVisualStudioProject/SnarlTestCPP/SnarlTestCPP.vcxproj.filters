@@ -22,6 +22,9 @@
     <Filter Include="SnarlInterface\V41">
       <UniqueIdentifier>{06e66ff1-2d80-4eb0-b0b8-a8c618888a62}</UniqueIdentifier>
     </Filter>
+    <Filter Include="SnarlInterface\V42">
+      <UniqueIdentifier>{f29f2189-cd77-436d-89d2-8ccfcffba579}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="stdafx.cpp">
@@ -29,9 +32,6 @@
     </ClCompile>
     <ClCompile Include="SnarlV39Test.cpp">
       <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\..\SnarlInterface.cpp">
-      <Filter>SnarlInterface\V41</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\Depricated\SnarlInterface_v39.cpp">
       <Filter>SnarlInterface\V39</Filter>
@@ -44,6 +44,15 @@
     </ClCompile>
     <ClCompile Include="SnarlV41Test.cpp">
       <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\SnarlInterface_v42\SnarlInterface.cpp">
+      <Filter>SnarlInterface\V42</Filter>
+    </ClCompile>
+    <ClCompile Include="SnarlV42Test.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\SnarlInterface_v41\SnarlInterface.cpp">
+      <Filter>SnarlInterface\V41</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -59,9 +68,6 @@
     <ClInclude Include="SnarlV39Test.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\SnarlInterface.h">
-      <Filter>SnarlInterface\V41</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\..\Depricated\SnarlInterface_v39.h">
       <Filter>SnarlInterface\V39</Filter>
     </ClInclude>
@@ -73,6 +79,15 @@
     </ClInclude>
     <ClInclude Include="SnarlV41Test.h">
       <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\SnarlInterface_v42\SnarlInterface.h">
+      <Filter>SnarlInterface\V42</Filter>
+    </ClInclude>
+    <ClInclude Include="SnarlV42Test.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\SnarlInterface_v41\SnarlInterface.h">
+      <Filter>SnarlInterface\V41</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

@@ -60,6 +60,11 @@
 #define IDM_SNARLV41_TEST2              32816
 #define ID_SNARLV41_TEST3               32817
 #define IDM_SNARLV41_TEST3              32818
+#define ID_TEST1_TEST1                  32819
+#define IDM_SNARLV42_TEST1              32820
+#define ID_SNARLV42_TEST1               32821
+#define IDM_SNARLV42_TEST2              32822
+#define IDM_SNARLV42_TEST3              32823
 #define IDC_STATIC                      -1
 
 // Next default values for new objects
@@ -68,7 +73,7 @@
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_NO_MFC                     1
 #define _APS_NEXT_RESOURCE_VALUE        131
-#define _APS_NEXT_COMMAND_VALUE         32819
+#define _APS_NEXT_COMMAND_VALUE         32824
 #define _APS_NEXT_CONTROL_VALUE         1000
 #define _APS_NEXT_SYMED_VALUE           110
 #endif

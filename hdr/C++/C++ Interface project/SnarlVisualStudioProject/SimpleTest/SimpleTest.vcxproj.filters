@@ -24,7 +24,7 @@
     <ClInclude Include="targetver.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\SnarlInterface.h">
+    <ClInclude Include="..\..\..\SnarlInterface_v42\SnarlInterface.h">
       <Filter>SnarlInterface</Filter>
     </ClInclude>
   </ItemGroup>
@@ -35,7 +35,7 @@
     <ClCompile Include="SimpleTest.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\SnarlInterface.cpp">
+    <ClCompile Include="..\..\..\SnarlInterface_v42\SnarlInterface.cpp">
       <Filter>SnarlInterface</Filter>
     </ClCompile>
   </ItemGroup>

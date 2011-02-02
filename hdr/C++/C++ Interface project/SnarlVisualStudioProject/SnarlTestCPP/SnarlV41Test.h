@@ -4,7 +4,7 @@
 #pragma once
 
 #include "SnarlTestHelper.h"
-#include "..\..\..\SnarlInterface.h"
+#include "..\..\..\SnarlInterface_v41\SnarlInterface.h"
 
 class CSnarlV41Test
 {

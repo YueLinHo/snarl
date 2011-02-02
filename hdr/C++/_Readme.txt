@@ -10,15 +10,8 @@ SnarlInterface.h
 
 Include these two files in your project, and you should be ready to use Snarl.
 
-Quick example:
-#include "SnarlInterface.h"
-Snarl::V41::SnarlInterface *snarl = new Snarl::V41::SnarlInterface();
-snarl->RegisterApp(_T("AppId"), _T("CSharp Test App"), NULL, NULL, 0, 0);
-snarl->EZNotify(_T("id"), _T("title"), _T("message body"), 10, _T(""), 0, _T("ack"), _T("value")));
-snarl->UnregisterApp();
-delete snarl;
-
-Take a look at the test applications if you need help getting it to work. (See SVN links below)
+See top of SnarlInterface.cpp for a small example or take a look at the test
+applications if you need help getting it to work. (See SVN links below)
 
 
 
