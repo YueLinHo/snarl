@@ -133,18 +133,7 @@ namespace Snarl {
 
 
 			// C++ interface custom errors- not part of official API!
-			ErrorCppInterface = 1001,
-		};
-
-		/// <summary>
-		/// Application flags - features this app supports.
-		/// </summary>
-		enum AppFlags
-		{
-			AppDefault = 0,
-			AppHasPrefs = 1,               // application has a UI which Snarl can display
-			AppHasAbout = 2,               // application has its own About dialog
-			AppIsWindowless = 0x8000       // deprecated
+			ErrorCppInterface = 1001
 		};
 
 	} // namespace SnarlEnums
@@ -311,8 +300,8 @@ namespace Snarl {
 		/// <summary>Register application with Snarl.</summary>
 		/// <returns>The application token or negative on failure.</returns>
 		/// <remarks>The application token is saved in SnarlInterface member variable, so just use return value to check for error.</remarks>
-		LONG32 RegisterApp(LPCSTR  signature, LPCSTR  name, LPCSTR  icon = NULL, LPCSTR  password = NULL, HWND hWndReplyTo = NULL, LONG32 msgReply = 0, SnarlEnums::AppFlags appFlags = SnarlEnums::AppDefault);
-		LONG32 RegisterApp(LPCWSTR signature, LPCWSTR name, LPCWSTR icon = NULL, LPCWSTR password = NULL, HWND hWndReplyTo = NULL, LONG32 msgReply = 0, SnarlEnums::AppFlags appFlags = SnarlEnums::AppDefault);
+		LONG32 RegisterApp(LPCSTR  signature, LPCSTR  name, LPCSTR  icon = NULL, LPCSTR  password = NULL, HWND hWndReplyTo = NULL, LONG32 msgReply = 0);
+		LONG32 RegisterApp(LPCWSTR signature, LPCWSTR name, LPCWSTR icon = NULL, LPCWSTR password = NULL, HWND hWndReplyTo = NULL, LONG32 msgReply = 0);
 
 		/// <summary>Unregister application with Snarl when application is closing.</summary>
 		LONG32 UnregisterApp(LPCSTR signature, LPCSTR password = NULL);

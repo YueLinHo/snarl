@@ -71,9 +71,9 @@ void CSnarlV42Test::Test1()
 	pHelper->WriteLine(_T("--------------------------------------------------------------------------------------------------"));
 	pHelper->WriteLine(_T("GetVersion: %d"), SnarlInterface::GetVersion());
 	
-	pHelper->WriteLine(_T("RegisterApp: %d"), snarl->RegisterApp(APP_ID, _T("C++ test app"), NULL, NULL, 0, SnarlEnums::AppHasAbout));
+	pHelper->WriteLine(_T("RegisterApp: %d"), snarl->RegisterApp(APP_ID, _T("C++ test app"), NULL, NULL, 0));
 
-	pHelper->WriteLine(_T("RegisterApp: %d"), snarl->RegisterApp(APP_ID, _T("C++ test app"), _T(""), NULL, 0, SnarlEnums::AppHasAbout));
+	pHelper->WriteLine(_T("RegisterApp: %d"), snarl->RegisterApp(APP_ID, _T("C++ test app"), _T(""), NULL, 0));
 
 	pHelper->WriteLine(_T("UpdateApp: %d"), snarl->UpdateApp(_T("C++ test app updated"), _T("")));
 	pHelper->WriteLine(_T("UpdateApp: %d"), snarl->UpdateApp(_T("C++ test 2"), snarlIcon2));

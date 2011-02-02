@@ -267,8 +267,7 @@ BOOL SnarlInterface::IsSnarlRunning()
 /// <param name="password">Optional</param>
 /// <param name="hWndReplyTo">Optional</param>
 /// <param name="msgReply">Optional</param>
-/// <param name="appFlags">Optional (SnarlEnums::AppDefault)</param>
-LONG32 SnarlInterface::RegisterApp(LPCSTR signature, LPCSTR name, LPCSTR icon, LPCSTR password, HWND hWndReplyTo, LONG32 msgReply, SnarlEnums::AppFlags appFlags)
+LONG32 SnarlInterface::RegisterApp(LPCSTR signature, LPCSTR name, LPCSTR icon, LPCSTR password, HWND hWndReplyTo, LONG32 msgReply)
 {
 	// reg?id=<signature>&title=<title>[&icon=<icon_path>][&password=<password>]
 
@@ -279,7 +278,6 @@ LONG32 SnarlInterface::RegisterApp(LPCSTR signature, LPCSTR name, LPCSTR icon, L
 	spl.Add("password", password);
 	spl.Add("reply-to", hWndReplyTo);
 	spl.Add("reply", msgReply);
-	spl.Add("flags", appFlags);
 
 	LONG32 request = DoRequest(Requests::RegisterA(), spl);
 	if (request > 0)
@@ -288,7 +286,7 @@ LONG32 SnarlInterface::RegisterApp(LPCSTR signature, LPCSTR name, LPCSTR icon, L
 	return request;
 }
 
-LONG32 SnarlInterface::RegisterApp(LPCWSTR signature, LPCWSTR name, LPCWSTR icon, LPCWSTR password, HWND hWndReplyTo, LONG32 msgReply, SnarlEnums::AppFlags appFlags)
+LONG32 SnarlInterface::RegisterApp(LPCWSTR signature, LPCWSTR name, LPCWSTR icon, LPCWSTR password, HWND hWndReplyTo, LONG32 msgReply)
 {
 	SnarlParameterList<wchar_t> spl(7);
 	spl.Add(L"app-sig", signature);
@@ -297,7 +295,6 @@ LONG32 SnarlInterface::RegisterApp(LPCWSTR signature, LPCWSTR name, LPCWSTR icon
 	spl.Add(L"password", password);
 	spl.Add(L"reply-to", hWndReplyTo);
 	spl.Add(L"reply", msgReply);
-	spl.Add(L"flags", appFlags);
 
 	LONG32 request = DoRequest(Requests::RegisterW(), spl);
 	if (request > 0)
