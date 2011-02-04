@@ -1,8 +1,13 @@
-﻿SnarlConnector.cs contains the V41 API, which of this writing is the newest API
-and recommended for new applications. This is the only file needed to interface
-with Snarl from C#.
+﻿V42\SnarlInterface.cs contains the V42 API, which of this writing is the newest API
+and support from Snarl version 2.4.
 
-The "SnarlConnector project" folder contains the older V39 version, along with
+V41\SnarlConnector.cs contains the V41 API which is supported in Snarl
+version 2.3 and newer. If you don't need actions and want to make sure to work
+with Snarl 2.3, use this API. 
+
+Only SnarlInterface.cs or SnarlConnector.cs is needed to use Snarl from C#.
+
+The "SnarlConnector test project" folder contains the older V39 version, along with
 test project, UnitTest project etc.
 https://snarlwin.svn.sourceforge.net/svnroot/snarlwin/trunk/hdr/C%23/
 

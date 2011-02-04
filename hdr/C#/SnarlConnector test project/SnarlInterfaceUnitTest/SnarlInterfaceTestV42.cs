@@ -61,7 +61,7 @@ namespace SnarlConnectorUnitTest
 		[TestInitialize()]
 		public void MyTestInitialize()
 		{
-			snarlToken = snarl.RegisterApp(appId, appTitle, null);
+			snarlToken = snarl.Register(appId, appTitle, null);
 			Assert.IsTrue(snarlToken > 0);
 		}
 		
@@ -69,7 +69,7 @@ namespace SnarlConnectorUnitTest
 		[TestCleanup()]
 		public void MyTestCleanup()
 		{
-			Assert.AreEqual(snarl.UnregisterApp(), 0);
+			Assert.AreEqual(snarl.Unregister(), 0);
 		}
 		
 		#endregion
@@ -121,6 +121,15 @@ namespace SnarlConnectorUnitTest
 		}
 
 		/// <summary>
+		///A test for DoRequest
+		///</summary>
+		[TestMethod()]
+		public void Escape()
+		{
+
+		}
+
+		/// <summary>
 		///A test for Hide
 		///</summary>
 		[TestMethod()]
@@ -144,7 +153,37 @@ namespace SnarlConnectorUnitTest
 		[TestMethod()]
 		public void NotifyTest()
 		{
+			String result = "", str = "", expected = "";
 
+			str = "Some random string, which should not be escaped";
+			expected = str;
+			result = SnarlInterface.Escape(str);
+			Assert.AreEqual(expected, result);
+
+			str = "Some random string. & this should be escape once each =";
+			expected = "Some random string. && this should be escape once each ==";
+			result = SnarlInterface.Escape(str);
+			Assert.AreEqual(expected, result);
+
+			str = "Some random string. && this should be escape once each ==";
+			expected = "Some random string. &&&& this should be escape once each ====";
+			result = SnarlInterface.Escape(str);
+			Assert.AreEqual(expected, result);
+
+			str = "&";
+			expected = "&&";
+			result = SnarlInterface.Escape(str);
+			Assert.AreEqual(expected, result);
+
+			str = "&&&&";
+			expected = "&&&&&&&&";
+			result = SnarlInterface.Escape(str);
+			Assert.AreEqual(expected, result);
+
+			str = "&=";
+			expected = "&&==";
+			result = SnarlInterface.Escape(str);
+			Assert.AreEqual(expected, result);
 		}
 
 		/// <summary>
@@ -158,16 +197,16 @@ namespace SnarlConnectorUnitTest
 
 			// Subsequent calls should return same token as first call
 			expected = snarlToken;
-			actual = snarl.RegisterApp(appId, appTitle, null);
+			actual = snarl.Register(appId, appTitle, null);
 			Assert.AreEqual(expected, actual);
 
 			expected = 0;
-			actual = snarl.UnregisterApp();
+			actual = snarl.Unregister();
 			Assert.AreEqual(expected, actual);
 
 			// Test with password - should not be able to unregister without password
 			expected = 0;
-			actual = snarl.RegisterApp(appId, appTitle, null, "MyPassword");
+			actual = snarl.Register(appId, appTitle, null, "MyPassword");
 			Assert.AreNotEqual(expected, actual);
 
 			expected = -(Int32)SnarlInterface.SnarlStatus.ErrorAuthFailure;
@@ -175,12 +214,12 @@ namespace SnarlConnectorUnitTest
 			Assert.AreEqual(expected, actual);
 
 			expected = 0;
-			actual = snarl.UnregisterApp();
+			actual = snarl.Unregister();
 			Assert.AreEqual(expected, actual);
 
 			// Test invalid parameters
 			expected = 0; // not used
-			actual = snarl.RegisterApp("", "C# unit test", null);  // Should be an error
+			actual = snarl.Register("", "C# unit test", null);  // Should be an error
 			Assert.IsTrue(actual < 0);
 
 			// Leave registered with Snarl
@@ -232,11 +271,11 @@ namespace SnarlConnectorUnitTest
 
 			// Post condition : Leave Snarl registered
 			value = 0;
-			actual = snarl.UnregisterApp();
+			actual = snarl.Unregister();
 			Assert.AreEqual(value, actual);
 
 			value = -(Int32)SnarlInterface.SnarlStatus.ErrorNotRegistered;
-			actual = snarl.UnregisterApp();
+			actual = snarl.Unregister();
 			Assert.AreEqual(value, actual);
 
 			MyTestInitialize();
