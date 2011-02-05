@@ -19,10 +19,11 @@ namespace Snarl.V42
 	/// Please note the following changes compared to the general (official API) dokumentation:
 	///  - Naming of constants and variables are generally changed to follow Microsoft C# standard.
 	///    - Grouped variables like SNARL_LAUNCHED, SNARL_QUIT is in enum GlobalEvent.
-	///    - Message events like SNARL_NOTIFICATION_CLICKED, is found in enum MessageEvent.
+	///    
 	///  - Some functions in the general API takes an appToken as first parameter. This token
 	///    is a member variable in C# version, so it is omitted from the functions.
 	///    (Always call RegisterApp as first function!)
+	///    
 	///  - Functions manipulating messages (Update, Hide etc.) still takes a message token as
 	///    parameter, but you can get the last message token calling GetLastMsgToken();
 	///    Example: snarl.Hide(snarl.GetLastMsgToken());
@@ -35,6 +36,7 @@ namespace Snarl.V42
 	/// </summary>
 	/// 
 	/// <VersionHistory>
+	/// 2011-02-05 : Removed MessageEvent enum. Only SnarlStatus enum now (same as in VB code)
 	/// 2011-02-04 : Updated per rev. 3 of General API documentation.
 	///            : Implemented Escape function. Updated some documentation and fixes.
 	///            : Should be usable by now!
@@ -73,34 +75,21 @@ namespace Snarl.V42
 		}
 
 		/// <summary>
-		/// Message event identifiers.
-		/// These are sent by Snarl to the window specified in RegisterApp() when the
-		/// Snarl Notification raised times out or the user clicks on it.
-		/// </summary>
-		public enum MessageEvent
-		{
-			NotificationClicked = 32,      // Notification was right-clicked by user
-			NotificationCancelled = 32,    // Added in V37 (R1.6) -- same value, just improved the meaning of it
-			NotificationTimedOut = 33,     // 
-			NotificationAck = 34,          // Notification was left-clicked by user
-			NotificationMenu = 35,         // Menu item selected (V39)
-			NotificationMiddleButton = 36, // Notification middle-clicked by user (V39)
-			NotificationClosed = 37        // User clicked the close gadget (V39)
-		}
-
-		/// <summary>
-		/// Error values returned by calls to GetLastError().
+		/// Snarl status codes.
+		/// Containes error codes for function calls, as well as callback values sent by Snarl
+		/// to the window specified in Register() when the Snarl Notification raised times out
+		/// or the user clicks on it.
 		/// </summary>
 		public enum SnarlStatus : short
 		{
 			Success = 0,
 
 			// Win32 callbacks (renamed under V42)
-			CallbackRClick = 32,           // Deprecated as of V42, ex. SNARL_NOTIFICATION_CLICKED/SNARL_NOTIFICATION_CANCELLED
+			CallbackRightClick = 32,       // Deprecated as of V42, ex. SNARL_NOTIFICATION_CLICKED/SNARL_NOTIFICATION_CANCELLED
 			CallbackTimedOut,
 			CallbackInvoked,               // left clicked and no default callback assigned
 			CallbackMenuSelected,          // HIWORD(wParam) contains 1-based menu item index
-			CallbackMClick,                // Deprecated as of V42
+			CallbackMiddleClick,           // Deprecated as of V42
 			CallbackClosed,
 
 			// critical errors
@@ -145,7 +134,6 @@ namespace Snarl.V42
 			NotifyMenu,                    // indicates an item was selected from user-defined menu (deprecated as of V42)
 			// SNARL_NOTIFY_EX_CLICK       // user clicked the middle mouse button (deprecated as of V42)
 			// SNARL_NOTIFY_CLOSED         // user clicked the notification's close gadget
-
 
 			// the following is generic to SNP and the Win32 API
 			NotifyAction = 308             // user picked an action from the list, the data value will indicate which one
@@ -401,7 +389,7 @@ namespace Snarl.V42
 		/// </summary>
 		/// <param name="notificationToken"></param>
 		/// <param name="label"></param>
-		/// <param name="command"></param>
+		/// <param name="command">If using dynamic callback command (@data), use numbers in the range [0, 32767]</param>
 		/// <returns></returns>
 		public Int32 AddAction(Int32 msgToken, String label, String command)
 		{
