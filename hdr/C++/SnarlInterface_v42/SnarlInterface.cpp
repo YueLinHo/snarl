@@ -50,8 +50,6 @@
 /// </VersionHistory>
 ///
 /// <Todo>
-///  - Implement Character Escaping (http://sourceforge.net/apps/mediawiki/snarlwin/index.php?title=Generic_API#Character_Escaping)
-///    For now you can escape = and & manually before using the helper functions.
 /// </Todo>
 
 
@@ -127,6 +125,43 @@ LONG32 SnarlInterface::DoRequest(LPCWSTR request, UINT replyTimeout)
 	// Cleanup and return result
 	FreeString(utf8Request);
 	return nResult;
+}
+
+
+std::basic_string<char>& SnarlInterface::Escape(std::basic_string<char>& str)
+{
+	std::basic_string<char>::size_type strLength = str.length();
+	for (std::basic_string<char>::size_type i = 0; i < strLength; ++i)
+	{
+		if (str.at(i) == '=') {
+			str.insert(++i, "=");
+			++strLength;
+		}
+		else if (str[i] == '&') {
+			str.insert(++i, "&");
+			++strLength;
+		}
+	}
+
+	return str;
+}
+
+std::basic_string<wchar_t>& SnarlInterface::Escape(std::basic_string<wchar_t>& str)
+{
+	std::basic_string<wchar_t>::size_type strLength = str.length();
+	for (std::basic_string<wchar_t>::size_type i = 0; i < strLength; ++i)
+	{
+		if (str.at(i) == L'=') {
+			str.insert(++i, L"=");
+			++strLength;
+		}
+		else if (str[i] == L'&') {
+			str.insert(++i, L"&");
+			++strLength;
+		}
+	}
+
+	return str;
 }
 
 LPCTSTR SnarlInterface::GetAppPath()
@@ -550,26 +585,27 @@ LONG32 SnarlInterface::UpdateApp(LPCWSTR title, LPCWSTR icon)
 // Private functions 
 //-----------------------------------------------------------------------------
 
-LONG32 SnarlInterface::DoRequest(LPCWSTR request, SnarlParameterList<wchar_t>& spl, UINT replyTimeout)
+LONG32 SnarlInterface::DoRequest(LPCSTR request, SnarlParameterList<char>& spl, UINT replyTimeout)
 {
 	// <action>[?<data>=<value>[&<data>=<value>]]
-	const std::vector<SnarlParameterList<wchar_t>::Type>&list = spl.GetList();
+	const std::vector<SnarlParameterList<char>::PairType>&list = spl.GetList();
 
 	if (list.size() > 0)
 	{
-		std::basic_string<wchar_t> requestStr = request;
-		requestStr.append(L"?");
+		std::string requestStr = request;
+		requestStr.append("?");
 
-		std::vector<SnarlParameterList<wchar_t>::Type>::const_iterator listEnd = list.cend();
-		for (std::vector<SnarlParameterList<wchar_t>::Type>::const_iterator iter = list.cbegin();
+		std::vector<SnarlParameterList<char>::PairType>::const_iterator listEnd = list.cend();
+		for (std::vector<SnarlParameterList<char>::PairType>::const_iterator iter = list.cbegin();
 			iter != listEnd; ++iter)
 		{
-			SnarlParameterList<wchar_t>::Type pair = *iter;
+			SnarlParameterList<char>::PairType pair = *iter;
 
 			if (iter->second.length() > 0)
 			{
-				requestStr.append(iter->first).append(L"=").append(iter->second);
-				requestStr.append(L"&");
+				std::basic_string<char>& value = const_cast<std::basic_string<char>&>(iter->second);
+				requestStr.append(iter->first).append("=").append(Escape(value));
+				requestStr.append("&");
 			}
 		}
 		// Delete last &
@@ -581,26 +617,25 @@ LONG32 SnarlInterface::DoRequest(LPCWSTR request, SnarlParameterList<wchar_t>& s
 		return DoRequest(request, replyTimeout);
 }
 
-LONG32 SnarlInterface::DoRequest(LPCSTR request, SnarlParameterList<char>& spl, UINT replyTimeout)
+LONG32 SnarlInterface::DoRequest(LPCWSTR request, SnarlParameterList<wchar_t>& spl, UINT replyTimeout)
 {
 	// <action>[?<data>=<value>[&<data>=<value>]]
-	const std::vector<SnarlParameterList<char>::Type>&list = spl.GetList();
+	const std::vector<SnarlParameterList<wchar_t>::PairType>&list = spl.GetList();
 
 	if (list.size() > 0)
 	{
-		std::string requestStr = request;
-		requestStr.append("?");
+		std::basic_string<wchar_t> requestStr = request;
+		requestStr.append(L"?");
 
-		std::vector<SnarlParameterList<char>::Type>::const_iterator listEnd = list.cend();
-		for (std::vector<SnarlParameterList<char>::Type>::const_iterator iter = list.cbegin();
+		std::vector<SnarlParameterList<wchar_t>::PairType>::const_iterator listEnd = list.cend();
+		for (std::vector<SnarlParameterList<wchar_t>::PairType>::const_iterator iter = list.cbegin();
 			iter != listEnd; ++iter)
 		{
-			SnarlParameterList<char>::Type pair = *iter;
-
 			if (iter->second.length() > 0)
 			{
-				requestStr.append(iter->first).append("=").append(iter->second);
-				requestStr.append("&");
+				std::basic_string<wchar_t>& value = const_cast<std::basic_string<wchar_t>&>(iter->second);
+				requestStr.append(iter->first).append(L"=").append(Escape(value));
+				requestStr.append(L"&");
 			}
 		}
 		// Delete last &

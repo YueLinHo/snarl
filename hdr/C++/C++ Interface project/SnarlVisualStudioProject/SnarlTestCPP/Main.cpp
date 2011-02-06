@@ -335,6 +335,10 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			pV42SnarlTest->Test3();
 			break;
 
+		case IDM_SNARLV42_ESCAPETEST :
+			pV42SnarlTest->EscapeTest1();
+			break;
+
 		// -----------------------------------------------------------------------------------------------------------
 		default:
 			return DefWindowProc(hWnd, message, wParam, lParam);

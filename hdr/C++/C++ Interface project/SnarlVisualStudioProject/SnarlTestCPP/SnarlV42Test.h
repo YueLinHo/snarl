@@ -16,7 +16,7 @@ public:
 	void Test1();
 	void Test2();
 	void Test3();
-
+	void EscapeTest1();
 	
 	CSnarlV42Test(Snarl::V42::SnarlInterface* snarl, CSnarlTestHelper* pTestHelper);
 	~CSnarlV42Test(void);

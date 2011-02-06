@@ -126,7 +126,7 @@ namespace Snarl {
 	class SnarlParameterList
 	{
 	public:
-		typedef std::pair<std::basic_string<T>, std::basic_string<T>> Type;
+		typedef std::pair<const std::basic_string<T>, std::basic_string<T>> PairType;
 
 		SnarlParameterList()
 		{
@@ -140,14 +140,14 @@ namespace Snarl {
 		void Add(const T* _key, const T* _value)
 		{
 			if (_value != NULL)
-				list.push_back(std::pair<std::basic_string<T>, std::basic_string<T>>(std::basic_string<T>(_key), std::basic_string<T>(_value)));
+				list.push_back(PairType(std::basic_string<T>(_key), std::basic_string<T>(_value))); // 
 		}
 
 		void Add(const T* _key, LONG32 _value)
 		{
 			std::basic_stringstream<T> valStr;
 			valStr << _value;
-			list.push_back(std::pair<std::basic_string<T>, std::basic_string<T>>(std::basic_string<T>(_key), valStr.str()));
+			list.push_back(PairType(std::basic_string<T>(_key), valStr.str()));
 		}
 		
 		void Add(const T* _key, void* _value)
@@ -157,17 +157,17 @@ namespace Snarl {
 				std::basic_stringstream<T> valStr;
 				valStr << (INT_PTR)_value; // Uckly hack, to get stringstream to print void* as decimal not hex
 
-				list.push_back(std::pair<std::basic_string<T>, std::basic_string<T>>(std::basic_string<T>(_key), valStr.str()));
+				list.push_back(PairType(std::basic_string<T>(_key), valStr.str()));
 			}
 		}
 		
-		const std::vector<Type>& GetList() const
+		const std::vector<PairType>& GetList() const
 		{
 			return list;
 		}
 
 	private:
-		std::vector<std::pair<std::basic_string<T>, std::basic_string<T>>> list;
+		std::vector<PairType> list;
 	};
 
 	// ----------------------------------------------------------------------------------------
@@ -234,6 +234,14 @@ namespace Snarl {
 		/// </returns>
 		static LONG32 DoRequest(LPCSTR request, UINT replyTimeout = 1000);
 		static LONG32 DoRequest(LPCWSTR request, UINT replyTimeout = 1000);
+
+		/// <summary>Escapes a string, so it can be passed to Snarl.</summary>
+		/// <remarks>
+		///   Should only be used, if you are using DoRequest() and not the helper functions.
+		///   Remember to Escape each key/value pair individually.
+		/// </remarks>
+		static std::basic_string<char>& Escape(std::basic_string<char>& str);
+		static std::basic_string<wchar_t>& Escape(std::basic_string<wchar_t>& str);
 
 		/// <summary>Returns the global Snarl Application message  (V39)</summary>
 		/// <returns>Returns Snarl application registered message.</returns>

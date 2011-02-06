@@ -29,6 +29,9 @@ int _tmain(int argc, _TCHAR* argv[])
 	Example2();
 	Example3();
 
+	tout << _T("Hit a key to quit") << std::endl;
+	_getch();
+
 	return 0;
 }
 

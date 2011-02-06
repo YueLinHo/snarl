@@ -82,8 +82,9 @@ BEGIN
     POPUP "Snarl V4&2"
     BEGIN
         MENUITEM "Test &1",                     IDM_SNARLV42_TEST1
-        MENUITEM "Test &2",                     32822
-        MENUITEM "Test &3",                     32823
+        MENUITEM "Test &2",                     IDM_SNARLV42_TEST2
+        MENUITEM "Test &3",                     IDM_SNARLV42_TEST3
+        MENUITEM "Escape Test",                 IDM_SNARLV42_ESCAPETEST
     END
     MENUITEM "&About ...",                  IDM_ABOUT
 END

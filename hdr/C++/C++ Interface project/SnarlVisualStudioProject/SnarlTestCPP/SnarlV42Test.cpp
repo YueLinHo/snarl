@@ -1,4 +1,6 @@
 ﻿#include "StdAfx.h"
+#include <iostream>
+
 #include "SnarlV42Test.h"
 #include "SnarlTestHelper.h"
 
@@ -11,7 +13,7 @@ static LPCTSTR CLASS2 = _T("Class2");
 static LPCTSTR CLASS_DESC1 = _T("Class 1");
 static LPCTSTR CLASS_DESC2 = _T("Class 2");
 
-static LPCTSTR TESTMSG1 = L"Test text\nSpecial characters: 完了しました != 完乾Eました and おはよう != おEよう";
+static LPCTSTR TESTMSG1 = L"Test text\nEscape test: & && = ==\nSpecial characters: 完了しました != 完乾Eました & おはよう != おEよう";
 static LPCTSTR TESTMSG2 = L"Test text 2\nSecond line";
 
 static LONG32 DEFAULT_TIMEOUT = 10;
@@ -160,7 +162,7 @@ void CSnarlV42Test::Test2()
 	pHelper->Wait(2000);
 	pHelper->WriteLine(_T("EZUpdate: %d"), snarl->Update(snarl->GetLastMsgToken(), NULL, NULL, _T("Updating text and icon"), -1, snarlIcon2));
 	pHelper->Wait(2000);
-	pHelper->WriteLine(_T("EZUpdate: %d"), snarl->Update(snarl->GetLastMsgToken(), NULL, _T("Updating timeout"), NULL, DEFAULT_TIMEOUT));
+	pHelper->WriteLine(_T("EZUpdate: %d"), snarl->Update(snarl->GetLastMsgToken(), NULL, _T("Updating timeout (10s)"), NULL, DEFAULT_TIMEOUT));
 	
 	
 	// Clean up
@@ -209,4 +211,34 @@ void CSnarlV42Test::Test3()
 	pHelper->WriteLine(_T("--------------------------------------------------------------------------------------------------"));
 
 	pHelper->EnableMenu();
+}
+
+
+void CSnarlV42Test::EscapeTest1()
+{
+	std::wstring wstr = L"Some string with = and & and == === ==== && &&& &&&&";
+
+	pHelper->WriteLine(_T("Escape test"));
+	pHelper->WriteLine(_T("Address of wstr=%p"), &wstr);
+	pHelper->WriteLine(L"%s", wstr.c_str());
+
+	wstr = SnarlInterface::Escape(wstr);
+	pHelper->WriteLine(_T("Address of wstr=%p"), &wstr);
+	pHelper->WriteLine(L"%s", wstr.c_str());
+
+	// 
+	// std::string str = "Some string with = and & and == === ==== && &&& &&&&";
+
+	/*str = SnarlInterface::Escape(str);
+	std::cout << "Address of str=" << &str << std::endl;
+	std::cout << str << std::endl;
+
+	std::wcout << "Wide test" << std::endl;
+	
+	std::wcout << L"Address of str=" << &wstr << std::endl;
+	std::wcout << wstr << std::endl;
+
+	
+	std::wcout << L"Address of str=" << &wstr << std::endl;
+	std::wcout << wstr << std::endl;*/
 }
