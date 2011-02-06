@@ -16,6 +16,8 @@ static LPCTSTR TESTMSG2 = L"Test text 2\nSecond line";
 
 static LONG32 DEFAULT_TIMEOUT = 10;
 
+static const LONG32 REPLY_MSG = WM_USER + 42;
+
 // ----------------------------------------------------------------------------
 
 CSnarlV42Test::CSnarlV42Test(SnarlInterface* s, CSnarlTestHelper* pTestHelper)
@@ -29,6 +31,23 @@ CSnarlV42Test::~CSnarlV42Test(void)
 }
 
 // ----------------------------------------------------------------------------
+
+void WndProcV42(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
+{
+	if (message == REPLY_MSG)
+	{
+		int eventCode =  wParam & 0xffff;
+		int data = (wParam & 0xffffffff) >> 16; // "Convert" to 32 bit, to shut up 64bit warning
+
+		// Use to test for action. Fx.:
+		// if (eventCode == SnarlEnums::NotifyAction) { data == number after @ when action was added }			
+
+		std::stringstream ss;
+		ss << "V42:Callback:eventCode=" << eventCode << ":data=" << data << ":msgToken=" << lParam << std::endl;
+
+		OutputDebugStringA(ss.str().c_str());
+	}
+}
 
 LPCTSTR CSnarlV42Test::GetIcon(int icon)
 {
@@ -71,12 +90,12 @@ void CSnarlV42Test::Test1()
 	pHelper->WriteLine(_T("--------------------------------------------------------------------------------------------------"));
 	pHelper->WriteLine(_T("GetVersion: %d"), SnarlInterface::GetVersion());
 	
-	pHelper->WriteLine(_T("RegisterApp: %d"), snarl->RegisterApp(APP_ID, _T("C++ test app"), NULL, NULL, 0));
+	pHelper->WriteLine(_T("RegisterApp: %d"), snarl->Register(APP_ID, _T("C++ test app"), NULL, _T("MyPassword"), hWnd, REPLY_MSG));
 
-	pHelper->WriteLine(_T("RegisterApp: %d"), snarl->RegisterApp(APP_ID, _T("C++ test app"), _T(""), NULL, 0));
+	pHelper->WriteLine(_T("RegisterApp: %d"), snarl->Register(APP_ID, _T("C++ test app"), NULL, _T("MyPassword"), hWnd, REPLY_MSG));
 
-	pHelper->WriteLine(_T("UpdateApp: %d"), snarl->UpdateApp(_T("C++ test app updated"), _T("")));
-	pHelper->WriteLine(_T("UpdateApp: %d"), snarl->UpdateApp(_T("C++ test 2"), snarlIcon2));
+	/*pHelper->WriteLine(_T("UpdateApp: %d"), snarl->UpdateApp(_T("C++ test app updated"), _T("")));
+	pHelper->WriteLine(_T("UpdateApp: %d"), snarl->UpdateApp(_T("C++ test 2"), snarlIcon2));*/
 
 	pHelper->WriteLine(_T("AddClass: %d"), snarl->AddClass(CLASS1, CLASS_DESC1));
 	pHelper->WriteLine(_T("RemoveClass: %d"), snarl->RemoveClass(CLASS1));
@@ -85,24 +104,27 @@ void CSnarlV42Test::Test1()
 	pHelper->WriteLine(_T("AddClass: %d"), snarl->AddClass(CLASS2, CLASS_DESC2));
 
 	// Test EZNotify
-	pHelper->WriteLine(_T("EZNotify: %d"), snarl->EZNotify(CLASS1, _T("Message 1"), _T("Test text"), DEFAULT_TIMEOUT, snarlIcon3, NULL, 0, _T("ack"), NULL));
-	pHelper->WriteLine(_T("EZNotify: %d"), snarl->EZNotify(CLASS1, _T("Message 2"), TESTMSG1, DEFAULT_TIMEOUT, snarlIcon3, NULL, 0, _T("ack"), NULL));
-	pHelper->WriteLine(_T("EZNotify: %d"), snarl->EZNotify(CLASS1, _T("Message 3"), TESTMSG1, DEFAULT_TIMEOUT));
-	pHelper->WriteLine(_T("EZNotify: %d"), snarl->EZNotify(CLASS1, _T("Message 4"), TESTMSG2));
+	pHelper->WriteLine(_T("Notify: %d"), snarl->Notify(CLASS1, _T("Message 1"), _T("Test text"), DEFAULT_TIMEOUT, snarlIcon3, 0, NULL));
+	pHelper->WriteLine(_T("Notify: %d"), snarl->Notify(CLASS1, _T("Message 2"), TESTMSG1, DEFAULT_TIMEOUT, snarlIcon3, NULL, 0, _T("ack")));
+	pHelper->WriteLine(_T("Notify: %d"), snarl->Notify(CLASS1, _T("Message 3"), TESTMSG1, DEFAULT_TIMEOUT));
+	pHelper->WriteLine(_T("Notify: %d"), snarl->Notify(CLASS1, _T("Message 4"), TESTMSG2));
 
 	pHelper->WriteLine(_T("GetLastMsgToken: %d"), snarl->GetLastMsgToken());
 
-	pHelper->WriteLine(_T("AddAction: %d"), snarl->AddAction(snarl->GetLastMsgToken(), _T("Open C:"), _T("C:\\"), NULL));
-	pHelper->WriteLine(_T("AddAction: %d"), snarl->AddAction(snarl->GetLastMsgToken(), _T("Open D:"), _T("D:\\"), NULL));
+	pHelper->WriteLine(_T("AddAction: %d"), snarl->AddAction(snarl->GetLastMsgToken(), _T("Open C:"), _T("C:\\")));
+	pHelper->WriteLine(_T("AddAction: %d"), snarl->AddAction(snarl->GetLastMsgToken(), _T("Open D:"), _T("D:\\")));
+	pHelper->WriteLine(_T("AddAction: %d"), snarl->AddAction(snarl->GetLastMsgToken(), _T("Dynamic 1"), _T("@1")));
+	pHelper->WriteLine(_T("AddAction: %d"), snarl->AddAction(snarl->GetLastMsgToken(), _T("Dynamic 2"), _T("@2")));
+	pHelper->WriteLine(_T("AddAction: %d"), snarl->AddAction(snarl->GetLastMsgToken(), _T("Dynamic 3"), _T("@3")));
 	
 	// Clean up
-	pHelper->WriteLine(_T("Will cleanup in 15 seconds..."));
-	pHelper->Wait(15 * 1000);
+	pHelper->WriteLine(_T("Will cleanup in 10 seconds..."));
+	pHelper->Wait(10 * 1000);
 
-	pHelper->WriteLine(_T("KillClasses: %d"), snarl->KillClasses());
-	pHelper->WriteLine(_T("UnregisterApp: %d"), snarl->UnregisterApp(APP_ID));
+	pHelper->WriteLine(_T("ClearClasses: %d"), snarl->ClearClasses());
+	pHelper->WriteLine(_T("UnregisterApp: %d"), snarl->Unregister(APP_ID));
 	
-	pHelper->WriteLine(_T("UnregisterApp: %d"), snarl->UnregisterApp(APP_ID));
+	pHelper->WriteLine(_T("UnregisterApp: %d"), snarl->Unregister(APP_ID));
 
 	pHelper->WriteLine(_T("--------------------------------------------------------------------------------------------------"));
 
@@ -125,28 +147,28 @@ void CSnarlV42Test::Test2()
 
 	pHelper->WriteLine(_T("--------------------------------------------------------------------------------------------------"));
 
-	pHelper->WriteLine(_T("RegisterApp: %d"), snarl->RegisterApp(APP_ID, _T("C++ test app"), snarlIcon2));
+	pHelper->WriteLine(_T("RegisterApp: %d"), snarl->Register(APP_ID, _T("C++ test app"), snarlIcon2));
 	pHelper->WriteLine(_T("AddClass: %d"), snarl->AddClass(CLASS1, CLASS_DESC1));
 	pHelper->WriteLine(_T("AddClass: %d"), snarl->AddClass(CLASS2, CLASS_DESC2));
 
 	// Test EZNotify and Update
-	pHelper->WriteLine(_T("EZNotify: %d"), snarl->EZNotify(CLASS1, _T("Message 4"), TESTMSG1, 0));
+	pHelper->WriteLine(_T("EZNotify: %d"), snarl->Notify(CLASS1, _T("Message 4"), TESTMSG1, 0));
 	pHelper->Wait(2000);
-	pHelper->WriteLine(_T("EZUpdate: %d"), snarl->EZUpdate(snarl->GetLastMsgToken(), NULL, _T("New title"), _T("New text"), 0, snarlIcon3));
+	pHelper->WriteLine(_T("EZUpdate: %d"), snarl->Update(snarl->GetLastMsgToken(), NULL, _T("New title"), _T("New text"), 0, snarlIcon3));
 	pHelper->Wait(2000);
-	pHelper->WriteLine(_T("EZUpdate: %d"), snarl->EZUpdate(snarl->GetLastMsgToken(), NULL, NULL, _T("Only updating text")));
+	pHelper->WriteLine(_T("EZUpdate: %d"), snarl->Update(snarl->GetLastMsgToken(), NULL, NULL, _T("Only updating text")));
 	pHelper->Wait(2000);
-	pHelper->WriteLine(_T("EZUpdate: %d"), snarl->EZUpdate(snarl->GetLastMsgToken(), NULL, NULL, _T("Updating text and icon"), -1, snarlIcon2));
+	pHelper->WriteLine(_T("EZUpdate: %d"), snarl->Update(snarl->GetLastMsgToken(), NULL, NULL, _T("Updating text and icon"), -1, snarlIcon2));
 	pHelper->Wait(2000);
-	pHelper->WriteLine(_T("EZUpdate: %d"), snarl->EZUpdate(snarl->GetLastMsgToken(), NULL, _T("Updating timeout"), NULL, DEFAULT_TIMEOUT));
+	pHelper->WriteLine(_T("EZUpdate: %d"), snarl->Update(snarl->GetLastMsgToken(), NULL, _T("Updating timeout"), NULL, DEFAULT_TIMEOUT));
 	
 	
 	// Clean up
-	// pHelper->WriteLine(_T("Will cleanup in 15 seconds..."));
-	// pHelper->Wait(15 * 1000);
+	pHelper->WriteLine(_T("Will cleanup in 15 seconds..."));
+	pHelper->Wait(5 * 1000);
 
-	pHelper->WriteLine(_T("RemoveAllClasses: %d"), snarl->KillClasses());
-	pHelper->WriteLine(_T("UnregisterApp: %d"), snarl->UnregisterApp(APP_ID));
+	pHelper->WriteLine(_T("RemoveAllClasses: %d"), snarl->ClearClasses());
+	pHelper->WriteLine(_T("UnregisterApp: %d"), snarl->Unregister(APP_ID));
 
 	pHelper->WriteLine(_T("--------------------------------------------------------------------------------------------------"));
 
@@ -166,7 +188,7 @@ void CSnarlV42Test::Test3()
 
 	pHelper->WriteLine(_T("--------------------------------------------------------------------------------------------------"));
 
-	pHelper->WriteLine(_T("RegisterApp: %d"), snarl->RegisterApp(APP_ID, _T("C++ test app")));
+	pHelper->WriteLine(_T("RegisterApp: %d"), snarl->Register(APP_ID, _T("C++ test app")));
 	pHelper->WriteLine(_T("AddClass: %d"), snarl->AddClass(CLASS1, CLASS_DESC1));
 
 	pHelper->WriteLine(_T("IsSnarlRunning: %d"), snarl->IsSnarlRunning());
@@ -175,7 +197,7 @@ void CSnarlV42Test::Test3()
 	pHelper->WriteLine(_T("GetVersion: %d"), SnarlInterface::GetVersion());
 	
 	// Test notification functions
-	pHelper->WriteLine(_T("EZNotify: %d"), snarl->EZNotify(CLASS1, _T("Message 4"), TESTMSG1, 0));
+	pHelper->WriteLine(_T("EZNotify: %d"), snarl->Notify(CLASS1, _T("Message 4"), TESTMSG1, 0));
 	pHelper->Wait(2000);
 
 	pHelper->WriteLine(_T("IsVisible: %d"), snarl->IsVisible(snarl->GetLastMsgToken()));
@@ -183,7 +205,7 @@ void CSnarlV42Test::Test3()
 	pHelper->WriteLine(_T("Hide: %d"), snarl->Hide(snarl->GetLastMsgToken()));
 
 	pHelper->Wait(2000);
-	pHelper->WriteLine(_T("UnregisterApp: %d"), snarl->UnregisterApp(APP_ID));
+	pHelper->WriteLine(_T("UnregisterApp: %d"), snarl->Unregister(APP_ID));
 	pHelper->WriteLine(_T("--------------------------------------------------------------------------------------------------"));
 
 	pHelper->EnableMenu();

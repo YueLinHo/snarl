@@ -179,6 +179,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 	PAINTSTRUCT ps;
 	HDC hdc;
 
+	WndProcV42(hWnd, message, wParam, lParam);
+
 	// Test if Snarl broadcast message
 	if (message == nSnarlGlobalMsg)
 	{

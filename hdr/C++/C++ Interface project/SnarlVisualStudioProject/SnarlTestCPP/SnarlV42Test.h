@@ -6,6 +6,10 @@
 #include "SnarlTestHelper.h"
 #include "..\..\..\SnarlInterface_v42\SnarlInterface.h"
 
+
+void WndProcV42(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam);
+
+
 class CSnarlV42Test
 {
 public:
@@ -13,7 +17,7 @@ public:
 	void Test2();
 	void Test3();
 
-
+	
 	CSnarlV42Test(Snarl::V42::SnarlInterface* snarl, CSnarlTestHelper* pTestHelper);
 	~CSnarlV42Test(void);
 
