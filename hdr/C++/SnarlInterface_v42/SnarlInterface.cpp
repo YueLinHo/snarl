@@ -273,18 +273,18 @@ LONG32 SnarlInterface::AddClass(LPCSTR classId, LPCSTR name, LPCSTR title, LPCST
 	// addclass?[app-sig=<signature>|token=<application token>][&password=<password>]&id=<class identifier>&name=<class name>[&enabled=<0|1>][&callback=<callback>]
     //          [&title=<title>][&text=<text>][&icon=<icon>][&sound=<sound>][&duration=<duration>]
 
-	SnarlParameterList<char> spl(4);
+	SnarlParameterList<char> spl(11);
 	spl.Add("token", appToken);
 	spl.Add("password", szPasswordA);
 
 	spl.Add("id", classId);
 	spl.Add("name", name);
-	spl.Add("enabled", appToken);
-	spl.Add("callback", classId);
-	spl.Add("title", name);
-	spl.Add("text", name);
-	spl.Add("icon", name);
-	spl.Add("sound", name);
+	spl.Add("enabled", enabled);
+	spl.Add("callback", callback);
+	spl.Add("title", title);
+	spl.Add("text", text);
+	spl.Add("icon", icon);
+	spl.Add("sound", sound);
 	if (duration != -1) spl.Add("duration", duration);
 
 	return DoRequest(Requests::AddClassA(), spl);
@@ -292,18 +292,18 @@ LONG32 SnarlInterface::AddClass(LPCSTR classId, LPCSTR name, LPCSTR title, LPCST
 
 LONG32 SnarlInterface::AddClass(LPCWSTR classId, LPCWSTR name, LPCWSTR title, LPCWSTR text, LPCWSTR icon, LPCWSTR sound, LONG32 duration, LPCWSTR callback, bool enabled)
 {
-	SnarlParameterList<wchar_t> spl(4);
+	SnarlParameterList<wchar_t> spl(11);
 	spl.Add(L"token", appToken);
 	spl.Add(L"password", szPasswordW);
 	
 	spl.Add(L"id", classId);
 	spl.Add(L"name", name);
-	spl.Add(L"enabled", appToken);
-	spl.Add(L"callback", classId);
-	spl.Add(L"title", name);
-	spl.Add(L"text", name);
-	spl.Add(L"icon", name);
-	spl.Add(L"sound", name);
+	spl.Add(L"enabled", enabled);
+	spl.Add(L"callback", callback);
+	spl.Add(L"title", title);
+	spl.Add(L"text", text);
+	spl.Add(L"icon", icon);
+	spl.Add(L"sound", sound);
 	if (duration != -1)	spl.Add(L"duration", duration);
 
 	return DoRequest(Requests::AddClassW(), spl);
