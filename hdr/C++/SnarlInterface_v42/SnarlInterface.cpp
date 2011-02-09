@@ -45,6 +45,7 @@
 /// </summary>
 ///----------------------------------------------------------------------------
 /// <VersionHistory>
+///  2011-02-09 : Fix for wrong parameters in AddClass
 ///  2011-02-06 : Updated to rev. 3 of the wiki documentation
 ///  2011-02-02 : First release of V42 Snarl API implementation
 /// </VersionHistory>
