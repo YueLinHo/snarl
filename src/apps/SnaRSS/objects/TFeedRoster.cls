@@ -71,7 +71,7 @@ Private Sub MRoster_Rewind()
 
 End Sub
 
-Public Function AddFeed(ByVal URL As String, ByVal CustomTitle As String) As Boolean
+Public Function AddFeed(ByVal URL As String, ByVal Title As String, ByVal Guid As String) As Boolean
 Dim sz() As String
 Dim pf As TFeed
 
@@ -81,18 +81,15 @@ Dim pf As TFeed
         Exit Function
 
     Set pf = New TFeed
-
-'    With pf
-'        .URL = URL
-'        .CustomTitle = CustomTitle
-'
-'    End With
-
-    If pf.Init(URL) Then
+    If pf.Init(URL, Guid, Title) Then
         mFeeds = mFeeds + 1
         ReDim Preserve mFeed(mFeeds)
         Set mFeed(mFeeds) = pf
         g_Debug "TFeedRoster.AddFeed(): added ok"
+
+        If gToken Then _
+            sn41AddClass gToken, Guid, IIf(Title = "", URL, Title)
+
         AddFeed = True
 
     Else
@@ -143,6 +140,9 @@ Static i As Long
     If (Index < 1) Or (Index > mFeeds) Then _
         Exit Sub
 
+    If gToken Then _
+        sn41RemoveClass gToken, mFeed(Index).Guid
+
     If Index < mFeeds Then
         For i = Index To (mFeeds - 1)
             Set mFeed(i) = mFeed(i + 1)
@@ -152,5 +152,17 @@ Static i As Long
 
     mFeeds = mFeeds - 1
     ReDim Preserve mFeed(mFeeds)
+
+End Sub
+
+Public Sub AddClasses()
+Static i As Long
+
+    If mFeeds Then
+        For i = 1 To mFeeds
+            sn41AddClass gToken, mFeed(i).Guid, mFeed(i).TitleOrURL
+
+        Next i
+    End If
 
 End Sub

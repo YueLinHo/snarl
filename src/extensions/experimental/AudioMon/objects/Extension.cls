@@ -50,8 +50,8 @@ Option Explicit
     '
     ' */
 
-Private Const LIB_DATE = "19-Jan-2010"
-Private Const LIB_REL = "2.0b3"
+Private Const LIB_DATE = "31-Jan-2010"
+Private Const LIB_REL = "2.0"
 
 Private Const CLASS_AUDIO_CHANGE = "audx"
 Private Const CUSTOM_DURATION = 2
@@ -176,10 +176,10 @@ Private Sub ISnarlExtension_GetInfo(Info As libSnarlExtn.extension_info)
         .Description = "Notifies when the master volume changes state"
 
         If g_IsWinVistaOrBetter() Then
-            .flags = 0
+            .Flags = 0
 
         Else
-            .flags = SNARL_EXTN_IS_CONFIGURABLE
+            .Flags = SNARL_EXTN_IS_CONFIGURABLE
 
         End If
 

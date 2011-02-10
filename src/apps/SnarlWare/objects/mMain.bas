@@ -2,13 +2,11 @@ Attribute VB_Name = "mMain"
 Option Explicit
 
 Private Declare Function FindWindow Lib "user32" Alias "FindWindowA" (ByVal lpClassName As String, ByVal lpWindowName As String) As Long
-Private Declare Function IsWindow Lib "user32" (ByVal hwnd As Long) As Long
+Private Declare Function IsWindow Lib "user32" (ByVal hWnd As Long) As Long
 
 Private Const WM_CLOSE = &H10
-Public Const WM_TEST = &H400 + 1
 Public Const WM_NOTIFICATION = &H400 + 2
-'Public Const WM_RELOAD = &H400 + 3
-Public Declare Function SendMessage Lib "user32" Alias "SendMessageA" (ByVal hwnd As Long, ByVal wMsg As Long, ByVal wParam As Long, lParam As Any) As Long
+Public Declare Function SendMessage Lib "user32" Alias "SendMessageA" (ByVal hWnd As Long, ByVal wMsg As Long, ByVal wParam As Long, lParam As Any) As Long
 
 Public gDebugMode As Boolean
 
@@ -48,20 +46,22 @@ Dim hWndExisting As Long
     If gDebugMode Then _
         Form1.Show
 
-Dim hwnd As Long
+Dim hWnd As Long
+
+    l3OpenLog "%APPDATA%\snarlware.log"
 
     EZRegisterClass CLASS_NAME
-    hwnd = EZAddWindow(CLASS_NAME, New TWindow, CLASS_NAME)
+    hWnd = EZAddWindow(CLASS_NAME, New TWindow, CLASS_NAME)
 
-    Form1.List1.AddItem "window: " & g_HexStr(hwnd)
-    Form1.Tag = CStr(hwnd)
+    Form1.Add "window: " & g_HexStr(hWnd)
+    Form1.Tag = CStr(hWnd)
 
     With New BMsgLooper
         .Run
 
     End With
 
-    EZRemoveWindow hwnd
+    EZRemoveWindow hWnd
     EZUnregisterClass CLASS_NAME
     Unload Form1
 

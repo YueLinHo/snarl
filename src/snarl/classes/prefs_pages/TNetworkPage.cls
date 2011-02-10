@@ -42,11 +42,12 @@ Dim pm As CTempMsg
 
         .Add new_BPrefsControl("label", "", "Snarl will listen on ports 9887 and 23053 for incoming notifications, and port 9889 for incoming JSON notifications.  You may need to adjust your firewall settings in order to receive these.")
 
-        .Add new_BPrefsControl("separator", "")
+'        .Add new_BPrefsControl("separator", "")
 ''        pm.Replace "text", "Forward notifications?"
 ''        .Add new_BPrefsControl("fancytoggle", "ft>forward", , "Sending:", "0", pm, False)
 
-        .Add new_BPrefsControl("label", "", "Snarl will forward notifications to the following IP addresses:", "Sending:")
+        .Add new_BPrefsControl("banner", "", "Sending")
+        .Add new_BPrefsControl("label", "", "Snarl will forward notifications to the following IP addresses:")
         Set pm = New CTempMsg
         pm.Add "plus_minus", 1
         Set pc = new_BPrefsControl("listbox", "lb>forward", g_GetRemoteComputers(), , , pm)

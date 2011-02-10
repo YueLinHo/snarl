@@ -243,6 +243,7 @@ Public Sub Go(ByVal hWndPanel As Long)
 Dim pp As BPrefsPage
 Dim pm As CTempMsg
 Dim pc As BControl
+'Dim sz As String
 
     mhWndPanel = hWndPanel
     Set mPanel = New BPrefsPanel
@@ -288,6 +289,9 @@ Dim pc As BControl
         With pp
             .SetMargin 90
             .SetWidth 300
+
+'            If Not (gSelectedClass Is Nothing) Then _
+'                sz = gSelectedClass.GetValue("custom_timeout")
 
             ' /* duration */
             .Add new_BPrefsControl("fancycycle", "duration", "Default|App Decides|Custom", "Duration:")

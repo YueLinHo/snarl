@@ -221,7 +221,12 @@ End Property
 
 Friend Function Add(ByRef Info As T_NOTIFICATION_INFO, ByRef Args As BPackedData) As Long
 
-    ' /* To-do: consider having the BPackedData arrive here instead of a T_NOTIFICATION_INFO struct */
+    ' /* adds a notification to the roster: should only be called by:
+    '       TAlert.ShowNotification()
+    '       g_DoSchemePreview()
+    '       TDelayedNotification (when download complete)
+    '       Missed Notifications panel (when "Display" button invoked by user)
+    ' */
 
     gSetLastError SNARL_ERROR_FAILED
     If g_IsQuitting Then _
@@ -289,18 +294,14 @@ Dim lQuantum As Long
 
 Dim sn As String
 Dim sv As String
-Dim act() As String
 
     If Not (Args Is Nothing) Then
         With Args
             .Rewind
             Do While .GetNextItem(sn, sv)
-                If sn = "action" Then
-                    act = Split(sv, ",")
-                    If UBound(act) = 1 Then _
-                        Info.Actions.Add new_BTagItem(act(0), act(1))
+                If sn = "action" Then _
+                    uGetAction Info.Actions, sv
 
-                End If
             Loop
 
         End With
@@ -340,7 +341,7 @@ Dim fc As Long
                     LSet pCopyInfo = Info
                     pCopyInfo.StyleName = style_GetStyleName(pt.Name)
                     pCopyInfo.SchemeName = style_GetSchemeName(pt.Name)
-                    uCopyTo pCopyInfo, Info.ClassObj
+                    uCopyTo pCopyInfo ', Info.ClassObj
 
                 End If
 
@@ -362,7 +363,7 @@ Dim pDelayed As TDelayedNotification
         '    of zero seconds - in which case use the class default icon */
 
         Set pDelayed = New TDelayedNotification
-        If pDelayed.Init(Info.IconPath) Then
+        If pDelayed.Init(Info.IconPath, Args) Then
 
             ' /* allocate a token now */
 
@@ -484,8 +485,15 @@ Dim nPMode As SP_PRESENCE_ACTIONS
             ' /* bin it */
             Exit Function
 
-        Case SP_DISPLAY
+        Case SP_DISPLAY_URGENT
+            Info.Priority = 1
+
+        Case SP_DISPLAY_NORMAL
             ' /* allow it through */
+
+        Case SP_FORWARD
+            Info.StyleName = style_GetStyleName(g_ConfigGet(IIf(g_IsDND, "busy_style", "away_style")))
+            Info.SchemeName = style_GetSchemeName(g_ConfigGet(IIf(g_IsDND, "busy_style", "away_style")))
 
         End Select
 
@@ -606,7 +614,6 @@ Dim i As Long
 
     End If
 
-Dim psw As CSnarlWindow
 Dim ar As BRect
 Dim p As Long
 Dim hr As M_RESULT
@@ -616,36 +623,39 @@ Dim hr As M_RESULT
     '    roster is invalid */
 
 Dim pStyle As TStyle
+Dim psi As IStyleInstance
 
     ' /* get the style from the roster here - this is guaranteed to return a usable TStyle */
 
-    uSafeGetStyle Info.StyleName & "/" & Info.SchemeName, pStyle
+    uSafeGetStyle Info.StyleName & "/" & Info.SchemeName, pStyle, psi
 
     ' /* get the path to the style - we need this for style-provided icons and sounds */
 
 '    Info.IconPath = uTranslateIconPath(Info.IconPath, pStyle.Path)
-
-    ' /* if S_STYLE_WANT_APP_NAME is set, prefix title with the sending app name */
-
-    If (pStyle.Flags And S_STYLE_WANT_APP_NAME) Then
-        g_Debug "TNotificationRoster.Add(): style wants application name"
-        Info.Title = Info.ClassObj.App.Name & "#?" & Info.Title
-
-    End If
-
-Dim psi As IStyleInstance
-
-    Set psi = pStyle.CreateInstance()
-    If (psi Is Nothing) Then _
-        Set psi = New TInternalStyle                ' // fail-safe
 
     ' /* if S_STYLE_IS_WINDOWLESS is set, just pass it to the handler */
     ' /* TO-DO: do we still need to record it? what about our return value? */
 
     If (pStyle.Flags And S_STYLE_IS_WINDOWLESS) Then
         g_Debug "TNotificationRoster.Add(): style is handling notification display"
-        psi.UpdateContent pStyle.CreateNotificationInfo(Info.Title, Info.Text, Info.IconPath, Info.SchemeName, IIf(Info.Priority > 0, S_NOTIFICATION_IS_PRIORITY, 0))
-        Add = -1                ' // TEMPORARY while we figure out what best to return here
+'        psi.UpdateContent pStyle.CreateNotificationInfo(Info.Title, Info.Text, Info.IconPath, Info.SchemeName, IIf(Info.Priority > 0, S_NOTIFICATION_IS_PRIORITY, 0))
+
+        ' /* uCopyTo() will return TRUE if the style asked for the notification
+        '    to be passed back for on-screen display (pass-through) */
+
+        If uCopyTo(Info) Then
+            ' /* style is asking for the notification to be displayed on-screen */
+            Info.StyleName = style_GetStyleName(g_ConfigGet("default_style"))
+            Info.SchemeName = style_GetSchemeName(g_ConfigGet("default_style"))
+            Add = Me.Add(Info, Args)
+
+        Else
+            ' /* no need to pass through */
+
+            Add = -1                ' // TEMPORARY while we figure out what best to return here
+
+        End If
+
         Exit Function
 
     End If
@@ -677,24 +687,55 @@ Dim psi As IStyleInstance
 
     End If
 
-Dim dwStyleFlags As S_STYLE_FLAGS
-
-    dwStyleFlags = S_STYLE_MULTI_INSTANCE
-
-    If Not (pStyle Is Nothing) Then _
-        dwStyleFlags = pStyle.Flags
-
-
-
+'Dim dwStyleFlags As S_STYLE_FLAGS
+'
+'    dwStyleFlags = S_STYLE_MULTI_INSTANCE
+'
+'    If Not (pStyle Is Nothing) Then _
+'        dwStyleFlags = pStyle.Flags
 
 '    Info.StyleToUse = style_GetSchemeName(Info.StyleToUse)
 
+    ' /* create a new instance of the requested style - if this fails for any reason,
+    '    we simply create an instance of the internal style */
 
+
+
+
+    ' /* R2.4 DR8: can use a style which allows blocking the notification - if the style
+    '    allows the notification, the default style will be used to display it */
+
+'Dim pn As notification_info
+'
+'    If (pStyle.Flags And S_STYLE_WANTS_VETO) Then
+'
+'        psi.UpdateContent pn
+'        If pn.Flags = -1 Then
+'            Add = 0
+'            Exit Function
+'
+'        Else
+'            ' /* re-create the style
+'            uSafeGetStyle g_ConfigGet("default_style"), pStyle, psi
+'
+'        End If
+'
+'    End If
+
+    ' /* if S_STYLE_WANT_APP_NAME is set, prefix title with the sending app name */
+
+    If (pStyle.Flags And S_STYLE_WANT_APP_NAME) Then
+        g_Debug "TNotificationRoster.Add(): style wants application name"
+        Info.Title = Info.ClassObj.App.Name & "#?" & Info.Title
+
+    End If
+
+    ' /* create the on-screen instance */
+
+Dim psw As CSnarlWindow
 
     Set psw = New CSnarlWindow
-    hr = psw.Create(Info, psi, dwStyleFlags, pStyle.Path)
-
-'MsgBox Info.StyleToUse
+    hr = psw.Create(Info, psi, pStyle.Flags, pStyle.Path)
     
     If hr <> M_OK Then
         ' /* TO-DO: Create() should probably return a more useful set of errors rather than just M_OK */
@@ -811,6 +852,30 @@ Dim szSound As String
 '    End If
 
 End Function
+
+Private Sub uGetAction(ByRef ListToAddTo As BTagList, ByVal PackedAction As String)
+Dim i As Integer
+
+    ' /* only interested in _first_ comma */
+
+    i = InStr(PackedAction, ",")
+    If i = 0 Then _
+        Exit Sub
+
+Dim szLbl As String
+Dim szCmd As String
+
+    szLbl = g_SafeLeftStr(PackedAction, i - 1)
+    szCmd = g_SafeRightStr(PackedAction, Len(PackedAction) - i)
+
+    ' /* must have a label and command */
+
+    If (szLbl = "") Or (szCmd = "") Then _
+        Exit Sub
+
+    ListToAddTo.Add new_BTagItem(szLbl, szCmd)
+
+End Sub
 
 Public Function Remove(ByVal Id As Long) As Boolean
 Dim i As Long
@@ -1687,68 +1752,114 @@ End Function
 '
 'End Function
 
-Private Sub uSafeGetStyle(ByVal StyleToUse As String, ByRef Style As TStyle)
-Dim pStyle As TStyle
+Private Sub uSafeGetStyle(ByVal StyleToUse As String, ByRef Style As TStyle, ByRef Instance As IStyleInstance)
 
-    ' /* pre-create a new TStyle object - this will act as a fail-safe as it automatically
-    '    initialises itself as the internal style */
+    ' /* try to create a new TStyle from the provided Style name */
 
-    Set Style = New TStyle
-    If (g_StyleRoster Is Nothing) Then _
-        Exit Sub
+    If Not (g_StyleRoster Is Nothing) Then _
+        g_StyleRoster.Find style_GetStyleName(StyleToUse), Style
 
-    If g_StyleRoster.Find(style_GetStyleName(StyleToUse), pStyle) Then _
-        Set Style = pStyle
+    ' /* didn't work? use a default one */
+
+    If (Style Is Nothing) Then _
+        Set Style = New TStyle
+
+    ' /* create a new instance from the provided Style */
+
+    Set Instance = Style.CreateInstance()
+
+    ' /* didn't work? use an internal style instance */
+
+    If (Instance Is Nothing) Then _
+        Set Instance = New TInternalStyle
 
 End Sub
 
-Private Sub uCopyTo(ByRef Info As T_NOTIFICATION_INFO, ByRef Class As TAlert)
+Private Function uCopyTo(ByRef Info As T_NOTIFICATION_INFO) As Boolean
 
     ' /* get the appropriate instance for the notification before we do anything else
     '    we must pass a valid style instance to CSnarlWindow, even if the style
     '    roster is invalid */
 
+Dim psi As IStyleInstance
 Dim pStyle As TStyle
 
     ' /* get the style from the roster here - this is guaranteed to return a usable TStyle */
 
-    uSafeGetStyle Info.StyleName & "/" & Info.SchemeName, pStyle
-
-    ' /* get the path to the style - we need this for style-provided icons and sounds */
-
-    Info.IconPath = g_TranslateIconPath(Info.IconPath, pStyle.Path)
-
-    ' /* if S_STYLE_WANT_APP_NAME is set, prefix title with the sending app name */
-
-    If (pStyle.Flags And S_STYLE_WANT_APP_NAME) Then
-        g_Debug "TNotificationRoster.uCopyTo(): style wants application name"
-        Info.Title = Class.App.Name & "#?" & Info.Title
-
-    End If
+    uSafeGetStyle Info.StyleName & "/" & Info.SchemeName, pStyle, psi
 
     ' /* this is just a safety check */
 
     If (pStyle.Flags And S_STYLE_IS_WINDOWLESS) = 0 Then
         Debug.Print "TNotificationRoster.uCopyTo(): '" & pStyle.Name & "' is not a windowless style"
-        Exit Sub
+        Exit Function
 
     End If
 
-Dim psi As IStyleInstance
+    ' /* get the path to the style - we need this for style-provided icons and sounds */
 
-    Set psi = pStyle.CreateInstance()
-    If (psi Is Nothing) Then
-        Debug.Print "TNotificationRoster.uCopyTo(): failed to create instance for '" & pStyle.Name & "'"
-        Exit Sub
+    Info.IconPath = g_TranslateIconPath(Info.IconPath, pStyle.Path)
+
+Dim sTitle As String
+Dim sText As String
+
+    If (pStyle.Flags And S_STYLE_V42_CONTENT) Then
+
+        ' /* title becomes sender name, text is set to the original packed string */
+
+        sTitle = Info.ClassObj.App.Name
+        sText = Info.OriginalContent
+
+        ' /* R2.4 Beta 4 - if we should include the hostname, add it here */
+
+        If g_ConfigGet("include_host_name_when_forwarding") = "1" Then _
+            sTitle = sTitle & " on " & g_GetComputerName()
+
+    Else
+
+        ' /* pre-V42 model: <title> is either title or app/title pair, <text> is text */
+
+        sText = Info.Text
+
+        ' /* if S_STYLE_WANT_APP_NAME is set, prefix title with the sending app name */
+
+        If (pStyle.Flags And S_STYLE_WANT_APP_NAME) Then
+            g_Debug "TNotificationRoster.uCopyTo(): style wants application name"
+            sTitle = Info.ClassObj.App.Name
+
+            ' /* R2.4 Beta 4 - if app name is requested, make it "<app> on <computer>" */
+
+            If g_ConfigGet("include_host_name_when_forwarding") = "1" Then _
+                sTitle = sTitle & " on " & g_GetComputerName()
+
+            sTitle = sTitle & "#?" & Info.Title
+
+        Else
+            ' /* R2.4 Beta 4 - make the title component "<title> (from <computer>)" */
+
+            If g_ConfigGet("include_host_name_when_forwarding") = "1" Then _
+                sTitle = Info.Title & " (from " & g_GetComputerName() & ")"
+
+        End If
 
     End If
+
+Dim pContent As notification_info
 
     g_Debug "TNotificationRoster.uCopyTo(): sending to '" & pStyle.Name & "'"
-    psi.UpdateContent pStyle.CreateNotificationInfo(Info.Title, Info.Text, Info.IconPath, _
-                                                    Info.SchemeName, _
-                                                    IIf(Info.Priority > 0, S_NOTIFICATION_IS_PRIORITY, 0))
 
-End Sub
+    LSet pContent = pStyle.CreateNotificationInfo(sTitle, sText, Info.IconPath, _
+                                               Info.SchemeName, _
+                                               IIf(Info.Priority > 0, S_NOTIFICATION_IS_PRIORITY, 0))
+
+    psi.UpdateContent pContent
+
+    ' /* R2.4 Beta 4: if the style set notificaton_info->flags to -1 we should pass the notification
+    '    back around for on-screen display */
+
+    uCopyTo = (pContent.Flags = -1)
+
+End Function
 
 'Private Sub uUpdateQueueCount()
 'Dim i As Long
@@ -1960,48 +2071,33 @@ Static i As Long
 End Sub
 
 Public Function Update(ByVal Token As Long, ByRef Args As BPackedData) As Boolean
-Dim sz As String
 Dim i As Long
 
     g_Debug "TNotificationRoster.Update()", LEMON_LEVEL_PROC_ENTER
 
+    ' /* check on-screen first */
+
     i = uFind(Token, Args.ValueOf("uid"), Args.ValueOf("app-sig"), Args.ValueOf("password"))
     If i Then
-        g_Debug "found visible"
-
-        With mItem(i).Info
-
-            If Args.Exists("title") Then
-                sz = Replace$(Args.ValueOf("title"), "\n", vbCrLf)
-                sz = Replace$(sz, "\+", .Title)                         ' // specfic to Update() - replace '\+' with existing title
-                .Title = g_TrimLines(sz)
-
-            End If
-
-            If Args.Exists("text") Then
-                sz = Replace$(Args.ValueOf("text"), "\n", vbCrLf)
-                sz = Replace$(sz, "\+", .Text)                          ' // specfic to Update() - replace '\+' with existing text
-                .Text = g_TrimLines(sz)
-
-            End If
-
-            If Args.Exists("icon") Then _
-                .IconPath = Args.ValueOf("icon")
-
-            If Args.Exists("timeout") Then _
-                .Timeout = g_SafeLong(Args.ValueOf("timeout"))          ' // g_SafeLong() returns 0 on error - not good...
-
-        End With
-
+        g_Debug "TNotificationRoster.Update(): " & CStr(mItem(i).Info.Token) & " is still on-screen"
+        uUpdateContent mItem(i).Info, Args
         uFixupContent mItem(i).Info                     ' // re-creates T_NOTIFICATION->OriginalContent
         Update = mItem(i).Window.Update(mItem(i).Info)
 
     Else
         i = uFindInMissedList(Token, Args.ValueOf("uid"), Args.ValueOf("app-sig"), Args.ValueOf("password"))
         If i Then
-            g_Debug "in missed list"
-            ' /* TO-DO: update in missed list */
-'            Update = True
+            g_Debug "TNotificationRoster.Update(): " & CStr(mItem(i).Info.Token) & " in missed list"
+
+            ' /* R2.4b4 */
+            uUpdateContent mMissed(i), Args
+
+            ' /* refresh the missed panel if it's open */
+
+            If Not (mMissedPanel Is Nothing) Then _
+                mMissedPanel.UpdateList
+
+            Update = True
 
         Else
             g_Debug "not found", LEMON_LEVEL_WARNING
@@ -2013,6 +2109,63 @@ Dim i As Long
     g_Debug "", LEMON_LEVEL_PROC_EXIT
 
 End Function
+
+Private Sub uUpdateContent(ByRef Content As T_NOTIFICATION_INFO, ByRef Args As BPackedData, Optional ByVal Merge As Boolean = False)
+Dim sz As String
+
+    ' /* only change something if the entry exists in Args */
+
+    With Content
+
+        If Args.Exists("title") Then
+            sz = Replace$(Args.ValueOf("title"), "\n", vbCrLf)
+            sz = Replace$(sz, "\+", .Title)                         ' // specfic to Update() - replace '\+' with existing title
+            .Title = g_TrimLines(sz)
+
+        End If
+
+        If Args.Exists("text") Then
+            sz = Replace$(Args.ValueOf("text"), "\n", vbCrLf)
+            sz = Replace$(sz, "\+", .Text)                          ' // specfic to Update() - replace '\+' with existing text
+            .Text = g_TrimLines(sz)
+
+        End If
+
+        If Args.Exists("icon") Then
+            .IconPath = Args.ValueOf("icon")
+
+        ElseIf Args.Exists("icon-base64") Then
+            ' /* R2.4b4 */
+            .IconPath = g_GetBase64Icon(Args.ValueOf("icon-base64"))
+
+        End If
+
+        If Args.Exists("timeout") Then _
+            .Timeout = g_SafeLong(Args.ValueOf("timeout"))          ' // g_SafeLong() returns 0 on error - not good...
+
+        ' /* following added in R2.4 Beta 4 */
+
+        If Args.Exists("callback") Then _
+            .DefaultAck = Args.ValueOf("callback")
+
+        If Args.Exists("reply-to") Then _
+            .hWndReply = g_SafeLong(Args.ValueOf("reply-to"))
+
+        If Args.Exists("reply") Then _
+            .uReplyMsg = g_SafeLong(Args.ValueOf("reply"))
+
+        ' /* clearly this can only be set if referencing the notification by its token */
+
+        If Args.Exists("uid") Then _
+            .CustomUID = Args.ValueOf("uid")
+
+        ' /* still TBC: Priority, Actions, Value */
+
+        .LastUpdated = Now()
+
+    End With
+
+End Sub
 
 Public Function Merge(ByVal Token As Long, ByRef Args As BPackedData) As Boolean
 Dim sz As String
@@ -2124,18 +2277,21 @@ End Sub
 Public Function TokenFromUID(ByVal UID As String, ByVal AppSig As String, ByVal Password As String) As Long
 Static i As Long
 
+    ' /* search on-screen list first */
+
     i = uFind(0, UID, AppSig, Password)
     If i Then
         TokenFromUID = mItem(i).Info.Token
 
     Else
+
+        ' /* failing that, search missed list */
+
         i = uFindInMissedList(0, UID, AppSig, Password)
         If i Then _
             TokenFromUID = mMissed(i).Token
 
     End If
-
-
 
 '    ' /* returns token or zero if not found / not authorised */
 '
@@ -2167,14 +2323,16 @@ Static i As Long
 End Function
 
 Public Sub CheckMissed()
+Static iToken As Long
 
     ' /* check missed count */
-    If mActualMissed > 0 Then _
-        g_PrivateNotify SNARL_CLASS_GENERAL, "While you were away...", _
-                            "You missed " & CStr(g_NotificationRoster.ActualMissedCount) & " notification" & IIf(g_NotificationRoster.ActualMissedCount > 1, "s", ""), _
-                            -1, _
-                            g_MakePath(App.Path) & "etc\icons\snarl.png", _
-                            , _
-                            "!snarl show_missed_panel"
+    If (mActualMissed > 0) And (Not Me.IsVisible(iToken, "", "", gSnarlPassword)) Then _
+        iToken = g_PrivateNotify(SNARL_CLASS_GENERAL, "While you were away...", _
+                                 "You missed " & CStr(g_NotificationRoster.ActualMissedCount) & " notification" & IIf(g_NotificationRoster.ActualMissedCount > 1, "s", ""), _
+                                 -1, _
+                                 g_MakePath(App.Path) & "etc\icons\snarl.png", _
+                                 , _
+                                 "!snarl show_missed_panel")
 
 End Sub
+

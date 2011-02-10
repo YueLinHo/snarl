@@ -35,7 +35,11 @@ Dim pdsp As TDisplaySubPage
 
     Set pdsp = New TDisplaySubPage
     pdsp.Name = "def"
-    BTabStrip_AddPage pc, "Appearance & Layout", new_BPrefsPage("pg>" & pdsp.Name, , pdsp)
+    BTabStrip_AddPage pc, "Appearance", new_BPrefsPage("pg>" & pdsp.Name, , pdsp)
+
+    Set pdsp = New TDisplaySubPage
+    pdsp.Name = "lay"
+    BTabStrip_AddPage pc, "Layout", new_BPrefsPage("pg>" & pdsp.Name, , pdsp)
 
     Set pdsp = New TDisplaySubPage
     pdsp.Name = "vis"

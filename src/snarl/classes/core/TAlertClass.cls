@@ -401,12 +401,18 @@ Dim lDur As E_NOTIFICATION_DURATION
 
     End If
 
+    ' /* R2.4 Beta 4: use Base64 encoded icon data, if there is any */
+
+    If Not (Args Is Nothing) Then
+        If (Info.IconPath = "") And (Args.Exists("icon-base64")) Then _
+            Info.IconPath = g_GetBase64Icon(Args.ValueOf("icon-base64"))
+
+    End If
+
     ' /* R2.4 DR7: if still no icon, use app's icon */
 
     If Info.IconPath = "" Then _
         Info.IconPath = Me.App.Icon
-
-'MsgBox Info.IconPath
 
     ' /* R2.31d3: custom ack */
 
@@ -451,9 +457,10 @@ Dim lDur As E_NOTIFICATION_DURATION
         Info.StyleName = style_GetStyleName(Me.GetValue("style"))
         Info.SchemeName = style_GetSchemeName(Me.GetValue("style"))
 
-'        MsgBox Info.StyleName & " + " & Info.SchemeName
 
     End If
+
+'        MsgBox Info.StyleName & " + " & Info.SchemeName
 
     ' /* R2.4 DR7: now store originating class object */
     Set Info.ClassObj = Me

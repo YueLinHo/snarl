@@ -405,6 +405,34 @@ Dim j As Long
 
 End Function
 
+Public Sub SetNonWindowStyleIcons(ByRef Control As BControl)
+
+    If (mItems = 0) Or (Control Is Nothing) Then _
+        Exit Sub
+
+Dim sz As String
+Dim i As Long
+Dim j As Long
+Dim n As Long
+
+    For i = 1 To mItems
+        If (mItem(i).Flags And S_STYLE_IS_WINDOWLESS) Then
+            sz = Me.StyleAt(i).IconPath
+            If Not g_Exists(sz) Then _
+                sz = g_MakePath(App.Path) & "etc\icons\style.png"
+
+            If mItem(i).CountSchemes Then
+                For j = 1 To mItem(i).CountSchemes
+                    n = n + 1
+                    prefskit_SetItem Control, n, "image-file", sz
+
+                Next j
+            End If
+        End If
+    Next i
+
+End Sub
+
 Public Function IndexOf(ByVal Style As String) As Long
 Dim i As Long
 

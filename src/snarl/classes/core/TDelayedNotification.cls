@@ -29,11 +29,12 @@ Option Explicit
 
 Dim mInfo As T_NOTIFICATION_INFO
 Dim mTempIcon As String
+Dim mArgs As BPackedData
 
 Dim WithEvents theIconRequest As BWebRequest
 Attribute theIconRequest.VB_VarHelpID = -1
 
-Public Function Init(ByVal URL As String) As Boolean
+Public Function Init(ByVal URL As String, ByRef Args As BPackedData) As Boolean
 
     On Error Resume Next
 
@@ -52,7 +53,7 @@ Public Function Init(ByVal URL As String) As Boolean
 
     End If
 
-'MsgBox URL
+    Set mArgs = Args
 
     g_Debug "TDelayedNotification.Init(): saving as '" & mTempIcon & "'"
     Init = theIconRequest.GetFile(URL, mTempIcon)
@@ -88,6 +89,6 @@ Dim sz As String
     mInfo.IconPath = sz
 
     If Not (g_NotificationRoster Is Nothing) Then _
-        g_NotificationRoster.Add mInfo, Nothing
+        g_NotificationRoster.Add mInfo, mArgs
 
 End Sub

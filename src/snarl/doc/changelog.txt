@@ -1,62 +1,108 @@
 
-
-	To Do
-
-	- V41 API
-
-		- sn41AddClass() should return unique token				DONE
-
-		- sn41Notify() should use class token or zero to create
-		  an anonymous notification						DONE
-
-		- KeyLock extension
-
-		- Dead Man's Handle extension
-
-		- Clock 2.5
-
-		- netvold
-
-		- apptd
-
-
-
-	- Meter Styles
-
-					Settings	Factory	
-					Panel		Settings	Schemes		Meter
-				-----------------------------------------------------------------
-		- Just Black
-		- iPhoney		OK		OK		OK		OK
-		- Minimal		OK		OK		OK		OK
-		- Sony
-			- Icon pos not implemented, icon show not implemented
-			- PS3 black gradient needs improving
-
-		- Metro			OK		OK		OK		OK
-		- Smooth		OK		OK		OK		OK
-
-		- (1) - doesn't restore text colour correctly
-		- (2) - doesn't display meter percent
-
-	- Extensions - V40 extensions don't display name correctly
-
-
-
-	Release Notes
-
-	[ R2.31 d3 ]
-
-	- The Clock style's supporting configuration folder wasn't included in the
-	  R2.3 release.  Now fixed.
-
-	- Banner style engine now included and features new and improved styles.
-
-
-
-
-
 	Snarl Change Log
+
+	- NotificationRoster.Update() now supports "callback", "reply-to",
+	  "reply", "icon", "icon-base64" and "uid" args for both on-screen
+	  and missed notifications.  On-screen notifications can also have
+	  their duration modified via the "timeout" arg.  (42.58)
+
+	- NotificationRoster.Update() will now update missed notification
+	  content, if it's still in the missed list.  (42.58)
+
+	- Timestamp content displayed in notification during mouse-over is
+	  now relative.  Values can be "Just now" (less than a minute ago),
+	  "x min(s) ago" or "x hour(s) ago".  If the notification was created
+	  24 or more hours ago, the date and time is displayed.  (42.58)
+
+	- If the "uid" arg is used in <Notify> and a notification with the
+	  uid is still visible or is in the missed list, then the existing
+	  notification is updated with the provided content.  (42.56)
+
+	- Removed support for "replace-uid", "update-uid", and "merge-uid"
+	  from <Notify> for now while the specifics of these are better
+	  developed.  (42.56)
+
+	- App's name is now drawn in bottom-right corner of notification while
+	  mouse pointer is over the notification.  (42.56)
+
+	- Added new [SetMode] request.  Currently this only supports a single
+	  argument ("Busy") which can be used to set Snarl's busy (DND) mode
+	  from an external source.  In order to do this, the application must
+	  be registered with Snarl and must supply its signature ("app-sig")
+	  or token ("token") and password ("password") if necessary.  (42.56)
+
+	- Added new SNARL_ERROR_INVALID_ARG (108) error.  (42.56)
+
+	- Added "trash", "mycomputer" and "nethood" actions to !system command
+	  (42.56)
+
+	- Fixed bug processing embedded actions in <Notify>.  (42.55)
+
+	- <RemClass> and <ClearClasses> requests now accepts app-sig parameter.
+	  (42.53)
+
+	- Fixed bug in TNotificationRoster.Add() whereby delayed notifications
+	  didn't have the BPackedData "Args" parameter included.  (42.51)
+
+	- Corrected some issues with Base64 decode routine.  (42.51)
+
+	- Added Base64-encoded icon support to <AddClass>.  (42.51)
+
+	- Added support for Base64-encoded icon data within <Notify>.  Parameter
+	  name is "icon-base64" and encoded data should be terminated with
+	  percent characters, not equals signs.  (42.48)
+
+	- Fixed bugs around the title/app name logic in the notification
+	  forwarding code.  (42.47)
+
+	- Bumped back to Beta 4.  (42.47)
+
+	- Added option to include the computer name in the title of forwarded
+	  notifications.  (42.47)
+
+	- Minor layout alterations to some prefs pages.  (42.46)
+
+	- Fixed bug in Notification Roster to do with styles and the 
+	  S_STYLE_WANT_APP_NAME flag whereby notifications would sometimes
+	  end up with the title and application name set twice.  (42.43)
+
+	- Added "Forward" option to the Away and Busy action buttons.  (42.43)
+
+	- Split presence settings out into new [Presence] page.  (42.43)
+
+	- Clarified wording in the snDoRequest() helper explaination.  (42.43)
+
+	- Split the [Appearance & Layout] sub-page into separate [Appearance]
+	  and [Layout] pages.  (42.43)
+
+	- Added basic style pass-through functionality although this will
+	  most likely remain private/undocumented until V43.  (42.43)
+
+	- Minor cosmetic changes to [General] page.  (42.43)
+
+	- Included missing "schemes.conf" in Smooth style folder.  (42.43)
+
+	- Minor cosmetic changes to [Network] page.  (42.43)
+
+	- DND extension folder removed.  (42.43)
+
+	- Default style is now Corporate/Standard.  (42.43)
+
+	- Copyright bumped to 2011.  (42.43)
+
+	- Rebranded as Beta 3.  (42.42)
+
+	- Slight improvement to missed notification checking logic.  (42.42)
+
+	- Renamed "Do Nothing" presence action to "Discard".  (42.41)
+
+	- Converted Run File style to V42 and added support for any notification
+	  elements prefixed with "data-" and "value-" which are passed to the
+	  target file as further arguments.  (42.40)
+
+	- Added support for "&&" and "==" pairs in notification elements which are
+	  translated into single "&" and "=" respectively.  This is the preferred
+	  way for notifications to include "&" and "=" characters.  (42.40)
 
 	- Snarl Welcome Message notification class renamed to SNARL_CLASS_GENERAL
 	  and extended to cover other notifications such as the "update available"
@@ -1392,6 +1438,52 @@
 	  file is a standard melon config file (except it has no extension) with a
 	  single [exclude] section.  (37.37)
 
+
+
+
+
+
+
+	To Do
+
+	- V41 API
+
+		- sn41AddClass() should return unique token				DONE
+
+		- sn41Notify() should use class token or zero to create
+		  an anonymous notification						DONE
+
+		- KeyLock extension
+
+		- Dead Man's Handle extension
+
+		- Clock 2.5
+
+		- netvold
+
+		- apptd
+
+
+
+	- Meter Styles
+
+					Settings	Factory	
+					Panel		Settings	Schemes		Meter
+				-----------------------------------------------------------------
+		- Just Black
+		- iPhoney		OK		OK		OK		OK
+		- Minimal		OK		OK		OK		OK
+		- Sony
+			- Icon pos not implemented, icon show not implemented
+			- PS3 black gradient needs improving
+
+		- Metro			OK		OK		OK		OK
+		- Smooth		OK		OK		OK		OK
+
+		- (1) - doesn't restore text colour correctly
+		- (2) - doesn't display meter percent
+
+	- Extensions - V40 extensions don't display name correctly
 
 
 

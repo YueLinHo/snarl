@@ -24,6 +24,9 @@ Dim mSuccess As Boolean
 Dim mEnabled As Boolean
 Dim mFirstRun As Boolean
 Dim mRefreshing As Boolean
+Dim mGuid As String
+
+Dim mTitle As String
 
 Private Declare Function DeleteFile Lib "kernel32" Alias "DeleteFileA" (ByVal lpFileName As String) As Long
 
@@ -32,10 +35,13 @@ Implements MObject
 Private Property Get MObject_Type() As String
 End Property
 
-Public Function Init(ByVal URL As String, Optional ByVal Enabled As Boolean = True) As Boolean
+Public Function Init(ByVal URL As String, ByVal Guid As String, ByVal Title As String, Optional ByVal Enabled As Boolean = True) As Boolean
 
     mURL = URL
     mEnabled = Enabled
+    mGuid = Guid
+    mTitle = Title
+
 '    mFirstRun = True
 
     Set theFeed = New BRSSFeed
@@ -162,6 +168,11 @@ Static szEntry As String
 
     Else
         frmMain.Add "success"
+        frmMain.Add "timestamp: " & theFeed.ItemAt(1).PubDate
+
+        ' /* record the title here (each time in case it's changed) */
+
+        mTitle = Replace$(theFeed.Channel.Title, "|", ":")
 
         With theFeed.ItemAt(1)
             szEntry = .Description '//  .Title & "+" & .Description
@@ -187,7 +198,7 @@ End Sub
 
 Private Sub theTimer_Pulse()
 
-    g_Debug "timer_pulse: " & mURL & " (" & uTitle() & ")"
+    g_Debug "timer_pulse: " & mURL & " (" & Title() & ")"
     Refresh
 
 End Sub
@@ -241,12 +252,13 @@ Static i As Long
         If theFeed.CountItems > 0 Then
 
             With theFeed.ItemAt(1)
-                i = sn41EZNotify(gToken, "", _
+                i = sn41EZNotify(gToken, mGuid, _
                                  .Title, _
                                  IIf(.Description <> "", .Description, "<no entry>") & vbCrLf & vbCrLf & theFeed.Channel.Title, _
                                  , _
                                  theFeed.Channel.ImageUrl, , _
-                                 .Link)
+                                 IIf(gConfig.UseDefaultCallback, .Link, ""), , _
+                                 IIf(Not gConfig.UseDefaultCallback, "action::Open Item," & .Link, ""))
 
                 g_Debug "sz41EZNotify() returned " & CStr(i) & " (lasterror=" & sn41GetLastError() & ")"
 
@@ -284,12 +296,13 @@ Static i As Long
 
                 Next i
 
-                i = sn41EZNotify(gToken, "", _
+                i = sn41EZNotify(gToken, mGuid, _
                                  .Channel.Title, _
                                  sz, _
                                  , _
                                  .Channel.ImageUrl, , _
-                                 .Channel.Link)
+                                 IIf(gConfig.UseDefaultCallback, .Channel.Link, ""), , _
+                                 IIf(Not gConfig.UseDefaultCallback, "action::Open Feed," & .Channel.Link, ""))
 
             End With
 
@@ -385,19 +398,15 @@ End Sub
 
 Public Function TitleOrURL() As String
 
-    TitleOrURL = uTitle()
+    TitleOrURL = mTitle
     If TitleOrURL = "" Then _
         TitleOrURL = mURL
 
 End Function
 
-Private Function uTitle() As String
+Public Function Title() As String
 
-    If Not (theFeed Is Nothing) Then
-        If theFeed.IsValid Then _
-            uTitle = Replace$(theFeed.Channel.Title, "|", ":")
-
-    End If
+    Title = mTitle
 
 End Function
 
@@ -422,5 +431,11 @@ Public Function Status() As String
         Status = "Error."
 
     End If
+
+End Function
+
+Public Function Guid() As String
+
+    Guid = mGuid
 
 End Function

@@ -280,6 +280,12 @@ Dim pInfo As T_SNARL_APP
     With pInfo
         .Name = Data.ValueOf("title")
         .Icon = Data.ValueOf("icon")
+
+        ' /* R2.4 Beta 4 - support for Base64-encoded icons */
+
+        If (.Icon = "") And (Data.Exists("icon-base64")) Then _
+            .Icon = g_GetBase64Icon(Data.ValueOf("icon-base64"))
+
         .Signature = sz
         .LargeIcon = .Icon                       ' // no need for two icons: V41 spec recommends 128x128px icon
 

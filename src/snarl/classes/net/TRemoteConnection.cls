@@ -626,12 +626,13 @@ Public Sub Notify(ByVal Notification As Long, ByVal Token As String)
 End Sub
 
 Private Function uDecodeBase64(ByVal Data As String) As String
+Dim bErr As Boolean
 Dim sz As String
 Dim i As Integer
 
     On Error Resume Next
 
-    sz = Decode64(Data)
+    sz = Decode64(Data, bErr)
     uDecodeBase64 = g_GetSafeTempIconPath()
 
     i = FreeFile()

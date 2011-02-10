@@ -24,20 +24,23 @@ Private Const PBT_APMRESUMEAUTOMATIC = 18
 'Private Declare Function DeleteFile Lib "kernel32" Alias "DeleteFileA" (ByVal lpFileName As String) As Long
 Private Declare Function PostMessage Lib "user32" Alias "PostMessageA" (ByVal hWnd As Long, ByVal wMsg As Long, ByVal wParam As Long, ByVal lParam As Long) As Long
 
-Const GUID_DEVINTERFACE_USB_DEVICE = "A5DCBF10-6530-11D2-901F-00C04FB951ED"
-Const GUID_DEVINTERFACE_DISK = "53F56307-B6BF-11D0-94F2-00A0C91EFB8B"
-Const GUID_DEVINTERFACE_PARTITION = "53F5630A-B6BF-11D0-94F2-00A0C91EFB8B"
-Const GUID_DEVINTERFACE_VOLUME = "53F5630D-B6BF-11D0-94F2-00A0C91EFB8B"
-Const GUID_DEVINTERFACE_HID = "4D1E55B2-F16F-11CF-88CB-001111000030"
-Const GUID_DEVINTERFACE_MOUSE = "378DE44C-56EF-11D1-BC8C-00A0C91405DD"
-Const GUID_DEVINTERFACE_KEYBOARD = "884B96C3-56EF-11D1-BC8C-00A0C91405DD"
-Const GUID_NDIS_LAN_CLASS = "AD498944-762F-11D0-8DCB-00C04FC3358C"
-Const GUID_DEVINTERFACE_CDROM = "53F56308-B6BF-11D0-94F2-00A0C91EFB8B"
-Const GUID_KSCATEGORY_CAPTURE = "65E8773D-8F56-11D0-A3B9-00A0C9223196"
-Const GUID_KSCATEGORY_VIDEO = "6994AD05-93EF-11D0-A3CC-00A0C9223196"
-Const GUID_DEVCLASS_1394 = "6BDD1FC1-810F-11D0-BEC7-08002BE2092F"
-Const GUID_DEVINTERFACE_MODEM = "2C7089AA-2E0E-11D1-B114-00C04FC2AAE4"
-Const GUID_DEVINTERFACE_COMPORT = "86E0D1E0-8089-11D0-9CE4-08003E301F73"
+'Const GUID_DEVINTERFACE_USB_DEVICE = "A5DCBF10-6530-11D2-901F-00C04FB951ED"
+'Const GUID_DEVINTERFACE_DISK = "53F56307-B6BF-11D0-94F2-00A0C91EFB8B"
+'Const GUID_DEVINTERFACE_PARTITION = "53F5630A-B6BF-11D0-94F2-00A0C91EFB8B"
+'Const GUID_DEVINTERFACE_VOLUME = "53F5630D-B6BF-11D0-94F2-00A0C91EFB8B"
+'Const GUID_DEVINTERFACE_HID = "4D1E55B2-F16F-11CF-88CB-001111000030"
+'Const GUID_DEVINTERFACE_MOUSE = "378DE44C-56EF-11D1-BC8C-00A0C91405DD"
+'Const GUID_DEVINTERFACE_KEYBOARD = "884B96C3-56EF-11D1-BC8C-00A0C91405DD"
+'Const GUID_NDIS_LAN_CLASS = "AD498944-762F-11D0-8DCB-00C04FC3358C"
+'Const GUID_DEVINTERFACE_CDROM = "53F56308-B6BF-11D0-94F2-00A0C91EFB8B"
+'Const GUID_KSCATEGORY_CAPTURE = "65E8773D-8F56-11D0-A3B9-00A0C9223196"
+'Const GUID_KSCATEGORY_VIDEO = "6994AD05-93EF-11D0-A3CC-00A0C9223196"
+'Const GUID_DEVCLASS_1394 = "6BDD1FC1-810F-11D0-BEC7-08002BE2092F"
+'Const GUID_DEVINTERFACE_MODEM = "2C7089AA-2E0E-11D1-B114-00C04FC2AAE4"
+'Const GUID_DEVINTERFACE_COMPORT = "86E0D1E0-8089-11D0-9CE4-08003E301F73"
+'
+'    ' /* made-up names */
+'Const GUID_DEVCLASS_IMAGE = "6BDD1FC6-810F-11D0-BEC7-08002BE2092F"
 
 Dim mhDevNotify As Long
 
@@ -66,15 +69,13 @@ End Type
 Dim mhWnd As Long
 Dim mToken As Long
 
-Dim mLastConnected As String
-Dim mLastDisconnected As String
+'Dim mLastConnected As String
+'Dim mLastDisconnected As String
 
 'Dim mPanel As BPrefsPanel
 'Dim WithEvents theAddEditPanel As TAddEditPanel
 
-'Dim mSelected As Long
-
-'Dim mConfig As CConfFile3
+'Dim mClasses As CConfFile
 
 'Implements KPrefsPage
 'Implements KPrefsPanel
@@ -97,8 +98,8 @@ Dim n As Long
     Case WM_DESTROY
         Form1.Add "WM_DESTROY"
         UnregisterDeviceNotification mhDevNotify
-        If mToken Then _
-            sn41UnregisterApp mToken
+        If mToken > 0 Then _
+            snarl_unregister mToken
 
 '        If Not (mPanel Is Nothing) Then _
             mPanel.Quit
@@ -155,13 +156,13 @@ Dim n As Long
         End If
 
 
-    Case sn41Broadcast()
+    Case snBroadcastMsg()
         Select Case wParam
-        Case SNARL_LAUNCHED
+        Case SNARL_BROADCAST_LAUNCHED
             Form1.Add "Snarl launched"
             uRegisterWithSnarl
 
-        Case SNARL_QUIT
+        Case SNARL_BROADCAST_QUIT
             Form1.Add "Snarl quit"
             mToken = 0      ' // no point in unregistering...
             UnregisterDeviceNotification mhDevNotify
@@ -169,83 +170,24 @@ Dim n As Long
         End Select
 
 
-    Case sn41AppMsg()
+    Case snAppMsg()
         Select Case wParam
-'        Case SNARL41_APP_PREFS
+'        Case SNARL_APP_PREFS
 '            Form1.Add "_APP_PREFS"
 '            uDoPrefs
 
-        Case SNARL41_APP_ABOUT
-            sn41EZNotify mToken, "", _
-                         "SnarlWare " & CStr(App.Major) & "." & CStr(App.Minor) & " " & App.Comments, _
-                         App.LegalCopyright & vbCrLf & "Build " & CStr(App.Revision), , _
-                         g_MakePath(App.Path) & "icon.png"
+        Case SNARLAPP_DO_PREFS
+            If MsgBox("Quit SnarlWare?", vbYesNo Or vbQuestion, _
+                      "SnarlWare " & App.Major & "." & App.Minor & " (Build " & App.Revision & ")") = vbYes Then _
+                        PostQuitMessage 0
+
+        Case SNARLAPP_DO_ABOUT
+            snDoRequest "notify?app-sig=" & App.ProductName & _
+                        "&title=SnarlWare " & CStr(App.Major) & "." & CStr(App.Minor) & " " & App.Comments & _
+                        "&text=" & App.LegalCopyright & vbCrLf & "Build " & CStr(App.Revision) & _
+                        "&icon=" & g_MakePath(App.Path) & "icon.png"
 
         End Select
-
-
-    Case WM_NOTIFICATION
-        Form1.Add "NOTIFICATION: " & g_HexStr(wParam) & " " & CStr(lParam)
-        n = LoWord(wParam)
-
-'        Select Case n
-'        Case SNARL_NOTIFICATION_ACK, SNARL_NOTIFICATION_MENU
-'            If Not uFind(lParam, pObj) Then _
-'                Exit Function
-'
-'            Form1.Add "item found: " & pObj.Class
-'
-'            If n = SNARL_NOTIFICATION_ACK Then
-'                pObj.Display
-'
-'            ElseIf n = SNARL_NOTIFICATION_MENU Then
-'
-'                sn41Hide lParam
-'                pObj.UnRead = False
-'
-'                Select Case HiWord(wParam)
-'                Case 1
-'                    pObj.Display
-'
-'                Case 2
-'                    pObj.Reply.Display
-'
-'                Case 3
-'                    pObj.ReplyAll.Display
-'
-'                Case 4
-'                    pObj.Forward.Display
-'
-'                End Select
-'
-'            End If
-'
-'
-''        snChangeAttribute hr, SNARL_ATTRIBUTE_MENU, "Open#?1||Reply#?2|Reply All#?3|Forward#?4||Delete#?5"
-'
-'        End Select
-
-
-    Case WM_TEST
-        Form1.Add "TEST: " & wParam
-
-'        If wParam = 0 Then
-'            uNotifyMail Nothing
-'
-'        ElseIf wParam = 1 Then
-'            uNotifyMail myItems.Item(1)
-'
-'        ElseIf wParam = 2 Then
-'            uFindFirst olMeetingRequest, pObj
-'            Debug.Print VarType(pObj)
-'            Err.Clear
-'            uNotifyAppointment pObj
-'            Debug.Print Err.Description
-'
-'        End If
-
-'    Case Else
-'        form1.add "WM_" & g_HexStr(uMsg)
 
     End Select
 
@@ -338,13 +280,30 @@ End Function
 
 Private Sub uRegisterWithSnarl()
 Dim pdbdi As DEV_BROADCAST_DEVICEINTERFACE
+Dim szGuid As String
+Dim szVal As String
 
-    mToken = sn41RegisterApp(App.ProductName, App.Title, g_MakePath(App.Path) & "icon.png", mhWnd, WM_NOTIFICATION, SNARL41_APP_IS_WINDOWLESS Or SNARL41_APP_HAS_ABOUT)
-    If mToken Then
+'    mToken = sn41RegisterApp(App.ProductName, App.Title, g_MakePath(App.Path) & "icon.png", mhWnd, WM_NOTIFICATION, SNARL_APP_IS_WINDOWLESS Or SNARL_APP_HAS_ABOUT)
+
+    mToken = snarl_register(App.ProductName, App.Title, g_MakePath(App.Path) & "icon.png", , mhWnd, WM_NOTIFICATION, SNARLAPP_IS_WINDOWLESS Or SNARLAPP_HAS_PREFS Or SNARLAPP_HAS_ABOUT)
+
+    If mToken > 0 Then
         Form1.List1.Tag = CStr(mToken)
         Form1.Add "Registered with Snarl (token=" & CStr(mToken) & ")"
-        sn41AddClass mToken, "dcon", "Device connected"
-        sn41AddClass mToken, "ddis", "Device disconnected"
+
+'        uLoadClasses
+
+'        With mClasses
+'            .Rewind
+'            Do While .GetEntry(szGuid, szVal)
+'                snDoRequest "addclass?token=" & CStr(mToken) & "&id=" & szGuid & "&name=" & uNameFromEntry(szVal)
+'
+'            Loop
+'
+'        End With
+
+        snDoRequest "addclass?token=" & CStr(mToken) & "&id=dcon&name=Device connected"
+        snDoRequest "addclass?token=" & CStr(mToken) & "&id=ddis&name=Device disconnected"
 
         With pdbdi
             .dbcc_size = Len(pdbdi)
@@ -355,7 +314,7 @@ Dim pdbdi As DEV_BROADCAST_DEVICEINTERFACE
         mhDevNotify = RegisterDeviceNotification(mhWnd, pdbdi, DEVICE_NOTIFY_WINDOW_HANDLE Or DEVICE_NOTIFY_ALL_INTERFACE_CLASSES)
 
     Else
-        Form1.Add "Error registering with Snarl"
+        Form1.Add "Error registering with Snarl (" & Abs(mToken) & ")"
 
     End If
 
@@ -431,9 +390,7 @@ End Sub
 
 Private Sub uStart()
 
-'    uLoadTasks
-
-    If sn41IsSnarlRunning() Then
+    If snIsSnarlRunning() Then
         uRegisterWithSnarl
 
     Else
@@ -446,8 +403,8 @@ End Sub
 Private Sub uDeviceChange(ByVal wParam As Long, ByVal lParam As Long)
 Dim pdbh As DEV_BROADCAST_HDR
 Dim pDevice As T_DEVICEINFO
-Dim szIcon As String
-Dim szState As String
+'Dim szIcon As String
+'Dim szState As String
 Dim szDevice As String
 
     Select Case wParam
@@ -455,72 +412,96 @@ Dim szDevice As String
 
     Case DBT_DEVICEARRIVAL, DBT_DEVICEREMOVECOMPLETE
 
+        Form1.Add IIf(wParam = DBT_DEVICEARRIVAL, "DBT_DEVICEARRIVAL", "DBT_DEVICEREMOVECOMPLETE")
+
         CopyMemory pdbh, ByVal lParam, Len(pdbh)
-        Debug.Print " -- device arrived: type=" & pdbh.dbch_devicetype
+        Form1.Add "  DEV_BROADCAST_HDR->dbch_devicetype=" & CStr(pdbh.dbch_devicetype) & IIf(pdbh.dbch_devicetype = DBT_DEVTYP_DEVICEINTERFACE, " (DBT_DEVTYP_DEVICEINTERFACE)", "")
+
         If uGetDeviceInfo(pdbh.dbch_devicetype, lParam, pDevice) Then
             If pDevice.DeviceType = DBT_DEVTYP_DEVICEINTERFACE Then
-                Form1.List1.AddItem IIf(wParam = DBT_DEVICEARRIVAL, "ADD", "REM") & ": " & pDevice.InstanceInfo.DeviceClass & " " & pDevice.InstanceInfo.DeviceClassGUID
-                szIcon = g_MakePath(App.Path) & "icons\" & pDevice.InstanceInfo.DeviceClass & ".png"
+                Form1.Add "  Identified!  Base type=" & pDevice.InstanceInfo.Class & " UID=" & pDevice.InstanceInfo.Driver
 
+'                szIcon = g_MakePath(App.Path) & "icons\" & pDevice.InstanceInfo.Class & ".png"
+
+                ' /* prefer "FriendlyName"... */
                 szDevice = pDevice.InstanceInfo.FriendlyName
+
 '                If szDevice = "" Then _
                     szDevice = pDevice.InstanceInfo.LocationInformation
 
+                ' /* ...but use Description if necessary */
                 If szDevice = "" Then _
                     szDevice = pDevice.InstanceInfo.Description
 
+                ' /* add a bunch of debug info */
+
+                If gDebugMode Then _
+                    szDevice = szDevice & IIf(szDevice <> "", vbCrLf & vbCrLf, "") & _
+                               "Class: " & pDevice.InstanceInfo.Class & " (" & pDevice.InstanceInfo.DeviceClassGUID & ")" & vbCrLf & _
+                               "FriendlyName: " & pDevice.InstanceInfo.FriendlyName & vbCrLf & _
+                               "Description: " & pDevice.InstanceInfo.Description & vbCrLf & _
+                               "UID: " & pDevice.InstanceInfo.Driver
+
                 ' /* filter out certain classes */
 
-                Select Case pDevice.InstanceInfo.DeviceClass
-                Case "USB", "VOLUME", "PARTITION", "HID"
-                    ' /* ignore these */
-                    Exit Sub
-
-                Case ""
-                    ' /* only display if debug mode enabled */
-
-'                    szIcon = g_MakePath(App.Path) & "icons\unknown.png"
-                    szIcon = g_MakePath(App.Path) & "icons\generic.png"
-
-                    If gDebugMode Then _
-                        szDevice = "Unrecognised device" & vbCrLf & _
-                                   "Class GUID: " & pDevice.InstanceInfo.DeviceClassGUID & vbCrLf & _
-                                   "Description: " & pDevice.InstanceInfo.Description & vbCrLf & _
-                                   "Friendlyname: " & pDevice.InstanceInfo.FriendlyName
-
-                End Select
+'                Select Case pDevice.InstanceInfo.DeviceClass
+''                Case "USB", "VOLUME", "PARTITION", "HID"
+''                    ' /* ignore these */
+''                    Exit Sub
+'
+'                Case ""
+'                    ' /* only display if debug mode enabled */
+'
+'                    szIcon = g_MakePath(App.Path) & "icons\generic.png"
+'
+'                    If gDebugMode Then _
+'                        szDevice = "Unrecognised device" & vbCrLf & _
+'                                   "Class: " & pDevice.InstanceInfo.Class & " (" & pDevice.InstanceInfo.DeviceClassGUID & ")" & vbCrLf & _
+'                                   "FriendlyName: " & pDevice.InstanceInfo.FriendlyName & vbCrLf & _
+'                                   "Description: " & pDevice.InstanceInfo.Description & vbCrLf & _
+'                                   "UID: " & pDevice.InstanceInfo.Driver
+'
+'                End Select
 
                 ' /* determine connection state */
 
-                If wParam = DBT_DEVICEARRIVAL Then
-                    szState = "connected"
-                    If szDevice = mLastConnected Then
-                        Form1.Add "IGNORING DUPLICATE"
-                        Exit Sub
+'                If wParam = DBT_DEVICEARRIVAL Then
+''                    szState = "connected"
+''                    If szDevice = mLastConnected Then
+''                        Form1.Add "IGNORING DUPLICATE"
+''                        Exit Sub
+''
+''                    End If
+'
+''                    mLastConnected = szDevice
+'
+'                Else
+'                    szState = "disconnected"
+''                    If szDevice = mLastDisconnected Then
+''                        Form1.Add "IGNORING DUPLICATE"
+''                        Exit Sub
+''
+''                    End If
+'
+''                    mLastDisconnected = szDevice
+'
+'                End If
 
-                    End If
+                Debug.Print ">> " & snDoRequest("notify?app-sig=" & App.ProductName & _
+                            "&id=" & IIf(wParam = DBT_DEVICEARRIVAL, "dcon", "ddis") & _
+                            "&title=Device " & IIf(wParam = DBT_DEVICEARRIVAL, "connected", "disconnected") & _
+                            "&text=" & szDevice & _
+                            "&icon=" & g_MakePath(App.Path) & "icons\" & pDevice.InstanceInfo.Class & ".png" & _
+                            "&uid=" & pDevice.InstanceInfo.Driver)
 
-                    mLastConnected = szDevice
-
-                Else
-                    szState = "disconnected"
-                    If szDevice = mLastDisconnected Then
-                        Form1.Add "IGNORING DUPLICATE"
-                        Exit Sub
-
-                    End If
-
-                    mLastDisconnected = szDevice
-
-                End If
-
-                sn41EZNotify mToken, _
-                             IIf(wParam = DBT_DEVICEARRIVAL, "dcon", "ddis"), _
-                             "Device " & szState, _
-                             szDevice, , _
-                             szIcon
+            Else
+                Form1.Add "  not a DBT_DEVTYP_DEVICEINTERFACE"
 
             End If
+
+        Else
+            Form1.Add " failed to retrieve info"
+
         End If
 
     Case Else
@@ -531,7 +512,7 @@ Dim szDevice As String
 End Sub
 
 Private Function uGetDeviceInfo(ByVal DeviceType As Long, ByVal ptr As Long, ByRef DeviceInfo As T_DEVICEINFO) As Boolean
-Dim pif As DEV_BROADCAST_DEVICEINTERFACER
+Dim pdbdi As DEV_BROADCAST_DEVICEINTERFACER
 Dim pvol As DEV_BROADCAST_VOLUME
 Dim pInfo As T_DEVICEINSTANCEINFO
 
@@ -562,73 +543,41 @@ Dim pInfo As T_DEVICEINSTANCEINFO
 
 
     Case DBT_DEVTYP_DEVICEINTERFACE
-        ' // device interface class
-        CopyMemory pif, ByVal ptr, Len(pif)
-        Debug.Print "  DBT_DEVTYPE_DEVICEINTERFACE"
-        Debug.Print "  guid: " & g_StringFromGuid(pif.dbcc_classguid)
-        Debug.Print "  name: " & StrConv(pif.dbcc_name, 0)
+        ' /* device interface class
+        '       ->dbcc_classguid is the device class guid
+        '       ->decc_name is a packed registry path
+        ' */
 
-        If uGetDeviceInstanceInfo(StrConv(pif.dbcc_name, 0), pInfo) Then
+        CopyMemory pdbdi, ByVal ptr, Len(pdbdi)
+'        Debug.Print "  DBT_DEVTYPE_DEVICEINTERFACE"
+'        Debug.Print "  guid: " & g_StringFromGuid(pdbdi.dbcc_classguid)
+        Debug.Print "  name: " & StrConv(pdbdi.dbcc_name, 0)
+
+        Form1.Add "  DBT_DEVTYPE_DEVICEINTERFACE->dbcc_classguid=" & g_StringFromGuid(pdbdi.dbcc_classguid)
+        Form1.Add "  DBT_DEVTYPE_DEVICEINTERFACE->dbcc_name=" & StrConv(pdbdi.dbcc_name, 0)
+
+        ' /* extract information from the packed registry path */
+
+        If uGetDeviceInstanceInfo(StrConv(pdbdi.dbcc_name, 0), pInfo) Then
             LSet DeviceInfo.InstanceInfo = pInfo
             DeviceInfo.DeviceType = DeviceType
-            DeviceInfo.InstanceInfo.DeviceClassGUID = g_GuidToString(pif.dbcc_classguid)
-            Select Case DeviceInfo.InstanceInfo.DeviceClassGUID
-    
-            Case GUID_DEVINTERFACE_USB_DEVICE
-                DeviceInfo.InstanceInfo.DeviceClass = "USB"
+            DeviceInfo.InstanceInfo.DeviceClassGUID = g_GuidToString(pdbdi.dbcc_classguid)
 
-            Case GUID_DEVINTERFACE_DISK
-                DeviceInfo.InstanceInfo.DeviceClass = "DISK"
-    
-            Case GUID_DEVINTERFACE_PARTITION
-                DeviceInfo.InstanceInfo.DeviceClass = "PARTITON"
-
-            Case GUID_DEVINTERFACE_VOLUME
-                DeviceInfo.InstanceInfo.DeviceClass = "VOLUME"
-    
-            Case GUID_DEVINTERFACE_HID
-                DeviceInfo.InstanceInfo.DeviceClass = "HID"
-
-            Case GUID_DEVINTERFACE_MOUSE
-                DeviceInfo.InstanceInfo.DeviceClass = "MOUSE"
-    
-            Case GUID_DEVINTERFACE_KEYBOARD
-                DeviceInfo.InstanceInfo.DeviceClass = "KEYBOARD"
-
-            Case GUID_NDIS_LAN_CLASS
-                DeviceInfo.InstanceInfo.DeviceClass = "LAN"
-
-                Select Case LCase$(DeviceInfo.InstanceInfo.Class)
-                Case "infrared"
-                    DeviceInfo.Flags = 1
-
-                End Select
-
-            Case GUID_DEVINTERFACE_CDROM
-                DeviceInfo.InstanceInfo.DeviceClass = "CDROM"
-
-            Case GUID_KSCATEGORY_CAPTURE
-                DeviceInfo.InstanceInfo.DeviceClass = "CAPTURE"
-
-            Case GUID_KSCATEGORY_VIDEO
-                DeviceInfo.InstanceInfo.DeviceClass = "VIDEO"
-
-            Case GUID_DEVCLASS_1394
-                DeviceInfo.InstanceInfo.DeviceClass = "1394"
-            
-            Case GUID_DEVINTERFACE_MODEM
-                DeviceInfo.InstanceInfo.DeviceClass = "MODEM"
-
-            Case GUID_DEVINTERFACE_COMPORT
-                DeviceInfo.InstanceInfo.DeviceClass = "COMPORT"
-
-            Case Else
-                DeviceInfo.InstanceInfo.DeviceClass = uGetCustomClassName(DeviceInfo.InstanceInfo.DeviceClassGUID)
-
-            End Select
+'            ' /* convert the class GUID into something human-readable */
+'
+'            If mClasses.Exists(DeviceInfo.InstanceInfo.DeviceClassGUID) Then
+'                DeviceInfo.InstanceInfo.DeviceClass = uGetClassName(mClasses.ValueOf(DeviceInfo.InstanceInfo.DeviceClassGUID))
+'
+'            Else
+'                Form1.Add " * class name not found (guid=" & DeviceInfo.InstanceInfo.DeviceClassGUID & ", class=" & DeviceInfo.InstanceInfo.Class & ")"
+'
+'            End If
 
             Debug.Print DeviceInfo.InstanceInfo.DeviceClass
             uGetDeviceInfo = True
+
+        Else
+            Form1.Add " unable to open registry path"
 
         End If
 
@@ -641,12 +590,18 @@ End Function
 
 Private Function uGetDeviceInstanceInfo(ByVal dbcc_name As String, ByRef Info As T_DEVICEINSTANCEINFO) As Boolean
 Dim szClass As String
-Dim i As Long
 
 '    szClass = "\\?\HID#Vid_046e&Pid_5500&MI_01&Col02#7&26ec423b&0&0001#{4d1e55b2-f16f-11cf-88cb-001111000030}"
 
+    ' /* remove \\?\ prefix */
+
     szClass = StrReverse(dbcc_name)
     szClass = g_SafeLeftStr(szClass, Len(szClass) - 4)
+
+    ' /* extract class name */
+
+Dim i As Long
+
     i = InStr(szClass, "#")
     If i Then _
         szClass = g_SafeRightStr(szClass, Len(szClass) - i)
@@ -662,18 +617,24 @@ Dim hKey As Long
 
     If reg_OpenKey(HKEY_LOCAL_MACHINE, "SYSTEM\CurrentControlSet\Enum\" & szClass, hKey) Then
 
-        If Not reg_GetValue(hKey, "Mfg", Info.Manufacturer) Then _
-            Debug.Print "failed: mfg"
+        ' /* read what we can from the registry - it's unclear if any of these are mandatory */
 
-        If Not reg_GetValue(hKey, "DeviceDesc", Info.Description) Then _
-            Debug.Print "failed: desc"
-
+        reg_GetValue hKey, "Mfg", Info.Manufacturer
+        reg_GetValue hKey, "DeviceDesc", Info.Description
         reg_GetValue hKey, "Class", Info.Class
         reg_GetValue hKey, "LocationInformation", Info.LocationInformation  ' // not always present
         reg_GetValue hKey, "FriendlyName", Info.FriendlyName                ' // not always present
         reg_GetValue hKey, "Service", Info.Service
         reg_GetValue hKey, "Driver", Info.Driver
 
+        Form1.Add "  Mfg=" & Info.Manufacturer
+        Form1.Add "  DeviceDesc=" & Info.Description
+        Form1.Add "  Class=" & Info.Class
+        Form1.Add "  LocationInformation=" & Info.LocationInformation
+        Form1.Add "  FriendlyName=" & Info.FriendlyName
+        Form1.Add "  Service=" & Info.Service
+        Form1.Add "  Driver=" & Info.Driver
+ 
         RegCloseKey hKey
         uGetDeviceInstanceInfo = True
 
@@ -744,12 +705,40 @@ Dim hKey As Long
 
 End Function
 
-Private Function uGetCustomClassName(ByVal ClassGUID As String) As String
+'Private Function uGetCustomClassName(ByVal ClassGUID As String) As String
+'
+'    With New CConfFile
+'        If .SetTo(g_MakePath(App.Path) & "customclasses.conf") Then _
+'            uGetCustomClassName = .ValueOf(UCase$(ClassGUID))
+'
+'    End With
+'
+'End Function
 
-    With New CConfFile
-        If .SetTo(g_MakePath(App.Path) & "customclasses.conf") Then _
-            uGetCustomClassName = .ValueOf(UCase$(ClassGUID))
+'Private Sub uLoadClasses()
+'
+'    Set mClasses = New CConfFile
+'    mClasses.SetTo g_MakePath(App.Path) & "customclasses.conf"
+'
+'End Sub
 
-    End With
+Private Function uNameFromEntry(ByVal Entry As String) As String
+Dim s() As String
+
+    On Error Resume Next
+
+    s = Split(Entry, ",")
+    uNameFromEntry = s(1)
 
 End Function
+
+Private Function uGetClassName(ByVal Entry As String) As String
+Dim s() As String
+
+    On Error Resume Next
+
+    s = Split(Entry, ",")
+    uGetClassName = s(0)
+
+End Function
+

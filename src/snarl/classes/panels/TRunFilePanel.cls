@@ -166,12 +166,6 @@ Dim sd As String
             With pPage
                 .SetMargin 0
 
-                If mIsRunFile Then
-                    .Add new_BPrefsControl("label", "", "Each scheme represents a file to run.  Snarl includes arguments as follows:")
-                    .Add new_BPrefsControl("label", "", "<file> ""<notification title>"" ""<notification text>"" ""<application>""")
-
-                End If
-
                 Set pm = New CTempMsg
 '                pm.Add "item-height", 36&
                 Set pc = new_BPrefsControl("listbox", "list", , , , pm)
@@ -179,17 +173,18 @@ Dim sd As String
                 .Add pc
 
 '                .Add new_BPrefsControl("fancyedit", "file_to_run")
-
-''                .Add new_BPrefsControl("label", "", "Callback")
-''                .Add new_BPrefsControl("label", "the_callback", "")
-
                 .Add new_BPrefsControl("fancytoolbar", "toolbar_options", "Add...|Remove")
-
 ''                .Add new_BPrefsControl("fancybutton2", "fb>ack", "Invoke Callback", , , , False)
-'
-''                .Add new_BPrefsControl("seperator", "")
-'                .Add new_BPrefsControl("fancybutton2", "fb>clear", "Clear List")
-        
+
+                If mIsRunFile Then
+'                    .Add new_BPrefsControl("label", "", "Each scheme represents an individual file to run")
+                    .Add new_BPrefsControl("label", "", "Snarl will pass notification elements as arguments to the file it runs, as follows: " & vbCrLf & _
+                                                        "<file> ""<notification title>"" ""<notification text>"" ""<sender>"".")
+
+                    .Add new_BPrefsControl("label", "", "Any notification elements prefixed with either ""data-"" or ""value-"" are also included as an additional arguments.")
+
+                End If
+
             End With
 
             .AddPage pPage

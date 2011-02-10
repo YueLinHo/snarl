@@ -16,7 +16,7 @@ typedef enum S_STYLE_FLAGS {
     S_STYLE_CLICK_THROUGH	= 0x00000200,	// style is always click-through irrespective of Snarl config
     S_STYLE_WANT_APP_NAME	= 0x00000400,	// UpdateContent() will include sending app name in the Title
 	S_STYLE_V42_CONTENT		= 0x00000800,	// Title not used, Text contains unabridged notification content 
-
+	S_STYLE_WANTS_VETO		= 0x00001000,	// For managed styles only - allows style to block notification appearing
 
     S_STYLE_PULSE_NEEDED	= 0x80000000	// wants a regular pulse
 

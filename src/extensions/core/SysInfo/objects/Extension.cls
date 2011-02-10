@@ -50,7 +50,7 @@ Option Explicit
     '
     ' */
 
-Private Const LIB_DATE = "20-Jan-2011"
+Private Const LIB_DATE = "4-Feb-2011"
 Private Const LIB_RELEASE = "3.02"
 Private Const EXT_NAME = "SysInfo"
 Private Const EXT_COMMENT = "Tracks events specific to this computer"
@@ -300,7 +300,7 @@ Dim pm As CTempMsg
 
     End If
 
-    ISnarlExtension_GetConfigWindow = mPanel.hWnd
+    ISnarlExtension_GetConfigWindow = mPanel.hwnd
 
 End Function
 
@@ -329,7 +329,7 @@ Private Function ISnarlExtension_Initialize() As Long
 
     On Error Resume Next
 
-    l3OpenLog "%APPDATA%\" & EXT_NAME & ".log", True
+    l3OpenLog "%APPDATA%\full phat\snarl\" & EXT_NAME & ".log", True
     g_Debug "pwd: " & g_MakePath(App.Path)
 
     If sn41GetVersion = 0 Then
@@ -788,7 +788,7 @@ Dim sz As String
         sz = CStr(PercentRemaining)
 
     Else
-        sz = g_FileSizeToStringEx2(g_GetPhysMem(False)) & " of " & g_FileSizeToStringEx2(g_GetPhysMem(True)) & _
+        sz = g_FileSizeToStringEx2(g_GetPhysMem(False), , , "0.0") & " of " & g_FileSizeToStringEx2(g_GetPhysMem(True), , , "0.0") & _
              " (" & CStr(PercentRemaining) & "%) remaining"
 
     End If
@@ -963,24 +963,15 @@ Private Function uSpeed(ByVal Speed As Long) As String
 End Function
 
 Private Sub theVolRoster_VolumeMounted(ByVal Path As String, ByVal Label As String, ByVal VolType As Long)
+Dim sz As String
+Dim n As Integer
 Dim i As Long
 
-    If sn41GetVersion() > 41 Then
-        ' /* V42: add "open" as action instead */
-        i = sn41EZNotify(mToken, CLASS_VOL_MNT, _
-                         "Voume mounted", _
-                         uLabel(Label, Path) & uCapacityInfo(Path), , uIcon(Path), , , , "action::Open," & Path)
+    sz = uCapacityInfo(Path, n)
 
-'        If i Then _
-            sn42AddAction i, "Open", Path
-
-    Else
-        ' /* pre-V42: default ack is "open" */
-        i = sn41EZNotify(mToken, CLASS_VOL_MNT, _
-                         "Voume mounted", _
-                         uLabel(Label, Path) & uCapacityInfo(Path), , uIcon(Path), , Path)
-
-    End If
+    i = sn41EZNotify(mToken, CLASS_VOL_MNT, _
+                     "Voume mounted", _
+                     uLabel(Label, Path) & sz, , uIcon(Path), , Path, CStr(n))
 
 End Sub
 
@@ -1002,7 +993,7 @@ Private Function uLabel(ByVal Label As String, Optional ByVal Path As String, Op
 
 End Function
 
-Private Function uCapacityInfo(ByVal Path As String) As String
+Private Function uCapacityInfo(ByVal Path As String, ByRef PercentUsed As Integer) As String
 Dim pv As TSimpleVolume
 
     Set pv = New TSimpleVolume
@@ -1012,6 +1003,7 @@ Dim pv As TSimpleVolume
     If pv.IsNetworkVolume Then _
         Exit Function
 
+    PercentUsed = pv.PercentUsed
     uCapacityInfo = vbCrLf & g_FileSizeToStringEx2(pv.Capacity) & ", " & g_FileSizeToStringEx2(pv.Used) & " (" & CStr(pv.PercentUsed) & "%) used"
 
 End Function
@@ -1116,7 +1108,7 @@ Private Sub KPrefsPage_ControlInvoked(Control As BControl)
         theHandler_OnDiskThresholdReached mConfig.ValueOf("disk.low_mark"), g_SafeLeftStr(App.Path, 3)
 
     Case "go_website"
-        ShellExecute Control.Page.Panel.hWnd, "open", "http://www.fullphat.net", vbNullString, vbNullString, 5
+        ShellExecute Control.Page.Panel.hwnd, "open", "http://www.fullphat.net", vbNullString, vbNullString, 5
 
     End Select
 

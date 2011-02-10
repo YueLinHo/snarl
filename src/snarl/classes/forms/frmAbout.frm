@@ -243,7 +243,7 @@ Dim mSysKeyTest As Long
 Dim mTrayIcon As BNotifyIcon
 
 Dim m_About As String
-Dim mTaskbarCreated As Long
+'Dim mTaskbarCreated As Long
 Dim m_SelectedApp As String         ' // current selected application in listbox
 
 Dim mPrefs As T_CONFIG
@@ -402,8 +402,8 @@ Dim n As Integer
 
     ' /* create the tray icon */
 
-    mTaskbarCreated = RegisterWindowMessage("TaskbarCreated")
-    g_Debug "_load: 'TaskbarCreated' = " & g_HexStr(mTaskbarCreated, 4)
+'    mTaskbarCreated = RegisterWindowMessage("TaskbarCreated")
+'    g_Debug "_load: 'TaskbarCreated' = " & g_HexStr(mTaskbarCreated, 4)
 
     Set mTrayIcon = New BNotifyIcon
     mTrayIcon.SetTo Me.hWnd, WM_SNARL_TRAY_ICON
@@ -586,12 +586,25 @@ Dim sz() As String
         g_ConfigSet Control.GetName, Value
 
 
+    Case "away_style", "busy_style"
+        ' /* away and busy forwarding style */
+        g_ConfigSet Control.GetName, LCase$(Replace$(prefskit_GetItem(Control), ": ", "/"))
+
+
     Case Else
         ' /* other controls */
         g_ConfigSet Control.GetName, Value
 
-        If Control.GetName = "run_on_logon" Then _
+        If Control.GetName = "run_on_logon" Then
             g_SetAutoRun2
+
+        ElseIf Control.GetName = "away_mode" Then
+            prefskit_SafeEnable Control.Page.Panel, "away_style", (Value = "6")
+
+        ElseIf Control.GetName = "busy_mode" Then
+            prefskit_SafeEnable Control.Page.Panel, "busy_style", (Value = "6")
+                
+        End If
 
     End Select
 
@@ -719,10 +732,10 @@ Dim dw As Long
     Case WM_EXITMENULOOP
         mMenuOpen = False
 
-    Case mTaskbarCreated
-        g_Debug "frmAbout.WndProc(): 'TaskbarCreated' received - adding icon..."
-        uAddTrayIcon
-
+'    Case mTaskbarCreated
+'        g_Debug "frmAbout.WndProc(): 'TaskbarCreated' received - adding icon..."
+'        uAddTrayIcon
+'
 '    Case Is > WM_USER
 '        Debug.Print ">> " & g_HexStr(uMsg, 4)
 
@@ -926,7 +939,7 @@ Dim pm As CTempMsg
             .SetHandler Me
 
             mPanel.SetTitle "Snarl Preferences"
-            mPanel.SetWidth 500
+            mPanel.SetWidth 540
 
             ' /* general page */
 
@@ -934,46 +947,38 @@ Dim pm As CTempMsg
 
             With pp
                 .SetMargin 96
-                .Add new_BPrefsControl("banner", "", "Launch Options")
 
-'                Set pm = New CTempMsg
-'                pm.Add "text", "Start at login?"
-'                pm.Add "align", 1
-'                pm.Add "inset_by", 0
+                ' /* launch options */
+
+                .Add new_BPrefsControl("banner", "", "Launch Options")
                 .Add new_BPrefsControl("fancytoggle2", "run_on_logon", "Start at login?", "", g_ConfigGet("run_on_logon"))
-                .Add new_BPrefsControl("fancytoggle2", "show_msg_on_start", "Show message on startup?", "", g_ConfigGet("show_msg_on_start"), pm)
+                .Add new_BPrefsControl("fancytoggle2", "show_msg_on_start", "Show Welcome Message on startup?", "", g_ConfigGet("show_msg_on_start"), pm)
+                .Add new_BPrefsControl("fancytoggle2", "auto_update", "Check for updates on launch?", "", g_ConfigGet("auto_update"))
+                .Add new_BPrefsControl("fancybutton2", "update_now", "Check now...")
+
+                ' /* applications */
+
+                .Add new_BPrefsControl("banner", "", "Applications")
+                .Add new_BPrefsControl("fancytoggle2", "notify_on_first_register", "Only notify the first time an application registers?", , g_ConfigGet("notify_on_first_register"))
+
+                ' /* forwarding */
+
+                .Add new_BPrefsControl("banner", "", "Forwarding")
+                .Add new_BPrefsControl("fancytoggle2", "include_host_name_when_forwarding", "Include computer name when forwarding notifications?", , g_ConfigGet("include_host_name_when_forwarding"))
+
+                ' /* misc */
+
+                .Add new_BPrefsControl("banner", "", "Miscellaneous")
                 .Add new_BPrefsControl("fancytoggle2", "log_only", "Log only (don't display)?", , g_ConfigGet("log_only"))
 
-                ' /* presence */
-
-                .Add new_BPrefsControl("banner", "", "Presence")
-                .Add new_BPrefsControl("label", "", "Enable away mode after the following period of inactivity:")
-
-                Set pm = New CTempMsg
-                pm.Add "min", 0&
-                pm.Add "max", 30&
-                pm.Add "freq", 5&
-                pm.Add "label_size", 56&
-                .Add new_BPrefsControl("fancyslider", "idle_minutes", "", "", IIf(g_ConfigGet("idle_minutes") = "2", "1", "2"), pm)
-
-                .Add new_BPrefsControl("fancytoggle2", "away_when_locked", "Enable away mode when computer is locked?", , g_ConfigGet("away_when_locked"))
-                .Add new_BPrefsControl("fancytoggle2", "away_when_screensaver", "Enable away mode when the screensaver starts?", , g_ConfigGet("away_when_screensaver"))
-                .Add new_BPrefsControl("fancytoggle2", "away_when_fullscreen", "Enable DND mode when the foreground application is fullscreen?", , g_ConfigGet("away_when_fullscreen"))
-
-                .Add new_BPrefsControl("fancycycle", "away_mode", "Log Notification as Missed|Make Notification Sticky|Do Nothing|Display Notification", "When Away:", g_ConfigGet("away_mode"))
-                .Add new_BPrefsControl("fancycycle", "busy_mode", "Log Notification as Missed|Make Notification Sticky|Do Nothing|Display Notification", "When Busy:", g_ConfigGet("busy_mode"))
-
-                .Add new_BPrefsControl("label", "", "Note that the above settings only apply to normal priority notifications.  More granular settings are available in the class configuration preferences panel.")
-
-                ' /* miscellaneous */
-
-'                .Add new_BPrefsControl("banner", "", "Miscellaneous")
     '        .Add new_BPrefsControl("fancytoggle2", "sticky_snarls", "Sticky notifications?", , g_ConfigGet("sticky_snarls"))
 
             End With
 
             .AddPage pp
 
+
+            ' /* apps */
 
 
             Set mAppsPage = New TAppsPage
@@ -982,6 +987,49 @@ Dim pm As CTempMsg
             .AddPage new_BPrefsPage("Styles", load_image_obj(g_MakePath(App.Path) & "etc\icons\styles.png"), New TStylesPage)
             .AddPage new_BPrefsPage("Extensions", load_image_obj(g_MakePath(App.Path) & "etc\icons\extensions.png"), New TExtPage)
             .AddPage new_BPrefsPage("Network", load_image_obj(g_MakePath(App.Path) & "etc\icons\network.png"), New TNetworkPage)
+
+
+            ' /* presence */
+
+
+            Set pp = new_BPrefsPage("Presence", load_image_obj(g_MakePath(App.Path) & "etc\icons\presence.png"), Me)
+
+            With pp
+                .SetMargin 96
+
+                ' /* away mode */
+
+                .Add new_BPrefsControl("banner", "", "Away Mode")
+                .Add new_BPrefsControl("label", "", "Set away after the following period of inactivity:")
+
+                Set pm = New CTempMsg
+                pm.Add "min", 0&
+                pm.Add "max", 30&
+                pm.Add "freq", 5&
+                pm.Add "label_size", 56&
+                .Add new_BPrefsControl("fancyslider", "idle_minutes", "", "", IIf(g_ConfigGet("idle_minutes") = "2", "1", "2"), pm)
+
+                .Add new_BPrefsControl("fancytoggle2", "away_when_locked", "Set away when computer is locked?", , g_ConfigGet("away_when_locked"))
+                .Add new_BPrefsControl("fancytoggle2", "away_when_screensaver", "Set away when the screensaver starts?", , g_ConfigGet("away_when_screensaver"))
+
+                .Add new_BPrefsControl("fancycycle", "away_mode", "Log as Missed|Display Sticky|Discard|Display Normally|Display High Priority|Forward...", "When Away:", g_ConfigGet("away_mode"))
+                .Add new_BPrefsCombo("away_style", g_StyleRoster.GetNonWindowStyleList(), "", uFindForward(g_ConfigGet("away_style"), g_StyleRoster.GetNonWindowStyleList()), 24, , , , (g_ConfigGet("away_mode") = "6"))
+
+                ' /* busy mode */
+
+                .Add new_BPrefsControl("banner", "", "Busy Mode")
+                .Add new_BPrefsControl("fancytoggle2", "away_when_fullscreen", "Set busy when the foreground application is fullscreen?", , g_ConfigGet("away_when_fullscreen"))
+                .Add new_BPrefsControl("fancycycle", "busy_mode", "Log as Missed|Display Sticky|Discard|Display Normally|Display High Priority|Forward...", "When Busy:", g_ConfigGet("busy_mode"))
+                .Add new_BPrefsCombo("busy_style", g_StyleRoster.GetNonWindowStyleList(), "", uFindForward(g_ConfigGet("busy_style"), g_StyleRoster.GetNonWindowStyleList()), 24, , , , (g_ConfigGet("busy_mode") = "6"))
+
+                .Add new_BPrefsControl("label", "", "Note that the above settings only apply to normal priority notifications.  More granular settings are available in the class configuration preferences panel.")
+
+            End With
+
+            .AddPage pp
+
+
+
 
             ' /* advanced page */
 
@@ -998,15 +1046,6 @@ Dim pm As CTempMsg
                 .Add new_BPrefsControl("fancytoggle2", "", "Use a hotkey to activate Snarl's menu?", "", "0", , False)
                 .Add new_BPrefsControl("key_picker", "", , , CStr(MOD_WIN) & "," & g_ConfigGet("hotkey_prefs"), , False)
                 .Add new_BPrefsControl("label", "", "Press the key you want to use in the boxes above.  Note that the modifiers (the combination of SHIFT and CTRL keys) used are automatically set.")
-
-                ' /* applications */
-
-                .Add new_BPrefsControl("banner", "", "Applications")
-                .Add new_BPrefsControl("fancytoggle2", "notify_on_first_register", "Only notify the first time an application registers?", , g_ConfigGet("notify_on_first_register"))
-
-                .Add new_BPrefsControl("banner", "", "Miscellaneous")
-                .Add new_BPrefsControl("fancytoggle2", "auto_update", "Check for updates on launch?", "", g_ConfigGet("auto_update"))
-                .Add new_BPrefsControl("fancybutton2", "update_now", "Check now...")
 
                 ' /* presence management */
 
@@ -1099,6 +1138,12 @@ Dim j As Long
 
         End If
     End If
+
+    If mPanel.Find("busy_style", pc) Then _
+        g_StyleRoster.SetNonWindowStyleIcons pc
+
+    If mPanel.Find("away_style", pc) Then _
+        g_StyleRoster.SetNonWindowStyleIcons pc
 
 '    If mPanel.Find("melontype_contrast", pc) Then _
 '        pc.SetEnabled (gPrefs.font_smoothing = E_MELONTYPE)
@@ -1369,7 +1414,7 @@ Dim cb As Long
         g_PrivateNotify "", g_GetUserName() & " on " & g_GetComputerName(), _
                         g_GetOSName() & " " & g_GetServicePackName() & vbCrLf & _
                         IIf(dw > 1, CStr(dw) & "x", "") & .FullName & " @ " & Format$(dFreq, "0.0#") & " " & szMetric & vbCrLf & _
-                        g_FileSizeToStringEx2(g_GetPhysMem(True), "GB", " ", "0.##") & " (" & g_FileSizeToStringEx2(g_GetPageMem(True) + g_GetPhysMem(True), "GB", " ", "0.##") & ") RAM" & vbCrLf & _
+                        g_FileSizeToStringEx2(g_GetPhysMem(True), "GB", "", "0.0") & " (" & g_FileSizeToStringEx2(g_GetPageMem(True) + g_GetPhysMem(True), "GB", "", "0.0") & ") RAM" & vbCrLf & _
                         "Snarl " & App.Major & "." & App.Revision & " (" & App.Comments & ")" & vbCrLf & "melon " & IIf(szMelon <> "", szMelon, "??"), _
                         -1, _
                         g_MakePath(App.Path) & "etc\icons\snarl.png"
@@ -1991,5 +2036,29 @@ Static Style As Long
 
 End Function
 
+Private Function uFindForward(ByVal StyleAndScheme As String, ByVal List As String) As Long
+Dim s() As String
+
+    On Error Resume Next
+
+    err.Clear
+    s = Split(Replace$(LCase$(List), ": ", "/"), "|")
+    If UBound(s) < 1 Then _
+        Exit Function
+
+    If err.Number Then _
+        Exit Function
+
+Dim i As Long
+
+    For i = 0 To UBound(s)
+        If s(i) = StyleAndScheme Then
+            uFindForward = i + 1
+            Exit Function
+
+        End If
+    Next i
+
+End Function
 
 

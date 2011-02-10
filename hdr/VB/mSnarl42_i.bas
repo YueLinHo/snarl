@@ -84,7 +84,7 @@ Public Enum SNARL_STATUS_CODE
     '//105 gen critical #5
     SNARL_ERROR_BAD_SOCKET = 106            '// invalid socket (or some other socket-related error)
     SNARL_ERROR_BAD_PACKET = 107            '// badly formed request
-    '//108 net critical #3
+    SNARL_ERROR_INVALID_ARG = 108           '// R2.4B4: arg supplied was invalid
     SNARL_ERROR_ARG_MISSING = 109           '// required argument missing
     SNARL_ERROR_SYSTEM                      '// internal system error
     '//120 libsnarl critical block
@@ -197,11 +197,13 @@ Public Const SNARLAPP_DO_ABOUT = 2              '// application should show its 
 Public Function snDoRequest(ByVal Request As String, Optional ByVal ReplyTimeout As Long = 1000) As Long
 Dim hWnd As Long
 
-    ' /* return zero on failure */
+    ' /* returns zero or a positive value on success, negative value on failure
+    '    in the case of failure, the return value will be a negated member of
+    '    the SNARL_STATUS_CODE enum - thus ABS(ReturnValue) is required to
+    '    correctly identify the error code */
 
     hWnd = FindWindow("w>Snarl", "Snarl")
     If IsWindow(hWnd) = 0 Then
-        ' /* pseudo error */
         snDoRequest = -SNARL_ERROR_NOT_RUNNING
         Exit Function
 
@@ -328,12 +330,13 @@ End Function
 ' /*
 ' /****************************************************************************************/
 
-Public Function snarl_register(ByVal Signature As String, ByVal Name As String, ByVal Icon As String, Optional ByVal Password As String, Optional ByVal ReplyTo As Long, Optional ByVal Reply As Long) As Long
+Public Function snarl_register(ByVal Signature As String, ByVal Name As String, ByVal Icon As String, Optional ByVal Password As String, Optional ByVal ReplyTo As Long, Optional ByVal Reply As Long, Optional ByVal Flags As SNARLAPP_FLAGS) As Long
 
     snarl_register = snDoRequest("register?app-sig=" & Signature & "&title=" & Name & "&icon=" & Icon & _
                                  IIf(Password <> "", "&password=" & Password, "") & _
                                  IIf(ReplyTo <> 0, "&reply-to=" & CStr(ReplyTo), "") & _
-                                 IIf(Reply <> 0, "&reply=" & CStr(Reply), ""))
+                                 IIf(Reply <> 0, "&reply=" & CStr(Reply), "") & _
+                                 IIf(Flags <> 0, "&flags=" & CStr(Flags), ""))
 
 End Function
 
@@ -342,10 +345,10 @@ Dim sz As String
 
     sz = "unregister?"
 
-    If varType(TokenOrSignature) = vbLong Then
+    If VarType(TokenOrSignature) = vbLong Then
         sz = sz & "token=" & CStr(TokenOrSignature)
 
-    ElseIf varType(TokenOrSignature) = vbString Then
+    ElseIf VarType(TokenOrSignature) = vbString Then
         sz = sz & "app-sig=" & CStr(TokenOrSignature)
 
     Else

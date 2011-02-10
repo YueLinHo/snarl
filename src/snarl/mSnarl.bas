@@ -13,15 +13,12 @@ Option Explicit
     '/
     '*********************************************************************************************/
 
-Private Declare Function GetTempPath Lib "kernel32" Alias "GetTempPathA" (ByVal nBufferLength As Long, ByVal lpBuffer As String) As Long
-Private Declare Function WinExec Lib "kernel32" (ByVal lpCmdLine As String, ByVal nCmdShow As Long) As Long
 Public Declare Sub CoFreeUnusedLibrariesEx Lib "ole32" (ByVal dwUnloadDelay As Long, ByVal dwReserved As Long)
-Private Declare Function RegisterClipboardFormat Lib "user32" Alias "RegisterClipboardFormatA" (ByVal lpString As String) As Long
-'Private Declare Function GetModuleHandle Lib "kernel32" Alias "GetModuleHandleA" (ByVal lpModuleName As String) As Long
-'Private Declare Sub CoFreeLibrary Lib "ole32.dll" (ByVal hInst As Long)
-
+Private Declare Function GetTempPath Lib "kernel32" Alias "GetTempPathA" (ByVal nBufferLength As Long, ByVal lpBuffer As String) As Long
 Private Declare Function LockWorkStation Lib "user32.dll" () As Long
+Private Declare Function RegisterClipboardFormat Lib "user32" Alias "RegisterClipboardFormatA" (ByVal lpString As String) As Long
 Private Declare Sub ShellAbout Lib "SHELL32.DLL" Alias "ShellAboutA" (ByVal hWndOwner As Long, ByVal lpszAppName As String, ByVal lpszMoreInfo As String, ByVal hIcon As Long)
+Private Declare Function WinExec Lib "kernel32" (ByVal lpCmdLine As String, ByVal nCmdShow As Long) As Long
 
 Private Const WINDOW_CLASS = "w>Snarl"
 
@@ -297,7 +294,9 @@ Public Enum SP_PRESENCE_ACTIONS
     SP_LOG_AS_MISSED = 1
     SP_MAKE_STICKY = 2
     SP_DO_NOTHING = 3
-    SP_DISPLAY = 4
+    SP_DISPLAY_NORMAL = 4
+    SP_DISPLAY_URGENT = 5
+    SP_FORWARD = 6
 
 End Enum
 
@@ -380,7 +379,7 @@ Dim l As Long
 
     If gDebugMode Then
         ' /* start logging */
-        l3OpenLog "%APPDATA%\snarl.log"
+        l3OpenLog "%APPDATA%\full phat\snarl\snarl.log"
         g_Debug "** Snarl " & App.Comments & " (V" & CStr(App.Major) & "." & CStr(App.Revision) & ") **"
         g_Debug "** " & App.LegalCopyright
         g_Debug ""
@@ -816,7 +815,7 @@ Public Function g_ConfigInit() As Boolean
         .Add "run_on_logon", "1"
 
         ' /* R2.0 (V38.13) */
-        .Add "default_style", "iphoney/standard"    ' // as "<style>[/<scheme>]
+        .Add "default_style", "corporate/standard"    ' // as "<style>[/<scheme>]
 
         ' /* R2.0 (V38.32) */
         .Add "sticky_snarls", "0"
@@ -841,7 +840,7 @@ Public Function g_ConfigInit() As Boolean
         ' /* R2.2 */
         .Add "use_hotkey", "1"
         .Add "do_not_disturb", "0"
-        .Add "idle_timeout", "300"          ' // i.e. 5 minutes
+'        .Add "idle_timeout", "300"          ' // i.e. 5 minutes
         .Add "margin_spacing", "0"
         .Add "use_dropshadow", "1"
         .Add "dropshadow_strength", "88"    ' // is a %
@@ -870,6 +869,11 @@ Public Function g_ConfigInit() As Boolean
         .Add "away_when_screensaver", "1"
         .Add "away_mode", "2"               ' // sticky
         .Add "busy_mode", "1"               ' // log missed
+
+        ' /* R2.4 Beta 4 */
+
+        .Add "idle_minutes", "4"            ' // i.e. 5 minutes
+        .Add "include_host_name_when_forwarding", "0"
 
     End With
 
@@ -1776,6 +1780,15 @@ Dim pti As BTagItem
     Case "controlpanel"
         ShellExecute 0, "open", "control.exe", vbNullString, vbNullString, SW_SHOW
 
+    Case "trash"
+        ShellExecute 0, "open", "::{645FF040-5081-101B-9F08-00AA002F954E}", vbNullString, vbNullString, SW_SHOW
+
+    Case "mycomputer"
+        ShellExecute 0, "open", "::{20D04FE0-3AEA-1069-A2D8-08002B30309D}", vbNullString, vbNullString, SW_SHOW
+
+    Case "nethood"
+        ShellExecute 0, "open", "::{208D2C60-3AEA-1069-A2D7-08002B30309D}", vbNullString, vbNullString, SW_SHOW
+
     End Select
 
 End Sub
@@ -2132,8 +2145,6 @@ Private Function uCreatePacked(ByVal ClassId As String, ByVal Title As String, B
     '    currently this is only used by g_PrivateNotify()
     '    but it's flexible enough to be used elsewhere */
 
-    ' /* NOTE: Doesn't support "Value" as yet */
-
     Set uCreatePacked = New BPackedData
     With uCreatePacked
         If ClassId <> "" Then _
@@ -2229,6 +2240,32 @@ Public Function g_DoNotify(ByVal AppToken As Long, ByRef pData As BPackedData, O
 
     End If
 
+Dim i As Long
+
+    If pData.Exists("uid") Then
+        
+        Debug.Print pData.ValueOf("uid")
+        
+        ' /* if found, do an update, otherwise create new */
+        i = g_NotificationRoster.TokenFromUID(pData.ValueOf("uid"), pData.ValueOf("app-sig"), pData.ValueOf("password"))
+        If i Then
+            g_Debug "g_DoNotify(): uid '" & pData.ValueOf("uid") & "' was found (" & CStr(i) & ")"
+            If g_NotificationRoster.Update(i, pData) Then
+                ' /* return existing token */
+                g_DoNotify = i
+
+            Else
+                ' /* failed */
+                g_DoNotify = 0
+
+            End If
+            Exit Function
+
+        Else
+            Debug.Print "no existing notification"
+
+        End If
+    End If
 
     ' /* look for the new "replace-uid" and "update-uid" and "merge-uid" args:
     '    "replace" will remove the notification with the specified uid if it's
@@ -2236,68 +2273,68 @@ Public Function g_DoNotify(ByVal AppToken As Long, ByRef pData As BPackedData, O
     '    to be updated with this content and "merge-uid" will cause the
     '    provided content to be merged with the existing notification */
 
-Dim i As Long
-
-    If pData.Exists("replace-uid") Then
-        ' /* if the specified uid (NOT token) exists, remove it */
-        g_NotificationRoster.Hide 0, pData.ValueOf("replace-uid"), pData.ValueOf("app-sig"), pData.ValueOf("password")
-
-    ElseIf pData.Exists("update-uid") Then
-        ' /* if the specified uid (NOT token) exists, update with this content otherwise create a new notification */
-
-        Debug.Print "looking for update-uid " & pData.ValueOf("update-uid")
-        g_DoNotify = g_NotificationRoster.TokenFromUID(pData.ValueOf("update-uid"), pData.ValueOf("app-sig"), pData.ValueOf("password"))
-        Debug.Print "is token " & CStr(g_DoNotify)
-
-        If g_DoNotify Then
-            ' /* we need to add this */
-            If Not pData.Exists("uid") Then _
-                pData.Add "uid", pData.ValueOf("update-uid")
-
-            g_NotificationRoster.Update g_DoNotify, pData
-            Exit Function
-
-        End If
-
-        Debug.Print "uid not found"
-
-    ElseIf pData.Exists("merge-uid") Then
-        ' /* if the specified uid (NOT token) exists, merge this content with that one, otherwise create a new notificaton */
-'            ' /* merge - this would mean:
-'            '
-'            '   title = no change?
-'            '   text = added to existing text
-'            '   icon = replaced with new (if any)
-'            '
-'            ' */
-    
-        Debug.Print "looking for merge-uid " & pData.ValueOf("merge-uid")
-        g_DoNotify = g_NotificationRoster.TokenFromUID(pData.ValueOf("merge-uid"), pData.ValueOf("app-sig"), pData.ValueOf("password"))
-        Debug.Print "is token " & CStr(g_DoNotify)
-
-        If g_DoNotify Then
-            ' /* we need to add this */
-            If Not pData.Exists("uid") Then _
-                pData.Add "uid", pData.ValueOf("update-uid")
-
-            g_NotificationRoster.Merge g_DoNotify, pData
-            Exit Function
-
-        End If
-
-        Debug.Print "uid not found"
-
-    End If
+'Dim i As Long
+'
+'    If pData.Exists("replace-uid") Then
+'        ' /* if the specified uid (NOT token) exists, remove it */
+'        g_NotificationRoster.Hide 0, pData.ValueOf("replace-uid"), pData.ValueOf("app-sig"), pData.ValueOf("password")
+'
+'    ElseIf pData.Exists("update-uid") Then
+'        ' /* if the specified uid (NOT token) exists, update with this content otherwise create a new notification */
+'
+'        Debug.Print "looking for update-uid " & pData.ValueOf("update-uid")
+'        g_DoNotify = g_NotificationRoster.TokenFromUID(pData.ValueOf("update-uid"), pData.ValueOf("app-sig"), pData.ValueOf("password"))
+'        Debug.Print "is token " & CStr(g_DoNotify)
+'
+'        If g_DoNotify Then
+'            ' /* we need to add this */
+'            If Not pData.Exists("uid") Then _
+'                pData.Add "uid", pData.ValueOf("update-uid")
+'
+'            g_NotificationRoster.Update g_DoNotify, pData
+'            Exit Function
+'
+'        End If
+'
+'        Debug.Print "uid not found"
+'
+'    ElseIf pData.Exists("merge-uid") Then
+'        ' /* if the specified uid (NOT token) exists, merge this content with that one, otherwise create a new notificaton */
+''            ' /* merge - this would mean:
+''            '
+''            '   title = no change?
+''            '   text = added to existing text
+''            '   icon = replaced with new (if any)
+''            '
+''            ' */
+'
+'        Debug.Print "looking for merge-uid " & pData.ValueOf("merge-uid")
+'        g_DoNotify = g_NotificationRoster.TokenFromUID(pData.ValueOf("merge-uid"), pData.ValueOf("app-sig"), pData.ValueOf("password"))
+'        Debug.Print "is token " & CStr(g_DoNotify)
+'
+'        If g_DoNotify Then
+'            ' /* we need to add this */
+'            If Not pData.Exists("uid") Then _
+'                pData.Add "uid", pData.ValueOf("update-uid")
+'
+'            g_NotificationRoster.Merge g_DoNotify, pData
+'            Exit Function
+'
+'        End If
+'
+'        Debug.Print "uid not found"
+'
+'    End If
 
 Dim szClass As String
 Dim pApp As TApp
-Dim sz As String
+'Dim sz As String
 
     ' /* R2.4 DR7: if "app-sig" argument is specified then look for the app by signature */
 
-    sz = pData.ValueOf("app-sig")
-    If sz <> "" Then
-        If g_AppRoster.FindBySignature(sz, pApp, pData.ValueOf("password")) Then
+'    sz = pData.ValueOf("app-sig")
+    If pData.ValueOf("app-sig") <> "" Then
+        If g_AppRoster.FindBySignature(pData.ValueOf("app-sig"), pApp, pData.ValueOf("password")) Then
             szClass = pData.ValueOf("id")
 
         Else
@@ -2370,6 +2407,8 @@ Public Function g_DoAction(ByVal action As String, ByVal Token As Long, ByRef Ar
     '    or Win32.  "Token" here can be either the app token or the notification token;
     '    the action determines which one */
 
+    ' /* Return zero on error (and set lasterror), -1 or a +ve value on success */
+
     If (g_AppRoster Is Nothing) Or (g_NotificationRoster Is Nothing) Or (Args Is Nothing) Then
         ' /* pretty much all of these require either or both rosters to be
         '    available, so let's bail out now if something's really wrong */
@@ -2393,18 +2432,16 @@ Dim pApp As TApp
         g_DoAction = uAddClass(Token, Args)
 
     Case "clearclasses", "killclasses"
-        If g_AppRoster.FindByToken(Token, pApp, Args.ValueOf("password")) Then _
-            g_DoAction = pApp.RemClass(Args, True)
+        g_DoAction = uRemClass(Token, Args, True)
 
     Case "clearactions"
         g_DoAction = g_NotificationRoster.ClearActions(Token, Args)
 
     Case "hello"
-        ' /* just reply with SUCCESS but it means the sender will
-        '    be able to tell which version of SNP we support */
+        ' /* reply our major version number */
         ' /* To-do: reply with an error message if Snarl isn't
         '    accepting requests, or DND mode enabled? */
-        g_DoAction = -1
+        g_DoAction = App.Major
 
     Case "hide"
         g_DoAction = CLng(g_NotificationRoster.Hide(Token, Args.ValueOf("uid"), Args.ValueOf("app-sig"), Args.ValueOf("password")))
@@ -2419,9 +2456,7 @@ Dim pApp As TApp
         g_DoAction = g_AppRoster.Add41(Args, IsRemoteApp)
 
     Case "remclass"
-        ' /* FindByToken() will set lasterror for us */
-        If g_AppRoster.FindByToken(Token, pApp, Args.ValueOf("password")) Then _
-            g_DoAction = pApp.RemClass(Args)
+        g_DoAction = uRemClass(Token, Args)
 
     Case "test"
         ' /* only available when Snarl is running in debug mode */
@@ -2473,7 +2508,9 @@ Dim pApp As TApp
 '        '    specified notification doesn't exist */
 '        g_DoAction = g_NotificationRoster.Merge(Token, Args)
 
-
+    Case "setmode"
+        If Args.Exists("busy") Then _
+            g_DoAction = uSetBusy(Token, Args)
 
     Case Else
         gSetLastError SNARL_ERROR_UNKNOWN_COMMAND
@@ -2699,19 +2736,34 @@ Public Function g_GlobalMessage() As Long
 End Function
 
 Private Function uAddClass(ByVal Token As Long, ByRef Args As BPackedData) As Long
-Dim sz As String
 Dim pApp As TApp
 
-    sz = Args.ValueOf("app-sig")
-    If sz <> "" Then
-        ' /* FindByToken() will set lasterror for us */
-        If g_AppRoster.FindBySignature(sz, pApp, Args.ValueOf("password")) Then _
-            uAddClass = pApp.AddClass(Args)
-
-    Else
+    If Token Then
         ' /* FindByToken() will set lasterror for us */
         If g_AppRoster.FindByToken(Token, pApp, Args.ValueOf("password")) Then _
             uAddClass = pApp.AddClass(Args)
+
+    Else
+        ' /* FindBySignature() will set lasterror for us */
+        If g_AppRoster.FindBySignature(Args.ValueOf("app-sig"), pApp, Args.ValueOf("password")) Then _
+            uAddClass = pApp.AddClass(Args)
+
+    End If
+
+End Function
+
+Private Function uRemClass(ByVal Token As Long, ByRef Args As BPackedData, Optional ByVal RemoveAll As Boolean = False) As Long
+Dim pApp As TApp
+
+    If Token Then
+        ' /* FindByToken() will set lasterror for us */
+        If g_AppRoster.FindByToken(Token, pApp, Args.ValueOf("password")) Then _
+            uRemClass = pApp.RemClass(Args, RemoveAll)
+
+    Else
+        ' /* FindBySignature() will set lasterror for us */
+        If g_AppRoster.FindBySignature(Args.ValueOf("app-sig"), pApp, Args.ValueOf("password")) Then _
+            uRemClass = pApp.RemClass(Args, RemoveAll)
 
     End If
 
@@ -2753,21 +2805,19 @@ Dim fWasAway As Boolean
 End Sub
 
 Public Sub g_ClearPresence(ByVal Flags As SP_PRESENCE_FLAGS)
-Dim fWasAway As Boolean
+Dim f As Boolean
 
-    fWasAway = g_IsAway()
+    f = (mPresFlags <> 0)
     mPresFlags = mPresFlags And (Not Flags)
-
-    ' /* is the user now back/not busy? if so, check missed log */
-
-    If mPresFlags = 0 Then _
-        g_NotificationRoster.CheckMissed
 
     ' /* if we've transitioned from Away, notify registered apps */
 
-    If (fWasAway) And ((mPresFlags And SP_AWAY_MASK) = 0) Then _
+    If (f) And (mPresFlags = 0) Then
         g_AppRoster.SendToAll SNARL_BROADCAST_USER_BACK
+        g_NotificationRoster.CheckMissed
         ' /* TO-DO: change the tray icon? */
+
+    End If
 
 End Sub
 
@@ -2794,3 +2844,103 @@ Public Function g_GetPresence() As Long
     g_GetPresence = mPresFlags
 
 End Function
+
+Public Function g_GetBase64Icon(ByVal Data As String) As String
+Dim sz As String
+Dim bErr As Boolean
+
+    On Error Resume Next
+
+    sz = Decode64(Replace$(Data, "%", "="), bErr)
+    If (sz = "") Or (bErr) Then
+        g_Debug "TNotificationRoster.g_GetBase64Icon(): failed to decode Base64", LEMON_LEVEL_CRITICAL
+        Exit Function
+
+    End If
+
+    ' /* get a suitably unique path */
+
+    g_GetBase64Icon = g_GetSafeTempIconPath()
+
+Dim i As Integer
+
+    ' /* write the data out */
+
+    i = FreeFile()
+
+    err.Clear
+    Open g_GetBase64Icon For Binary Access Write As #i
+    If err.Number = 0 Then
+        Put #i, , sz
+        Close #i
+
+    End If
+
+    g_Debug "TNotificationRoster.g_GetBase64Icon(): writing icon to '" & g_GetBase64Icon & "'"
+
+End Function
+
+Private Function uSetBusy(ByVal Token As Long, ByRef Args As BPackedData) As Long
+Dim pApp As TApp
+
+    If Token Then
+        ' /* FindByToken() will set lasterror for us */
+        If Not g_AppRoster.FindByToken(Token, pApp, Args.ValueOf("password")) Then _
+            Exit Function
+
+    Else
+        ' /* FindBySignature() will set lasterror for us */
+        If Not g_AppRoster.FindBySignature(Args.ValueOf("app-sig"), pApp, Args.ValueOf("password")) Then _
+            Exit Function
+
+    End If
+
+    ' /* no app? gah... */
+
+    If (pApp Is Nothing) Then
+        g_Debug "uSetBusy(): no returned app object", LEMON_LEVEL_CRITICAL
+        gSetLastError SNARL_ERROR_SYSTEM
+        Exit Function
+
+    End If
+
+    ' /* TO-DO: allow for user to prevent the app from changing busy mode */
+
+    Select Case g_SafeLong(Args.ValueOf("busy"))
+    Case 0
+        ' /* reduce count */
+        uSetBusyCount False
+
+    Case 1
+        ' /* increase count */
+        uSetBusyCount True
+
+    Case Else
+        ' /* error */
+        gSetLastError SNARL_ERROR_INVALID_ARG
+
+    End Select
+
+End Function
+
+Private Sub uSetBusyCount(ByVal Increment As Boolean)
+Static nBusy As Long
+
+    If Increment Then
+        g_Debug "uSetBusyCount(): increasing..."
+        nBusy = nBusy + 1
+        If nBusy = 1 Then _
+            g_SetPresence SP_DND_EXTERNAL
+
+    Else
+        g_Debug "uSetBusyCount(): decreasing..."
+        nBusy = nBusy - 1
+        If nBusy = 0 Then _
+            g_ClearPresence SP_DND_EXTERNAL
+
+    End If
+
+End Sub
+
+
+

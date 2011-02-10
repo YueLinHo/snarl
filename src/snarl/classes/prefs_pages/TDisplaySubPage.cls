@@ -46,13 +46,12 @@ Dim i As Long
 
     Select Case Name
 
-    ' /* ¬¬¬¬¬¬¬¬¬¬ appearance & layout ¬¬¬¬¬¬¬¬¬¬ */
 
     Case "def"
 
-        ' /* ~~~~~~~~ inside the notification ~~~~~~~~ */
+        ' /* ~~~~~~~~ appearance ~~~~~~~~ */
 
-        mPage.Add new_BPrefsControl("banner", "", "Inside")
+        mPage.Add new_BPrefsControl("banner", "", "General")
 
         ' /* opacity */
 
@@ -71,10 +70,16 @@ Dim i As Long
 
         mPage.Add new_BPrefsControl("fancytoggle2", "show_timestamp", "Show timestamp while pointer is over notification?", "", g_ConfigGet("show_timestamp"))
 
-        ' /* ~~~~~~~~ outside the notification ~~~~~~~~ */
 
 
-        mPage.Add new_BPrefsControl("banner", "", "Outside")
+
+
+
+    Case "lay"
+
+        ' /* ~~~~~~~~ layout ~~~~~~~~ */
+
+        mPage.Add new_BPrefsControl("banner", "", "General")
 
         mPage.Add new_BPrefsControl("fancycycle", "default_position", "Top Left#?0|Top Right#?1|Bottom Left#?2|Bottom Right#?3", "Position:", g_ConfigGet("default_position"))
 
@@ -86,7 +91,9 @@ Dim i As Long
 
         ' /* dropshadow */
 
-        mPage.Add new_BPrefsControl("label", "", "Shadow:")
+        mPage.Add new_BPrefsControl("banner", "", "Drop Shadow")
+
+'        mPage.Add new_BPrefsControl("label", "", "Shadow:")
 
 '        mPage.Add new_BPrefsControl("fancytoggle2", "ft>use_dropshadow", "Add dropshadow to notifications?", "", IIf(gPrefs.use_dropshadow, "1", "0"), pm)
     

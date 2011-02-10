@@ -25,8 +25,6 @@ Option Explicit
 '/
 '*********************************************************************************************/
 
-
-
 Dim mInfo As T_SNARL_APP        ' // app info
 Dim mAlert() As TAlert          ' // class(es) registered against this app
 Dim mAlerts As Long
@@ -34,7 +32,6 @@ Dim mAlerts As Long
 Dim mSettings As ConfigFile     ' // persistent settings
 Dim mAppConfig As ConfigSection ' // persistent app settings
 Dim mIsUnknown As Boolean       ' // new app (or, one without persistent settings anyway)
-'Dim mLastError As Long
 
 Implements MObject
 
@@ -569,9 +566,15 @@ Dim lFlags As E_CLASS_FLAGS
 
         End If
 
-        Debug.Print .Description & " >> " & Data.Exists("icon")
+'        Debug.Print .Description & " >> " & Data.Exists("icon")
 
         .DefaultIcon = Data.ValueOf("icon")
+
+        ' /* R2.4 Beta 4: check for MIME encoded icon */
+
+        If (.DefaultIcon = "") And (Data.Exists("icon-base64")) Then _
+            .DefaultIcon = g_GetBase64Icon(Data.ValueOf("icon-base64"))
+
         .DefaultSound = Data.ValueOf("sound")
         .DefaultText = Data.ValueOf("text")
         .DefaultTimeout = Val(Data.ValueOf("duration"))

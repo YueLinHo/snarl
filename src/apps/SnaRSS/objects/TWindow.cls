@@ -33,18 +33,20 @@ Private Function BWndProcSink_WndProc(ByVal hWnd As Long, ByVal uMsg As Long, By
     Select Case uMsg
     Case WM_CREATE
         frmMain.Add "WM_CREATE"
-        slInitApp hWnd, App.ProductName, "snaRSS", g_MakePath(App.Path) & IIf(g_IsIDE, "bin\", "") & "icon.png"
+'        slInitApp hWnd, App.ProductName, "snaRSS", g_MakePath(App.Path) & IIf(g_IsIDE, "bin\", "") & "icon.png"
         mhWnd = hWnd
         uStart
 
 
     Case WM_DESTROY
         frmMain.Add "WM_DESTROY"
+        uUpdateConfig
+
         If gToken Then _
             sn41UnregisterApp gToken
 
         Set mFeedRoster = Nothing
-
+        
 
     Case WM_CLOSE
         PostQuitMessage 0
@@ -52,12 +54,12 @@ Private Function BWndProcSink_WndProc(ByVal hWnd As Long, ByVal uMsg As Long, By
 
     Case sn41Broadcast()
         Select Case wParam
-        Case SNARL_LAUNCHED
+        Case SNARL_BROADCAST_LAUNCHED
             frmMain.Add "Snarl launched (V" & CStr(lParam) & ")"
             If LoWord(lParam) >= 41 Then _
                 uRegisterWithSnarl
 
-        Case SNARL_QUIT
+        Case SNARL_BROADCAST_QUIT
             frmMain.Add "Snarl quit"
             gToken = 0                      ' // no point in unregistering...
 
@@ -66,40 +68,40 @@ Private Function BWndProcSink_WndProc(ByVal hWnd As Long, ByVal uMsg As Long, By
 
     Case sn41AppMsg()
         Select Case wParam
-        Case SNARL41_APP_PREFS
+        Case SNARL_APP_PREFS
             frmMain.Add "_APP_PREFS"
             uDoPrefs
 
-        Case SNARL41_APP_ABOUT
+        Case SNARL_APP_ABOUT
             sn41EZNotify gToken, "", _
-                         "snaRSS " & CStr(App.Major) & "." & CStr(App.Minor) & " " & App.Comments, _
-                         App.LegalCopyright & vbCrLf & "Build " & CStr(App.Revision), , _
+                         "snaRSS " & CStr(App.Major) & "." & CStr(App.Minor) & " " & App.Comments & " (Build " & CStr(App.Revision) & ")", _
+                         App.LegalCopyright & vbCrLf & vbCrLf & "Tracks RSS feeds and displays a Snarl notification whenever the headline changes.", , _
                          g_MakePath(App.Path) & IIf(g_IsIDE(), "bin\", "") & "icon.png"
 
         End Select
 
 
-    Case slMsg()
-        Select Case wParam
-        Case SL_ABOUT
-            sn41EZNotify gToken, "", _
-                         "snaRSS " & CStr(App.Major) & "." & CStr(App.Minor) & " " & App.Comments, _
-                         App.LegalCopyright & vbCrLf & "Build " & CStr(App.Revision), , _
-                         g_MakePath(App.Path) & IIf(g_IsIDE(), "bin\", "") & "icon.png"
-
-        Case SL_PREFS
-            frmMain.Add "_APP_PREFS"
-            uDoPrefs
-
-        Case SL_QUIT
-            PostQuitMessage 0
-
-'        Case SL_SHOW_ALL
-'        Case SL_HIDE_ALL
-'        Case SL_COUNT_WINDOWS
-'        Case SL_SWITCH_TO
-
-        End Select
+'    Case slMsg()
+'        Select Case wParam
+'        Case SL_ABOUT
+'            sn41EZNotify gToken, "", _
+'                         "snaRSS " & CStr(App.Major) & "." & CStr(App.Minor) & " " & App.Comments, _
+'                         App.LegalCopyright & vbCrLf & "Build " & CStr(App.Revision), , _
+'                         g_MakePath(App.Path) & IIf(g_IsIDE(), "bin\", "") & "icon.png"
+'
+'        Case SL_PREFS
+'            frmMain.Add "_APP_PREFS"
+'            uDoPrefs
+'
+'        Case SL_QUIT
+'            PostQuitMessage 0
+'
+''        Case SL_SHOW_ALL
+''        Case SL_HIDE_ALL
+''        Case SL_COUNT_WINDOWS
+''        Case SL_SWITCH_TO
+'
+'        End Select
 
 
     End Select
@@ -111,21 +113,15 @@ Private Sub uRegisterWithSnarl()
     On Error Resume Next
 
     gToken = sn41RegisterApp(App.ProductName, App.Title, g_MakePath(App.Path) & IIf(g_IsIDE(), "bin\", "") & "icon.png", _
-                             mhWnd, 0, SNARL41_APP_IS_WINDOWLESS Or SNARL41_APP_HAS_ABOUT Or SNARL41_APP_HAS_PREFS)
+                             mhWnd, 0, SNARL_APP_IS_WINDOWLESS Or SNARL_APP_HAS_ABOUT Or SNARL_APP_HAS_PREFS)
 
     If gToken Then
         frmMain.List1.Tag = CStr(gToken)
         frmMain.Add "Registered with Snarl (token=" & CStr(gToken) & ")"
-'        g_Debug "Registered with Snarl (token=" & CStr(gToken) & ")"
-
-'        sn41AddClass gtoken, "info", "Informational notifications"
-'        sn41AddClass gtoken, "warn", "Warning notifications"
-'        sn41AddClass gtoken, "crit", "Critical notifications"
-'        sn41AddClass gtoken, "none", "Other notifications"
+        mFeedRoster.AddClasses
 
     Else
         frmMain.Add "Error registering with Snarl (" & CStr(sn41GetLastError()) & ")"
-'        g_Debug "Error registering with Snarl (" & CStr(sn41GetLastError()) & ")"
 
     End If
 
@@ -133,15 +129,19 @@ End Sub
 
 Private Sub uStart()
 Dim pFeedInfo As CConfSection
+Dim sz As String
 Dim i As Long
 
     ' /* set up */
 
     Set mFeedRoster = New TFeedRoster
 
-    ' /* read config */
+    ' /* defaults */
 
     gConfig.RefreshInterval = 60
+    gConfig.UseDefaultCallback = True
+
+    ' /* read config */
 
     With New CConfFile3
 
@@ -156,7 +156,8 @@ Dim i As Long
             If i > 0 Then
                 With .SectionAt(i)
                     gConfig.RefreshInterval = g_SafeLong(.GetValueWithDefault("RefreshInterval", "60"))
-                
+                    gConfig.UseDefaultCallback = (.GetValueWithDefault("UseDefaultCallback", "1") = "1")
+
                 End With
 
             Else
@@ -173,14 +174,26 @@ Dim i As Long
 
             frmMain.Add "refresh interval: " & gConfig.RefreshInterval
 
-            ' /* feeds */
+            ' /* read in stored feeds */
 
             Do While .GetNextSection(pFeedInfo)
-                If pFeedInfo.Name = "feed" Then _
-                    mFeedRoster.AddFeed pFeedInfo.GetValueWithDefault("URL"), ""
+                If pFeedInfo.Name = "feed" Then
+                    ' /* R1.0: identified by a guid */
+                    sz = pFeedInfo.GetValueWithDefault("guid")
+                    If trim(sz) = "" Then
+                        pFeedInfo.Update "guid", g_CreateGUID()
+                        .Save
+
+                    End If
+
+                    mFeedRoster.AddFeed pFeedInfo.GetValueWithDefault("URL"), pFeedInfo.GetValueWithDefault("title"), pFeedInfo.GetValueWithDefault("guid")
+
+                End If
 
             Loop
+
         End If
+
     End With
 
 
@@ -229,6 +242,7 @@ Dim pm As CTempMsg
                 .Add pCtl
 
                 .Add new_BPrefsControl("fancytoolbar", "feed_toolbar", "Show Headline|Show Summary|Refresh|Feed Information", , , , False)
+                .Add new_BPrefsControl("fancytoggle2", "UseDefaultCallback", "Clicking the notification opens the item?", , IIf(gConfig.UseDefaultCallback, "1", "0"))
 
                 .Add new_BPrefsSeparator
 
@@ -310,6 +324,10 @@ Dim i As Long
             uUpdateFeedList
 
         End If
+
+    Case "UseDefaultCallback"
+        gConfig.UseDefaultCallback = (Value = "1")
+        uUpdateConfig
 
     End Select
 
@@ -426,12 +444,28 @@ Dim pFeed As TFeed
     Set pFile = New CConfFile3
     pFile.SetFile g_MakePath(App.Path) & "snaRSS.conf"
 
+    ' /* [settings] */
+
+    Set pItem = New CConfSection
+    With pItem
+        .SetName "settings"
+        .Add "RefreshInterval", CStr(gConfig.RefreshInterval)
+        .Add "UseDefaultCallback", IIf(gConfig.UseDefaultCallback, "1", "0")
+
+    End With
+
+    pFile.Add pItem
+
+    ' /* [feed] sections */
+
     With mFeedRoster
         .Rewind
         Do While .NextFeed(pFeed)
             Set pItem = New CConfSection
             pItem.SetName "feed"
             pItem.Add "url", pFeed.URL
+            pItem.Add "guid", pFeed.Guid
+            pItem.Add "title", pFeed.Title
             pFile.Add pItem
 
         Loop
@@ -445,7 +479,7 @@ End Sub
 Private Sub theAddFeedPanel_AddFeed(ByVal URL As String)
 
     If URL <> "" Then
-        If mFeedRoster.AddFeed(URL, "") Then
+        If mFeedRoster.AddFeed(URL, "", g_CreateGUID()) Then
             uUpdateConfig
             uUpdateFeedList
             prefskit_SetValue gPanel, "feed_list", prefskit_DoCmd(gPanel, "feed_list", B_COUNT_ITEMS)

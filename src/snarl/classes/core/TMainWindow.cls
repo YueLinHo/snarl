@@ -711,8 +711,13 @@ Dim sz As String
 
     End If
 
-    ' /* convert to internal format (note that 'real' equals and apostrophe
-    '    signs will still be url-encoded so they're safe */
+    ' /* tokenise special character pairs */
+
+    sz = Replace$(sz, "&&", "%26")
+    sz = Replace$(sz, "==", "%3d")
+
+    ' /* convert to internal format (note that 'real' equals and ampersands
+    '    will still be url-encoded so they're safe */
 
     sz = Replace$(sz, "=", "::")
     sz = Replace$(sz, "&", "#?")
@@ -769,12 +774,12 @@ Dim pReq As SNARLREQI
 
 Dim szAction As String
 
-    ' /* set the packed data and URL-decode at the same time */
+    ' /* set the packed data */
 
 Dim pData As BPackedData
 
     Set pData = New BPackedData
-    pData.SetTo g_DecodeURL(g_UTF8(pReq.PacketData))
+    pData.SetTo g_UTF8(pReq.PacketData)
 
     ' /* parse the command */
 

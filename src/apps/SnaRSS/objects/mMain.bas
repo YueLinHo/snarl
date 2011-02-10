@@ -17,6 +17,7 @@ Public Declare Function SendMessage Lib "user32" Alias "SendMessageA" (ByVal hWn
 
 Public Type T_CONFIG
     RefreshInterval As Long
+    UseDefaultCallback As Boolean
 '    UseFeedIcon As Boolean
 '    FeedRefresh As Long
 

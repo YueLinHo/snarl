@@ -7,12 +7,12 @@ Option Explicit
     '
     '   Include this module to let your VB5 or VB6 application to talk to Snarl.
     '
-    '   © 2004-2010 full phat products.  All Rights Reserved.
+    '   © 2004-2011 full phat products.  All Rights Reserved.
     '
-    '        Version: 42 (R2.4)
-    '       Revision: 2
+    '        Version: 41 (R2.3)
+    '       Revision: 65
     '        Created: 6-Dec-2004
-    '   Last Updated: 28-Dec-2010
+    '   Last Updated: 8-Feb-2011
     '         Author: full phat products
     '        Licence: Simplified BSD License (http://www.opensource.org/licenses/bsd-license.php)
     '
@@ -43,11 +43,11 @@ Option Explicit
 Private Declare Function FindWindow Lib "user32" Alias "FindWindowA" (ByVal lpClassName As String, ByVal lpWindowName As String) As Long
 Private Declare Function GetClipboardFormatName Lib "user32" Alias "GetClipboardFormatNameA" (ByVal wFormat As Long, ByVal lpString As String, ByVal nMaxCount As Long) As Long
 Private Declare Function GetCurrentProcessId Lib "kernel32" () As Long
-Private Declare Function GetProp Lib "user32" Alias "GetPropA" (ByVal hWnd As Long, ByVal lpString As String) As Long
-Private Declare Function IsWindow Lib "user32" (ByVal hWnd As Long) As Long
+Private Declare Function GetProp Lib "user32" Alias "GetPropA" (ByVal hwnd As Long, ByVal lpString As String) As Long
+Private Declare Function IsWindow Lib "user32" (ByVal hwnd As Long) As Long
 Private Declare Function RegisterWindowMessage Lib "user32" Alias "RegisterWindowMessageA" (ByVal lpString As String) As Long
-Private Declare Function SendMessageTimeout Lib "user32" Alias "SendMessageTimeoutA" (ByVal hWnd As Long, ByVal Msg As Long, ByVal wParam As Long, lParam As Any, ByVal fuFlags As Long, ByVal uTimeout As Long, lpdwResult As Long) As Long
-Private Declare Function SetProp Lib "user32" Alias "SetPropA" (ByVal hWnd As Long, ByVal lpString As String, ByVal hData As Long) As Long
+Private Declare Function SendMessageTimeout Lib "user32" Alias "SendMessageTimeoutA" (ByVal hwnd As Long, ByVal Msg As Long, ByVal wParam As Long, lParam As Any, ByVal fuFlags As Long, ByVal uTimeout As Long, lpdwResult As Long) As Long
+Private Declare Function SetProp Lib "user32" Alias "SetPropA" (ByVal hwnd As Long, ByVal lpString As String, ByVal hData As Long) As Long
 Private Declare Function WideCharToMultiByte Lib "kernel32" (ByVal CodePage As Long, ByVal dwFlags As Long, ByVal lpWideCharStr As Long, ByVal cchWideChar As Long, ByVal lpMultiByteStr As Long, ByVal cchMultiByte As Long, ByVal lpDefaultChar As Long, lpUsedDefaultChar As Long) As Long
 
 Private Const SMTO_ABORTIFHUNG = 2
@@ -188,12 +188,12 @@ Private Const SNARL41_NOTIFICATION_CANCELLED = SNARL41_NOTIFICATION_CLICKED
 ' /****************************************************************************************/
 
 Private Function uSend(ByRef pSnarlReq As SNARLMSG) As Long
-Dim hWnd As Long
+Dim hwnd As Long
 
     ' /* return zero on failure */
 
-    hWnd = sn41GetSnarlWindow()
-    If IsWindow(hWnd) = 0 Then
+    hwnd = sn41GetSnarlWindow()
+    If IsWindow(hwnd) = 0 Then
         mLocalErr = SNARL_ERROR_NOT_RUNNING
         Exit Function
 
@@ -211,10 +211,10 @@ Dim dw As Long
 
     ' /* return zero on failure */
 
-    If SendMessageTimeout(hWnd, WM_COPYDATA, GetCurrentProcessId(), pcds, SMTO_ABORTIFHUNG, 1000, dw) <> 0 Then
+    If SendMessageTimeout(hwnd, WM_COPYDATA, GetCurrentProcessId(), pcds, SMTO_ABORTIFHUNG, 1000, dw) <> 0 Then
         ' /* return result and cache LastError */
         uSend = dw
-        mLocalErr = GetProp(hWnd, "last_error")
+        mLocalErr = GetProp(hwnd, "last_error")
 
     Else
         ' /* timed out */
@@ -373,7 +373,7 @@ Dim pReq As SNARLMSG
 
 End Function
 
-Public Function sn41EZNotify(ByVal AppToken As Long, ByVal ClassName As String, ByVal Title As String, ByVal Text As String, Optional ByVal Timeout As Long = -1, Optional ByVal Icon As String, Optional ByVal Priority As Long = 0, Optional ByVal Callback As String, Optional ByVal Value As String, Optional ByVal AdditionalData As String) As Long
+Public Function sn41EZNotify(ByVal AppToken As Long, ByVal ClassName As String, ByVal Title As String, ByVal Text As String, Optional ByVal Timeout As Long = -1, Optional ByVal Icon As String, Optional ByVal Priority As Long = 0, Optional ByVal Callback As String, Optional ByVal Value As Integer = -1, Optional ByVal AdditionalData As String) As Long
 Dim pReq As SNARLMSG
 Dim sz As String
 
@@ -383,8 +383,10 @@ Dim sz As String
          "#?timeout::" & CStr(Timeout) & _
          "#?icon::" & Icon & _
          "#?priority::" & CStr(Priority) & _
-         "#?callback::" & Callback & _
-         "#?value::" & Value
+         "#?callback::" & Callback
+
+    If (Value >= 0) And (Value <= 100) Then _
+        sz = sz & "#?value-percent::" & CStr(Value)
 
 '    sz = sz & "#?flags::" & Hex$(Flags)
 '
@@ -525,21 +527,21 @@ Public Function sn41IsSnarlRunning() As Boolean
 End Function
 
 Public Function sn41GetVersion() As Long
-Dim hWnd As Long
+Dim hwnd As Long
 Dim dw As Long
 
     ' /* return zero on failure */
 
     mLocalErr = 0
 
-    hWnd = sn41GetSnarlWindow()
-    If IsWindow(hWnd) = 0 Then
+    hwnd = sn41GetSnarlWindow()
+    If IsWindow(hwnd) = 0 Then
         mLocalErr = SNARL_ERROR_NOT_RUNNING
         Exit Function
 
     End If
 
-    sn41GetVersion = GetProp(hWnd, "_version")
+    sn41GetVersion = GetProp(hwnd, "_version")
 
 End Function
 

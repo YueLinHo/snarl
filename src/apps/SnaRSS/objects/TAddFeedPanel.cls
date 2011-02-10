@@ -90,7 +90,7 @@ Dim pPage As BPrefsPage
 
     With mPanel
         .SetHandler Me
-        .SetTitle "Add Remote Computer"
+        .SetTitle "Add RSS Feed"
         .SetWidth 280
 
         Set pPage = new_BPrefsPage("", , Me)

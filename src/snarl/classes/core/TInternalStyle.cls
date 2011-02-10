@@ -66,7 +66,7 @@ End Sub
 
 Private Function IStyleEngine_CountStyles() As Long
 
-    IStyleEngine_CountStyles = 4
+    IStyleEngine_CountStyles = 3
 
 End Function
 
@@ -186,11 +186,11 @@ Private Sub IStyleEngine_StyleAt(ByVal Index As Long, Style As libSnarlStyles.st
         Case 3
             .Copyright = RUN_STYLE_COPY
             .Date = RUN_STYLE_DATE
-            .Description = "Runs a user-defined file"
-            .Flags = S_STYLE_IS_WINDOWLESS Or S_STYLE_WANT_APP_NAME Or S_STYLE_IS_CONFIGURABLE
+            .Description = "Executes a file, passing the notification content as arguments"
+            .Flags = S_STYLE_IS_WINDOWLESS Or S_STYLE_IS_CONFIGURABLE Or S_STYLE_V42_CONTENT
             .IconPath = g_MakePath(App.Path) & "etc\icons\runfile.png"
-            .Major = 0
-            .Minor = 1
+            .Major = 1
+            .Minor = 0
             .Name = RUN_STYLE_NAME
             .Schemes = uGetFileSchemes("runfile")
 
@@ -238,18 +238,59 @@ Private Sub IStyleInstance_Show(ByVal Visible As Boolean)
 End Sub
 
 Private Sub IStyleInstance_UpdateContent(NotificationInfo As libSnarlStyles.notification_info)
-Dim sz() As String
 
     If IsIPForwarder Then
         uIPFStyleUpdate NotificationInfo
 
     ElseIf IsFileRunner Then
-        sz = Split(Replace$(NotificationInfo.Title, vbCrLf, "\n"), "#?")
-        ShellExecute 0, "open", NotificationInfo.Scheme, Chr$(34) & sz(1) & Chr$(34) & " " & _
-                                                         Chr$(34) & Replace$(NotificationInfo.Text, vbCrLf, "\n") & Chr$(34) & " " & _
-                                                         Chr$(34) & sz(0) & Chr$(34), vbNullString, SW_SHOW
+        
+Dim ppd As BPackedData
+        
+        ' /* title is sender name, text is original info */
+        
+        Set ppd = New BPackedData
+        ppd.SetTo NotificationInfo.Text
+
+        ' /* format is <file_to_run> <title> <text> <sender> [data-] */
+
+Dim s As String
+Dim t As String
+Dim u As String
+
+        With ppd
+            .Rewind
+
+            ' /* loop through and for any item beginnning with either "data-" or
+            '    "value-" add it to the args */
+
+            Do While .GetNextItem(s, t)
+                If g_SafeLeftStr(s, 5) = "data-" Then
+                    u = u & " " & g_Quote(s & "=" & t)
+
+                ElseIf g_SafeLeftStr(s, 6) = "value-" Then
+                    u = u & " " & g_Quote(s & "=" & t)
+
+                End If
+
+            Loop
+
+        End With
+
+        ' /* launch the file using the "open" verb.  we must also escape any CRLF's back to "\n"'s
+        '    as these can play havoc with MS-DOS batch files */
+
+        ShellExecute 0, "open", NotificationInfo.Scheme, g_Quote(Replace$(ppd.ValueOf("title"), vbCrLf, "\n")) & " " & _
+                                                         g_Quote(Replace$(ppd.ValueOf("text"), vbCrLf, "\n")) & " " & _
+                                                         g_Quote(NotificationInfo.Title) & _
+                                                         u, vbNullString, SW_SHOW
+
+        ' /* FOR FUTURE DEVELOPMENT: setting notification_info->Flags to -1 tells
+        '    Snarl that the original notification should be displayed on-screen */
+
+'        NotificationInfo.Flags = -1
 
     ElseIf IsImage Then
+        ' /* Not enabled in R2.4 - for further development */
         uImageStyleUpdate NotificationInfo
 
     Else
