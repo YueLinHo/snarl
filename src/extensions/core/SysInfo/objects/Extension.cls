@@ -50,7 +50,7 @@ Option Explicit
     '
     ' */
 
-Private Const LIB_DATE = "4-Feb-2011"
+Private Const LIB_DATE = "11-Feb-2011"
 Private Const LIB_RELEASE = "3.02"
 Private Const EXT_NAME = "SysInfo"
 Private Const EXT_COMMENT = "Tracks events specific to this computer"
@@ -971,7 +971,7 @@ Dim i As Long
 
     i = sn41EZNotify(mToken, CLASS_VOL_MNT, _
                      "Voume mounted", _
-                     uLabel(Label, Path) & sz, , uIcon(Path), , Path, CStr(n))
+                     uLabel(Label, Path) & sz, , uIcon(Path), , Path, n)
 
 End Sub
 
@@ -996,11 +996,13 @@ End Function
 Private Function uCapacityInfo(ByVal Path As String, ByRef PercentUsed As Integer) As String
 Dim pv As TSimpleVolume
 
+    PercentUsed = -1
+
     Set pv = New TSimpleVolume
     If Not pv.SetTo(Path) Then _
         Exit Function
 
-    If pv.IsNetworkVolume Then _
+    If (pv.IsNetworkVolume) Or (Not pv.HasCapacityInfo) Then _
         Exit Function
 
     PercentUsed = pv.PercentUsed

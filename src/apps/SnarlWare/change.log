@@ -3,6 +3,16 @@
 	SnarlWare Change Log
 	--------------------
 
+	- If required icon is not found, "unknown.png" is used instead.
+	  (Build 15)
+
+	- Added new "-verbose" command-line argument.  If supplied,
+	  notifications for devices with no LocationInformation or
+	  FriendlyName are still displayed.  (Build 15)
+
+	- Attempts to use LocationInformation if FriendlyName is blank.
+	  (Build 15)
+
 	- Added Lemon 3 logging support (writes to %appdata%).  (Build 14)
 
 	- Removed "customclasses" config file dependency.  (Build 11)

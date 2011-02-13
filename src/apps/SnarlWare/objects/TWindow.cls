@@ -24,6 +24,27 @@ Private Const PBT_APMRESUMEAUTOMATIC = 18
 'Private Declare Function DeleteFile Lib "kernel32" Alias "DeleteFileA" (ByVal lpFileName As String) As Long
 Private Declare Function PostMessage Lib "user32" Alias "PostMessageA" (ByVal hWnd As Long, ByVal wMsg As Long, ByVal wParam As Long, ByVal lParam As Long) As Long
 
+'Class      GUID Device                             Description
+'CDROM      4D36E965-E325-11CE-BFC1-08002BE10318    CD/DVD/Blu-ray drives
+'DiskDrive  4D36E967-E325-11CE-BFC1-08002BE10318    Hard drives
+'Display    4D36E968-E325-11CE-BFC1-08002BE10318    Video adapters
+'FDC        4D36E969-E325-11CE-BFC1-08002BE10318    Floppy controllers
+'FloppyDisk 4D36E980-E325-11CE-BFC1-08002BE10318    Floppy drives
+'HDC        4D36E96A-E325-11CE-BFC1-08002BE10318    Hard drive controllers
+'HIDClass   745A17A0-74D3-11D0-B6FE-00A0C90F57DA    Some USB devices
+'1394       6BDD1FC1-810F-11D0-BEC7-08002BE2092F    IEEE 1394 host controller
+'Image      6BDD1FC6-810F-11D0-BEC7-08002BE2092F    Cameras and scanners
+'Keyboard   4D36E96B-E325-11CE-BFC1-08002BE10318    Keyboards
+'Modem      4D36E96D-E325-11CE-BFC1-08002BE10318    Modems
+'Mouse      4D36E96F-E325-11CE-BFC1-08002BE10318    Mice and pointing devices
+'Media      4D36E96C-E325-11CE-BFC1-08002BE10318    Audio and video devices
+'Net        4D36E972-E325-11CE-BFC1-08002BE10318    Network adapters
+'Ports      4D36E978-E325-11CE-BFC1-08002BE10318    Serial and parallel ports
+'SCSIAdapter 4D36E97B-E325-11CE-BFC1-08002BE10318   SCSI and RAID controllers
+'System     4D36E97D-E325-11CE-BFC1-08002BE10318    System buses, bridges, etc.
+'USB        36FC9E60-C465-11CF-8056-444553540000    USB host controllers and hubs
+
+
 'Const GUID_DEVINTERFACE_USB_DEVICE = "A5DCBF10-6530-11D2-901F-00C04FB951ED"
 'Const GUID_DEVINTERFACE_DISK = "53F56307-B6BF-11D0-94F2-00A0C91EFB8B"
 'Const GUID_DEVINTERFACE_PARTITION = "53F5630A-B6BF-11D0-94F2-00A0C91EFB8B"
@@ -403,9 +424,8 @@ End Sub
 Private Sub uDeviceChange(ByVal wParam As Long, ByVal lParam As Long)
 Dim pdbh As DEV_BROADCAST_HDR
 Dim pDevice As T_DEVICEINFO
-'Dim szIcon As String
-'Dim szState As String
 Dim szDevice As String
+Dim szIcon As String
 
     Select Case wParam
     Case DBT_DEVNODES_CHANGED
@@ -426,14 +446,23 @@ Dim szDevice As String
                 ' /* prefer "FriendlyName"... */
                 szDevice = pDevice.InstanceInfo.FriendlyName
 
-'                If szDevice = "" Then _
+                ' /* ...then "LocationInformation" */
+                If szDevice = "" Then _
                     szDevice = pDevice.InstanceInfo.LocationInformation
 
                 ' /* ...but use Description if necessary */
-                If szDevice = "" Then _
-                    szDevice = pDevice.InstanceInfo.Description
+                If szDevice = "" Then
+                    If Not gVerboseMode Then
+                        Form1.Add "  Not displaying: verbose mode not enabled"
+                        Exit Sub
 
-                ' /* add a bunch of debug info */
+                    Else
+                        szDevice = pDevice.InstanceInfo.Description
+
+                    End If
+                End If
+
+                ' /* add debug info */
 
                 If gDebugMode Then _
                     szDevice = szDevice & IIf(szDevice <> "", vbCrLf & vbCrLf, "") & _
@@ -442,56 +471,17 @@ Dim szDevice As String
                                "Description: " & pDevice.InstanceInfo.Description & vbCrLf & _
                                "UID: " & pDevice.InstanceInfo.Driver
 
-                ' /* filter out certain classes */
+                ' /* icon */
 
-'                Select Case pDevice.InstanceInfo.DeviceClass
-''                Case "USB", "VOLUME", "PARTITION", "HID"
-''                    ' /* ignore these */
-''                    Exit Sub
-'
-'                Case ""
-'                    ' /* only display if debug mode enabled */
-'
-'                    szIcon = g_MakePath(App.Path) & "icons\generic.png"
-'
-'                    If gDebugMode Then _
-'                        szDevice = "Unrecognised device" & vbCrLf & _
-'                                   "Class: " & pDevice.InstanceInfo.Class & " (" & pDevice.InstanceInfo.DeviceClassGUID & ")" & vbCrLf & _
-'                                   "FriendlyName: " & pDevice.InstanceInfo.FriendlyName & vbCrLf & _
-'                                   "Description: " & pDevice.InstanceInfo.Description & vbCrLf & _
-'                                   "UID: " & pDevice.InstanceInfo.Driver
-'
-'                End Select
-
-                ' /* determine connection state */
-
-'                If wParam = DBT_DEVICEARRIVAL Then
-''                    szState = "connected"
-''                    If szDevice = mLastConnected Then
-''                        Form1.Add "IGNORING DUPLICATE"
-''                        Exit Sub
-''
-''                    End If
-'
-''                    mLastConnected = szDevice
-'
-'                Else
-'                    szState = "disconnected"
-''                    If szDevice = mLastDisconnected Then
-''                        Form1.Add "IGNORING DUPLICATE"
-''                        Exit Sub
-''
-''                    End If
-'
-''                    mLastDisconnected = szDevice
-'
-'                End If
+                szIcon = g_MakePath(App.Path) & "icons\" & pDevice.InstanceInfo.Class & ".png"
+                If Not g_Exists(szIcon) Then _
+                    szIcon = g_MakePath(App.Path) & "icons\unknown.png"
 
                 Debug.Print ">> " & snDoRequest("notify?app-sig=" & App.ProductName & _
                             "&id=" & IIf(wParam = DBT_DEVICEARRIVAL, "dcon", "ddis") & _
                             "&title=Device " & IIf(wParam = DBT_DEVICEARRIVAL, "connected", "disconnected") & _
                             "&text=" & szDevice & _
-                            "&icon=" & g_MakePath(App.Path) & "icons\" & pDevice.InstanceInfo.Class & ".png" & _
+                            "&icon=" & szIcon & _
                             "&uid=" & pDevice.InstanceInfo.Driver)
 
             Else

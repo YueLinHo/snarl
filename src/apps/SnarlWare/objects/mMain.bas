@@ -9,6 +9,7 @@ Public Const WM_NOTIFICATION = &H400 + 2
 Public Declare Function SendMessage Lib "user32" Alias "SendMessageA" (ByVal hWnd As Long, ByVal wMsg As Long, ByVal wParam As Long, lParam As Any) As Long
 
 Public gDebugMode As Boolean
+Public gVerboseMode As Boolean
 
 Private Const CLASS_NAME = "w>snarlware"
 
@@ -42,6 +43,7 @@ Dim hWndExisting As Long
     End If
 
     gDebugMode = (InStr(Command$, "-debug") <> 0)
+    gVerboseMode = (InStr(Command$, "-verbose") <> 0)
 
     If gDebugMode Then _
         Form1.Show
