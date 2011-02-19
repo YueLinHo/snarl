@@ -25,7 +25,7 @@ Private Const CSIDL_APPDATA = &H1A
 Private Declare Function SHGetSpecialFolderPath Lib "SHELL32.DLL" Alias "SHGetSpecialFolderPathA" (ByVal hWndOwner As Long, ByVal lpszPath As String, ByVal nFolder As Long, ByVal fCreate As Boolean) As Long
 
 Public Function style_GetStyleName(ByVal StyleAndScheme As String) As String
-Dim i As Integer
+Dim i As Long
     
     On Error Resume Next
 
@@ -41,7 +41,7 @@ Dim i As Integer
 End Function
 
 Public Function style_GetSchemeName(ByVal StyleAndScheme As String) As String
-Dim i As Integer
+Dim i As Long
 
     On Error Resume Next
 
@@ -57,7 +57,7 @@ Dim i As Integer
 End Function
 
 Public Function style_GetNotificationFlags(ByVal StyleAndScheme As String) As String
-Dim i As Integer
+Dim i As Long
 
     On Error Resume Next
 
@@ -99,7 +99,7 @@ Dim sz As String
 End Function
 
 Private Function uTrimStr(ByVal sz As String) As String
-Dim i As Integer
+Dim i As Long
 
     i = InStr(sz, Chr$(0))
     If i Then

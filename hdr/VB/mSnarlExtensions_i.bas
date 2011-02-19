@@ -41,7 +41,7 @@ Public Declare Function SHGetSpecialFolderPath Lib "SHELL32.DLL" Alias "SHGetSpe
 'End Function
 
 Private Function uTrimStr(ByVal sz As String) As String
-Dim i As Integer
+Dim i As Long
 
     i = InStr(sz, Chr$(0))
     If i Then

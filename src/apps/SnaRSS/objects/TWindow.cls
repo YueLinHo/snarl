@@ -26,7 +26,7 @@ Implements KPrefsPanel
 Implements KPrefsPage
 Implements BWndProcSink
 
-Private Function BWndProcSink_WndProc(ByVal hWnd As Long, ByVal uMsg As Long, ByVal wParam As Long, ByVal lParam As Long, ByVal PrevWndProc As Long, ReturnValue As Long) As Boolean
+Private Function BWndProcSink_WndProc(ByVal hwnd As Long, ByVal uMsg As Long, ByVal wParam As Long, ByVal lParam As Long, ByVal PrevWndProc As Long, ReturnValue As Long) As Boolean
 
     On Error Resume Next
 
@@ -34,7 +34,7 @@ Private Function BWndProcSink_WndProc(ByVal hWnd As Long, ByVal uMsg As Long, By
     Case WM_CREATE
         frmMain.Add "WM_CREATE"
 '        slInitApp hWnd, App.ProductName, "snaRSS", g_MakePath(App.Path) & IIf(g_IsIDE, "bin\", "") & "icon.png"
-        mhWnd = hWnd
+        mhWnd = hwnd
         uStart
 
 
@@ -140,6 +140,7 @@ Dim i As Long
 
     gConfig.RefreshInterval = 60
     gConfig.UseDefaultCallback = True
+    gConfig.SuperSensitive = False
 
     ' /* read config */
 
@@ -157,6 +158,7 @@ Dim i As Long
                 With .SectionAt(i)
                     gConfig.RefreshInterval = g_SafeLong(.GetValueWithDefault("RefreshInterval", "60"))
                     gConfig.UseDefaultCallback = (.GetValueWithDefault("UseDefaultCallback", "1") = "1")
+                    gConfig.SuperSensitive = (.GetValueWithDefault("SuperSensitive", "0") = "1")
 
                 End With
 
@@ -242,10 +244,12 @@ Dim pm As CTempMsg
                 .Add pCtl
 
                 .Add new_BPrefsControl("fancytoolbar", "feed_toolbar", "Show Headline|Show Summary|Refresh|Feed Information", , , , False)
+                
+                .Add new_BPrefsControl("banner", "", "Options")
                 .Add new_BPrefsControl("fancytoggle2", "UseDefaultCallback", "Clicking the notification opens the item?", , IIf(gConfig.UseDefaultCallback, "1", "0"))
+                .Add new_BPrefsControl("fancytoggle2", "SuperSensitive", "Notify when either headline or content changes?", , IIf(gConfig.SuperSensitive, "1", "0"))
 
                 .Add new_BPrefsSeparator
-
                 .Add new_BPrefsControl("fancybutton2", "quit_app", "Quit snaRSS")
                 .Add new_BPrefsControl("label", "", "snaRSS " & CStr(App.Major) & "." & CStr(App.Minor) & " (Build " & CStr(App.Revision) & ") " & App.LegalCopyright, , , , False)
                 .Add new_BPrefsControl("label", "", "http://www.fullphat.net", , , , False)
@@ -254,14 +258,16 @@ Dim pm As CTempMsg
 
             .AddPage pPage
             .Go
-            g_SetWindowIconToAppResourceIcon .hWnd
+            g_SetWindowIconToAppResourceIcon .hwnd
+
+            SetForegroundWindow .hwnd
 
             uUpdateFeedList
 
         End With
     End If
 
-    g_ShowWindow gPanel.hWnd, True, True
+    g_ShowWindow gPanel.hwnd, True, True
 
 End Sub
 
@@ -314,7 +320,7 @@ Dim i As Long
 
             Else
                 Set theAddFeedPanel = New TAddFeedPanel
-                theAddFeedPanel.Go gPanel.hWnd
+                theAddFeedPanel.Go gPanel.hwnd
 
             End If
 

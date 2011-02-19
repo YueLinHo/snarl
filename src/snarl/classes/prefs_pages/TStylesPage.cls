@@ -78,9 +78,7 @@ Dim pm As CTempMsg
 
     mPage.Add new_BPrefsControl("fancytoolbar", "ftb>style", "Configure...|Preview|Preview Priority|Set as Default||Advanced...")
 
-'    mPage.Add new_BPrefsControl("fancybutton2", "preview_style", "Preview Style")
-'    mPage.Add new_BPrefsControl("fancybutton2", "set_default_style", "Make Default")
-'    mPage.Add new_BPrefsControl("fancybutton2", "restart_style_roster", "Reload Styles")
+'    mPage.Add new_BPrefsControl("label", "current_default_style", "Default style is " & g_Capitalize(Replace$(g_ConfigGet("default_style"), "/", " (") & ")"))
 
 End Sub
 
@@ -198,6 +196,9 @@ Dim szText As String
 
             g_ConfigSet "default_style", szScheme
             g_Debug "TStylePage.ControlInvoked(): default style is now '" & g_ConfigGet("default_style") & "'"
+
+'            If Control.Page.Panel.Find("current_default_style", pc) Then _
+                pc.SetText "Default style is " & g_Capitalize(Replace$(g_ConfigGet("default_style"), "/", " (") & ")")
 
 
         Case 6

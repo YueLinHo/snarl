@@ -162,7 +162,7 @@ Private Sub uTranslateSNP2(ByVal Request As String)
 
 Dim sCommand As String
 Dim ppd As BPackedData
-Dim i As Integer
+Dim i As Long
 
     Set ppd = New BPackedData                           ' // g_DoAction() expects this, even if it's empty
 
@@ -722,7 +722,7 @@ Private Sub uDoSNP(ByVal bytesTotal As Long)
     On Error GoTo er
 
 Dim sz As String
-Dim i As Integer
+Dim i As Long
 
     theSocket.GetData sz
 

@@ -50,7 +50,7 @@ Option Explicit
     '
     ' */
 
-Private Const LIB_DATE = "31-Jan-2010"
+Private Const LIB_DATE = "13-Feb-2011"
 Private Const LIB_REL = "2.0"
 
 Private Const CLASS_AUDIO_CHANGE = "audx"
@@ -153,6 +153,8 @@ Dim pPage As BPrefsPage
         
         '        .Add new_BPrefsControl("label", "", App.FileDescription & " V" & CStr(App.Major) & "." & CStr(App.Revision), , , , False)
 
+                .Add new_BPrefsControl("label", "", "Windows Vista/7 helper process designed and developed by Toke Nøttrup and Jonus Conrad")
+
             End With
 
             .AddPage pPage
@@ -163,7 +165,7 @@ Dim pPage As BPrefsPage
 
     End If
 
-    ISnarlExtension_GetConfigWindow = mPanel.hWnd
+    ISnarlExtension_GetConfigWindow = mPanel.hwnd
 
 End Function
 
@@ -412,7 +414,7 @@ Private Sub KPrefsPage_ControlInvoked(Control As BControl)
     Select Case Control.GetName()
 
     Case "go_website"
-        ShellExecute mPanel.hWnd, "open", "http://www.fullphat.net/", vbNullString, vbNullString, 5
+        ShellExecute mPanel.hwnd, "open", "http://www.fullphat.net/", vbNullString, vbNullString, 5
 
     End Select
 
@@ -534,7 +536,7 @@ End Function
 '
 'End Sub
 
-Private Function MWndProcSink_WndProc(ByVal hWnd As Long, ByVal uMsg As Long, ByVal wParam As Long, ByVal lParam As Long, ByVal PrevWndProc As Long, ReturnValue As Long) As Boolean
+Private Function MWndProcSink_WndProc(ByVal hwnd As Long, ByVal uMsg As Long, ByVal wParam As Long, ByVal lParam As Long, ByVal PrevWndProc As Long, ReturnValue As Long) As Boolean
 
     Select Case uMsg
     Case &H440

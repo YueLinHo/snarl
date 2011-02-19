@@ -1,6 +1,23 @@
 
 	Snarl Change Log
 
+	- Added "Recreate Tray Icon" button to [Advanced] page while will
+	  ask Snarl to put its icon back into the system tray if it should
+	  disappear for some arcane reason.  Note that the icon will only
+	  be created if admin and user preference settings allow it.  (42.60)
+
+	- Improved the way the preferences panel is displayed.  (42.60)
+
+	- Moved TDebugPage code into frmAbout.NewDoPrefs().  (42.60)
+
+	- Fixed a number of bugs to do with string processing which would
+	  manifest if a request of more than 32767 bytes was sent to
+	  Snarl.  (42.59)
+
+	- Default style is now selected in the [Styles] page.  (42.59)
+
+	- R2.4 Beta 4.  (42.58)
+
 	- NotificationRoster.Update() now supports "callback", "reply-to",
 	  "reply", "icon", "icon-base64" and "uid" args for both on-screen
 	  and missed notifications.  On-screen notifications can also have

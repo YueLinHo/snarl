@@ -611,14 +611,43 @@ Dim sz() As String
 End Sub
 
 Private Sub KPrefsPage_ControlInvoked(Control As prefs_kit_d2.BControl)
-'Dim pc As BControl
-'
-'    Debug.Print "[" & mPage.GetName() & "]: ControlInvoked '" & Control.GetName() & "'"
-'
+Dim hWnd As Long
+
     Select Case Control.GetName()
 
     Case "update_now"
         g_DoManualUpdateCheck
+
+    Case "go_lemon"
+        ShellExecute 0, "open", "notepad.exe", l3LogPath(), vbNullString, SW_SHOW
+
+    Case "open_config"
+        ShellExecute 0, "open", g_GetPath(g_SettingsPath()), vbNullString, vbNullString, SW_SHOW
+
+    Case "cycle_config"
+        g_ConfigInit
+
+    Case "go_garbage"
+        If g_IsWinXPOrBetter() Then _
+            CoFreeUnusedLibrariesEx 0, 0
+
+    Case "test"
+        ' /* mimic how we would do it from an external app... */
+        hWnd = FindWindow("w>Snarl", "Snarl")
+        If IsWindow(hWnd) <> 0 Then _
+            SendMessage hWnd, WM_SNARLTEST, 0, ByVal 0&
+
+    Case "go_tray_icon"
+        uAddTrayIcon
+
+
+'    Case "restart_style_roster"
+'        If Not (g_StyleRoster Is Nothing) Then
+'            melonLibClose g_StyleRoster
+'            MsgBox "Click OK when you're ready for the Style Roster to start up", vbInformation Or vbOKOnly, App.Title
+'            melonLibOpen g_StyleRoster
+'
+'        End If
 
     End Select
 
@@ -1047,7 +1076,10 @@ Dim pm As CTempMsg
                 .Add new_BPrefsControl("key_picker", "", , , CStr(MOD_WIN) & "," & g_ConfigGet("hotkey_prefs"), , False)
                 .Add new_BPrefsControl("label", "", "Press the key you want to use in the boxes above.  Note that the modifiers (the combination of SHIFT and CTRL keys) used are automatically set.")
 
-                ' /* presence management */
+                ' /* other */
+
+                .Add new_BPrefsControl("banner", "", "Other")
+                .Add new_BPrefsControl("fancybutton2", "go_tray_icon", "Recreate Tray Icon")
 
 '                .Add new_BPrefsControl("banner", "", "Presence Management")
 '                .Add new_BPrefsControl("fancycycle", "away_mode", "Log as Missed|Make Sticky|Discard|Display", "When Away:", g_ConfigGet("away_mode"))
@@ -1056,9 +1088,6 @@ Dim pm As CTempMsg
         ' /* other stuff */
 
 '        .Add new_BPrefsControl("banner", "", "System Functions")
-'        .Add new_BPrefsControl("fancybutton2", "go_app_manager", "Launch App Manager")
-'        .Add new_BPrefsControl("label", "", "The App Manager allows you to control other Snarl applications which don't have their own user interface.")
-
 '        .Add new_BPrefsControl("fancybutton2", "restart_style_roster", "Reload Styles")
 '        .Add new_BPrefsControl("label", "", "Forces Snarl to reload all installed styles.  Under normal circumstances you shouldn't need to do this; it's provided for users who are developing their own styles and want to test them without restarting Snarl.")
 
@@ -1069,11 +1098,43 @@ Dim pm As CTempMsg
 
             .AddPage new_BPrefsPage("About", load_image_obj(g_MakePath(App.Path) & "etc\icons\about.png"), New TAboutPage)
 
-            If gDebugMode Then _
-                .AddPage new_BPrefsPage("Debug", load_image_obj(g_MakePath(App.Path) & "etc\icons\debug.png"), New TDebugPage)
+            If gDebugMode Then
+
+                Set pp = new_BPrefsPage("Debug", load_image_obj(g_MakePath(App.Path) & "etc\icons\debug.png"), Me)
+
+                With pp
+                    .SetMargin 96
+                    .Add new_BPrefsControl("banner", "", "Debugging")
+                    .Add new_BPrefsControl("fancybutton2", "go_lemon", "Open debug log")
+            '        .Add new_BPrefsControl("label", "", "The log file can be useful for debugging purposes.")
+            
+                    .Add new_BPrefsControl("fancybutton2", "go_garbage", "Garbage collection", , , , g_IsWinXPOrBetter())
+            
+            '        .Add new_BPrefsControl("separator", "")
+                    .Add new_BPrefsControl("banner", "", "Configuration")
+                    .Add new_BPrefsControl("fancybutton2", "open_config", "Open config folder")
+                    .Add new_BPrefsControl("label", "", "Opens the current config folder in Explorer so the various configuration files can be edited manually.")
+            
+            '        .Add new_BPrefsControl("fancybutton2", "cycle_config", "Reload Config File")
+            '        .Add new_BPrefsControl("label", "", "Reloads the current configuration file.")
+            
+            '        .Add new_BPrefsControl("separator", "")
+                    .Add new_BPrefsControl("banner", "", "Diagnostics")
+                    .Add new_BPrefsControl("fancybutton2", "test", "Test notification")
+                    .Add new_BPrefsControl("label", "", "Sends a special test message to the Snarl engine which should result in a notification appearing.  This message is sent using the same mechanism a 3rd party application would use and therefore should prove (or otherwise) that the Snarl notification engine is running correctly.")
+            
+            '        .Add new_BPrefsControl("separator", "")
+            '        .Add new_BPrefsControl("fancybutton2", "restart_style_roster", "Restart Style Roster")
+            
+                End With
+
+                .AddPage pp
+
+            End If
 
             .Go
             g_SetWindowIconToAppResourceIcon .hWnd
+            SetForegroundWindow .hWnd
 
         End With
 
@@ -1082,11 +1143,9 @@ Dim pm As CTempMsg
     If (PageToSelect > 0) And (PageToSelect <= mPanel.CountPages) Then _
         mPanel.SetPage PageToSelect
 
-
 End Sub
 
 Private Sub KPrefsPanel_PageChanged(ByVal NewPage As Long)
-
 End Sub
 
 Private Sub KPrefsPanel_Quit()
@@ -1127,15 +1186,21 @@ Dim j As Long
             Set px = g_StyleRoster.StyleAt(i)
             j = px.SchemeIndex(style_GetSchemeName(g_ConfigGet("default_style")))
 
-        End If
+            If j Then
+                ' /* R2.4 RC1: select default style and scheme in [Styles] page*/
+                prefskit_SetValue mPanel, "installed_styles", CStr(i)
+                prefskit_SetValue mPanel, "installed_schemes", CStr(j)
 
-        If (i > 0) And (j > 0) Then
-            If mPanel.Find("default_style", pc) Then _
-                pc.SetValue CStr(i)
-    
-            If mPanel.Find("default_scheme", pc) Then _
-                pc.SetValue CStr(j)
+'            prefskit_SetValue mPanel, "default_style", CStr(i)
+'            prefskit_SetValue mPanel, "default_scheme", CStr(j)
+'
+'            If mPanel.Find("default_style", pc) Then _
+'                pc.SetValue CStr(i)
+'
+'            If mPanel.Find("default_scheme", pc) Then _
+'                pc.SetValue CStr(j)
 
+            End If
         End If
     End If
 

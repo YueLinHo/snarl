@@ -7,17 +7,19 @@ Option Explicit
     ' */
 
 Private Declare Function FindWindow Lib "user32" Alias "FindWindowA" (ByVal lpClassName As String, ByVal lpWindowName As String) As Long
-Private Declare Function IsWindow Lib "user32" (ByVal hWnd As Long) As Long
+Private Declare Function IsWindow Lib "user32" (ByVal hwnd As Long) As Long
 
 Private Const WM_CLOSE = &H10
 'Public Const WM_TEST = &H400 + 1
 'Public Const WM_NOTIFICATION = &H400 + 2
 'Public Const WM_RELOAD = &H400 + 3
-Public Declare Function SendMessage Lib "user32" Alias "SendMessageA" (ByVal hWnd As Long, ByVal wMsg As Long, ByVal wParam As Long, lParam As Any) As Long
+Public Declare Function SendMessage Lib "user32" Alias "SendMessageA" (ByVal hwnd As Long, ByVal wMsg As Long, ByVal wParam As Long, lParam As Any) As Long
 
 Public Type T_CONFIG
     RefreshInterval As Long
     UseDefaultCallback As Boolean
+    SuperSensitive As Boolean
+
 '    UseFeedIcon As Boolean
 '    FeedRefresh As Long
 
@@ -69,13 +71,13 @@ Dim hWndExisting As Long
     If gDebugMode Then _
         frmMain.Show
 
-Dim hWnd As Long
+Dim hwnd As Long
 
     EZRegisterClass CLASS_NAME
-    hWnd = EZAddWindow(CLASS_NAME, New TWindow, CLASS_NAME)
+    hwnd = EZAddWindow(CLASS_NAME, New TWindow, CLASS_NAME)
 
-    frmMain.List1.AddItem "window: " & g_HexStr(hWnd)
-    frmMain.Tag = CStr(hWnd)
+    frmMain.List1.AddItem "window: " & g_HexStr(hwnd)
+    frmMain.Tag = CStr(hwnd)
 
     g_Debug "startup complete"
 
@@ -89,7 +91,7 @@ Dim hWnd As Long
     If Not (gPanel Is Nothing) Then _
         gPanel.Quit
 
-    EZRemoveWindow hWnd
+    EZRemoveWindow hwnd
     EZUnregisterClass CLASS_NAME
     Unload frmMain
 

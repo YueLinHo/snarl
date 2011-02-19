@@ -151,7 +151,7 @@ Dim i As Long
 End Sub
 
 Private Function uIsNewer(ByVal Version As String) As Boolean
-Dim i As Integer
+Dim i As Long
 
     i = InStr(Version, ".")
     If i = 0 Then _

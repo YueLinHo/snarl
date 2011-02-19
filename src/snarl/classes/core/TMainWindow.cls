@@ -695,6 +695,8 @@ Dim sz As String
 
     Debug.Print "TMainWindow.uDoV42Request(): data is " & cbRequest & " byte(s)"
 
+
+
     ' /* V42 requests are variable length */
 
     sz = String(cbRequest, 0)
@@ -723,7 +725,7 @@ Dim sz As String
     sz = Replace$(sz, "&", "#?")
 
 Dim szAction As String
-Dim i As Integer
+Dim i As Long
 
     ' /* find the action/arg marker */
 

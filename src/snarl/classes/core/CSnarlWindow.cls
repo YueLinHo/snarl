@@ -1121,7 +1121,7 @@ End Function
 Private Sub uAddToMenu(ByRef Menu As OMMenu, ByVal Item As String)
 Dim szText As String
 Dim szData As String
-Dim i As Integer
+Dim i As Long
 
     i = InStr(Item, "#?")
     If i = 0 Then

@@ -854,7 +854,7 @@ Dim szSound As String
 End Function
 
 Private Sub uGetAction(ByRef ListToAddTo As BTagList, ByVal PackedAction As String)
-Dim i As Integer
+Dim i As Long
 
     ' /* only interested in _first_ comma */
 

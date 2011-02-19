@@ -175,7 +175,17 @@ Static szEntry As String
         mTitle = Replace$(theFeed.Channel.Title, "|", ":")
 
         With theFeed.ItemAt(1)
-            szEntry = .Description '//  .Title & "+" & .Description
+
+            If gConfig.SuperSensitive Then
+                ' /* notify a headline change when either description or title changes */
+                szEntry = .Description & .Title
+
+            Else
+                ' /* notify a change when only the title changes */
+                szEntry = .Title
+
+            End If
+
             If szEntry <> szLastEntry Then
                 ' /* top story has changed */
                 frmMain.Add "first entry has changed"
