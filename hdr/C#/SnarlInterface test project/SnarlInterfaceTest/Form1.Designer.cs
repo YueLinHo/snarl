@@ -66,6 +66,7 @@ namespace SnarlConnectorTest
 			this.button28 = new System.Windows.Forms.Button();
 			this.button29 = new System.Windows.Forms.Button();
 			this.groupBox5 = new System.Windows.Forms.GroupBox();
+			this.button34 = new System.Windows.Forms.Button();
 			this.button33 = new System.Windows.Forms.Button();
 			this.button35 = new System.Windows.Forms.Button();
 			this.button36 = new System.Windows.Forms.Button();
@@ -76,6 +77,7 @@ namespace SnarlConnectorTest
 			this.button42 = new System.Windows.Forms.Button();
 			this.button43 = new System.Windows.Forms.Button();
 			this.button44 = new System.Windows.Forms.Button();
+			this.button39 = new System.Windows.Forms.Button();
 			this.groupBox1.SuspendLayout();
 			this.groupBox2.SuspendLayout();
 			this.groupBox3.SuspendLayout();
@@ -525,6 +527,8 @@ namespace SnarlConnectorTest
 			// 
 			this.groupBox5.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left)
 						| System.Windows.Forms.AnchorStyles.Right)));
+			this.groupBox5.Controls.Add(this.button39);
+			this.groupBox5.Controls.Add(this.button34);
 			this.groupBox5.Controls.Add(this.button33);
 			this.groupBox5.Controls.Add(this.button35);
 			this.groupBox5.Controls.Add(this.button36);
@@ -541,6 +545,17 @@ namespace SnarlConnectorTest
 			this.groupBox5.TabIndex = 21;
 			this.groupBox5.TabStop = false;
 			this.groupBox5.Text = "V42 API";
+			// 
+			// button34
+			// 
+			this.button34.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left)));
+			this.button34.Location = new System.Drawing.Point(6, 77);
+			this.button34.Name = "button34";
+			this.button34.Size = new System.Drawing.Size(117, 23);
+			this.button34.TabIndex = 21;
+			this.button34.Text = "Add EventHandler";
+			this.button34.UseVisualStyleBackColor = true;
+			this.button34.Click += new System.EventHandler(this.button34_Click);
 			// 
 			// button33
 			// 
@@ -652,6 +667,17 @@ namespace SnarlConnectorTest
 			this.button44.UseVisualStyleBackColor = true;
 			this.button44.Click += new System.EventHandler(this.button44_Click);
 			// 
+			// button39
+			// 
+			this.button39.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left)));
+			this.button39.Location = new System.Drawing.Point(140, 77);
+			this.button39.Name = "button39";
+			this.button39.Size = new System.Drawing.Size(117, 23);
+			this.button39.TabIndex = 22;
+			this.button39.Text = "Remove handler";
+			this.button39.UseVisualStyleBackColor = true;
+			this.button39.Click += new System.EventHandler(this.button39_Click);
+			// 
 			// Form1
 			// 
 			this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
@@ -728,6 +754,8 @@ namespace SnarlConnectorTest
 		private System.Windows.Forms.Button button42;
 		private System.Windows.Forms.Button button43;
 		private System.Windows.Forms.Button button44;
+		private System.Windows.Forms.Button button34;
+		private System.Windows.Forms.Button button39;
 
 	}
 }

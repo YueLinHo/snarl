@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Text;
+using System.Windows.Forms;
 
 
 namespace Snarl.V42
@@ -27,6 +28,8 @@ namespace Snarl.V42
 	///  - Functions manipulating messages (Update, Hide etc.) still takes a message token as
 	///    parameter, but you can get the last message token calling GetLastMsgToken();
 	///    Example: snarl.Hide(snarl.GetLastMsgToken());
+	///    
+	///  - Implements RegisterWithEvents() and event handlers. See SnarlInterfaceExample1 project.
 	///
 	/// Note on optional parameters:
 	///   Since C# 3.0 and prior doesn't have optional parameters, the C# SnarlInterface does not
@@ -36,6 +39,8 @@ namespace Snarl.V42
 	/// </summary>
 	/// 
 	/// <VersionHistory>
+	/// 2011-03-13 : Implemented Update()
+	///            : Initial event implementation. Needs cleanup.
 	/// 2011-02-05 : Removed MessageEvent enum. Only SnarlStatus enum now (same as in VB code)
 	/// 2011-02-04 : Updated per rev. 3 of General API documentation.
 	///            : Implemented Escape function. Updated some documentation and fixes.
@@ -46,7 +51,7 @@ namespace Snarl.V42
 	/// <Todo>
 	///  - Update documentation all around
 	/// </Todo>
-
+	/// 
 
 	public class SnarlInterface
 	{
@@ -162,6 +167,9 @@ namespace Snarl.V42
 		protected const string SnarlGlobalMsg = "SnarlGlobalEvent";
 		protected const string SnarlAppMsg = "SnarlAppMessage";
 
+		// protected const Int32 WM_DEFAULT_APPMSG = (Int32)WindowsMessage.WM_APP + 0x2fff; // AFFF
+		protected const Int32 WM_DEFAULT_APPMSG = (Int32)WindowsMessage.WM_USER + 0x1fff;  // 23FF
+
 	#endregion
 
 	#region Member variables
@@ -170,6 +178,7 @@ namespace Snarl.V42
 		private Int32 lastMsgToken = 0;
 		private String appSignature = "";
 		private String password = null;
+		private Object instanceLock = new Object();
 
 	#endregion
 
@@ -513,14 +522,15 @@ namespace Snarl.V42
 		/// <param name="title">Optional</param>
 		/// <param name="text">Optional</param>
 		/// <param name="timeout">Optional</param>
-		/// <param name="icon">Optional</param>
+		/// <param name="iconPath">Optional</param>
 		/// <param name="iconBase64">Optional</param>
 		/// <param name="callback">Optional</param>
 		/// <param name="priority">Optional</param>
 		/// <param name="uid">Optional</param>
 		/// <param name="value">Optional</param>
 		/// <returns></returns>
-		public Int32 Notify(String classId, String title, String text, Int32? timeout, String icon, String iconBase64, String callback, MessagePriority? priority, String uid, String value)
+		/// <remarks>All parameters are optional. Pass null to use class default values.</remarks>
+		public Int32 Notify(String classId, String title, String text, Int32? timeout, String iconPath, String iconBase64, MessagePriority? priority, String uid, String callback, String value)
 		{
 			// notify?[app-sig=<signature>|token=<application token>][&password=<password>][&id=<class identifier>]
 			//        [&title=<title>][&text=<text>][&timeout=<timeout>][&icon=<icon path>][&icon-base64=<MIME data>][&callback=<default callback>]
@@ -534,7 +544,7 @@ namespace Snarl.V42
 			spl.Add("title", title);
 			spl.Add("text", text);
 			spl.Add("timeout", timeout);
-			spl.Add("icon", icon);
+			spl.Add("icon", iconPath);
 			spl.Add("icon-base64", iconBase64);
 			spl.Add("callback", callback);
 			spl.Add("priority", (Int32?)priority);
@@ -546,9 +556,14 @@ namespace Snarl.V42
 			return lastMsgToken;
 		}
 
-		public Int32 Notify(String classId, String title, String text, Int32? timeout, String icon, String iconBase64)
+		public Int32 Notify(String classId, String title, String text, Int32? timeout, String iconPath, String iconBase64, MessagePriority? priority)
 		{
-			return Notify(classId, title, text, timeout, icon, null, null, null, null, null);
+			return Notify(classId, title, text, timeout, iconPath, iconBase64, priority, null, null, null);
+		}
+
+		public Int32 Notify(String classId, String title, String text, Int32? timeout, String iconPath, String iconBase64)
+		{
+			return Notify(classId, title, text, timeout, iconPath, iconBase64, null, null, null, null);
 		}
 
 		public Int32 Notify(String classId, String title, String text, Int32? timeout)
@@ -602,15 +617,17 @@ namespace Snarl.V42
 			spl.Add("reply-to", hWndReplyTo);
 			spl.Add("reply", msgReply);
 
-			appSignature = signature;
-
 			// If password was given, save and use in all other functions requiring password
 			if (!String.IsNullOrEmpty(password))
 				this.password = password;
 
 			Int32 request = DoRequest(Requests.Register, spl);
 			if (request > 0)
-				appToken = request;
+			{
+				this.appToken = request;
+				this.msgReply = msgReply;
+				this.appSignature = signature;
+			}
 
 			return request;
 		}
@@ -641,35 +658,47 @@ namespace Snarl.V42
 			lastMsgToken = 0;
 			appSignature = "";
 			password = null;
+			msgReply = 0;
 
 			return DoRequest(Requests.Unregister, spl);
 		}
 
-		/*public Int32 Update(Int32 msgToken, String title, String text, Int32 timeout, String icon)
+		
+		public Int32 Update(Int32 msgToken, String classId, String title, String text, Int32? timeout, String iconPath, String iconBase64, MessagePriority? priority, String ack, String callback, String value)
 		{
-			
+			// Made from best guess - no documentation available yet
+			SnarlParameterList spl = new SnarlParameterList(12);
+			spl.Add("token", msgToken);
+			spl.Add("password", password);
+
+			spl.Add("id", classId);
+			spl.Add("title", title);
+			spl.Add("text", text);
+			spl.Add("icon", iconPath);
+			spl.Add("icon-base64", iconBase64);
+			spl.Add("ack", ack);
+			spl.Add("callback", callback);
+			spl.Add("value", value);
+			spl.Add("timeout", timeout);
+			spl.Add("priority", (Int32?)priority);
+
+			return DoRequest(Requests.Update, spl);			
 		}
 
-		public Int32 Update(Int32 msgToken, String title, String text, Int32 timeout)
+		public Int32 Update(Int32 msgToken, String classId, String title, String text, Int32? timeout, String iconPath, String iconBase64, MessagePriority? priority)
 		{
-			return Update(msgToken, title, text, timeout, null);
+			return Update(msgToken, classId, title, text, timeout, iconPath, iconBase64, priority, null, null, null);
 		}
 
-		public Int32 Update(Int32 msgToken, String title, String text)
+		public Int32 Update(Int32 msgToken, String classId, String title, String text, Int32? timeout)
 		{
-			return Update(msgToken, title, text, -1, null);
-		}*/
+			return Update(msgToken, classId, title, text, timeout, null, null, null, null, null, null);
+		}
 
-		/// <summary>
-		/// UpdateApp
-		/// </summary>
-		/// <param name="title">Optional (null)</param>
-		/// <param name="icon">Optional (null)</param>
-		/// <returns></returns>
-		/*public Int32 UpdateApp(String title, String icon)
+		public Int32 Update(Int32 msgToken, String classId, String title, String text)
 		{
-			Requests.UpdateApp
-		}*/
+			return Update(msgToken, classId, title, text, null, null, null, null, null, null, null);
+		}
 
 		/// <summary>
 		/// GetLastMsgToken() returns token of the last message sent to Snarl.
@@ -1047,5 +1076,143 @@ namespace Snarl.V42
 		}
 
 	#endregion
+
+		public class GlobalEventArgs : EventArgs
+		{
+			public GlobalEvent GlobalEvent { get; set; }
+
+			public GlobalEventArgs(GlobalEvent globalEvent)
+			{
+				GlobalEvent = globalEvent;
+			}
+		}
+
+		public class CallbackEventArgs : EventArgs
+		{
+			public Int32 MessageToken { get; set; }
+			public SnarlStatus SnarlEvent { get; set; }
+
+			/// <summary>
+			/// The @data member if an action callback. Menu index if popup menu.
+			/// </summary>
+			public UInt16 Parameter { get; set; }
+
+
+			public CallbackEventArgs(SnarlStatus snarlEvent, UInt16 parameter, int msgToken)
+			{
+				SnarlEvent = snarlEvent;
+				MessageToken = msgToken;
+				Parameter = parameter;
+			}
+		}
+
+		public delegate void CallbackEventHandler(SnarlInterface sender, CallbackEventArgs args);
+		public event CallbackEventHandler CallbackEvent;
+		public delegate void GlobalEventHandler(SnarlInterface sender, GlobalEventArgs args);
+		public event GlobalEventHandler GlobalSnarlEvent;
+
+		private SnarlCallbackNativeWindow callbackWindow = null;
+		private Int32 msgReply = 0;
+		
+		public Int32 RegisterWithEvents(String signature, String title, String icon, String password, IntPtr hWndReplyTo, Int32? msgReply)
+		{
+			lock (instanceLock)
+			{
+				if (msgReply == null || msgReply.Value == 0)
+					msgReply = WM_DEFAULT_APPMSG;
+
+				// Reuse callbackwindo as is, if DetachCallbackWindow() hasn't been called manually
+				if (callbackWindow == null)
+					callbackWindow = new SnarlCallbackNativeWindow(this, hWndReplyTo);
+
+				return Register(signature, title, icon, password, callbackWindow.Handle, msgReply.Value);
+			}
+		}
+
+		public void UnregisterCallbackWindow()
+		{
+			lock (instanceLock)
+			{
+				// Release handle
+				if (callbackWindow != null)
+				{
+					callbackWindow.Detach();
+					callbackWindow = null;
+				}
+			}
+		}
+
+		// protected
+		class SnarlCallbackNativeWindow : System.Windows.Forms.NativeWindow
+		{
+			private bool hasCreatedCallbackWindow = false;
+			private UInt32 snarlGlobalMessage = 0;
+			private SnarlInterface parent = null;
+
+
+			internal SnarlCallbackNativeWindow(SnarlInterface parent, IntPtr windowHandle)
+			{
+				this.parent = parent;
+				snarlGlobalMessage = SnarlInterface.Broadcast();
+
+				if (windowHandle == IntPtr.Zero)
+				{
+					hasCreatedCallbackWindow = true;
+
+					CreateParams cp = new CreateParams();
+					cp.Caption = GetType().FullName;
+					CreateHandle(cp);
+				}
+				else
+				{
+					hasCreatedCallbackWindow = false;
+					AssignHandle(windowHandle);
+				}
+			}
+			
+			internal void Detach()
+			{
+				if (hasCreatedCallbackWindow)
+					DestroyHandle();
+				else
+					ReleaseHandle();
+			}
+
+			protected override void WndProc(ref System.Windows.Forms.Message m)
+			{
+				if (m.Msg == snarlGlobalMessage)
+				{
+					if (parent.GlobalSnarlEvent == null)
+						return;
+
+					GlobalEventArgs eventArgs = new GlobalEventArgs((SnarlInterface.GlobalEvent)(m.WParam.ToInt64() & 0xffffffff));
+					parent.GlobalSnarlEvent(parent, eventArgs);
+				}
+				else if (m.Msg == parent.msgReply)
+				{
+					if (parent.CallbackEvent == null)
+						return;
+
+					UInt16 loword, hiword;
+					ConvertToUInt16(m.WParam, out loword, out hiword);
+					Int32 msgToken = m.LParam.ToInt32();
+
+					CallbackEventArgs eventArgs = new CallbackEventArgs((SnarlStatus)loword, hiword, msgToken);
+
+					parent.CallbackEvent(parent, eventArgs);
+				}
+
+				base.WndProc(ref m);
+			}
+
+			private void ConvertToUInt16(IntPtr input, out UInt16 outLow, out UInt16 outHigh)
+			{
+				// Assumes only 32 bit
+				UInt32 tmp = (UInt32)input.ToInt64();
+
+				outLow  = (UInt16)(tmp & 0x0000ffff);
+				outHigh = (UInt16)(tmp >> 16);
+			}
+		}
 	}
 }
