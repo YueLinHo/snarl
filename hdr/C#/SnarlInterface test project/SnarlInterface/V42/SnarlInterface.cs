@@ -105,7 +105,7 @@ namespace Snarl.V42
 			//105 gen critical #5
 			ErrorBadSocket = 106,          // invalid socket (or some other socket-related error)
 			ErrorBadPacket = 107,          // badly formed request
-			//108 net critical #3
+			ErrorInvalidArg = 108,         // Added in v42.56
 			ErrorArgMissing = 109,         // required argument missing
 			ErrorSystem,                   // internal system error
 			//120 libsnarl critical block
@@ -667,6 +667,7 @@ namespace Snarl.V42
 		public Int32 Update(Int32 msgToken, String classId, String title, String text, Int32? timeout, String iconPath, String iconBase64, MessagePriority? priority, String ack, String callback, String value)
 		{
 			// Made from best guess - no documentation available yet
+			// Following parameters left out: "reply-to", "reply", "uid"
 			SnarlParameterList spl = new SnarlParameterList(12);
 			spl.Add("token", msgToken);
 			spl.Add("password", password);
