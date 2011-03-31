@@ -1,6 +1,12 @@
 
 	Snarl Change Log
 
+	- Snarl no longer mistakes the Windows 7 Flip (Win+TAB) window as
+	  a full screen app.  (42.62) 
+
+	- Fixed issue with the Missed Notifications notification (sic)
+	  appearing even when no notifications had been missed.  (42.61)
+
 	- Added "Recreate Tray Icon" button to [Advanced] page while will
 	  ask Snarl to put its icon back into the system tray if it should
 	  disappear for some arcane reason.  Note that the icon will only

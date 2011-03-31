@@ -157,6 +157,9 @@ Dim hr As Long
         Unload Me
 
     Else
+        
+        Text3.Text = App.Path & "\iexpress.exe,2"
+        
         hr = sn41RegisterApp(App.ProductName, App.Title, App.Path & "\icon.png")
         If hr = 0 Then
             Me.Caption = "Error registering with Snarl: " & sn41GetLastError()

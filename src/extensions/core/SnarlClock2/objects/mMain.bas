@@ -65,7 +65,7 @@ Public gConfig As T_CONFIG
 '
 'End Function
 
-Public Function g_GetTimeString(ByRef Config As T_CONFIG, ByVal HoursOnly As Boolean) As String
+Public Function g_GetTimeString2(ByRef Config As T_CONFIG) As String
 Dim txt As String
 Dim pt As CTime
 Dim i As Integer
@@ -77,14 +77,20 @@ Dim i As Integer
     Set pt = New CTime
     pt.SetTo Now()
 
+
+
+    If Config.format_type <> 2 Then _
+        txt = "It's now "
+
+
     If Config.format_type = 1 Then
         ' /* as text */
-        txt = LCase$(pt.AsText(Not Config.use_12_hour_clock, Config.show_seconds))
+        txt = txt & LCase$(pt.AsText(Not Config.use_12_hour_clock, Config.show_seconds))
 
     ElseIf Config.format_type = 2 Then
         ' /* special "YYYYMMDDHHMMSS" format */
         txt = Format$(pt.Year, "0000") & Format$(pt.Month, "00") & Format$(pt.Day, "00") & _
-              Format$(pt.Hour, "00") & Format$(pt.Minutes, "00") & IIf(HoursOnly, "XX", Format$(pt.Seconds, "00"))
+              Format$(pt.Hour, "00") & Format$(pt.Minutes, "00") & IIf(Config.show_seconds, Format$(pt.Seconds, "00"), "XX")
 
     Else
         ' /* numerically */
@@ -98,13 +104,14 @@ Dim i As Integer
 
         txt = txt & IIf(Config.two_digit_hour, Format$(i, "00"), CStr(i))
 
-        If Not HoursOnly Then
+'        If Not HoursOnly Then
+            
             txt = txt & ":" & Format$(pt.Minutes(), "00")
 
             If Config.show_seconds Then _
                 txt = txt & ":" & Format$(pt.Seconds(), "00")
 
-        End If
+'        End If
 
         ' /* am/pm setting only applies for 12 hour clock */
 
@@ -191,7 +198,9 @@ Dim i As Integer
 
 Dim a As Long
 
-    If (Config.show_cookie) And (mCookies > 0) Then
+    ' /* R2.06: suppress in-line cookie if using the packed time format */
+
+    If (Config.show_cookie) And (mCookies > 0) And (Config.format_type <> 2) Then
         Randomize Timer
         a = Rnd * mCookies
         txt = txt & vbCrLf & vbCrLf & mCookie(a)
@@ -201,7 +210,7 @@ Dim a As Long
 
     End If
 
-    g_GetTimeString = txt
+    g_GetTimeString2 = txt
 
 End Function
 
@@ -265,7 +274,7 @@ Dim szPath As String
         .Add "show_meter", IIf(gConfig.show_meter, "1", "0")
         .Add "show_cookie_on_load", IIf(gConfig.show_cookie_on_load, "1", "0")
 
-        g_Debug "g_WriteConfig(): " & .Save(g_MakePath(szPath) & "etc\.snarlclock2")
+        g_Debug "g_WriteConfig(): " & .Save(g_MakePath(szPath) & ".snarlclock2")
 
     End With
 

@@ -1,6 +1,6 @@
 Type=Exe
 Reference=*\G{00020430-0000-0000-C000-000000000046}#2.0#0#C:\WINDOWS\system32\STDOLE2.TLB#OLE Automation
-Reference=*\G{D2457CD5-42F6-4CE6-9F9E-13403FA9CCFB}#1.1#0#..\bin\libmsnarl_d0.dll#melon R4: snarl.library (V42) d0
+Reference=*\G{7B315C1E-79F4-414D-98E5-73A8D987F5A1}#1.0#0#..\bin\libsnarl.dll#snarl.library (V42)
 Form=Form1.frm
 Module=mBasic_i; ..\..\..\..\..\melon\trunk\src\hdr\mBasic_i.bas
 Startup="Form1"

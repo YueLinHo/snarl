@@ -912,7 +912,7 @@ Dim update_config   As Boolean
             Else
                 ' /* set it */
                 g_SetPresence SP_DND_USER
-                g_NotificationRoster.ResetMissedCount
+'                g_NotificationRoster.ResetMissedCount
 
             End If
 
@@ -2021,6 +2021,15 @@ Static h As Long
                 Loop
 
 '                g_Debug "uIsFullScreenMode(): no higher app window"
+
+                ' /* filter out Windows7 Win+Tab class */
+
+                Select Case g_ClassName(hWnd)
+                Case "Flip3D"
+                    Exit Function
+
+                End Select
+
                 uIsFullScreenMode = True
 
             End If

@@ -38,6 +38,7 @@ Private Type T_NOTIFICATION
 End Type
 
 Dim mItem() As T_NOTIFICATION
+'Dim mItemX() As TDelayedNotification
 Dim mItems As Long
 Dim mToken As Long
 Dim mRefs As Long
@@ -775,6 +776,9 @@ Dim psw As CSnarlWindow
     mItems = mItems + 1
     ReDim Preserve mItem(mItems)
     With mItem(mItems)
+
+'        .SetTo Info, psw, i ', Info.StyleName, Info.SchemeName
+
         Set .Window = psw
         .Column = i
 '        .hWndReply = Info.hWndReply
@@ -1331,7 +1335,7 @@ Public Sub ShowMissedPanel()
     If (mMissedPanel Is Nothing) Then _
         Set mMissedPanel = New TMissedNotificationsPanel
 
-    ResetMissedCount
+'    ResetMissedCount
     mMissedPanel.Go
 
 End Sub
@@ -1342,12 +1346,12 @@ Public Function ActualMissedCount() As Long
 
 End Function
 
-Public Sub ResetMissedCount()
-
-    mActualMissed = 0
-    frmAbout.bMissedNotificationsChanged
-
-End Sub
+'Public Sub ResetMissedCount()
+'
+'    mActualMissed = 0
+'    frmAbout.bMissedNotificationsChanged
+'
+'End Sub
 
 Public Function MissedCount() As Long
 
@@ -1384,7 +1388,7 @@ Public Sub ClearMissed()
 
     ' /* reset the missed count */
 
-    ResetMissedCount
+'    ResetMissedCount
 
 End Sub
 
@@ -2323,16 +2327,24 @@ Static i As Long
 End Function
 
 Public Sub CheckMissed()
+
+    If mActualMissed < 1 Then _
+        Exit Sub
+
 Static iToken As Long
 
-    ' /* check missed count */
-    If (mActualMissed > 0) And (Not Me.IsVisible(iToken, "", "", gSnarlPassword)) Then _
-        iToken = g_PrivateNotify(SNARL_CLASS_GENERAL, "While you were away...", _
-                                 "You missed " & CStr(g_NotificationRoster.ActualMissedCount) & " notification" & IIf(g_NotificationRoster.ActualMissedCount > 1, "s", ""), _
-                                 -1, _
-                                 g_MakePath(App.Path) & "etc\icons\snarl.png", _
-                                 , _
-                                 "!snarl show_missed_panel")
+    If iToken Then _
+        Me.Hide iToken, "", "", gSnarlPassword
+
+    iToken = g_PrivateNotify(SNARL_CLASS_GENERAL, "While you were away...", _
+                             "You missed " & CStr(g_NotificationRoster.ActualMissedCount) & " notification" & IIf(g_NotificationRoster.ActualMissedCount > 1, "s", ""), _
+                             -1, _
+                             g_MakePath(App.Path) & "etc\icons\snarl.png", _
+                             , _
+                             "!snarl show_missed_panel")
+
+    mActualMissed = 0
+    frmAbout.bMissedNotificationsChanged
 
 End Sub
 

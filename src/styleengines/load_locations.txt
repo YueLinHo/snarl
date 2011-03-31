@@ -1,16 +1,62 @@
 
 
-	Snarl Core Style Engine DLL Base Addresses
-	==========================================
-
+	Base Addresses
+	==============
 
 	Banner			0x2f000000
 	EZ			0x2f100000
 	Meter			0x2f080000
-	Prowl			0x11000000		!!!
-				0x
-				0x2f180000
+	Prowl			0x11000000	To be redefined
+	Mobile			0x2f180000
+	Prowl (reserved)	0x2f200000
+				0x2f280000
 
 
+	Change Log
+	==========
+
+	meter.styleengine
+
+	- Fixed some bugs in the Corporate style.  (39.84)
+
+	- Added new "OS X-ish" style.  (39.84)
+
+	- Beginning standardisation of custom V42 entries which
+	  styles can make use of.  (39.84)
+
+	- Fixed bug in Corporate style which caused a meter to be
+	  incorrectly displayed in certain circumstances.  (39.82)
+
+	- Added "light" scheme to Corporate.  (39.76)
+
+	- Droid now accepts numerical text values as percentages if
+	  no "percent" tag is present.  (39.72)
+
+	- Added new V42 compliant "Droid" style. (39.64)
+
+	- Added "None" scheme to Slideshow style which draws only the
+	  icon.  (39.50)
+
+	- Added missing bar colour control to Just Black preferences
+	  page.  (39.49)
+
+	- Tidied up the digital clock scheme. (39.47)
+
+	- iPhoney icon reflection is now drawn correctly.  (39.46)
+
+	- iPhoney style title is now drawn without a black outline and
+	  uses the foreground alpha setting.  (39.32)
+
+	- iPhoney style bumped to 0.3.  (39.23)
+
+	- Added (Bar) schemes to the iPhoney style.  (39.23)
 
 
+	mobile.styleengine
+
+	- Will not even attempt to send if device_id is blank.  (41.3)
+
+	- Now removes the instance from the tag list when the HTTP request
+	  completes.  (41.3)
+
+	- Initial cut.  (41.1)

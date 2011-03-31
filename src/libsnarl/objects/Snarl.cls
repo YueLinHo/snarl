@@ -33,6 +33,7 @@ Private Sub Class_Initialize()
 
     EZRegisterClass CLASS_NAME
     mhWnd = EZAddWindow(CLASS_NAME, Me)
+    Debug.Print "snooper window is " & g_HexStr(mhWnd)
 
 End Sub
 
@@ -45,17 +46,17 @@ End Sub
 
 Private Function BWndProcSink_WndProc(ByVal hWnd As Long, ByVal uMsg As Long, ByVal wParam As Long, ByVal lParam As Long, ByVal PrevWndProc As Long, ReturnValue As Long) As Boolean
 
-'    If uMsg = sn41Broadcast() Then
-'        Select Case wParam
-'        Case SNARL_BROADCAST_LAUNCHED
-'            RaiseEvent SnarlLaunched
-'
-'        Case SNARL_BROADCAST_QUIT
-'            RaiseEvent SnarlQuit
-'
-'        End Select
-'
-'    End If
+    If uMsg = snBroadcastMsg() Then
+        Select Case wParam
+        Case SNARL_BROADCAST_LAUNCHED
+            RaiseEvent SnarlLaunched
+
+        Case SNARL_BROADCAST_QUIT
+            RaiseEvent SnarlQuit
+
+        End Select
+
+    End If
 
 End Function
 

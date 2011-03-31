@@ -111,13 +111,14 @@ Dim i As Integer
 Dim hr As Long
 
     hr = snDoRequest(sz)
-    If hr = 0 Then
+    If hr < 0 Then
         ' /* error */
-        uDecode = CStr(snGetLastError) & "/" & uErr(snGetLastError)
+        hr = Abs(hr)
+        uDecode = CStr(hr) & "/" & uErr(hr)
 
     Else
         ' /* okay */
-        uDecode = "0/OK" & IIf(hr <> -1, "/" & CStr(hr), "")
+        uDecode = "0/OK" & IIf(hr <> 0, "/" & CStr(hr), "")
 
     End If
 

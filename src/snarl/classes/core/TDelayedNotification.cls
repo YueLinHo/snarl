@@ -27,6 +27,17 @@ Option Explicit
 
 '// "http://www.google.com/ig/images/weather/chance_of_rain.gif"
 
+'    Window As CSnarlWindow
+'    Column As Integer           ' // used to help determine placement of other notifications
+'    StyleName As String         ' // R2.31: expanded
+'    SchemeName As String        ' // R2.31: expanded
+'    Info As T_NOTIFICATION_INFO ' // R2.4 DR7: full originating information
+
+Dim mWindow As CSnarlWindow
+Dim mColumn As Integer          ' // used to help determine placement of other notifications
+'Dim mStyleName As String        ' // R2.31: expanded
+'Dim mSchemeName As String       ' // R2.31: expanded
+
 Dim mInfo As T_NOTIFICATION_INFO
 Dim mTempIcon As String
 Dim mArgs As BPackedData
@@ -60,9 +71,19 @@ Public Function Init(ByVal URL As String, ByRef Args As BPackedData) As Boolean
 
 End Function
 
-Friend Sub SetTo(ByRef Info As T_NOTIFICATION_INFO)
+Friend Sub SetTo(ByRef Info As T_NOTIFICATION_INFO, Optional ByRef Window As CSnarlWindow, Optional ByVal Column As Integer, Optional ByRef Frame As BRect) ', Optional ByVal StyleName As String, Optional ByVal SchemeName As String)
 
     LSet mInfo = Info
+    Set mWindow = Window
+    mColumn = Column
+'    mStyleName = StyleName
+'    mSchemeName = SchemeName
+
+    If Not (mWindow Is Nothing) Then
+        mWindow.Window.MoveTo Frame.Left, Frame.Top
+        mWindow.Show
+
+    End If
 
 End Sub
 
@@ -90,5 +111,98 @@ Dim sz As String
 
     If Not (g_NotificationRoster Is Nothing) Then _
         g_NotificationRoster.Add mInfo, mArgs
+
+End Sub
+
+Public Function Window() As CSnarlWindow
+
+    Set Window = mWindow
+
+End Function
+
+Public Function Column() As Integer
+
+    Column = mColumn
+
+End Function
+
+Friend Function Info() As T_NOTIFICATION_INFO
+
+    LSet Info = mInfo
+
+End Function
+
+Public Function StyleName() As String
+
+    StyleName = mInfo.StyleName
+
+End Function
+
+'Private Sub uFixupContent(ByRef Info As T_NOTIFICATION_INFO)
+'
+'    If (Info.ClassObj Is Nothing) Then
+'        Debug.Print "########### uFixupContent missing class object ###########"
+'        Exit Sub
+'
+'    End If
+'
+'    With Info
+'        .Title = Replace$(.Title, "\n", vbCrLf)
+'        .Text = Replace$(.Text, "\n", vbCrLf)
+'
+'    End With
+'
+'Dim ppn As BPackedData
+'
+'    ' /* new */
+'    Set ppn = New BPackedData
+'
+'    With ppn
+'        .Add "id", Info.ClassObj.Name
+'        .Add "title", Info.Title
+'        .Add "text", Info.Text
+'        .Add "timeout", CStr(Info.Timeout)
+'        .Add "icon", Info.IconPath
+'        .Add "priority", CStr(Info.Priority)
+'        .Add "callback", Info.DefaultAck
+'        .Add "value", Info.Value
+'
+''        If (Info.Flags And SNARL41_NOTIFICATION_ALLOWS_MERGE) Then _
+'            .Add "merge", "1"
+'
+'    End With
+'
+'Dim ppd As BPackedData
+'Dim szn As String
+'Dim szv As String
+'
+'    ' /* add in all other content */
+'
+'    Set ppd = New BPackedData
+'    With ppd
+'        If .SetTo(Info.OriginalContent) Then
+'            .Rewind
+'            Do While .GetNextItem(szn, szv)
+'                If Not ppn.Exists(LCase$(szn)) Then _
+'                    ppn.Add szn, szv
+'
+'            Loop
+'        End If
+'    End With
+'
+'    Info.OriginalContent = ppn.AsString()
+'
+'End Sub
+
+Public Sub Unset()
+
+    Set mWindow = Nothing
+
+End Sub
+
+Public Sub Hide()
+
+    If Not (mWindow Is Nothing) Then _
+        mWindow.Hide
 
 End Sub

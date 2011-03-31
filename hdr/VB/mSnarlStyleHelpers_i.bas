@@ -119,6 +119,10 @@ End Function
 '
 'End Function
 
+#If NO_GFXLIB = 1 Then
+
+#Else
+
 Public Function style_MakeSquareImage(ByRef Img As MImage, Optional ByVal Maximum As Long) As mfxBitmap
 Dim pv As mfxView
 Dim c As Long
@@ -140,3 +144,4 @@ Dim c As Long
 
 End Function
 
+#End If

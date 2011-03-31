@@ -50,7 +50,7 @@ Option Explicit
     '
     ' */
 
-Private Const LIB_DATE = "4-Jan-2011"
+Private Const LIB_DATE = "23-Feb-2011"
 Private Const LIB_RELEASE = "1.3"
 Private Const EXT_NAME = "SNP/HTTP"
 Private Const EXT_COMMENT = "Provides support for SNP 2.0 over HTTP"
@@ -115,8 +115,8 @@ Dim pCtl As BControl
                 .Add new_BPrefsControl("banner", "", "Formatting")
                 .Add new_BPrefsControl("fancytoggle2", "html_response", "Include HTML in response?", , mConfig.GetValueWithDefault("html_response", "0"))
 
-                .Add new_BPrefsControl("banner", "", "Privacy")
-                .Add new_BPrefsControl("fancytoggle2", "allow_anon", "Allow applications to create anonymous notifications?", , mConfig.GetValueWithDefault("allow_anon", "0"))
+'                .Add new_BPrefsControl("banner", "", "Privacy")
+'                .Add new_BPrefsControl("fancytoggle2", "require_password", "Require a password for application registration?", , mConfig.GetValueWithDefault("require_password", "0"))
 
             End With
             
@@ -140,7 +140,7 @@ Private Sub ISnarlExtension_GetInfo(Info As libSnarlExtn.extension_info)
         .Copyright = App.LegalCopyright
         .Date = LIB_DATE
         .Description = EXT_COMMENT
-        .flags = SNARL_EXTN_IS_CONFIGURABLE
+        .Flags = SNARL_EXTN_IS_CONFIGURABLE
         .IconPath = g_MakePath(App.Path) & "icon.png"
         .Name = EXT_NAME
         .Path = App.Path

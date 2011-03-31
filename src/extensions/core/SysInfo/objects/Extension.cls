@@ -50,8 +50,8 @@ Option Explicit
     '
     ' */
 
-Private Const LIB_DATE = "11-Feb-2011"
-Private Const LIB_RELEASE = "3.02"
+Private Const LIB_DATE = "28-Mar-2011"
+Private Const LIB_RELEASE = "3.03"
 Private Const EXT_NAME = "SysInfo"
 Private Const EXT_COMMENT = "Tracks events specific to this computer"
 
@@ -81,6 +81,8 @@ Dim mAdapterList As BTagList
 
 Dim WithEvents theNICTimer As BTimer
 Attribute theNICTimer.VB_VarHelpID = -1
+Dim WithEvents theVolTimer As BTimer
+Attribute theVolTimer.VB_VarHelpID = -1
 
 Dim WithEvents theNetRoster As TNetRoster2
 Attribute theNetRoster.VB_VarHelpID = -1
@@ -300,7 +302,7 @@ Dim pm As CTempMsg
 
     End If
 
-    ISnarlExtension_GetConfigWindow = mPanel.hwnd
+    ISnarlExtension_GetConfigWindow = mPanel.hWnd
 
 End Function
 
@@ -436,7 +438,8 @@ Dim i As Integer
 
     Set mAdapterList = new_BTagList()
 
-    Set theNICTimer = new_BTimer(2000)
+    Set theNICTimer = new_BTimer(4000)
+    Set theVolTimer = new_BTimer(2000)
 
     Set theNetRoster = New TNetRoster2
     With theNetRoster
@@ -487,6 +490,7 @@ End Sub
 Private Sub ISnarlExtension_Stop()
 
     Set theNICTimer = Nothing
+    Set theVolTimer = Nothing
     Set theDUNRoster = Nothing
     Set theNetRoster = Nothing
 
@@ -940,7 +944,6 @@ Private Sub theNICTimer_Pulse()
 
     theNetRoster.Refresh
     theDUNRoster.Refresh
-    theVolRoster.Refresh
 
 End Sub
 
@@ -1110,7 +1113,7 @@ Private Sub KPrefsPage_ControlInvoked(Control As BControl)
         theHandler_OnDiskThresholdReached mConfig.ValueOf("disk.low_mark"), g_SafeLeftStr(App.Path, 3)
 
     Case "go_website"
-        ShellExecute Control.Page.Panel.hwnd, "open", "http://www.fullphat.net", vbNullString, vbNullString, 5
+        ShellExecute Control.Page.Panel.hWnd, "open", "http://www.fullphat.net", vbNullString, vbNullString, 5
 
     End Select
 
@@ -1326,3 +1329,8 @@ End Sub
 '
 'End Function
 
+Private Sub theVolTimer_Pulse()
+
+    theVolRoster.Refresh
+
+End Sub

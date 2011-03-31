@@ -364,6 +364,35 @@ Dim pc As BControl
         .AddPage pp
 
 
+
+
+'        Set pp = new_BPrefsPage("Presence", load_image_obj(g_MakePath(App.Path) & "etc\icons\presence.png"), Me)
+'        With pp
+'            .SetMargin 90
+'            .SetWidth 300
+'
+'            .Add new_BPrefsControl("label", "", "When I'm at my computer...")
+'            .Add new_BPrefsControl("fancycycle", "", "Use default|Log as Missed|Display Sticky|Discard|Display Normally|Display High Priority", "", g_ConfigGet(""))
+'
+'            .Add new_BPrefsControl("label", "", "When I'm away...")
+'            .Add new_BPrefsControl("fancycycle", "", "Use default|Log as Missed|Display Sticky|Discard|Display Normally|Display High Priority", "", g_ConfigGet(""))
+'
+'            .Add new_BPrefsControl("label", "", "When I'm busy...")
+'            .Add new_BPrefsControl("fancycycle", "", "Use default|Log as Missed|Display Sticky|Discard|Display Normally|Display High Priority", "", g_ConfigGet(""))
+'
+'
+'            ' /* R2.31: test button here too */
+'            .Add new_BPrefsSeparator
+'            .Add new_BPrefsControl("fancybutton2", "test", "Test")
+'
+'        End With
+'
+'        .AddPage pp
+
+
+
+
+
         Set pp = new_BPrefsPage("Advanced", load_image_obj(g_MakePath(App.Path) & "etc\icons\class-ext.png"), Me)
         With pp
             .SetMargin 90

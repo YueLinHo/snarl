@@ -61,14 +61,14 @@ Dim mNID As Long
 
 Private Sub Command1_Click()
 
-    mNID = myApp.EZNotify("class1", "Hello, world", "This is the registered class", , , , , "Item 1#?1|Item 2#?2||Item 3#?3", , NOTIFICATION_ALLOWS_MERGE)
+'    mNID = myApp.EZNotify("class1", "Hello, world", "This is the registered class", , , , , "Item 1#?1|Item 2#?2||Item 3#?3")
     List1.AddItem CStr(mNID)
 
 End Sub
 
 Private Sub Command2_Click()
 
-    myApp.SetTitle mNID, CStr(Now) & " " & CStr(Now) & " " & CStr(Now)
+'    myApp.SetTitle mNID, CStr(Now) & " " & CStr(Now) & " " & CStr(Now)
 
 End Sub
 
@@ -81,16 +81,16 @@ Private Sub Form_Load()
         .AddItem "version: " & snarl_version()
         .AddItem "path: " & get_etc_path()
 
-        If is_snarl_running Then
-            .AddItem "test notification: " & CStr(mySnarl.SimpleNotify("", "Hello, World!", g_MakePath(App.Path) & "icon.png"))
-
-            Set myApp = New SnarlApp
-            myApp.SetTo "app/vnd.acme-test", "libmsnarl test", g_MakePath(App.Path) & "icon.png"
-            myApp.AddClass "class1", "Test Class #1"
-
-            .AddItem "test app: " & CStr(myApp.Token)
-
-        End If
+'        If is_snarl_running Then
+'            .AddItem "test notification: " & CStr(mySnarl.SimpleNotify("", "Hello, World!", g_MakePath(App.Path) & "icon.png"))
+'
+'            Set myApp = New SnarlApp
+'            myApp.SetTo "app/vnd.acme-test", "libmsnarl test", g_MakePath(App.Path) & "icon.png"
+'            myApp.AddClass "class1", "Test Class #1"
+'
+'            .AddItem "test app: " & CStr(myApp.Token)
+'
+'        End If
 
     End With
 

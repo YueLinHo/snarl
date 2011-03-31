@@ -104,17 +104,13 @@ Dim bEnabled As Boolean
                         "position::" & CStr(E_START_DEFAULT_POS) & "#?" & _
                         "duration::" & CStr(E_DURATION_APP_DECIDES) & "#?" & _
                         "custom_timeout::10#?" & _
-                        "custom_priority::0#?" & _
-                        "priority::0#?" & _
-                        "use_style::0#?" & _
-                        "style::#?" & _
-                        "use_custom_icon::0#?" & _
-                        "custom_icon::#?" & _
+                        "custom_priority::0#?priority::0#?" & _
+                        "use_style::0#?style::#?" & _
+                        "use_custom_icon::0#?custom_icon::#?" & _
                         "duplicates::" & CStr(E_CLASS_DUPLICATES_ALLOW) & "#?" & _
-                        "use_custom_sound::0#?" & _
-                        "custom_sound::#?" & _
-                        "log_during_dnd::1#?" & _
-                        "block_spam::0"
+                        "use_custom_sound::0#?custom_sound::#?" & _
+                        "log_during_dnd::1#?block_spam::0#?" & _
+                        "normal_mode::1#?away_mode::1#?busy_mode::1"
 
         Set .Forward = new_BTagList()
 

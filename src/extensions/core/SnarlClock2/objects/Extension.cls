@@ -30,8 +30,8 @@ Option Explicit
     ' /* our constants */
 
 Const EXT_NAME = "Clock+"
-Const EXT_DATE = "20-Dec-2010"
-Const EXT_REL = "2.05"
+Const EXT_DATE = "28-Mar-2011"
+Const EXT_REL = "2.06"
 
 Const CLASS_HOUR_CHIME = "hrch"
 Const CLASS_COUNTDOWN_COMPLETE = "ccom"
@@ -230,13 +230,13 @@ Dim pc As BControl
             ' /* create it */
 
             .Go
-            g_SetWindowIconToAppResourceIcon .hWnd
+            g_SetWindowIconToAppResourceIcon .hwnd
 
         End With
 
     End If
 
-    ISnarlExtension_GetConfigWindow = mPanel.hWnd
+    ISnarlExtension_GetConfigWindow = mPanel.hwnd
 
 End Function
 
@@ -272,6 +272,7 @@ Dim szPath As String
 
     If Not sn42GetConfigPath(szPath) Then
         mLastErr = "Couldn't get Snarl user path"
+        MsgBox "path"
         ISnarlExtension_Initialize = 201
         Exit Function
 
@@ -309,7 +310,7 @@ Dim szPath As String
 
 Dim sz As String
 
-    sz = g_MakePath(szPath) & "etc\.snarlclock2"
+    sz = g_MakePath(szPath) & ".snarlclock2"
     If Not g_Exists(sz) Then
         sz = g_MakePath(szPath) & "extensions\snarlclock\snarlclock.conf"
         If Not g_Exists(sz) Then _
@@ -318,8 +319,6 @@ Dim sz As String
     End If
 
 Dim szData As String
-
-'    MsgBox "config: " & sz
 
     If sz <> "" Then
         With New CConfFile
@@ -342,6 +341,9 @@ Dim szData As String
 
                 If .FindEntry("show_cookie", szData) Then _
                     gConfig.show_cookie = (szData = "1")
+
+                If .FindEntry("show_cookie_on_load", szData) Then _
+                    gConfig.show_cookie_on_load = (szData = "1")
 
                 If .FindEntry("show_time_on_load", szData) Then _
                     gConfig.show_time_on_load = (szData = "1")
@@ -417,7 +419,7 @@ Static dTemp As Date
         mChimeId = sn41EZNotify(mToken, _
                                 CLASS_HOUR_CHIME, _
                                 "Hourly reminder", _
-                                IIf(gConfig.format_type = 2, "", "It's now ") & g_GetTimeString(gConfig, True), _
+                                g_GetTimeString2(gConfig), _
                                 -1, _
                                 g_MakePath(App.Path) & "hourly.png", -1)
 
@@ -441,8 +443,20 @@ Private Sub ISnarlExtension_Start()
     sn41AddClass mToken, CLASS_COUNTDOWN_COMPLETE, "Countdown complete"
 '    sn41AddClass mToken, CLASS_REMINDERS, "Outlook reminders"
 
+    ' /* show time on load? */
+
     If gConfig.show_time_on_load Then _
-        sn41EZNotify mToken, "", EXT_NAME, "It's now " & g_GetTimeString(gConfig, False), -1, g_MakePath(App.Path) & "icon.png"
+        sn41EZNotify mToken, CLASS_HOUR_CHIME, _
+                     EXT_NAME, _
+                     g_GetTimeString2(gConfig), _
+                     -1, _
+                     g_MakePath(App.Path) & "icon.png"
+        
+        
+        
+'        sn41EZNotify mToken, "", EXT_NAME, "It's now " & g_GetTimeString(gConfig, False), -1, g_MakePath(App.Path) & "icon.png"
+
+    ' /* seperate cookie notification */
 
 Dim sz As String
 
@@ -621,7 +635,11 @@ Private Sub KPrefsPage_ControlInvoked(Control As BControl)
     Select Case Control.GetName()
 
     Case "test"
-        sn41EZNotify 0, "", "Time format preview", "It's now " & g_GetTimeString(gConfig, False), -1, g_MakePath(App.Path) & "icon.png"
+        sn41EZNotify mToken, CLASS_HOUR_CHIME, _
+                     "Hourly reminder", _
+                     g_GetTimeString2(gConfig), _
+                     -1, _
+                     g_MakePath(App.Path) & "hourly.png"
 
     End Select
 

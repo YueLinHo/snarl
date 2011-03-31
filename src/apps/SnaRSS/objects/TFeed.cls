@@ -28,6 +28,8 @@ Dim mGuid As String
 
 Dim mTitle As String
 
+Dim mHistory As BPackedData
+
 Private Declare Function DeleteFile Lib "kernel32" Alias "DeleteFileA" (ByVal lpFileName As String) As Long
 
 Implements MObject
@@ -42,20 +44,24 @@ Public Function Init(ByVal URL As String, ByVal Guid As String, ByVal Title As S
     mGuid = Guid
     mTitle = Title
 
+    Set mHistory = New BPackedData
+
 '    mFirstRun = True
 
     Set theFeed = New BRSSFeed
     Init = Refresh()
 
-    ' /* on success, start the timer with a +/- 2 second offset */
+Const OFFSET = 5
+
+    ' /* on success, start the timer with a +/- N second offset */
 
 Dim i As Long
 
     If Init Then
         Randomize Timer
-        i = (gConfig.RefreshInterval + (CInt(Rnd * 4) - 2)) * 1000
-        g_Debug "TFeed.Init(): feed timer is " & CStr(i)
-        frmMain.Add "feed timer is " & CStr(i)
+        i = (gConfig.RefreshInterval + (CInt(Rnd * (OFFSET * 2)) - OFFSET)) * 1000
+        frmMain.Add g_SafeRightStr(mURL, 80, True)
+        frmMain.Add "  feed interval timer is " & CStr(i \ 1000) & " secs"
         Set theTimer = new_BTimer(i)
 
     Else
@@ -155,50 +161,78 @@ Dim pList As BControl
 
     End If
 
-Static szLastEntry As String
+'Static szLastEntry As String
 Static szEntry As String
 
-    frmMain.Add g_SafeRightStr(mURL, 40, True)
+    frmMain.Add g_SafeRightStr(mURL, 80, True)
 
     If Not theFeed.IsValid Then
-        frmMain.Add "failed: feed content is not valid"
+        frmMain.Add "  failed: feed content is not valid"
 
     ElseIf theFeed.CountItems < 1 Then
-        frmMain.Add "failed: feed content is valid but has no entries"
+        frmMain.Add "  failed: feed content is valid but has no entries"
 
     Else
-        frmMain.Add "success"
-        frmMain.Add "timestamp: " & theFeed.ItemAt(1).PubDate
-
         ' /* record the title here (each time in case it's changed) */
 
         mTitle = Replace$(theFeed.Channel.Title, "|", ":")
 
+        frmMain.Add "  title: " & mTitle
+        frmMain.Add "  timestamp: " & theFeed.ItemAt(1).PubDate
+
         With theFeed.ItemAt(1)
 
-            If gConfig.SuperSensitive Then
-                ' /* notify a headline change when either description or title changes */
-                szEntry = .Description & .Title
+            szEntry = .Title & " " & .Description
 
-            Else
-                ' /* notify a change when only the title changes */
-                szEntry = .Title
+            If Not mHistory.Exists(szEntry) Then
+                ' /* not already been displayed */
 
-            End If
+                frmMain.Add "  new item found in feed"
 
-            If szEntry <> szLastEntry Then
-                ' /* top story has changed */
-                frmMain.Add "first entry has changed"
-                szLastEntry = szEntry
+'                szLastEntry = szEntry
                 If Not mFirstRun Then
                     ShowHeadline
 
                 Else
-                    g_Debug "first run, not showing headline"
+                    frmMain.Add "  (first run, not showing headline)"
                     mFirstRun = False
 
                 End If
+
+
+                ' /* add to the history */
+
+                mHistory.Add szEntry, CStr(Now)
+
+            Else
+                frmMain.Add "  already displayed " & szEntry
+
             End If
+
+
+'            If gConfig.SuperSensitive Then
+'                ' /* notify a headline change when either description or title changes */
+'                szEntry = .Description & .Title
+'
+'            Else
+'                ' /* notify a change when only the title changes */
+'                szEntry = .Title
+'
+'            End If
+'
+'            If szEntry <> szLastEntry Then
+'                ' /* top story has changed */
+'                frmMain.Add "first entry has changed"
+'                szLastEntry = szEntry
+'                If Not mFirstRun Then
+'                    ShowHeadline
+'
+'                Else
+'                    g_Debug "first run, not showing headline"
+'                    mFirstRun = False
+'
+'                End If
+'            End If
         End With
     End If
 

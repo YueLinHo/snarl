@@ -17,7 +17,7 @@ Option Explicit
 '[overview]
 '[usage]
 '$$
-Private Const OBJ_DATE = "7-Jan-2011"
+Private Const OBJ_DATE = "9-Mar-2011"
 
 Public Enum S_STATUS_CODE
     S_SUCCESS = 0
