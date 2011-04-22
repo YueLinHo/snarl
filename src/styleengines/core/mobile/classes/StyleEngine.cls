@@ -46,9 +46,10 @@ Option Explicit
     '
     ' */
 
-Private Const LIB_DATE = "16-Mar-2011"
+Private Const LIB_DATE = "19-Apr-2011"
 
 Private Const STYLE_NAME_TOASTY = "Toasty"
+Private Const STYLE_NAME_NMA = "Notify My Android"
 
 Dim mLastErr As String
 Dim mStyle() As TStyle
@@ -58,8 +59,6 @@ Dim mPanel As BPrefsPanel
 Dim mPage As BPrefsPage
 Dim mNoWriteConfig As Boolean
 
-    ' /* local copy of style's settings that we're configuring */
-'Dim mSettings As T_METER_STYLE_SETTINGS
 Dim mCurrent As TStyle
 
 Implements KPrefsPage
@@ -73,11 +72,15 @@ Private Function IStyleEngine_CountStyles() As Long
 End Function
 
 Private Function IStyleEngine_CreateInstance(ByVal StyleName As String) As libSnarlStyles.IStyleInstance
-Dim pStyle As IMeterStyle
+Dim pStyle As TGenericPhoneInstance
 
     Select Case StyleName
     Case STYLE_NAME_TOASTY
-        Set pStyle = New TToastyInstance
+        Set pStyle = New TGenericPhoneInstance
+
+    Case STYLE_NAME_NMA
+        Set pStyle = New TGenericPhoneInstance
+        pStyle.IsNotifyMyAndroid = True
 
     End Select
 
@@ -122,10 +125,16 @@ Dim pp As BPrefsPage
             .SetWindow 1
 
             Set pp = new_BPrefsPage("", , Me)
-            
+
             With pp
-                .Add new_BPrefsControl("fancyedit", "device_id", mCurrent.ReadSetting("device_id"), "Device ID:")
+                If mCurrent.Name = "Notify My Android" Then
+                    .Add new_BPrefsControl("fancyedit", "api_key", mCurrent.ReadSetting("api_key"), "API Key:")
+
+                Else
+                    .Add new_BPrefsControl("fancyedit", "device_id", mCurrent.ReadSetting("device_id"), "Device ID:")
             
+                End If
+
             End With
             
             .AddPage pp
@@ -148,10 +157,17 @@ Private Function IStyleEngine_Initialize() As melon.M_RESULT
     ' /* add our styles */
 
     uAdd STYLE_NAME_TOASTY, _
-         "Forwards notification content to a Windows Phone 7 device", _
+         "Forwards the notification content to a Windows Phone 7 device via Toasty.  See http://supertoasty.com/ for more information.", _
          S_STYLE_IS_CONFIGURABLE Or S_STYLE_MULTI_INSTANCE Or S_STYLE_IS_WINDOWLESS Or S_STYLE_WANT_APP_NAME, _
          "", _
          0, 3
+
+    uAdd STYLE_NAME_NMA, _
+         "Forwards the notification content to an Android device via Notify My Android.  You will need to register an API key at http://nma.usk.bz first.", _
+         S_STYLE_IS_CONFIGURABLE Or S_STYLE_MULTI_INSTANCE Or S_STYLE_IS_WINDOWLESS Or S_STYLE_WANT_APP_NAME, _
+         "", _
+         0, 1
+
 
     IStyleEngine_Initialize = M_OK
 
@@ -345,7 +361,7 @@ End Sub
 
 Private Sub KPrefsPage_ControlChanged(Control As prefs_kit_d2.BControl, ByVal Value As String)
 
-    Debug.Print Control.GetName() & " > " & g_HexStr(Val(Value))
+    Debug.Print Control.GetName() & " > " & Value
 
     ' /* write settings back to config file */
 

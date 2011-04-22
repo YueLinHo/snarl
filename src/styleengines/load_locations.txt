@@ -54,6 +54,8 @@
 
 	mobile.styleengine
 
+	- Added Notify My Android style.  (41.3)
+
 	- Will not even attempt to send if device_id is blank.  (41.3)
 
 	- Now removes the instance from the tag list when the HTTP request

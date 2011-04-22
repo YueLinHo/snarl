@@ -16,6 +16,8 @@ Option Explicit
 Dim mStyle As TStyle
 Dim mUID As Long
 
+Public IsNotifyMyAndroid As Boolean
+
 Dim WithEvents theRequest As BWebRequest
 Attribute theRequest.VB_VarHelpID = -1
 
@@ -55,6 +57,28 @@ End Sub
 
 Private Sub IStyleInstance_UpdateContent(NotificationInfo As libSnarlStyles.notification_info)
 
+    If Me.IsNotifyMyAndroid Then
+        uGoAndroid NotificationInfo
+
+    Else
+        uGoToasty NotificationInfo
+
+    End If
+
+End Sub
+
+Private Sub theRequest_Completed(ByVal WasSuccessful As Boolean)
+
+    Debug.Print "instance " & CStr(mUID) & " done: " & WasSuccessful
+    If WasSuccessful Then _
+        Debug.Print "response: " & theRequest.Content
+
+    g_RemoveThis Me
+
+End Sub
+
+Private Sub uGoToasty(ByRef NotificationInfo As notification_info)
+
     If mStyle.ReadSetting("device_id") = "" Then
         g_Debug "TToastyInstance(): no device id specified", LEMON_LEVEL_CRITICAL
         Exit Sub
@@ -91,13 +115,42 @@ Dim sz() As String
 
 End Sub
 
-Private Sub theRequest_Completed(ByVal WasSuccessful As Boolean)
+Private Sub uGoAndroid(ByRef NotificationInfo As notification_info)
 
-    Debug.Print "instance " & CStr(mUID) & " done: " & WasSuccessful
-    If WasSuccessful Then _
-        Debug.Print "response: " & theRequest.Content
+    If mStyle.ReadSetting("device_id") = "" Then
+        g_Debug "TToastyInstance(): no device id specified", LEMON_LEVEL_CRITICAL
+        Exit Sub
 
-    g_RemoveThis Me
+    End If
+
+Dim sz() As String
+
+    gID = gID + 1
+    mUID = gID
+
+    With NotificationInfo
+        sz = Split(.Title, "#?")
+
+        Debug.Print "sender: " & sz(0)
+        Debug.Print "title: " & sz(1)
+        Debug.Print "text: " & NotificationInfo.Text
+        Debug.Print "device: " & mStyle.ReadSetting("device_id")
+
+    End With
+
+    Set theRequest = New BWebRequest
+
+    With theRequest
+        .GetContent "http://api.supertoasty.com/notify/" & mStyle.ReadSetting("device_id") & _
+                    "?title=" & sz(1) & _
+                    "&text=" & NotificationInfo.Text & _
+                    "&sender=" & sz(0) & _
+                    "&image="
+
+    End With
+
+    g_AddThis Me
 
 End Sub
+
 

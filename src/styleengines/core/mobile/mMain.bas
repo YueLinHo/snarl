@@ -5,19 +5,12 @@ Public gID As Long
 
 Dim mList As BTagList
 
-'Dim mInstance() As TToastyInstance
-'Dim mInstances As Long
-
-Public Sub g_AddThis(ByRef It As TToastyInstance)
+Public Sub g_AddThis(ByRef It As TGenericPhoneInstance)
 
     If (mList Is Nothing) Then _
         Set mList = new_BTagList()
 
     mList.Add It
-
-'    mInstances = mInstances + 1
-'    ReDim Preserve mInstance(mInstances)
-'    Set mInstance(mInstances) = It
 
 End Sub
 

@@ -326,7 +326,11 @@ Dim xOff As Long
 
                 Set prLabel = pr.Duplicate
 
-                If dw > 4 Then
+                ' /* draw coloured area */
+
+                pr.Right = pr.Left + Fix(pr.Width * (dw / 100)) - 1
+
+                If pr.Width > 1 Then
                     If mColType = E_COLOUR Then
                         ' /* solid colour */
                         .SetHighColour Val(mStyle.ReadSetting("bar_colour"))
@@ -356,8 +360,13 @@ Dim xOff As Long
 
                     End If
 
-                    pr.Right = pr.Left + Fix(pr.Width * (dw / 100))
                     .FillRect pr
+
+                    ' /* bas relief */
+
+                    .SetHighColour rgba(255, 255, 255, 62)
+                    .SetLowColour rgba(0, 0, 0, 62)
+                    .StrokeFancyRect pr
 
                 End If
 
@@ -366,12 +375,6 @@ Dim xOff As Long
                 .SetHighColour rgba(0, 0, 0, 0)
                 .SetLowColour rgba(0, 0, 0, 64)
                 .FillRect prLabel, MFX_VERT_GRADIENT    ' // darken lower half with an alpha shade
-
-                ' /* bas relief */
-
-                .SetHighColour rgba(255, 255, 255, 62)
-                .SetLowColour rgba(0, 0, 0, 62)
-                .StrokeFancyRect pr
 
                 ' /* round the corners */
 
@@ -456,19 +459,28 @@ Const BAR_GAP = 4
 
         Set pr = new_BRect(0, 0, cx - 1, 38 - 1)            ' // this is the overall size of the graph
 
-        If (mIconSize = 0) And (mTitleRect.Bottom = 1) Then
+'        Debug.Print mTitleRect.Bottom & " / " & mTitleRect.Height
+
+        If (mIconSize = 0) And (mTitleRect.Bottom = 0) Then
             ' /* if there's no icon and no title then center horizontally and vertically */
             pr.OffsetBy Fix((.Width - pr.Width) / 2), Fix((.Height - pr.Height) / 2)
             
+        ElseIf mTitleRect.Bottom = 0 Then
+            ' /* icon but no title */
+            
+            Debug.Print "icon but no title"
+
+            pr.OffsetBy 48 + EM_MARGIN + EM_MARGIN, Fix((.Height - pr.Height) / 2)
+
         Else
-            ' /* otherwise, align to text *
+            ' /* icon and title *
             pr.OffsetBy 48 + EM_MARGIN + EM_MARGIN, mTitleRect.Height + EM_MARGIN
 
         End If
 
         ' /* offset it from the vertical centre so we can fit the title in */
         
-        If mInfo.Title <> "" Then _
+'        If mInfo.Title <> "" Then _
             pr.OffsetBy 0, 4
 
         ' /* draw the individual bar backgrounds */

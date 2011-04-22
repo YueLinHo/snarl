@@ -115,6 +115,8 @@ End Sub
 
 Private Sub IStyleInstance_UpdateContent(NotificationInfo As libSnarlStyles.notification_info)
 
+'    MsgBox NotificationInfo.Text
+
     If (mView Is Nothing) Then
         Set mView = New mfxView
         mView.TextMode = MFX_TEXT_ANTIALIAS
