@@ -44,7 +44,6 @@ namespace SnarlInterfaceExample1
 		private void Form1_FormClosing(object sender, FormClosingEventArgs e)
 		{
 			// Clean up Snarl - There should be no need to unregister the event handlers at this point
-			snarlInterface.UnregisterCallbackWindow();
 			snarlInterface.Unregister();
 		}
 
@@ -76,8 +75,8 @@ namespace SnarlInterfaceExample1
 			String snarlIcon = SnarlInterface.GetIconsPath() + "presence.png";
 			String snarlPassword = CreateSnarlPassword(8);
 			
-			// result = snarlInterface.RegisterWithEvents("application/Noer_IT.Example1", "SnarlInterface example1", snarlIcon, snarlPassword, this.Handle, 0);
-			result = snarlInterface.RegisterWithEvents("application/Noer_IT.Example1", "SnarlInterface example1", snarlIcon, snarlPassword, IntPtr.Zero, 0);
+			result = snarlInterface.RegisterWithEvents("application/Noer_IT.Example1", "SnarlInterface example1", snarlIcon, snarlPassword, this.Handle, null);
+			// result = snarlInterface.RegisterWithEvents("application/Noer_IT.Example1", "SnarlInterface example1", snarlIcon, snarlPassword);
 
 			if (result < (int)SnarlInterface.SnarlStatus.Success)
 				Log("Failed to register with Snarl. Error=" + ((SnarlInterface.SnarlStatus)(Math.Abs(result))).ToString());

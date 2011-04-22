@@ -39,6 +39,7 @@ namespace Snarl.V42
 	/// </summary>
 	/// 
 	/// <VersionHistory>
+	/// 2011-04-22 : Implementing events and RegisterWithEvents() + Various small fixes.
 	/// 2011-03-13 : Implemented Update()
 	///            : Initial event implementation. Needs cleanup.
 	/// 2011-02-05 : Removed MessageEvent enum. Only SnarlStatus enum now (same as in VB code)
@@ -51,7 +52,6 @@ namespace Snarl.V42
 	/// <Todo>
 	///  - Update documentation all around
 	/// </Todo>
-	/// 
 
 	public class SnarlInterface
 	{
@@ -159,6 +159,43 @@ namespace Snarl.V42
 
 	#endregion
 
+	#region Public events
+
+		public delegate void CallbackEventHandler(SnarlInterface sender, CallbackEventArgs args);
+		public delegate void GlobalEventHandler(SnarlInterface sender, GlobalEventArgs args);
+		public event CallbackEventHandler CallbackEvent;
+		public event GlobalEventHandler GlobalSnarlEvent;
+
+		public class GlobalEventArgs : EventArgs
+		{
+			public GlobalEvent GlobalEvent { get; set; }
+
+			public GlobalEventArgs(GlobalEvent globalEvent)
+			{
+				GlobalEvent = globalEvent;
+			}
+		}
+
+		public class CallbackEventArgs : EventArgs
+		{
+			public Int32 MessageToken { get; set; }
+			public SnarlStatus SnarlEvent { get; set; }
+
+			/// <summary>
+			/// The @data member if an action callback. Menu index if popup menu.
+			/// </summary>
+			public UInt16 Parameter { get; set; }
+
+			public CallbackEventArgs(SnarlStatus snarlEvent, UInt16 parameter, int msgToken)
+			{
+				SnarlEvent = snarlEvent;
+				MessageToken = msgToken;
+				Parameter = parameter;
+			}
+		}
+
+	#endregion
+
 	#region Internal constants and enums
 
 		protected const string SnarlWindowClass = "w>Snarl";
@@ -174,11 +211,15 @@ namespace Snarl.V42
 
 	#region Member variables
 
-		private Int32 appToken = 0;
-		private Int32 lastMsgToken = 0;
-		private String appSignature = "";
-		private String password = null;
+		private Int32   appToken	  = 0;
+		private Int32   lastMsgToken  = 0;
+		private String  appSignature  = "";
+		private String  password	  = null;
+		
+		// Used for RegisterWithEvents functionality
 		private Object instanceLock = new Object();
+		private SnarlCallbackNativeWindow callbackWindow = null;
+		private Int32 msgReply = 0; // message number Snarl will send to registered window.
 
 	#endregion
 
@@ -227,7 +268,6 @@ namespace Snarl.V42
 			try
 			{
 				// Convert to UTF8
-				// utf8Request = StringToUtf8(request);
 				UTF8Encoding utf8 = new UTF8Encoding();
 				utf8Request = new byte[utf8.GetMaxByteCount(request.Length)];
 				int convertCount = utf8.GetBytes(request, 0, request.Length, utf8Request, 0);
@@ -536,7 +576,7 @@ namespace Snarl.V42
 			//        [&title=<title>][&text=<text>][&timeout=<timeout>][&icon=<icon path>][&icon-base64=<MIME data>][&callback=<default callback>]
 			//        [&priority=<priority>][&uid=<notification uid>][&value=<value>]
 
-			SnarlParameterList spl = new SnarlParameterList(8);
+			SnarlParameterList spl = new SnarlParameterList(12);
 			spl.Add("token", appToken);
 			spl.Add("password", password);
 
@@ -643,6 +683,40 @@ namespace Snarl.V42
 		}
 
 		/// <summary>
+		/// Register with Snarl and hook the window supplied in hWndReplyTo, enabling SnarlInterface
+		/// to send the CallbackEvent and GlobalSnarlEvent.
+		/// </summary>
+		/// <param name="signature"></param>
+		/// <param name="title"></param>
+		/// <param name="icon"></param>
+		/// <param name="password"></param>
+		/// <param name="hWndReplyTo">The HWND of the window which should be hooked. If IntPtr.Zero a new listening Window will be created.</param>
+		/// <param name="msgReply">The message Snarl should send back to the window on callbacks. If null and internal default value will be used.</param>
+		/// <returns></returns>
+		public Int32 RegisterWithEvents(String signature, String title, String icon, String password, IntPtr hWndReplyTo, Int32? msgReply)
+		{
+			if (msgReply == null || msgReply.Value == 0)
+				msgReply = WM_DEFAULT_APPMSG;
+
+			lock (instanceLock)
+			{
+				UnregisterCallbackWindow();
+				callbackWindow = new SnarlCallbackNativeWindow(this, hWndReplyTo);
+			}
+
+			return Register(signature, title, icon, password, callbackWindow.Handle, msgReply.Value);
+		}
+
+		/// <summary>
+		/// Registers with Snarl and creates a new Window listening for messages from Snarl.
+		/// This enables the use of the CallbackEvent and GlobalSnarlEvent events.
+		/// </summary>
+		public Int32 RegisterWithEvents(String signature, String title, String icon, String password)
+		{
+			return RegisterWithEvents(signature, title, icon, password, IntPtr.Zero, null);
+		}
+
+		/// <summary>
 		/// Unregister application.
 		/// </summary>
 		/// <returns></returns>
@@ -650,7 +724,7 @@ namespace Snarl.V42
 		{
 			// unregister?[app-sig=<signature>|token=<application token>][&password=<password>]
 
-			SnarlParameterList spl = new SnarlParameterList(6);
+			SnarlParameterList spl = new SnarlParameterList(2);
 			spl.Add("app-sig", appSignature);
 			spl.Add("password", password);
 
@@ -659,6 +733,8 @@ namespace Snarl.V42
 			appSignature = "";
 			password = null;
 			msgReply = 0;
+
+			UnregisterCallbackWindow(); // Will only do work if RegisterWithEvents has been called
 
 			return DoRequest(Requests.Unregister, spl);
 		}
@@ -715,23 +791,6 @@ namespace Snarl.V42
 	#region Private functions
 
 		/// <summary>
-		/// Use this function to convert a string into an UTF8 encoded byte[]
-		/// </summary>
-		/// <param name="strToConvert">The managed string object to convert.</param>
-		/// <returns><c>byte[]</c> with the converted string.</returns>
-		/*private static byte[] StringToUtf8(string str)
-		{
-			UTF8Encoding utf8 = new UTF8Encoding();
-			byte[] returnString = new byte[utf8.GetMaxByteCount(str.Length)];
-
-			int convertCount = utf8.GetBytes(str, 0, str.Length, returnString, 0);
-
-			Array.Resize<byte>(ref returnString, convertCount);
-
-			return returnString;
-		}*/
-
-		/// <summary>
 		/// Internal helper function for constructing the Snarl messages
 		/// </summary>
 		/// <param name="request"></param>
@@ -770,11 +829,104 @@ namespace Snarl.V42
 		}
 
 		/// <summary>
+		/// Releases the callback window.
+		/// </summary>
+		private void UnregisterCallbackWindow()
+		{
+			if (callbackWindow != null)
+			{
+				lock (instanceLock)
+				{
+					if (callbackWindow != null)
+					{
+						callbackWindow.Detach();
+						callbackWindow = null;
+					}
+				}
+			}
+		}
+
+		/// <summary>
+		/// Creates a new window or hook a window and receives messages.
+		/// </summary>
+		protected class SnarlCallbackNativeWindow : System.Windows.Forms.NativeWindow
+		{
+			private readonly bool hasCreatedCallbackWindow;
+			private readonly UInt32 snarlGlobalMessage;
+			private readonly SnarlInterface parent;
+
+
+			public SnarlCallbackNativeWindow(SnarlInterface parent, IntPtr windowHandle)
+			{
+				this.parent = parent;
+				snarlGlobalMessage = SnarlInterface.Broadcast();
+
+				if (windowHandle == IntPtr.Zero)
+				{
+					hasCreatedCallbackWindow = true;
+
+					CreateParams cp = new CreateParams();
+					cp.Caption = GetType().FullName;
+					CreateHandle(cp);
+				}
+				else
+				{
+					hasCreatedCallbackWindow = false;
+					AssignHandle(windowHandle);
+				}
+			}
+
+			public void Detach()
+			{
+				if (hasCreatedCallbackWindow)
+					DestroyHandle();
+				else
+					ReleaseHandle();
+			}
+
+			protected override void WndProc(ref System.Windows.Forms.Message m)
+			{
+				if (m.Msg == snarlGlobalMessage)
+				{
+					if (parent.GlobalSnarlEvent == null)
+						return;
+
+					GlobalEventArgs eventArgs = new GlobalEventArgs((SnarlInterface.GlobalEvent)(m.WParam.ToInt64() & 0xffffffff));
+					parent.GlobalSnarlEvent(parent, eventArgs);
+				}
+				else if (m.Msg == parent.msgReply)
+				{
+					if (parent.CallbackEvent == null)
+						return;
+
+					UInt16 loword, hiword;
+					ConvertToUInt16(m.WParam, out loword, out hiword);
+					Int32 msgToken = m.LParam.ToInt32();
+
+					CallbackEventArgs eventArgs = new CallbackEventArgs((SnarlStatus)loword, hiword, msgToken);
+
+					parent.CallbackEvent(parent, eventArgs);
+				}
+
+				base.WndProc(ref m);
+			}
+
+			protected void ConvertToUInt16(IntPtr input, out UInt16 outLow, out UInt16 outHigh)
+			{
+				// Assumes only 32 bit
+				UInt32 tmp = (UInt32)input.ToInt64();
+
+				outLow = (UInt16)(tmp & 0x0000ffff);
+				outHigh = (UInt16)(tmp >> 16);
+			}
+		}
+
+		/// <summary>
 		/// Helper class used with internal DoRequest()
 		/// </summary>
-		private class SnarlParameterList
+		protected class SnarlParameterList
 		{
-			private List<KeyValuePair<String, String>> list = new List<KeyValuePair<String, String>>();
+			protected List<KeyValuePair<String, String>> list = new List<KeyValuePair<String, String>>();
 			public IList<KeyValuePair<String, String>> ParamList
 			{
 				get { return list; }
@@ -1077,143 +1229,5 @@ namespace Snarl.V42
 		}
 
 	#endregion
-
-		public class GlobalEventArgs : EventArgs
-		{
-			public GlobalEvent GlobalEvent { get; set; }
-
-			public GlobalEventArgs(GlobalEvent globalEvent)
-			{
-				GlobalEvent = globalEvent;
-			}
-		}
-
-		public class CallbackEventArgs : EventArgs
-		{
-			public Int32 MessageToken { get; set; }
-			public SnarlStatus SnarlEvent { get; set; }
-
-			/// <summary>
-			/// The @data member if an action callback. Menu index if popup menu.
-			/// </summary>
-			public UInt16 Parameter { get; set; }
-
-
-			public CallbackEventArgs(SnarlStatus snarlEvent, UInt16 parameter, int msgToken)
-			{
-				SnarlEvent = snarlEvent;
-				MessageToken = msgToken;
-				Parameter = parameter;
-			}
-		}
-
-		public delegate void CallbackEventHandler(SnarlInterface sender, CallbackEventArgs args);
-		public event CallbackEventHandler CallbackEvent;
-		public delegate void GlobalEventHandler(SnarlInterface sender, GlobalEventArgs args);
-		public event GlobalEventHandler GlobalSnarlEvent;
-
-		private SnarlCallbackNativeWindow callbackWindow = null;
-		private Int32 msgReply = 0;
-		
-		public Int32 RegisterWithEvents(String signature, String title, String icon, String password, IntPtr hWndReplyTo, Int32? msgReply)
-		{
-			lock (instanceLock)
-			{
-				if (msgReply == null || msgReply.Value == 0)
-					msgReply = WM_DEFAULT_APPMSG;
-
-				// Reuse callbackwindo as is, if DetachCallbackWindow() hasn't been called manually
-				if (callbackWindow == null)
-					callbackWindow = new SnarlCallbackNativeWindow(this, hWndReplyTo);
-
-				return Register(signature, title, icon, password, callbackWindow.Handle, msgReply.Value);
-			}
-		}
-
-		public void UnregisterCallbackWindow()
-		{
-			lock (instanceLock)
-			{
-				// Release handle
-				if (callbackWindow != null)
-				{
-					callbackWindow.Detach();
-					callbackWindow = null;
-				}
-			}
-		}
-
-		// protected
-		class SnarlCallbackNativeWindow : System.Windows.Forms.NativeWindow
-		{
-			private bool hasCreatedCallbackWindow = false;
-			private UInt32 snarlGlobalMessage = 0;
-			private SnarlInterface parent = null;
-
-
-			internal SnarlCallbackNativeWindow(SnarlInterface parent, IntPtr windowHandle)
-			{
-				this.parent = parent;
-				snarlGlobalMessage = SnarlInterface.Broadcast();
-
-				if (windowHandle == IntPtr.Zero)
-				{
-					hasCreatedCallbackWindow = true;
-
-					CreateParams cp = new CreateParams();
-					cp.Caption = GetType().FullName;
-					CreateHandle(cp);
-				}
-				else
-				{
-					hasCreatedCallbackWindow = false;
-					AssignHandle(windowHandle);
-				}
-			}
-			
-			internal void Detach()
-			{
-				if (hasCreatedCallbackWindow)
-					DestroyHandle();
-				else
-					ReleaseHandle();
-			}
-
-			protected override void WndProc(ref System.Windows.Forms.Message m)
-			{
-				if (m.Msg == snarlGlobalMessage)
-				{
-					if (parent.GlobalSnarlEvent == null)
-						return;
-
-					GlobalEventArgs eventArgs = new GlobalEventArgs((SnarlInterface.GlobalEvent)(m.WParam.ToInt64() & 0xffffffff));
-					parent.GlobalSnarlEvent(parent, eventArgs);
-				}
-				else if (m.Msg == parent.msgReply)
-				{
-					if (parent.CallbackEvent == null)
-						return;
-
-					UInt16 loword, hiword;
-					ConvertToUInt16(m.WParam, out loword, out hiword);
-					Int32 msgToken = m.LParam.ToInt32();
-
-					CallbackEventArgs eventArgs = new CallbackEventArgs((SnarlStatus)loword, hiword, msgToken);
-
-					parent.CallbackEvent(parent, eventArgs);
-				}
-
-				base.WndProc(ref m);
-			}
-
-			private void ConvertToUInt16(IntPtr input, out UInt16 outLow, out UInt16 outHigh)
-			{
-				// Assumes only 32 bit
-				UInt32 tmp = (UInt32)input.ToInt64();
-
-				outLow  = (UInt16)(tmp & 0x0000ffff);
-				outHigh = (UInt16)(tmp >> 16);
-			}
-		}
 	}
 }
