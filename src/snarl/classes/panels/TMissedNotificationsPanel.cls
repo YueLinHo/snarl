@@ -13,10 +13,22 @@ Attribute VB_PredeclaredId = False
 Attribute VB_Exposed = False
 Option Explicit
 
-Dim mPanel As BPrefsPanel
+    '/*********************************************************************************************
+    '/
+    '/  File:           TMissedNotificationsPanel.cls
+    '/
+    '/  Description:    Provides the missed notifications panel
+    '/
+    '/  Created:        9-Sep-2009
+    '/
+    '/  © 2009 full phat products
+    '/
+    '/  This file may be used under the terms of the Simplified BSD Licence
+    '/
+    '*********************************************************************************************/
 
-Dim mSelected As T_NOTIFICATION_INFO
-Dim mSelIndex As Long
+Dim mSelected As TNotification
+Dim mPanel As BPrefsPanel
 
 Implements KPrefsPanel
 Implements KPrefsPage
@@ -28,61 +40,59 @@ Private Sub KPrefsPage_Attached()
 End Sub
 
 Private Sub KPrefsPage_ControlChanged(Control As prefs_kit_d2.BControl, ByVal Value As String)
+Dim pmi As OMMenuItem
 Dim pc As BControl
-Dim sz As String
+'Dim sz As String
 Dim i As Long
 
     Select Case Control.GetName()
-    Case "lb>missed"
-        mSelIndex = Val(Value)
-        g_NotificationRoster.MissedAt mSelIndex, mSelected
+    Case "item_list"
+        Set mSelected = g_NotificationRoster.MissedList.TagAt(Val(Value))
 
         ' /* toolbar */
         prefskit_SafeEnable mPanel, "toolbar_options", (Value <> "0")
 
         If mPanel.Find("toolbar_options", pc) Then
-            prefskit_SetItem pc, 1, "enabled", IIf(mSelected.DefaultAck <> "", 1&, 0&)
-            prefskit_SetItem pc, 2, "enabled", IIf(mSelected.Actions.CountItems, 1&, 0&)
+            prefskit_SetItem pc, 1, "enabled", IIf(mSelected.Info.DefaultAck <> "", 1&, 0&)
+            prefskit_SetItem pc, 2, "enabled", IIf(mSelected.Info.Actions.CountItems, 1&, 0&)
 
         End If
 
-        prefskit_SafeSetText mPanel, "the_title", Replace$(mSelected.Title, vbCrLf, "¶ ")
-        prefskit_SafeSetText mPanel, "the_text", Replace$(mSelected.Text, vbCrLf, "¶ ")
-        prefskit_SafeEnable mPanel, "fb>ack", (mSelected.DefaultAck <> "")
-
-Debug.Print "********************************* " & mSelected.Actions.CountItems
-
-        sz = Format$(mSelected.DateStamp, "hh:mm:ss") & _
-             IIf(DateDiff("d", Now, mSelected.DateStamp) = "0", " today", " on " & Format$(mSelected.DateStamp, "short date")) & vbCrLf & _
-             Replace$(mSelected.ClassObj.App.Name, vbCrLf, "¶ ") & " (" & mSelected.ClassObj.Description & ")"
-
-        If mSelected.RemoteHost <> "" Then _
-        If Not (mSelected.Socket Is Nothing) Then _
-            sz = sz & " on " & mSelected.RemoteHost
-
-'        If mSelected.DefaultAck <> "" Then _
-            sz = sz & "  Callback: " & mSelected.DefaultAck
-
-        prefskit_SafeSetText mPanel, "the_detail", sz
-'        prefskit_SafeSetText mPanel, "the_callback", Replace$(mSelected.DefaultAck, vbCrLf, "¶ ")
-
-'        prefskit_SafeSetText mPanel, "sending_app", "Sent from " & mSelected.Sender & " using class '" & mSelected.Class & "'"
-'        prefskit_SafeSetText mPanel, "sending_class", mSelected.Class
-
+'        prefskit_SafeSetText mPanel, "the_title", Replace$(mSelected.Title, vbCrLf, "¶ ")
+'        prefskit_SafeSetText mPanel, "the_text", Replace$(mSelected.Text, vbCrLf, "¶ ")
+'        prefskit_SafeEnable mPanel, "fb>ack", (mSelected.DefaultAck <> "")
+'
+'Debug.Print "********************************* " & mSelected.Actions.CountItems
+'
+'        sz = Format$(mSelected.DateStamp, "hh:mm:ss") & _
+'             IIf(DateDiff("d", Now, mSelected.DateStamp) = "0", " today", " on " & Format$(mSelected.DateStamp, "short date")) & vbCrLf & _
+'             Replace$(mSelected.ClassObj.App.Name, vbCrLf, "¶ ") & " (" & mSelected.ClassObj.Description & ")"
+'
+'        If mSelected.RemoteHost <> "" Then _
+'        If Not (mSelected.Socket Is Nothing) Then _
+'            sz = sz & " on " & mSelected.RemoteHost
+'
+''        If mSelected.DefaultAck <> "" Then _
+'            sz = sz & "  Callback: " & mSelected.DefaultAck
+'
+'        prefskit_SafeSetText mPanel, "the_detail", sz
+''        prefskit_SafeSetText mPanel, "the_callback", Replace$(mSelected.DefaultAck, vbCrLf, "¶ ")
+'
+''        prefskit_SafeSetText mPanel, "sending_app", "Sent from " & mSelected.Sender & " using class '" & mSelected.Class & "'"
+''        prefskit_SafeSetText mPanel, "sending_class", mSelected.Class
+'
     Case "toolbar_options"
-
-Dim pmi As OMMenuItem
 
         Select Case Val(Value)
         Case 1
-            If mSelected.DefaultAck <> "" Then _
-                g_ProcessAck mSelected.DefaultAck
+            If mSelected.Info.DefaultAck <> "" Then _
+                g_ProcessAck mSelected.Info.DefaultAck
 
         Case 2
             With New OMMenu
-                For i = 1 To mSelected.Actions.CountItems
-                    .AddItem .CreateItem(mSelected.Actions.TagAt(i).Value, mSelected.Actions.TagAt(i).Name)
-                    If i < mSelected.Actions.CountItems Then _
+                For i = 1 To mSelected.Info.Actions.CountItems
+                    .AddItem .CreateItem(mSelected.Info.Actions.TagAt(i).Value, mSelected.Info.Actions.TagAt(i).Name)
+                    If i < mSelected.Info.Actions.CountItems Then _
                         .AddSeparator
 
                 Next i
@@ -102,12 +112,13 @@ Dim pmi As OMMenuItem
 
         Case 3
             ' /* copy to clipboard */
-            Clipboard.SetText mSelected.Title & vbCrLf & mSelected.Text
+            Clipboard.Clear
+            Clipboard.SetText mSelected.Info.Title & vbCrLf & mSelected.Info.Text & vbCrLf & mSelected.Info.ClassObj.App.Name
 
         Case 4
             ' /* display */
             If Not g_IsDND() Then _
-                g_NotificationRoster.Add mSelected, Nothing
+                g_NotificationRoster.Add mSelected.Info, Nothing
 
         End Select
 
@@ -121,8 +132,8 @@ Dim pc As BControl
     Select Case Control.GetName()
     Case "fb>clear"
         If Not (g_NotificationRoster Is Nothing) Then
-            g_NotificationRoster.ClearMissed
-            uUpdateList
+            g_NotificationRoster.ClearMissedList
+            UpdateList
 
             prefskit_SafeSetText mPanel, "the_title", ""
             prefskit_SafeSetText mPanel, "the_text", ""
@@ -132,21 +143,15 @@ Dim pc As BControl
 
 
     Case "fb>ack"
-        If mSelected.DefaultAck <> "" Then
-            g_ProcessAck mSelected.DefaultAck
+        If mSelected.Info.DefaultAck <> "" Then
+            g_ProcessAck mSelected.Info.DefaultAck
 
-        ElseIf IsWindow(mSelected.hWndReply) <> 0 Then
-            If mSelected.uReplyMsg <> 0 Then
-                PostMessage mSelected.hWndReply, mSelected.uReplyMsg, SNARL_CALLBACK_INVOKED, ByVal mSelected.Token
-
-            Else
-                Debug.Print "TMissedNotificationsPanel.fb>ack(): bad reply message"
-
-            End If
+        ElseIf (IsWindow(mSelected.Info.hWndReply) <> 0) And (mSelected.Info.uReplyMsg <> 0) Then
+            PostMessage mSelected.Info.hWndReply, mSelected.Info.uReplyMsg, SNARL_CALLBACK_INVOKED, ByVal mSelected.Info.Token
 
         Else
-            Debug.Print "TMissedNotificationsPanel.fb>ack(): no ack or reply window"
-        
+            Debug.Print "TMissedNotificationsPanel.fb>ack(): no ack or reply window/message"
+
         End If
 
     End Select
@@ -176,6 +181,7 @@ End Sub
 
 Private Sub KPrefsPanel_Quit()
 
+    g_NotificationRoster.ResetMissedList
     Set mPanel = Nothing
 
 End Sub
@@ -207,8 +213,8 @@ Dim pm As CTempMsg
 
                 Set pm = New CTempMsg
                 pm.Add "item-height", 36&
-                Set pc = new_BPrefsControl("listbox", "lb>missed", , , , pm)
-                pc.SizeTo 0, 160
+                Set pc = new_BPrefsControl("listbox", "item_list", , , , pm)
+                pc.SizeTo 0, 280
                 .Add pc
 
 '                .Add new_BPrefsControl("label", "", "Title")
@@ -244,7 +250,7 @@ Dim pm As CTempMsg
 
             .Go
 
-            uUpdateList
+            UpdateList
 
             g_SetWindowIconToAppResourceIcon .hWnd
 
@@ -258,74 +264,85 @@ Dim pm As CTempMsg
 
 End Sub
 
-Private Sub uUpdateList()
+Public Sub UpdateList()
 
-    If (g_NotificationRoster Is Nothing) Then _
+    If (mPanel Is Nothing) Then
+        g_Debug "TMissedNotificationsPanel.UpdateList(): panel not available", LEMON_LEVEL_CRITICAL
         Exit Sub
+
+    End If
+
+    If (g_NotificationRoster Is Nothing) Then
+        g_Debug "TMissedNotificationsPanel.UpdateList(): can't find notification roster", LEMON_LEVEL_CRITICAL
+        Exit Sub
+
+    End If
 
 Dim pc As BControl
 
-    If Not mPanel.Find("lb>missed", pc) Then _
+    If Not mPanel.Find("item_list", pc) Then
+        g_Debug "TMissedNotificationsPanel.UpdateList(): can't find item_list control", LEMON_LEVEL_CRITICAL
         Exit Sub
 
-Dim pInfo As T_NOTIFICATION_INFO
-Dim pm As CTempMsg
+    End If
+
+Dim pMissed As BTagList
+
+    Set pMissed = g_NotificationRoster.MissedList
+
+    ' /* if no missed notifications, just clear the list and disable the buttons */
+
+    If pMissed.CountItems = 0 Then
+        prefskit_SafeEnable mPanel, "fb>clear", False
+        pc.SetText ""
+        Exit Sub
+
+    End If
+
+Dim pItem As TNotification
+Dim iCurrent As Long
 Dim sz As String
-Dim i As Long
-Dim n As Long
-Dim sza As String
 
-    n = Val(pc.GetValue())
+    ' /* store the current selected item */
 
-    With g_NotificationRoster
+    iCurrent = Val(pc.GetValue())
 
-        prefskit_SafeEnable mPanel, "fb>clear", (.MissedCount > 0)
+    With pMissed
+        ' /* enable/disable the 'Clear List' button based on number of missed */
+        prefskit_SafeEnable mPanel, "fb>clear", True
 
-        If .MissedCount Then
+        ' /* build the content string */
 
-            ' /* build the content string */
+        .Rewind
+        Do While .GetNextTag(pItem) = B_OK
+            sz = sz & Replace$( _
+                                g_FormattedMidStr(Replace$(pItem.Info.Title, "|", ":"), 54) & " (" & g_When(pItem.Info.DateStamp) & ")" & "#?0#?" & _
+                                g_FormattedMidStr(Replace$(pItem.Info.Text, "|", ":"), 54) & "|", vbCrLf, "¶")
 
-            For i = 1 To .MissedCount
-                .MissedAt i, pInfo
-                sza = Replace$(pInfo.Title, "|", ":")
-                sza = Replace$(sza, vbCrLf, "¶")
-                sz = sz & g_FormattedMidStr(sza, 54) & "#?0#?"
-
-                sza = Replace$(pInfo.Text, "|", ":")
-                sza = Replace$(sza, vbCrLf, "¶")
-                sz = sz & g_FormattedMidStr(sza, 54) & "|"
 '                sz = sz & g_FormattedMidStr(Replace$(pInfo.Title, "|", ":"), 54) & "#?0#?" & "From " & pInfo.Sender & " (" & pInfo.Class & ") at " & Format$(pInfo.DateStamp, "hh:mm:ss") & "|"
 
+        Loop
+
+Dim i As Long
+
+        pc.SetText g_SafeLeftStr(sz, Len(sz) - 1)
+
+        ' /* set the icons */
+
+        With pMissed
+            For i = 1 To .CountItems
+                Set pItem = .TagAt(i)
+                pc.DoExCmd B_EXTENDED_COMMANDS.B_SET_ITEM, prefskit_CreateImageMessage(i, load_image_obj(pItem.Info.IconPath), pItem.WasSeen)
+
             Next i
 
-            pc.SetText g_SafeLeftStr(sz, Len(sz) - 1)
-
-            ' /* set the icons */
-
-            Set pm = New CTempMsg
-            For i = 1 To .MissedCount
-                .MissedAt i, pInfo
-                pm.Replace "index", i
-                pm.Remove "image-object"
-                pm.Add "image-object", pInfo.Icon
-                pc.DoExCmd B_EXTENDED_COMMANDS.B_SET_ITEM, pm
-
-            Next i
-
-        Else
-            pc.SetText ""
-
-        End If
+        End With
 
     End With
 
-    pc.SetValue CStr(n + 1)
+    pc.SetValue CStr(iCurrent + 1)
 
 End Sub
 
-Public Sub UpdateList()
 
-    If Not (mPanel Is Nothing) Then _
-        uUpdateList
 
-End Sub

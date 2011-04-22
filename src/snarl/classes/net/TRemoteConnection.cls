@@ -211,8 +211,16 @@ Dim sz As String
     End Select
 
 Dim hr As Long
+'Dim pne As T_NOTIFICATION_EXTRA
 
     ' /* process the command */
+
+'    With pne
+'        .IsRemoteApp = True
+'        Set .ReplySocket = theSocket
+'        .APIVersion = 42
+'
+'    End With
 
     hr = g_DoAction(sCommand, Val(ppd.ValueOf("token")), ppd, True, theSocket)
     If hr <> 0 Then
@@ -313,6 +321,7 @@ Dim pa As TApp
 
     If Not pPacket.Valid Then
         theSocket.SendData uCreateReply(SNP_ERROR_BAD_PACKET)
+        theSocket.CloseSocket
         Exit Sub
 
     End If
@@ -324,6 +333,7 @@ Dim pa As TApp
     If (g_AppRoster Is Nothing) Or (g_NotificationRoster Is Nothing) Then
         g_Debug "TRemoteConnection.uTranslateSNP(): action '" & pPacket.action & "': app_roster or notification_roster not found", LEMON_LEVEL_CRITICAL
         theSocket.SendData uCreateReply(SNP_ERROR_FAILED)
+        theSocket.CloseSocket
         Exit Sub
 
     End If
@@ -413,7 +423,7 @@ Dim dw As Long
 
 'FIXFIXFIX
                 ' /* we no longer include frmAbout.hWnd and WM_REMOTENOTIFY with this */
-                g_PrivateNotify SNARL_CLASS_ANON_NET, .Title, .Text, .Timeout, .Icon, , .DefaultAck, , S_NOTIFICATION_REMOTE
+                g_PrivateNotify SNARL_CLASS_ANON_NET, .Title, .Text, .Timeout, .Icon, , .DefaultAck, , NF_REMOTE
 'FIXFIXFIX
                 g_Debug "TRemoteConnection.uTranslateSNP(): snShowMessageEx() returned 0x" & g_HexStr(dw)
 
@@ -457,6 +467,7 @@ Dim dw As Long
 er:
     g_Debug "TRemoteConnection.uTranslateSNP(): " & err.Description, LEMON_LEVEL_CRITICAL
     theSocket.SendData uCreateReply(SNP_ERROR_FAILED)
+    theSocket.CloseSocket
 
 End Sub
 

@@ -408,6 +408,8 @@ Dim i As Long
                 ' /* sort of backwards-compatability/kludge: if a style doesn't appear to have
                 '    a specific icon path, create a default one */
 
+'                MsgBox .StyleAt(i).Name & " >> " & sz
+
                 If sz = "" Then _
                     sz = g_MakePath(px.Path) & px.Name & ".png"
 

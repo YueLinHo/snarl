@@ -35,7 +35,7 @@ Dim mCurrentForward As Long
 Dim mCurrentForwardName As String
 Dim mCurrentCondition As Long
 
-Public Event done()
+Public Event Done()
 
 Implements KPrefsPanel
 Implements KPrefsPage
@@ -59,7 +59,8 @@ Dim sz As String
 
     Select Case Control.GetName
     Case "show_on_screen", "use_style", "custom_timeout", "use_custom_icon", "custom_icon", _
-         "use_custom_sound", "custom_sound", "ignore_input", "use_custom_ack", "custom_ack", "log_during_dnd", "block_spam"
+         "use_custom_sound", "custom_sound", "ignore_input", "use_custom_ack", "custom_ack", "log_during_dnd", "block_spam", _
+         "override-normal", "override-away", "override-busy"
 
         gSelectedClass.SetValue Control.GetName, Value
 
@@ -220,7 +221,7 @@ End Sub
 Private Sub KPrefsPanel_Quit()
 Dim rc As RECT
 
-    RaiseEvent done
+    RaiseEvent Done
     g_ShowWindow mhWndPanel, True, True
 
     GetWindowRect mhWndPanel, rc
@@ -366,30 +367,27 @@ Dim pc As BControl
 
 
 
-'        Set pp = new_BPrefsPage("Presence", load_image_obj(g_MakePath(App.Path) & "etc\icons\presence.png"), Me)
-'        With pp
-'            .SetMargin 90
-'            .SetWidth 300
-'
-'            .Add new_BPrefsControl("label", "", "When I'm at my computer...")
-'            .Add new_BPrefsControl("fancycycle", "", "Use default|Log as Missed|Display Sticky|Discard|Display Normally|Display High Priority", "", g_ConfigGet(""))
-'
-'            .Add new_BPrefsControl("label", "", "When I'm away...")
-'            .Add new_BPrefsControl("fancycycle", "", "Use default|Log as Missed|Display Sticky|Discard|Display Normally|Display High Priority", "", g_ConfigGet(""))
-'
-'            .Add new_BPrefsControl("label", "", "When I'm busy...")
-'            .Add new_BPrefsControl("fancycycle", "", "Use default|Log as Missed|Display Sticky|Discard|Display Normally|Display High Priority", "", g_ConfigGet(""))
-'
-'
-'            ' /* R2.31: test button here too */
-'            .Add new_BPrefsSeparator
-'            .Add new_BPrefsControl("fancybutton2", "test", "Test")
-'
-'        End With
-'
-'        .AddPage pp
+        Set pp = new_BPrefsPage("Presence", load_image_obj(g_MakePath(App.Path) & "etc\icons\presence.png"), Me)
+        With pp
+            .SetMargin 90
+            .SetWidth 300
 
+            .Add new_BPrefsControl("banner", "", "When I'm at my computer...")
+            .Add new_BPrefsControl("fancycycle", "override-normal", "Default|Log as Missed|Display Sticky|Discard|Display Normally|Display High Priority", "Action:", gSelectedClass.GetValue("override-normal"))
 
+            .Add new_BPrefsControl("banner", "", "When I'm away...")
+            .Add new_BPrefsControl("fancycycle", "override-away", "Default|Log as Missed|Display Sticky|Discard|Display Normally|Display High Priority", "Action:", gSelectedClass.GetValue("override-away"))
+
+            .Add new_BPrefsControl("banner", "", "When I'm busy...")
+            .Add new_BPrefsControl("fancycycle", "override-busy", "Default|Log as Missed|Display Sticky|Discard|Display Normally|Display High Priority", "Action:", gSelectedClass.GetValue("override-busy"))
+
+            ' /* R2.31: test button here too */
+            .Add new_BPrefsSeparator
+            .Add new_BPrefsControl("fancybutton2", "test", "Test")
+
+        End With
+
+        .AddPage pp
 
 
 
@@ -752,6 +750,10 @@ Dim pm As CTempMsg
             End If
 
         End If
+
+        uSafeSetValue "override-normal", .GetValue("override-normal")
+        uSafeSetValue "override-away", .GetValue("override-away")
+        uSafeSetValue "override-busy", .GetValue("override-busy")
 
     End With
 

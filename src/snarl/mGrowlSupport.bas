@@ -297,7 +297,7 @@ Dim ppd As BPackedData
 
     g_Debug "mGrowlSupport.uRegister(): '" & pgr.ApplicationName & "_" & pgr.RemoteHost & "'"
 
-    pgr.SnarlToken = g_AppRoster.Add41(ppd, True)
+    pgr.SnarlToken = g_AppRoster.Add41(ppd, (pgr.RemoteHost <> "localhost"))
     If pgr.SnarlToken = 0 Then
         g_Debug "mGrowlSupport.uRegister(): failed to register with Snarl", LEMON_LEVEL_CRITICAL
 
@@ -359,6 +359,8 @@ Dim ppd As BPackedData
 
     End With
 
-    uNotify = g_DoNotify(AppToken, ppd, , S_NOTIFICATION_REMOTE, pgn.Sender)
+    ' /* R2.4.1 - include major version number in this */
+
+    uNotify = g_DoNotify(AppToken, ppd, , NF_REMOTE Or App.Major, pgn.Sender)
 
 End Function

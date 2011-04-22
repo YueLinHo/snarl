@@ -1,6 +1,46 @@
 
 	Snarl Change Log
 
+	- Bug associated with adding actions to a notification in the wait
+	  queue fixed.  (42.89)
+
+	- GrowlNet applications running locally are no longer mistakenly
+	  identified as remote apps.  (42.88)
+
+	- Legacy API functions are now treated as just that, and receive
+	  legacy support accordingly.  At the moment this simply resolves
+	  itself as to whether the sending app is notified of right- and
+	  middle-button click events.  (42.87)
+
+	- Fixed a number of issues to do with notification updating when
+	  V42 styles are used.  (42.86)
+
+	- Added configurable option to allow legacy support of right-
+	  and middle-button clicks.  (42.83)
+
+	- <Notify> now supports "class" keyword to identify the class to
+	  use.  "id" is still supported of course.  (42.81)
+
+	- GNTP applications running locally are no longer mistakenly
+	  identified as remote apps.  (42.80)
+
+	- Possible fix for GNTP UTF8 bug.  (42.79)
+
+	- Fixed a number of bugs in the GNTP icon handling code.  (42.72)
+
+	- SNP 1.0 error handling is now more robust.  (42.67)
+
+	- Missed notifications panel reworked and improved.  (42.66)
+
+	- Significant reworking to the notification roster.  (42.66)
+
+	- Right-clicking a notification now pops open the notification's
+	  context menu if no custom menu is defined.  This means that
+	  the SNARL_CALLBACK_R_CLICK event, deprecated as of R2.4, is no
+	  longer sent.  (42.65)
+
+	- Released as R2.4.  (42.62)
+
 	- Snarl no longer mistakes the Windows 7 Flip (Win+TAB) window as
 	  a full screen app.  (42.62) 
 

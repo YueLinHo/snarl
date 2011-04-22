@@ -235,9 +235,9 @@ Public Function uMsg() As Long
 
 End Function
 
-Public Function pid() As Long
+Public Function Pid() As Long
 
-    pid = mInfo.pid
+    Pid = mInfo.Pid
 
 End Function
 
@@ -309,7 +309,7 @@ Dim pInfo As T_NOTIFICATION_INFO
         If .uReplyMsg = 0 Then _
             .uReplyMsg = mInfo.uMsg
 
-        .pid = mInfo.pid
+        .Pid = mInfo.Pid
         .Title = Title
         .Text = Text
         .Timeout = Timeout
@@ -321,10 +321,6 @@ Dim pInfo As T_NOTIFICATION_INFO
 
     End With
 
-    ' /* R2.4: create OriginalContent manually */
-
-'    g_KludgeNotificationInfo pInfo
-
     ' /* pass it to the class... */
 
     Show = pc.ShowNotification(pInfo, Nothing)
@@ -335,7 +331,7 @@ Dim pInfo As T_NOTIFICATION_INFO
 
 End Function
 
-Public Function Show41(ByVal ClassId As String, ByRef pData As BPackedData, Optional ByRef ReplySocket As CSocket, Optional ByVal IntFlags As S_SYS_FLAGS, Optional ByVal RemoteHost As String) As Long
+Public Function Show41(ByVal ClassId As String, ByRef pData As BPackedData, Optional ByRef ReplySocket As CSocket, Optional ByVal IntFlags As E_NOTIFICATION_FLAGS, Optional ByVal RemoteHost As String) As Long
 
     ' /* this is where we transition from a BPackedData into a T_NOTIFICATION_INFO struct */
 

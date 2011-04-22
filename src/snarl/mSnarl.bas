@@ -45,18 +45,21 @@ Public Const SNARL_CLASS_ANON = "_ANL"
 
     ' /* internal notification flags */
 
-Public Enum S_SYS_FLAGS
-    S_NOTIFICATION_REMOTE = &H80000000
-    S_NOTIFICATION_SECURE = &H40000000
+Public Enum E_NOTIFICATION_FLAGS
+    NF_REMOTE = &H80000000
+    NF_SECURE = &H40000000
 
-    S_NOTIFICATION_MERGE = &H1000
+    NF_MERGE = &H1000
+
+    ' /* bottom 8 bits used for api version (V42 onwards) */
+    NF_API_MASK = &HFF&
 
 End Enum
 
     ' /* master notification structure, as used by the notification roster */
 
 Public Type T_NOTIFICATION_INFO
-    pid As Long
+    Pid As Long
     Title As String
     Text As String
     Timeout As E_NOTIFICATION_DURATION
@@ -77,7 +80,7 @@ Public Type T_NOTIFICATION_INFO
                                         '         e.g. 45%, 2.3466, $5.00, etc. it's up to the style to determine
                                         '         how/if it's displayed
     DateStamp As Date                   ' // V41: when it was added to the Notification Roster
-    Icon As mfxBitmap                   ' // V41 (R2.31): note it's an mfxBitmap, not an MImage!
+'    Icon As mfxBitmap                   ' // V41 (R2.31): note it's an mfxBitmap, not an MImage!
 '    Sender As String
 '    Class As String
     ' /* V42 */
@@ -85,13 +88,23 @@ Public Type T_NOTIFICATION_INFO
     OriginalContent As String           ' // V41 (R2.4): as passed from external source
     LastUpdated As Date                 ' // time last changed
     Socket As CSocket                   ' // reply socket (SNP2.0 native only)
-    IntFlags As S_SYS_FLAGS             ' // internal notification flags
+    IntFlags As E_NOTIFICATION_FLAGS    ' // internal notification flags
     RemoteHost As String                ' // sender (as string) for remote connections that do not have reply sockets
     ClassObj As TAlert                  ' // object
     CustomUID As String                 ' // R2.4 DR7: custom UID (set during <notify>)
     Actions As BTagList                 ' // R2.4 DR7: should have been here all along
+    APIVersion As Long                  ' // R2.4.1: will be 42 for V42, 0 for everything prior to it
 
 End Type
+
+'Public Type T_NOTIFICATION_EXTRA
+'    IsRemoteApp As Boolean
+'    ReplySocket As CSocket
+'    RemoteAddr As String                ' // ip address
+'    APIVersion As Long
+'
+'End Type
+
 
 Public Type T_SNARL_STYLE_ENGINE_INFO
     Name As String
@@ -112,7 +125,7 @@ Public Type T_SNARL_APP
     Name As String
     hWnd As Long
     uMsg As Long
-    pid As Long                 ' // V38 (for V39)
+    Pid As Long                 ' // V38 (for V39)
     Icon As String              ' // R1.6 - path to application icon (if empty we use window icon)
     LargeIcon As String         ' // V38 (private for now) - path to large icon
     Token As Long               ' // V41
@@ -290,13 +303,14 @@ End Enum
 
 Dim mPresFlags As SP_PRESENCE_FLAGS
 
-Public Enum SP_PRESENCE_ACTIONS
-    SP_LOG_AS_MISSED = 1
-    SP_MAKE_STICKY = 2
-    SP_DO_NOTHING = 3
-    SP_DISPLAY_NORMAL = 4
-    SP_DISPLAY_URGENT = 5
-    SP_FORWARD = 6
+Public Enum E_PRESENCE_ACTIONS
+    PA_DO_DEFAULT = 0
+    PA_LOG_AS_MISSED = 1
+    PA_MAKE_STICKY = 2
+    PA_DO_NOTHING = 3
+    PA_DISPLAY_NORMAL = 4
+    PA_DISPLAY_URGENT = 5
+    PA_FORWARD = 6
 
 End Enum
 
@@ -875,6 +889,10 @@ Public Function g_ConfigInit() As Boolean
         .Add "idle_minutes", "4"            ' // i.e. 5 minutes
         .Add "include_host_name_when_forwarding", "0"
 
+        ' /* R2.4.1 */
+
+        .Add "allow_right_clicks", "0"
+
     End With
 
     ' /* attempt to load the config file */
@@ -1073,14 +1091,14 @@ Dim pa As TApp
 
 End Function
 
-Public Function gfAddClass(ByVal pid As Long, ByVal Class As String, ByVal Flags As Long, ByVal Description As String) As M_RESULT
+Public Function gfAddClass(ByVal Pid As Long, ByVal Class As String, ByVal Flags As Long, ByVal Description As String) As M_RESULT
 Dim pa As TApp
 
-    g_Debug "gfAddClass('" & CStr(pid) & "' '" & Class & "' #" & g_HexStr(Flags) & ")", LEMON_LEVEL_PROC
+    g_Debug "gfAddClass('" & CStr(Pid) & "' '" & Class & "' #" & g_HexStr(Flags) & ")", LEMON_LEVEL_PROC
 
     ' /* find the app */
 
-    If Not g_AppRoster.FindByPid(pid, pa) Then
+    If Not g_AppRoster.FindByPid(Pid, pa) Then
         g_Debug "gfAddClass(): App not registered with Snarl", LEMON_LEVEL_CRITICAL
         gfAddClass = M_NOT_FOUND
         Exit Function
@@ -1206,11 +1224,11 @@ End Function
 '
 'End Function
 
-Public Function gfSetAlertDefault(ByVal pid As Long, ByVal Class As String, ByVal Element As Long, ByVal Value As String) As M_RESULT
+Public Function gfSetAlertDefault(ByVal Pid As Long, ByVal Class As String, ByVal Element As Long, ByVal Value As String) As M_RESULT
 Dim pa As TApp
 Dim pc As TAlert
 
-    g_Debug "gfSetAlertDefault('" & pid & "' '" & Class & "' #" & CStr(Element) & " '" & Value & "')", LEMON_LEVEL_PROC
+    g_Debug "gfSetAlertDefault('" & Pid & "' '" & Class & "' #" & CStr(Element) & " '" & Value & "')", LEMON_LEVEL_PROC
 
     If (g_AppRoster Is Nothing) Then
         g_Debug "gfSetAlertDefault(): App not registered with Snarl", LEMON_LEVEL_CRITICAL
@@ -1221,8 +1239,8 @@ Dim pc As TAlert
 
     ' /* find the app */
 
-    If Not g_AppRoster.FindByPid(pid, pa) Then
-        g_Debug "gfSetAlertDefault(): App '" & pid & "' not registered with Snarl", LEMON_LEVEL_CRITICAL
+    If Not g_AppRoster.FindByPid(Pid, pa) Then
+        g_Debug "gfSetAlertDefault(): App '" & Pid & "' not registered with Snarl", LEMON_LEVEL_CRITICAL
         gfSetAlertDefault = M_NOT_FOUND
         Exit Function
 
@@ -1918,7 +1936,7 @@ End Function
 
 
 Public Function g_CreateBadge(ByVal Content As String) As mfxBitmap
-Const RX = 6
+Const rx = 6
 Dim pr As BRect
 
     With New mfxView
@@ -1933,17 +1951,17 @@ Dim pr As BRect
 
         .SetHighColour rgba(0, 0, 0, 190)
         .SetLowColour rgba(0, 0, 0, 140)
-        .FillRoundRect pr, RX, RX, MFX_VERT_GRADIENT
+        .FillRoundRect pr, rx, rx, MFX_VERT_GRADIENT
 
         .SetHighColour rgba(255, 255, 255)
         .DrawString Content, pr, MFX_ALIGN_H_CENTER Or MFX_ALIGN_V_CENTER
 
         .SetHighColour rgba(255, 255, 255)
-        .StrokeRoundRect pr.InsetByCopy(1, 1), RX, RX, 2
+        .StrokeRoundRect pr.InsetByCopy(1, 1), rx, rx, 2
 
         .SetHighColour rgba(0, 0, 0, 150)
-        .StrokeRoundRect pr, RX, RX, 1
-        .StrokeRoundRect pr.InsetByCopy(3, 3), RX, RX, 1
+        .StrokeRoundRect pr, rx, rx, 1
+        .StrokeRoundRect pr.InsetByCopy(3, 3), rx, rx, 1
 
         Set g_CreateBadge = .ConvertToBitmap()
 
@@ -1953,27 +1971,92 @@ End Function
 
 Public Sub g_KludgeNotificationInfo(ByRef nInfo As T_NOTIFICATION_INFO)
 
-    ' /* generates a packed string from the provided T_NOTIFICATION_INFO
-    '    struct and assigns the string to the OriginalContent element,
-    '    which is required by V42 styles */
+    ' /* translates current T_NOTIFICATION_INFO content into a BPackedString
+    '    and then stores that back into T_NOTIFICATION_INFO->OriginalContent
+    '    this is so V42 styles can access the entire request */
+
+    If (nInfo.ClassObj Is Nothing) Then
+        g_Debug "g_KludgeNotificationInfo(): missing ClassObj", LEMON_LEVEL_CRITICAL
+        Exit Sub
+
+    End If
+
+Dim ppd As BPackedData
+
+    Set ppd = New BPackedData
 
     With nInfo
         .Title = Replace$(.Title, "\n", vbCrLf)
         .Text = Replace$(.Text, "\n", vbCrLf)
 
-        .OriginalContent = "id::" & .ClassObj.Name & _
-                           "#?title::" & .Title & _
-                           "#?text::" & .Text & _
-                           "#?timeout::" & CStr(.Timeout) & _
-                           "#?icon::" & .IconPath & _
-                           "#?priority::" & CStr(.Priority) & _
-                           "#?ack::" & .DefaultAck & _
-                           "#?value::" & .Value
+        ppd.Add "id", .ClassObj.Name
+        ppd.Add "title", .Title
+        ppd.Add "text", .Text
+        ppd.Add "timeout", CStr(.Timeout)
+        ppd.Add "icon", .IconPath
+        ppd.Add "priority", CStr(.Priority)
+        ppd.Add "callback", .DefaultAck
+        ppd.Add "value", .Value
 
-'        If (.Flags And SNARL41_NOTIFICATION_ALLOWS_MERGE) Then _
-'            .OriginalContent = .OriginalContent & "#?merge::1"
+'        If (Info.Flags And SNARL41_NOTIFICATION_ALLOWS_MERGE) Then _
+            .Add "merge", "1"
 
     End With
+
+Dim ppx As BPackedData
+Dim szn As String
+Dim szv As String
+
+    ' /* add in all other custom content */
+
+    Set ppx = New BPackedData
+    With ppx
+        If .SetTo(nInfo.OriginalContent) Then
+            .Rewind
+            Do While .GetNextItem(szn, szv)
+                If Not ppd.Exists(LCase$(szn)) Then _
+                    ppd.Add szn, szv
+
+            Loop
+        End If
+    End With
+
+    nInfo.OriginalContent = ppd.AsString()
+
+
+
+
+
+
+
+
+
+
+
+
+'
+'
+'    ' /* generates a packed string from the provided T_NOTIFICATION_INFO
+'    '    struct and assigns the string to the OriginalContent element,
+'    '    which is required by V42 styles */
+'
+'    With nInfo
+'        .Title = Replace$(.Title, "\n", vbCrLf)
+'        .Text = Replace$(.Text, "\n", vbCrLf)
+'
+'        .OriginalContent = "id::" & .ClassObj.Name & _
+'                           "#?title::" & .Title & _
+'                           "#?text::" & .Text & _
+'                           "#?timeout::" & CStr(.Timeout) & _
+'                           "#?icon::" & .IconPath & _
+'                           "#?priority::" & CStr(.Priority) & _
+'                           "#?ack::" & .DefaultAck & _
+'                           "#?value::" & .Value
+'
+''        If (.Flags And SNARL41_NOTIFICATION_ALLOWS_MERGE) Then _
+''            .OriginalContent = .OriginalContent & "#?merge::1"
+'
+'    End With
 
 End Sub
 
@@ -2148,7 +2231,7 @@ Private Function uCreatePacked(ByVal ClassId As String, ByVal Title As String, B
     Set uCreatePacked = New BPackedData
     With uCreatePacked
         If ClassId <> "" Then _
-            .Add "id", ClassId
+            .Add "class", ClassId
 
         If Title <> "" Then _
             .Add "title", Title
@@ -2204,7 +2287,7 @@ End Function
 '
 'End Function
 
-Public Function g_PrivateNotify(ByVal ClassId As String, Optional ByVal Title As String, Optional ByVal Text As String, Optional ByVal Timeout As Long = -1, Optional ByVal Icon As String, Optional ByVal Priority As Long = 0, Optional ByVal Ack As String, Optional ByVal Flags As SNARL41_NOTIFICATION_FLAGS, Optional ByVal IntFlags As S_SYS_FLAGS) As Long
+Public Function g_PrivateNotify(ByVal ClassId As String, Optional ByVal Title As String, Optional ByVal Text As String, Optional ByVal Timeout As Long = -1, Optional ByVal Icon As String, Optional ByVal Priority As Long = 0, Optional ByVal Ack As String, Optional ByVal Flags As SNARL41_NOTIFICATION_FLAGS, Optional ByVal IntFlags As E_NOTIFICATION_FLAGS) As Long
 
     ' /* internal notification generator
     '
@@ -2214,11 +2297,11 @@ Public Function g_PrivateNotify(ByVal ClassId As String, Optional ByVal Title As
     g_PrivateNotify = g_DoNotify(gSnarlToken, _
                                  uCreatePacked(ClassId, Title, Text, Timeout, Icon, Priority, Ack, Flags, gSnarlPassword), _
                                  , _
-                                 IntFlags)
+                                 IntFlags Or App.Major)
 
 End Function
 
-Public Function g_DoNotify(ByVal AppToken As Long, ByRef pData As BPackedData, Optional ByRef ReplySocket As CSocket, Optional ByVal IntFlags As S_SYS_FLAGS, Optional ByVal RemoteHost As String) As Long
+Public Function g_DoNotify(ByVal AppToken As Long, ByRef pData As BPackedData, Optional ByRef ReplySocket As CSocket, Optional ByVal IntFlags As E_NOTIFICATION_FLAGS, Optional ByVal RemoteHost As String) As Long
 
     ' /* master notification generator
     '
@@ -2240,32 +2323,7 @@ Public Function g_DoNotify(ByVal AppToken As Long, ByRef pData As BPackedData, O
 
     End If
 
-Dim i As Long
-
-    If pData.Exists("uid") Then
-        
-        Debug.Print pData.ValueOf("uid")
-        
-        ' /* if found, do an update, otherwise create new */
-        i = g_NotificationRoster.TokenFromUID(pData.ValueOf("uid"), pData.ValueOf("app-sig"), pData.ValueOf("password"))
-        If i Then
-            g_Debug "g_DoNotify(): uid '" & pData.ValueOf("uid") & "' was found (" & CStr(i) & ")"
-            If g_NotificationRoster.Update(i, pData) Then
-                ' /* return existing token */
-                g_DoNotify = i
-
-            Else
-                ' /* failed */
-                g_DoNotify = 0
-
-            End If
-            Exit Function
-
-        Else
-            Debug.Print "no existing notification"
-
-        End If
-    End If
+'Dim i As Long
 
     ' /* look for the new "replace-uid" and "update-uid" and "merge-uid" args:
     '    "replace" will remove the notification with the specified uid if it's
@@ -2273,69 +2331,70 @@ Dim i As Long
     '    to be updated with this content and "merge-uid" will cause the
     '    provided content to be merged with the existing notification */
 
-'Dim i As Long
-'
-'    If pData.Exists("replace-uid") Then
-'        ' /* if the specified uid (NOT token) exists, remove it */
-'        g_NotificationRoster.Hide 0, pData.ValueOf("replace-uid"), pData.ValueOf("app-sig"), pData.ValueOf("password")
-'
-'    ElseIf pData.Exists("update-uid") Then
-'        ' /* if the specified uid (NOT token) exists, update with this content otherwise create a new notification */
-'
-'        Debug.Print "looking for update-uid " & pData.ValueOf("update-uid")
-'        g_DoNotify = g_NotificationRoster.TokenFromUID(pData.ValueOf("update-uid"), pData.ValueOf("app-sig"), pData.ValueOf("password"))
-'        Debug.Print "is token " & CStr(g_DoNotify)
-'
-'        If g_DoNotify Then
-'            ' /* we need to add this */
-'            If Not pData.Exists("uid") Then _
-'                pData.Add "uid", pData.ValueOf("update-uid")
-'
-'            g_NotificationRoster.Update g_DoNotify, pData
-'            Exit Function
-'
-'        End If
-'
-'        Debug.Print "uid not found"
-'
-'    ElseIf pData.Exists("merge-uid") Then
-'        ' /* if the specified uid (NOT token) exists, merge this content with that one, otherwise create a new notificaton */
-''            ' /* merge - this would mean:
-''            '
-''            '   title = no change?
-''            '   text = added to existing text
-''            '   icon = replaced with new (if any)
-''            '
-''            ' */
-'
-'        Debug.Print "looking for merge-uid " & pData.ValueOf("merge-uid")
-'        g_DoNotify = g_NotificationRoster.TokenFromUID(pData.ValueOf("merge-uid"), pData.ValueOf("app-sig"), pData.ValueOf("password"))
-'        Debug.Print "is token " & CStr(g_DoNotify)
-'
-'        If g_DoNotify Then
-'            ' /* we need to add this */
-'            If Not pData.Exists("uid") Then _
-'                pData.Add "uid", pData.ValueOf("update-uid")
-'
-'            g_NotificationRoster.Merge g_DoNotify, pData
-'            Exit Function
-'
-'        End If
-'
-'        Debug.Print "uid not found"
-'
-'    End If
+Dim pn As TNotification
+
+    If pData.Exists("replace-uid") Then
+        ' /* if the specified uid (NOT token) exists, remove it */
+        g_NotificationRoster.Hide 0, pData.ValueOf("replace-uid"), pData.ValueOf("app-sig"), pData.ValueOf("password")
+
+    ElseIf pData.Exists("update-uid") Then
+        ' /* if the specified uid (NOT token) exists, update with this content otherwise create a new notification */
+        g_Debug "g_DoNotify(): looking for (update-)uid: " & pData.ValueOf("update-uid") & "..."
+
+        If g_NotificationRoster.Find(0, pData.ValueOf("update-uid"), pData.ValueOf("app-sig"), pData.ValueOf("password"), pn) Then
+            pn.UpdateOrMerge pData, False
+            g_DoNotify = pn.Info.Token
+            Exit Function
+
+        End If
+
+    ElseIf pData.Exists("merge-uid") Then
+        ' /* if the specified uid (NOT token) exists, merge this content with that one, otherwise create a new notificaton */
+        g_Debug "g_DoNotify(): looking for (merge-)uid: " & pData.ValueOf("merge-uid") & "..."
+
+        If g_NotificationRoster.Find(0, pData.ValueOf("merge-uid"), pData.ValueOf("app-sig"), pData.ValueOf("password"), pn) Then
+            pn.UpdateOrMerge pData, True
+            g_DoNotify = pn.Info.Token
+            Exit Function
+
+        End If
+
+    End If
+
+    ' /* this still takes effect even if other options above have been used */
+
+    If pData.Exists("uid") Then
+        ' /* if the specified uid (NOT token) exists, update this content with that one, otherwise create a new notificaton */
+        g_Debug "g_DoNotify(): looking for uid: " & pData.ValueOf("uid") & "..."
+
+        If g_NotificationRoster.Find(0, pData.ValueOf("uid"), pData.ValueOf("app-sig"), pData.ValueOf("password"), pn) Then
+            pn.UpdateOrMerge pData, False
+            g_DoNotify = pn.Info.Token
+            Exit Function
+
+        Else
+            g_Debug "g_DoNotify(): uid " & pData.ValueOf("uid") & " not found"
+
+        End If
+
+    End If
 
 Dim szClass As String
 Dim pApp As TApp
-'Dim sz As String
 
     ' /* R2.4 DR7: if "app-sig" argument is specified then look for the app by signature */
 
 '    sz = pData.ValueOf("app-sig")
     If pData.ValueOf("app-sig") <> "" Then
         If g_AppRoster.FindBySignature(pData.ValueOf("app-sig"), pApp, pData.ValueOf("password")) Then
-            szClass = pData.ValueOf("id")
+            ' /* R2.4.1 - support for "class" keyword */
+            If pData.Exists("class") Then
+                szClass = pData.ValueOf("class")
+
+            Else
+                szClass = pData.ValueOf("id")
+
+            End If
 
         Else
             ' /* not found / auth failure (lasterror will have been set) */
@@ -2349,7 +2408,7 @@ Dim pApp As TApp
             If g_AppRoster.FindByToken(gSnarlToken, pApp, gSnarlPassword) Then
                 ' /* if we're using the Snarl app, we need the anonymous class */
                 g_Debug "g_DoNotify(): using Snarl anonymous class"
-                szClass = IIf((IntFlags And S_NOTIFICATION_REMOTE) = 0, SNARL_CLASS_ANON, SNARL_CLASS_ANON_NET)
+                szClass = IIf((IntFlags And NF_REMOTE) = 0, SNARL_CLASS_ANON, SNARL_CLASS_ANON_NET)
 
             Else
                ' /* Snarl's registration not found */
@@ -2359,12 +2418,19 @@ Dim pApp As TApp
 
             End If
 
-        ElseIf Not g_AppRoster.FindByToken(AppToken, pApp, pData.ValueOf("password")) Then
-            ' /* not found / auth failure (lasterror will have been set) */
-            Exit Function
+        ElseIf g_AppRoster.FindByToken(AppToken, pApp, pData.ValueOf("password")) Then
+            ' /* R2.4.1 - support for "class" keyword */
+            If pData.Exists("class") Then
+                szClass = pData.ValueOf("class")
+
+            Else
+                szClass = pData.ValueOf("id")
+
+            End If
 
         Else
-            szClass = pData.ValueOf("id")
+            ' /* not found / auth failure (lasterror will have been set) */
+            Exit Function
 
         End If
 
@@ -2393,7 +2459,7 @@ Dim szRemoteHost As String
     ' /* R2.4 DR7 - merging is now controlled via an internal flag */
 
     If pData.ValueOf("merge") = "1" Then _
-        IntFlags = IntFlags Or S_NOTIFICATION_MERGE
+        IntFlags = IntFlags Or NF_MERGE
 
     ' /* now we have the app object and we know the class, we can pass it over */
 
@@ -2401,7 +2467,7 @@ Dim szRemoteHost As String
 
 End Function
 
-Public Function g_DoAction(ByVal action As String, ByVal Token As Long, ByRef Args As BPackedData, Optional ByVal IsRemoteApp As Boolean, Optional ByRef ReplySocket As CSocket) As Long
+Public Function g_DoAction(ByVal action As String, ByVal Token As Long, ByRef Args As BPackedData, Optional ByVal InternalFlags As E_NOTIFICATION_FLAGS, Optional ByRef ReplySocket As CSocket) As Long
 
     ' /* this is the central hub for all incoming requests, be they from SNP, Growl/UDP
     '    or Win32.  "Token" here can be either the app token or the notification token;
@@ -2450,10 +2516,10 @@ Dim pApp As TApp
         g_DoAction = CLng(g_NotificationRoster.IsVisible(Token, Args.ValueOf("uid"), Args.ValueOf("app-sig"), Args.ValueOf("password")))
 
     Case "notify"
-        g_DoAction = g_DoNotify(Token, Args, ReplySocket, IIf(IsRemoteApp, S_NOTIFICATION_REMOTE, 0))
+        g_DoAction = g_DoNotify(Token, Args, ReplySocket, InternalFlags)
 
     Case "reg", "register"
-        g_DoAction = g_AppRoster.Add41(Args, IsRemoteApp)
+        g_DoAction = g_AppRoster.Add41(Args, (InternalFlags And NF_REMOTE))
 
     Case "remclass"
         g_DoAction = uRemClass(Token, Args)
@@ -2942,5 +3008,41 @@ Static nBusy As Long
 
 End Sub
 
+Public Function g_When(ByVal Timestamp As Date) As String
+Dim i As Long
 
+    On Error GoTo fail
+
+    ' /* default response is "<date> at <time>" */
+
+    g_When = Format$(Timestamp, "d mmm yyyy") & " at " & Format$(Timestamp, "ttttt")
+
+    ' /* if more than a day ago, default is enough */
+
+    If DateDiff("d", Timestamp, Now) > 0 Then _
+        Exit Function
+
+    ' /* if an hour or more ago, use hours */
+
+    i = DateDiff("h", Timestamp, Now)
+    If i > 0 Then
+        g_When = CStr(i) & " hour" & IIf(i = 1, "", "s") & " ago"
+        Exit Function
+
+    End If
+
+    ' /* if a minute or more ago. use minutes */
+
+    i = DateDiff("n", Timestamp, Now)
+    If i > 0 Then
+        g_When = CStr(i) & " min" & IIf(i = 1, "", "s") & " ago"
+
+    Else
+        g_When = "Just now"
+
+    End If
+
+fail:
+
+End Function
 

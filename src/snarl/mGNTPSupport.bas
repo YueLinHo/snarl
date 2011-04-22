@@ -40,6 +40,7 @@ Private Type T_REG
     NotificationType() As T_NOTIFY_TYPE
     Count As Long
     Signature As String
+    IconPath As String
 
 End Type
 
@@ -71,6 +72,8 @@ Public Function gntp_Process(ByVal Request As String, ByRef ReplySocket As CSock
     ' /* return a GNTP error code here */
 
     On Error GoTo er
+
+    Request = toUnicodeUTF8(Request)
 
     Debug.Print "length: " & Len(Request)
     mResponse = ""
@@ -221,9 +224,16 @@ Dim px As T_REG
         ReDim .NotificationType(.Count)
         .Signature = "application/x-gntp-" & Replace$(.AppName, " ", "_")
 
+        ' /* R2.4.1 */
+        .IconPath = g_MakePath(App.Path) & "etc\icons\no_icon.png"
+        If pp.Exists("Application-Icon") Then _
+            .IconPath = pp.ValueOf("Application-Icon")
+
     End With
 
     ' /* special Snarl feature: zero notifications means unregister */
+
+'Dim pne As T_NOTIFICATION_EXTRA
 
     If mRegistration.Count = 0 Then
         Debug.Print "uDoRegistration: app requested unregister"
@@ -268,7 +278,7 @@ Dim i As Long
     mRegistration.Token = g_DoAction("register", 0, _
                                      g_newBPackedData("app-sig::" & mRegistration.Signature & _
                                                       "#?title::" & mRegistration.AppName & _
-                                                      "#?icon::" & g_MakePath(App.Path) & "etc\icons\growl_app.png"))
+                                                      "#?icon::" & mRegistration.IconPath))
 
     If mRegistration.Token = 0 Then
         Debug.Print "uDoRegistration: registration failed (" & CStr(g_QuickLastError()) & ")"
@@ -498,27 +508,27 @@ Dim pp As BPackedData
 
     End If
 
-Dim pn As T_GNTP_NOTIFICATION
-
-    With pn
-        'Notification-Icon: <url> | <uniqueid>
-        'Optional - The icon to display with the notification.
-        .Icon = pp.ValueOf("Notification-Icon")
-        'Notification-Coalescing-ID: <string>
-        'Optional - If present, should contain the value of the Notification-ID header of a previously-sent notification. This serves
-        'as a hint to the notification system that this notification should replace/update the matching previous notification. The
-        'notification system may ignore this hint.
-        .CoalesceID = pp.ValueOf("Notification-Coalescing-ID")
-        'Notification-Callback-Context: <string>
-        'Optional - Any data (will be passed back in the callback unmodified)
-        .CallbackContext = pp.ValueOf("Notification-Callback-Context")
-        'Notification-Callback-Context-Type: <string>
-        'Optional, but Required if 'Notification-Callback-Context' is passed - The type of data being passed in
-        'Notification-Callback-Context (will be passed back in the callback unmodified). This does not need to be of any pre-defined
-        'type, it is only a convenience to the sending application.
-        .CallbackContextType = pp.ValueOf("Notification-Callback-Context-Type")
-
-    End With
+'Dim pn As T_GNTP_NOTIFICATION
+'
+'    With pn
+'        'Notification-Icon: <url> | <uniqueid>
+'        'Optional - The icon to display with the notification.
+'        .Icon = pp.ValueOf("Notification-Icon")
+'        'Notification-Coalescing-ID: <string>
+'        'Optional - If present, should contain the value of the Notification-ID header of a previously-sent notification. This serves
+'        'as a hint to the notification system that this notification should replace/update the matching previous notification. The
+'        'notification system may ignore this hint.
+'        .CoalesceID = pp.ValueOf("Notification-Coalescing-ID")
+'        'Notification-Callback-Context: <string>
+'        'Optional - Any data (will be passed back in the callback unmodified)
+'        .CallbackContext = pp.ValueOf("Notification-Callback-Context")
+'        'Notification-Callback-Context-Type: <string>
+'        'Optional, but Required if 'Notification-Callback-Context' is passed - The type of data being passed in
+'        'Notification-Callback-Context (will be passed back in the callback unmodified). This does not need to be of any pre-defined
+'        'type, it is only a convenience to the sending application.
+'        .CallbackContextType = pp.ValueOf("Notification-Callback-Context-Type")
+'
+'    End With
 
     ' /* build the Snarl packet */
 
@@ -577,11 +587,28 @@ Dim px As BPackedData
         If pp.ValueOf("Notification-ID") <> "" Then _
             .Add "uid", pp.ValueOf("Notification-ID")
 
+        ' /* R2.4.1 - sort out the icon */
+
+Dim sx() As String
+Dim sz As String
+
+        ' /* sort out the icon */
+
+        sz = pp.ValueOf("Notification-Icon")
+        If g_SafeLeftStr(sz, 19) = "x-growl-resource://" Then
+            sx = Split(sz, "://")
+            .Add "icon", g_GetTempPath() & "gntp-res-" & sx(1) & ".png"
+
+        Else
+            .Add "icon", sz
+
+        End If
+
     End With
 
     ' /* do the notification */
 
-    If g_DoAction("notify", 0, px, True, ReplySocket) = 0 Then
+    If g_DoAction("notify", 0, px, IIf(ReplySocket.LocalIP <> "127.0.0.1", NF_REMOTE, 0) Or App.Major, ReplySocket) = 0 Then
         Debug.Print "uDoNotification(): <notify> failed: " & CStr(g_QuickLastError())
         Select Case g_QuickLastError()
         Case SNARL_ERROR_AUTH_FAILURE

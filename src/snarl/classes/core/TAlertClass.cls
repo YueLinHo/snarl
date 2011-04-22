@@ -110,7 +110,8 @@ Dim bEnabled As Boolean
                         "duplicates::" & CStr(E_CLASS_DUPLICATES_ALLOW) & "#?" & _
                         "use_custom_sound::0#?custom_sound::#?" & _
                         "log_during_dnd::1#?block_spam::0#?" & _
-                        "normal_mode::1#?away_mode::1#?busy_mode::1"
+                        "normal_mode::1#?away_mode::1#?busy_mode::1#?" & _
+                        "override-normal::1#?override-away::1#?override-busy::1"
 
         Set .Forward = new_BTagList()
 
@@ -407,7 +408,7 @@ Dim lDur As E_NOTIFICATION_DURATION
 
     ' /* R2.4 DR7: if still no icon, use app's icon */
 
-    If Info.IconPath = "" Then _
+'    If Info.IconPath = "" Then _
         Info.IconPath = Me.App.Icon
 
     ' /* R2.31d3: custom ack */

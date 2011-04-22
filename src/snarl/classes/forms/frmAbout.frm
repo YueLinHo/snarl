@@ -1076,6 +1076,12 @@ Dim pm As CTempMsg
                 .Add new_BPrefsControl("key_picker", "", , , CStr(MOD_WIN) & "," & g_ConfigGet("hotkey_prefs"), , False)
                 .Add new_BPrefsControl("label", "", "Press the key you want to use in the boxes above.  Note that the modifiers (the combination of SHIFT and CTRL keys) used are automatically set.")
 
+                ' /* legacy support */
+
+                .Add new_BPrefsControl("banner", "", "Legacy Support")
+                .Add new_BPrefsControl("fancytoggle2", "allow_right_clicks", "Allow notification right and middle clicks?", "", g_ConfigGet("allow_right_clicks"))
+                .Add new_BPrefsControl("label", "", "This only applies to notifications created using the V42 API; notifications created using a previous version of the API always receive these events.")
+
                 ' /* other */
 
                 .Add new_BPrefsControl("banner", "", "Other")
