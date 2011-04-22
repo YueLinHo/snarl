@@ -1,11 +1,12 @@
 Type=Exe
-Reference=*\G{00020430-0000-0000-C000-000000000046}#2.0#0#C:\WINDOWS\system32\STDOLE2.TLB#OLE Automation
+Reference=*\G{00020430-0000-0000-C000-000000000046}#2.0#0#C:\WINDOWS\system32\stdole2.tlb#OLE Automation
 Form=Form1.frm
 Module=mSnarl_i; ..\..\..\hdr\VB\mSnarl_i.bas
 IconForm="Form1"
 Startup="Form1"
 HelpFile=""
 Title="V37 Test"
+ExeName32="v37.exe"
 Command32=""
 Name="v37"
 HelpContextID="0"

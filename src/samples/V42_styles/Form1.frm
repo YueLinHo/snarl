@@ -2,7 +2,7 @@ VERSION 5.00
 Begin VB.Form Form1 
    BorderStyle     =   1  'Fixed Single
    Caption         =   "@"
-   ClientHeight    =   5295
+   ClientHeight    =   6015
    ClientLeft      =   45
    ClientTop       =   435
    ClientWidth     =   4530
@@ -18,15 +18,23 @@ Begin VB.Form Form1
    Icon            =   "Form1.frx":0000
    LinkTopic       =   "Form1"
    MaxButton       =   0   'False
-   ScaleHeight     =   5295
+   ScaleHeight     =   6015
    ScaleWidth      =   4530
    StartUpPosition =   3  'Windows Default
+   Begin VB.TextBox Text6 
+      Height          =   315
+      Left            =   60
+      TabIndex        =   16
+      Text            =   "mynotification"
+      Top             =   1920
+      Width           =   4395
+   End
    Begin VB.TextBox Text5 
       Height          =   315
       Left            =   60
       TabIndex        =   8
-      Text            =   "label-tagline=36°"
-      Top             =   4320
+      Text            =   "label-subtext=36°"
+      Top             =   4980
       Width           =   4395
    End
    Begin VB.CheckBox Check3 
@@ -34,7 +42,7 @@ Begin VB.Form Form1
       Height          =   255
       Left            =   60
       TabIndex        =   4
-      Top             =   2640
+      Top             =   3300
       Width           =   3915
    End
    Begin VB.TextBox Text4 
@@ -42,14 +50,14 @@ Begin VB.Form Form1
       Left            =   60
       TabIndex        =   5
       Text            =   "#789abc"
-      Top             =   2940
+      Top             =   3600
       Width           =   4395
    End
    Begin VB.TextBox Text3 
       Height          =   315
       Left            =   60
       TabIndex        =   7
-      Top             =   3660
+      Top             =   4320
       Width           =   4395
    End
    Begin VB.CheckBox Check2 
@@ -57,7 +65,7 @@ Begin VB.Form Form1
       Height          =   255
       Left            =   60
       TabIndex        =   6
-      Top             =   3360
+      Top             =   4020
       Value           =   1  'Checked
       Width           =   1215
    End
@@ -66,7 +74,7 @@ Begin VB.Form Form1
       Height          =   255
       Left            =   60
       TabIndex        =   2
-      Top             =   1680
+      Top             =   2340
       Value           =   1  'Checked
       Width           =   1215
    End
@@ -76,7 +84,7 @@ Begin VB.Form Form1
       Left            =   60
       Max             =   100
       TabIndex        =   3
-      Top             =   2220
+      Top             =   2880
       Value           =   23
       Width           =   4395
    End
@@ -85,7 +93,7 @@ Begin VB.Form Form1
       Height          =   495
       Left            =   1680
       TabIndex        =   10
-      Top             =   4740
+      Top             =   5400
       Visible         =   0   'False
       Width           =   1455
    End
@@ -112,15 +120,23 @@ Begin VB.Form Form1
       Height          =   495
       Left            =   60
       TabIndex        =   9
-      Top             =   4740
+      Top             =   5400
       Width           =   1455
+   End
+   Begin VB.Label Label6 
+      Caption         =   "UID"
+      Height          =   195
+      Left            =   60
+      TabIndex        =   17
+      Top             =   1680
+      Width           =   1155
    End
    Begin VB.Label Label5 
       Caption         =   "Extra Data"
       Height          =   195
       Left            =   60
       TabIndex        =   15
-      Top             =   4080
+      Top             =   4740
       Width           =   1155
    End
    Begin VB.Label Label4 
@@ -129,7 +145,7 @@ Begin VB.Form Form1
       Height          =   195
       Left            =   3720
       TabIndex        =   14
-      Top             =   1980
+      Top             =   2640
       Width           =   735
    End
    Begin VB.Label Label3 
@@ -137,7 +153,7 @@ Begin VB.Form Form1
       Height          =   195
       Left            =   60
       TabIndex        =   13
-      Top             =   1980
+      Top             =   2640
       Width           =   1155
    End
    Begin VB.Label Label2 
@@ -186,11 +202,17 @@ Dim sz As String
         szIcon = g_MakePath(App.Path) & g_SafeRightStr(szIcon, Len(szIcon) - 2)
 
     ' /* base request */
-    sz = "notify?token=" & mToken & "&title=" & Text1.Text & "&text=" & Text2.Text
+    sz = "notify?app-sig=" & App.ProductName & "&title=" & Text1.Text & "&text=" & Text2.Text
 
     ' /* add icon? */
-    If Check2.Value = vbChecked Then _
+    If Check2.Value = vbChecked Then
         sz = sz & "&icon=" & szIcon
+
+    Else
+        ' /* must specify a blank icon */
+        sz = sz & "&icon="
+
+    End If
 
     ' /* add value-percent? */
     If Check1.Value = vbChecked Then _
@@ -199,6 +221,10 @@ Dim sz As String
     ' /* colour */
     If Check3.Value = vbChecked Then _
         sz = sz & "&colour-background=" & Text4.Text
+
+    ' /* uid */
+    If Text6.Text <> "" Then _
+        sz = sz & "&uid=" & Text6.Text
 
     ' /* free-form */
     If Text5.Text <> "" Then _

@@ -2,7 +2,7 @@ VERSION 5.00
 Begin VB.Form Form1 
    BorderStyle     =   1  'Fixed Single
    Caption         =   "@"
-   ClientHeight    =   3975
+   ClientHeight    =   4365
    ClientLeft      =   45
    ClientTop       =   435
    ClientWidth     =   4530
@@ -19,15 +19,23 @@ Begin VB.Form Form1
    LinkTopic       =   "Form1"
    MaxButton       =   0   'False
    MinButton       =   0   'False
-   ScaleHeight     =   3975
+   ScaleHeight     =   4365
    ScaleWidth      =   4530
    StartUpPosition =   3  'Windows Default
+   Begin VB.CheckBox Check1 
+      Caption         =   "Sticky"
+      Height          =   255
+      Left            =   60
+      TabIndex        =   8
+      Top             =   1800
+      Width           =   975
+   End
    Begin VB.CommandButton Command1 
       Caption         =   "Update"
       Height          =   495
       Left            =   1680
       TabIndex        =   5
-      Top             =   3360
+      Top             =   3780
       Width           =   1455
    End
    Begin VB.TextBox Text2 
@@ -53,15 +61,15 @@ Begin VB.Form Form1
       Height          =   495
       Left            =   60
       TabIndex        =   0
-      Top             =   3360
+      Top             =   3780
       Width           =   1455
    End
    Begin VB.Label Label4 
-      Caption         =   "All new applications should ideally utilise the new V41 API and only fall back to earlier versions of the API if necessary."
+      Caption         =   "All new applications should ideally utilise the new V42 API and only fall back to earlier versions of the API if necessary."
       Height          =   495
       Left            =   60
       TabIndex        =   7
-      Top             =   2760
+      Top             =   3180
       Width           =   4395
    End
    Begin VB.Label Label3 
@@ -69,7 +77,7 @@ Begin VB.Form Form1
       Height          =   855
       Left            =   60
       TabIndex        =   6
-      Top             =   1800
+      Top             =   2220
       Width           =   4395
    End
    Begin VB.Label Label2 
@@ -107,7 +115,7 @@ End Sub
 
 Private Sub Command4_Click()
 
-    mMsg = snShowMessageEx("Test Class", Text1.Text, Text2.Text, 0, App.Path & "\icon.png", Me.hWnd, 0)
+    mMsg = snShowMessageEx("Test Class", Text1.Text, Text2.Text, IIf(Check1.Value = vbChecked, 0, -1), App.Path & "\icon.png", Me.hWnd, 0)
 
 End Sub
 
