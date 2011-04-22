@@ -6,7 +6,7 @@ BEGIN
   DataSourceBehavior  = 0  'vbNone
   MTSTransactionMode  = 0  'NotAnMTSObject
 END
-Attribute VB_Name = "TDelayedNotification"
+Attribute VB_Name = "TNotification"
 Attribute VB_GlobalNameSpace = False
 Attribute VB_Creatable = True
 Attribute VB_PredeclaredId = False
@@ -15,9 +15,9 @@ Option Explicit
 
 '/*********************************************************************************************
 '/
-'/  File:           TDelayedNotification.cls
+'/  File:           TNotification.cls
 '/
-'/  Description:    Holding point for a notification whose icon is being downloaded
+'/  Description:    Represents a notification within the notification roster
 '/
 '/  © 2009 full phat products
 '/
@@ -64,21 +64,21 @@ Public Function Init(ByVal URL As String, ByRef Args As BPackedData) As Boolean
     err.Clear
     Set theIconRequest = New BWebRequest
     If err.Number <> 0 Then
-        g_Debug "TDelayedNotification.Init(): couldn't create BWebRequest", LEMON_LEVEL_CRITICAL
+        g_Debug "TNotification.Init(): couldn't create BWebRequest", LEMON_LEVEL_CRITICAL
         Exit Function
 
     End If
 
     mTempIcon = g_GetSafeTempIconPath() & "." & g_GetExtension(URL)
     If mTempIcon = "" Then
-        g_Debug "TDelayedNotification.Init(): couldn't create local temporary file", LEMON_LEVEL_CRITICAL
+        g_Debug "TNotification.Init(): couldn't create local temporary file", LEMON_LEVEL_CRITICAL
         Exit Function
 
     End If
 
     Set mArgs = Args
 
-    g_Debug "TDelayedNotification.Init(): saving as '" & mTempIcon & "'"
+    g_Debug "TNotification.Init(): saving as '" & mTempIcon & "'"
     Init = theIconRequest.GetFile(URL, mTempIcon)
 
 End Function
@@ -118,7 +118,7 @@ End Function
 Private Sub theIconRequest_Completed(ByVal WasSuccessful As Boolean)
 Dim sz As String
 
-    Debug.Print "TDelayedNotification.Completed(): " & WasSuccessful
+    Debug.Print "TNotification.Completed(): " & WasSuccessful
 
     If Not WasSuccessful Then
         ' /* didn't download for some reason so use the class default icon, if one exists */
@@ -283,57 +283,62 @@ End Function
 
 Private Sub uFixupContent()
 
-    ' /* translates current T_NOTIFICATION_INFO content into a BPackedString
-    '    and then stores that back into T_NOTIFICATION_INFO->OriginalContent
-    '    this is so V42 styles can access the entire request */
+    g_KludgeNotificationInfo mInfo
 
-    If (mInfo.ClassObj Is Nothing) Then
-        g_Debug "TDelayedNotification.uFixupContent(): missing ClassObj", LEMON_LEVEL_CRITICAL
-        Exit Sub
-
-    End If
-
-Dim ppd As BPackedData
-
-    Set ppd = New BPackedData
-
-    With mInfo
-        .Title = Replace$(.Title, "\n", vbCrLf)
-        .Text = Replace$(.Text, "\n", vbCrLf)
-
-        ppd.Add "id", .ClassObj.Name
-        ppd.Add "title", .Title
-        ppd.Add "text", .Text
-        ppd.Add "timeout", CStr(.Timeout)
-        ppd.Add "icon", .IconPath
-        ppd.Add "priority", CStr(.Priority)
-        ppd.Add "callback", .DefaultAck
-        ppd.Add "value", .Value
-
-'        If (Info.Flags And SNARL41_NOTIFICATION_ALLOWS_MERGE) Then _
-            .Add "merge", "1"
-
-    End With
-
-Dim ppx As BPackedData
-Dim szn As String
-Dim szv As String
-
-    ' /* add in all other custom content */
-
-    Set ppx = New BPackedData
-    With ppx
-        If .SetTo(Info.OriginalContent) Then
-            .Rewind
-            Do While .GetNextItem(szn, szv)
-                If Not ppd.Exists(LCase$(szn)) Then _
-                    ppd.Add szn, szv
-
-            Loop
-        End If
-    End With
-
-    mInfo.OriginalContent = ppd.AsString()
+'    ' /* translates current T_NOTIFICATION_INFO content into a BPackedString
+'    '    and then stores that back into T_NOTIFICATION_INFO->OriginalContent
+'    '    this is so V42 styles can access the entire request */
+'
+'    If (mInfo.ClassObj Is Nothing) Then
+'        g_Debug "TNotification.uFixupContent(): missing ClassObj", LEMON_LEVEL_CRITICAL
+'        Exit Sub
+'
+'    End If
+'
+'Dim ppd As BPackedData
+'
+'    Set ppd = New BPackedData
+'
+'    With mInfo
+'        .Title = Replace$(.Title, "\n", vbCrLf)
+'        .Text = Replace$(.Text, "\n", vbCrLf)
+'
+'        ppd.Add "id", .ClassObj.Name
+'        ppd.Add "title", .Title
+'        ppd.Add "text", .Text
+'        ppd.Add "timeout", CStr(.Timeout)
+'        ppd.Add "icon", .IconPath
+'        ppd.Add "priority", CStr(.Priority)
+'        ppd.Add "callback", .DefaultAck
+'        ppd.Add "value", .Value
+'
+''        If (Info.Flags And SNARL41_NOTIFICATION_ALLOWS_MERGE) Then _
+'            .Add "merge", "1"
+'
+'    End With
+'
+'Dim ppx As BPackedData
+'Dim szn As String
+'Dim szv As String
+'
+'    ' /* add in all other custom content */
+'
+''    If Info.OriginalContent <> "" Then _
+'        MsgBox Info.OriginalContent
+'
+'    Set ppx = New BPackedData
+'    With ppx
+'        If .SetTo(Info.OriginalContent) Then
+'            .Rewind
+'            Do While .GetNextItem(szn, szv)
+'                If Not ppd.Exists(LCase$(szn)) Then _
+'                    ppd.Add szn, szv
+'
+'            Loop
+'        End If
+'    End With
+'
+'    mInfo.OriginalContent = ppd.AsString()
 
 End Sub
 
@@ -498,17 +503,12 @@ Public Function UpdateOrMerge(ByRef Args As BPackedData, ByVal ShouldMerge As Bo
 
 
     Case NS_MISSED
-
-'            ' /* refresh the missed panel if it's open */
-'
-'            If Not (mMissedPanel Is Nothing) Then _
-'                mMissedPanel.UpdateList
-
+        ' /* refresh the missed panel if it's open */
+        g_NotificationRoster.UpdateMissedPanel
         UpdateOrMerge = True
 
 
     Case NS_WAITING
-
         UpdateOrMerge = True
 
     End Select
@@ -531,6 +531,7 @@ Dim sz As String
 
         End If
 
+        sz = ""
         If Args.Exists("text") Then
             If ShouldMerge Then _
                 sz = mInfo.Text & vbCrLf
@@ -571,6 +572,9 @@ Dim sz As String
         ' /* still TBC: Priority, Actions, Value */
 
         .LastUpdated = Now()
+
+
+        .OriginalContent = Args.AsString()
 
     End With
 
