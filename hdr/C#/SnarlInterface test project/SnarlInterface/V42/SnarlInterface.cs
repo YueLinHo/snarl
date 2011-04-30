@@ -39,6 +39,7 @@ namespace Snarl.V42
 	/// </summary>
 	/// 
 	/// <VersionHistory>
+	/// 2011-04-30 : Added GetErrorText().
 	/// 2011-04-22 : Implementing events and RegisterWithEvents() + Various small fixes.
 	/// 2011-03-13 : Implemented Update()
 	///            : Initial event implementation. Needs cleanup.
@@ -55,7 +56,7 @@ namespace Snarl.V42
 
 	public class SnarlInterface
 	{
-	#region Public constants and enums
+		#region Public constants and enums
 
 		/// <summary>
 		/// Global event identifiers.
@@ -157,9 +158,9 @@ namespace Snarl.V42
 
 		public const uint WM_SNARLTEST = (uint)WindowsMessage.WM_USER + 237;
 
-	#endregion
+		#endregion
 
-	#region Public events
+		#region Public events
 
 		public delegate void CallbackEventHandler(SnarlInterface sender, CallbackEventArgs args);
 		public delegate void GlobalEventHandler(SnarlInterface sender, GlobalEventArgs args);
@@ -182,7 +183,7 @@ namespace Snarl.V42
 			public SnarlStatus SnarlEvent { get; set; }
 
 			/// <summary>
-			/// The @data member if an action callback. Menu index if popup menu.
+			/// The data member if an action callback. Menu index if popup menu.
 			/// </summary>
 			public UInt16 Parameter { get; set; }
 
@@ -194,9 +195,9 @@ namespace Snarl.V42
 			}
 		}
 
-	#endregion
+		#endregion
 
-	#region Internal constants and enums
+		#region Internal constants and enums
 
 		protected const string SnarlWindowClass = "w>Snarl";
 		protected const string SnarlWindowTitle = "Snarl";
@@ -207,40 +208,40 @@ namespace Snarl.V42
 		// protected const Int32 WM_DEFAULT_APPMSG = (Int32)WindowsMessage.WM_APP + 0x2fff; // AFFF
 		protected const Int32 WM_DEFAULT_APPMSG = (Int32)WindowsMessage.WM_USER + 0x1fff;  // 23FF
 
-	#endregion
+		#endregion
 
-	#region Member variables
+		#region Member variables
 
-		private Int32   appToken	  = 0;
-		private Int32   lastMsgToken  = 0;
-		private String  appSignature  = "";
-		private String  password	  = null;
-		
+		private Int32 appToken = 0;
+		private Int32 lastMsgToken = 0;
+		private String appSignature = "";
+		private String password = null;
+
 		// Used for RegisterWithEvents functionality
 		private Object instanceLock = new Object();
 		private SnarlCallbackNativeWindow callbackWindow = null;
 		private Int32 msgReply = 0; // message number Snarl will send to registered window.
 
-	#endregion
+		#endregion
 
-	#region Static Snarl functions
+		#region Static Snarl functions
 
 		public struct Requests
 		{
-			public static String AddAction      { get { return "addaction"; } }
-			public static String AddClass       { get { return "addclass"; } }
-			public static String ClearActions   { get { return "clearactions"; } }
-			public static String ClearClasses   { get { return "clearclasses"; } }
-			public static String Hello          { get { return "hello"; } }
-			public static String Hide           { get { return "hide"; } }
-			public static String IsVisible      { get { return "isvisible"; } }
-			public static String Notify         { get { return "notify"; } }
-			public static String Register       { get { return "register"; } }
-			public static String RemoveClass    { get { return "remclass"; } }
-			public static String Unregister     { get { return "unregister"; } }
-			public static String UpdateApp      { get { return "updateapp"; } }
-			public static String Update         { get { return "update"; } }
-			public static String Version        { get { return "version"; } }
+			public static String AddAction { get { return "addaction"; } }
+			public static String AddClass { get { return "addclass"; } }
+			public static String ClearActions { get { return "clearactions"; } }
+			public static String ClearClasses { get { return "clearclasses"; } }
+			public static String Hello { get { return "hello"; } }
+			public static String Hide { get { return "hide"; } }
+			public static String IsVisible { get { return "isvisible"; } }
+			public static String Notify { get { return "notify"; } }
+			public static String Register { get { return "register"; } }
+			public static String RemoveClass { get { return "remclass"; } }
+			public static String Unregister { get { return "unregister"; } }
+			public static String UpdateApp { get { return "updateapp"; } }
+			public static String Update { get { return "update"; } }
+			public static String Version { get { return "version"; } }
 		}
 
 		// ------------------------------------------------------------------------------------
@@ -355,6 +356,16 @@ namespace Snarl.V42
 		}
 
 		/// <summary>
+		/// Convenience function for converting a Snarl function result to a string with the error.
+		/// </summary>
+		/// <param name="callResult"></param>
+		/// <returns></returns>
+		static public String GetErrorText(int callResult)
+		{
+			return ((SnarlInterface.SnarlStatus)(Math.Abs(callResult))).ToString();
+		}
+
+		/// <summary>
 		/// Returns the version of Snarl running.
 		/// </summary>
 		/// <returns></returns>
@@ -429,9 +440,9 @@ namespace Snarl.V42
 			return Path.Combine(GetAppPath(), "etc\\icons\\");
 		}
 
-	#endregion
+		#endregion
 
-	#region SnarlInterface member functions
+		#region SnarlInterface member functions
 
 		/// <summary>
 		/// AddAction
@@ -631,7 +642,7 @@ namespace Snarl.V42
 			spl.Add("id", classID);
 			spl.Add("password", password);
 			// spl.Add("all", password); // Use ClearClasses
-			
+
 			return DoRequest(Requests.RemoveClass, spl);
 		}
 
@@ -739,7 +750,7 @@ namespace Snarl.V42
 			return DoRequest(Requests.Unregister, spl);
 		}
 
-		
+
 		public Int32 Update(Int32 msgToken, String classId, String title, String text, Int32? timeout, String iconPath, String iconBase64, MessagePriority? priority, String ack, String callback, String value)
 		{
 			// Made from best guess - no documentation available yet
@@ -759,7 +770,7 @@ namespace Snarl.V42
 			spl.Add("timeout", timeout);
 			spl.Add("priority", (Int32?)priority);
 
-			return DoRequest(Requests.Update, spl);			
+			return DoRequest(Requests.Update, spl);
 		}
 
 		public Int32 Update(Int32 msgToken, String classId, String title, String text, Int32? timeout, String iconPath, String iconBase64, MessagePriority? priority)
@@ -788,7 +799,7 @@ namespace Snarl.V42
 
 		#endregion
 
-	#region Private functions
+		#region Private functions
 
 		/// <summary>
 		/// Internal helper function for constructing the Snarl messages
@@ -967,7 +978,7 @@ namespace Snarl.V42
 
 		#endregion
 
-	#region Interop imports and structures
+		#region Interop imports and structures
 
 		[DllImport("user32.dll", SetLastError = false)]
 		internal static extern IntPtr FindWindow(string lpClassName, string lpWindowName);
@@ -1006,15 +1017,15 @@ namespace Snarl.V42
 		internal struct COPYDATASTRUCT
 		{
 			public IntPtr dwData;   // DWORD
-			public Int32  cbData;   // DWORD
+			public Int32 cbData;   // DWORD
 			public IntPtr lpData;   // PVOID
 		}
 
 		private const int ERROR_TIMEOUT = 1460;
 
-	#endregion
+		#endregion
 
-	#region WindowsMessage enum
+		#region WindowsMessage enum
 
 		public enum WindowsMessage : uint
 		{
@@ -1228,6 +1239,6 @@ namespace Snarl.V42
 			WM_XBUTTONUP = 0x20C
 		}
 
-	#endregion
+		#endregion
 	}
 }
