@@ -36,7 +36,9 @@ Attribute VB_Creatable = False
 Attribute VB_PredeclaredId = True
 Attribute VB_Exposed = False
 Option Explicit
+Option Compare Text
 
+Private Declare Function GetCurrentProcessId Lib "kernel32" () As Long
 Private Declare Function LoadImage Lib "user32" Alias "LoadImageA" (ByVal hInst As Long, ByVal lpsz As Any, ByVal un1 As Long, ByVal n1 As Long, ByVal n2 As Long, ByVal un2 As Long) As Long
 Private Const IMAGE_ICON = 1
 
@@ -47,8 +49,9 @@ Dim mToken As Long
 
 Dim WithEvents theTimer As BTimer
 Attribute theTimer.VB_VarHelpID = -1
-
-'Dim WithEvents theAddWatchPanel As TAddWatchPanel
+Dim WithEvents theAddPanel As TAddPanel
+Attribute theAddPanel.VB_VarHelpID = -1
+Dim mRules As BTagList
 
 Dim WithEvents Snarl As Snarl
 Attribute Snarl.VB_VarHelpID = -1
@@ -74,7 +77,7 @@ Dim pmi As OMMenuItem
         Case WM_RBUTTONUP
             With New OMMenu
                 .AddItem .CreateItem("about", "About...")
-'                .AddItem .CreateItem("prefs", "Preferences...")
+                .AddItem .CreateItem("prefs", "Preferences...")
                 .AddSeparator
                 .AddItem .CreateItem("quit", "Quit")
 
@@ -152,26 +155,53 @@ Dim pmi As OMMenuItem
 
 End Function
 
+Private Sub theAddPanel_Done(NewItem As TRule)
+
+    Debug.Print "add: " & NewItem.Guid & " " & NewItem.Class & " " & NewItem.Title
+
+    ' /* add it to our list */
+
+    mRules.Add NewItem
+
+    ' /* add it to Snarl */
+
+    If mToken <> 0 Then _
+        snDoRequest "addclass?token=" & CStr(mToken) & "&id=" & NewItem.Guid & "&name=Title: " & NewItem.Title & " Class: " & NewItem.Class
+
+    ' /* refresh config window */
+
+    uUpdateList
+
+    ' /* write out the updated config */
+
+    uWriteConfig
+
+End Sub
+
 Private Sub theTimer_Pulse()
 Dim i As Long
-Dim c As Long
-
-    c = g_AppWindows_Refresh()
 
     ' /* check gone windows */
 
     With mWindows
         If .CountItems Then
             For i = .CountItems To 1 Step -1
-                If IsWindow(Val(.TagAt(i).Name)) = 0 Then
+                If Not g_IsAppWindow(Val(.TagAt(i).Name), True) Then
+
+                    ' /* remove the notification if it's still around */
+
                     If mToken <> 0 Then _
-                        snDoRequest "notify?app-sig=" & App.ProductName & _
-                                    "&class=" & WINDOW_DISAPPEARED & _
-                                    "&uid=" & .TagAt(i).Name & _
-                                    "&replace-uid=" & .TagAt(i).Name & _
-                                    "&title=Window disappeared" & _
-                                    "&text=" & .TagAt(i).Value & _
-                                    "&icon=" & g_MakePath(App.Path) & "gone.png"
+                        snDoRequest "hide?app-sig=" & App.ProductName & _
+                                    "&uid=" & .TagAt(i).Name
+
+'                    If mToken <> 0 Then _
+'                        snDoRequest "notify?app-sig=" & App.ProductName & _
+'                                    "&class=" & WINDOW_DISAPPEARED & _
+'                                    "&uid=" & .TagAt(i).Name & _
+'                                    "&replace-uid=" & .TagAt(i).Name & _
+'                                    "&title=Window disappeared" & _
+'                                    "&text=" & .TagAt(i).Value & _
+'                                    "&icon=" & g_MakePath(App.Path) & "gone.png"
 
                     .Remove i
 
@@ -185,35 +215,64 @@ Dim c As Long
 
     ' /* check new windows */
 
-Dim sz As String
+Dim lPid As Long
 Dim h As Long
+Dim c As Long
+
+    c = g_AppWindows_Refresh(True)
 
     If c Then
         For i = 1 To c
             h = g_AppWindows_WindowAt(i)
+            GetWindowThreadProcessId h, lPid
 
-            If Not mWindows.Find(CStr(h), Nothing) Then
+            If (lPid <> GetCurrentProcessId()) And (Not mWindows.Find(CStr(h), Nothing)) Then
+                ' /* if we don't already have it, and it wasn't created by us, add it */
+                mWindows.Add new_BTagItem(CStr(h), "")
 
-                sz = g_WindowText(h)
-                If sz = "" Then _
-                    sz = "<null>"
-
-                sz = sz & "\n" & g_ClassName(h)
-                mWindows.Add new_BTagItem(CStr(h), sz)
-
-                If mToken <> 0 Then _
-                    snDoRequest "notify?app-sig=" & App.ProductName & _
-                                "&class=" & WINDOW_APPEARED & _
-                                "&uid=" & CStr(h) & _
-                                "&replace-uid=" & CStr(h) & _
-                                "&title=Window appeared" & _
-                                "&text=" & sz & _
-                                "&icon=%" & CStr(g_WindowIcon(h, False, False))
-
+                ' /* does it match any rules? */
+                If mToken Then _
+                    uCompare g_WindowText(h), g_ClassName(h), h
 
             End If
         Next i
     End If
+
+End Sub
+
+Private Sub uCompare(ByVal Title As String, ByVal Class As String, ByVal hWnd As Long)
+Dim pr As TRule
+
+    With mRules
+        .Rewind
+        Do While .GetNextTag(pr) = B_OK
+            Debug.Print pr.Class & " / " & Class & " / " & (pr.Class Like Class)
+            If (Title Like pr.Title) And (Class Like pr.Class) Then _
+                uNotify pr, Title, Class, hWnd
+
+        Loop
+
+    End With
+
+End Sub
+
+Private Sub uNotify(ByRef Rule As TRule, ByVal Title As String, ByVal Class As String, ByVal hWnd As Long)
+Dim lIcon As Long
+Dim sz As String
+
+    If Title = "" Then _
+        Title = "<null>"
+
+    Title = Title & "\n" & Class
+    lIcon = g_WindowIcon(hWnd, False, False)
+
+    snDoRequest "notify?app-sig=" & App.ProductName & _
+                "&class=" & Rule.Guid & _
+                "&uid=" & CStr(hWnd) & _
+                "&replace-uid=" & CStr(hWnd) & _
+                "&title=Window appeared" & _
+                "&text=" & Title & _
+                "&icon=" & IIf(lIcon = 0, g_MakePath(App.Path) & "new.png", "%" & CStr(lIcon))
 
 End Sub
 
@@ -240,6 +299,7 @@ Dim sz As String
 
     Set mWindows = new_BTagList()
     Set Snarl = get_snarl()
+    Set mRules = new_BTagList()
 
     window_subclass Me.hWnd, Me
 
@@ -258,6 +318,41 @@ Dim sz As String
 
     Me.Hide
 
+
+    ' /* load config */
+
+Dim pcf As CConfFile3
+Dim pcs As CConfSection
+Dim pr As TRule
+
+    Set pcf = New CConfFile3
+    With pcf
+        .SetFile g_MakePath(App.Path) & "windowsnoop.conf"
+        .Load
+
+        Do While .GetNextSection(pcs)
+            If pcs.Name = "rule" Then
+                Set pr = New TRule
+                If pr.SetTo(pcs.GetValueWithDefault("guid"), pcs.GetValueWithDefault("title"), pcs.GetValueWithDefault("class")) Then _
+                    mRules.Add pr
+
+            End If
+
+        Loop
+
+    End With
+
+    ' /* if there are no rules, create a default all-inclusive one */
+
+    If mRules.CountItems = 0 Then
+        Set pr = New TRule
+        pr.SetTo "", "*", "*"
+        mRules.Add pr
+        uWriteConfig
+
+    End If
+
+
     ' /* register with Snarl, if it's around */
 
     If is_snarl_running() Then _
@@ -270,7 +365,7 @@ Dim h As Long
 
     ' /* current windows */
 
-    c = g_AppWindows_Refresh()
+    c = g_AppWindows_Refresh(True)
     If c Then
         For i = 1 To c
             h = g_AppWindows_WindowAt(i)
@@ -284,30 +379,6 @@ Dim h As Long
         Next i
 
     End If
-
-
-
-    ' /* load config */
-
-'Dim pcf As CConfFile3
-'Dim pcs As CConfSection
-'Dim pfw As TFolderWatch
-'
-'    Set pcf = New CConfFile3
-'    With pcf
-'        .SetFile g_MakePath(App.Path) & "appsnoop.conf"
-'        .Load
-'        Do While .GetNextSection(pcs)
-'            If pcs.Name = "watch" Then
-'                Set pfw = New TFolderWatch
-'                If pfw.SetTo(pcs.GetValueWithDefault("path"), Val(pcs.GetValueWithDefault("flags")), pcs.GetValueWithDefault("guid"), pcs.GetValueWithDefault("recurse") = "1") Then _
-'                    mFolders.Add pfw
-'
-'            End If
-'
-'        Loop
-'
-'    End With
 
     ' /* start snooping */
 
@@ -357,6 +428,7 @@ Public Sub Add(ByVal Text As String)
 End Sub
 
 Private Sub uRegister()
+Dim pr As TRule
 Dim hr As Long
 
     mToken = 0
@@ -365,8 +437,17 @@ Dim hr As Long
     If hr > 0 Then
         Add "snarl token: " & CStr(hr)
 
-        snDoRequest "addclass?token=" & CStr(hr) & "&id=" & WINDOW_APPEARED & "&name=Window appeared"
-        snDoRequest "addclass?token=" & CStr(hr) & "&id=" & WINDOW_DISAPPEARED & "&name=Window disappeared"
+        With mRules
+            .Rewind
+            Do While .GetNextTag(pr) = B_OK
+                snDoRequest "addclass?token=" & CStr(hr) & "&id=" & pr.Guid & "&name=Title: " & pr.Title & " Class: " & pr.Class
+
+            Loop
+
+        End With
+
+'        snDoRequest "addclass?token=" & CStr(hr) & "&id=" & WINDOW_APPEARED & "&name=Window appeared"
+'        snDoRequest "addclass?token=" & CStr(hr) & "&id=" & WINDOW_DISAPPEARED & "&name=Window disappeared"
         mToken = hr
 
     Else
@@ -392,12 +473,12 @@ Dim pm As CTempMsg
 
             With pPage
                 .SetMargin 32
-                .Add new_BPrefsControl("banner", "", "Folder Watch List")
+                .Add new_BPrefsControl("banner", "", "Rules")
 
                 Set pm = New CTempMsg
                 pm.Add "item-height", 38
 '                pm.Add "checkboxes", 1&
-                Set pCtl = new_BPrefsControl("listbox", "watch_list", , , "1", pm)
+                Set pCtl = new_BPrefsControl("listbox", "rules", , , "1", pm)
                 pCtl.SizeTo 0, 160
                 .Add pCtl
 
@@ -451,43 +532,37 @@ Private Sub KPrefsPage_Attached()
 End Sub
 
 Private Sub KPrefsPage_ControlChanged(Control As prefs_kit_d2.BControl, ByVal Value As String)
-'Dim pfw As TFolderWatch
-'Dim i As Long
-'
-'    Select Case Control.GetName
-'
-'    Case "add_remove"
-'        If Value = "+" Then
-''            If g_IsPressed(VK_CONTROL) Then
-''                theAddFeedPanel_AddFeed Clipboard.GetText()
-''
-''            Else
-'                Set theAddWatchPanel = New TAddWatchPanel
-'                theAddWatchPanel.Go mPanel.hWnd
-'
-''            End If
-'
-'        ElseIf (Value = "-") Then
-'            i = Val(prefskit_GetValue(mPanel, "watch_list"))
-'            Set pfw = mFolders.TagAt(i)
-'            If (pfw Is Nothing) Then _
-'                Exit Sub
-'
-'            mFolders.Remove i
-'            uWriteConfig
-'            uUpdateList
-'
-'            snDoRequest "remclass?app-sig=" & App.ProductName & "&id=" & pfw.Guid
-'
-'            prefskit_SetValue mPanel, "watch_list", CStr(i)
-'
-'        End If
-'
-''    Case "UseDefaultCallback"
-''        gConfig.UseDefaultCallback = (Value = "1")
-''        uUpdateConfig
-'
-'    End Select
+Dim pr As TRule
+Dim i As Long
+
+    Select Case Control.GetName
+
+    Case "add_remove"
+        If Value = "+" Then
+            Set theAddPanel = New TAddPanel
+            theAddPanel.Go mPanel.hWnd
+
+        ElseIf (Value = "-") Then
+            i = Val(prefskit_GetValue(mPanel, "rules"))
+            Set pr = mRules.TagAt(i)
+            If (pr Is Nothing) Then _
+                Exit Sub
+
+            mRules.Remove i
+            uWriteConfig
+            uUpdateList
+
+            snDoRequest "remclass?app-sig=" & App.ProductName & "&id=" & pr.Guid
+
+            prefskit_SetValue mPanel, "rules", CStr(i)
+
+        End If
+
+'    Case "UseDefaultCallback"
+'        gConfig.UseDefaultCallback = (Value = "1")
+'        uUpdateConfig
+
+    End Select
 
 End Sub
 
@@ -532,41 +607,64 @@ End Sub
 
 Private Sub KPrefsPanel_Ready()
 
-'    uUpdateList
+    uUpdateList
 
 End Sub
 
 Private Sub KPrefsPanel_Selected(ByVal Command As String)
 End Sub
 
-'Private Sub uWriteConfig()
-'Dim pfw As TFolderWatch
-'Dim pcf As CConfFile3
-'Dim pcs As CConfSection
+Private Sub uWriteConfig()
+Dim pcs As CConfSection
+Dim pcf As CConfFile3
+Dim pr As TRule
 
-'    Set pcf = New CConfFile3
-'    pcf.SetFile g_MakePath(App.Path) & "appsnoop.conf"
-'
-'    With mFolders
-'        .Rewind
-'        Do While .GetNextTag(pfw) = B_OK
-'            Set pcs = New CConfSection
-'            With pcs
-'                .SetName "watch"
-'                .Add "guid", pfw.Guid
-'
-'            End With
-'
-'            pcf.Add pcs
-'
-'        Loop
-'
-'    End With
-'
-'    pcf.Save
-'
-'End Sub
+    Set pcf = New CConfFile3
+    pcf.SetFile g_MakePath(App.Path) & "windowsnoop.conf"
 
+    With mRules
+        .Rewind
+        Do While .GetNextTag(pr) = B_OK
+            Set pcs = New CConfSection
+            With pcs
+                .SetName "rule"
+                .Add "guid", pr.Guid
+                .Add "title", pr.Title
+                .Add "class", pr.Class
+
+            End With
+
+            pcf.Add pcs
+
+        Loop
+
+    End With
+
+    pcf.Save
+
+End Sub
+
+Private Sub uUpdateList()
+
+    If (mPanel Is Nothing) Then _
+        Exit Sub
+
+Dim pr As TRule
+Dim sz As String
+
+    With mRules
+        .Rewind
+        Do While .GetNextTag(pr) = B_OK
+            sz = sz & "Title: " & pr.Title & "#?0#?" & "Class: " & pr.Class & "|"
+
+        Loop
+
+    End With
+
+    sz = g_SafeLeftStr(sz, Len(sz) - 1)
+    prefskit_SafeSetText mPanel, "rules", sz
+
+End Sub
 
 
 
