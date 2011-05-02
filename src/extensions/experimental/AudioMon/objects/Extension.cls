@@ -50,8 +50,8 @@ Option Explicit
     '
     ' */
 
-Private Const LIB_DATE = "13-Feb-2011"
-Private Const LIB_REL = "2.0"
+Private Const LIB_DATE = "1-May-2011"
+Private Const LIB_REL = "2.03"
 
 Private Const CLASS_AUDIO_CHANGE = "audx"
 Private Const CUSTOM_DURATION = 2
@@ -64,8 +64,9 @@ Dim mSettings As ConfigSection
 
 Dim mPanel As BPrefsPanel           ' // our prefs panel
 
-Dim WithEvents InputMixer As BAudioMixer
-Attribute InputMixer.VB_VarHelpID = -1
+'Dim WithEvents InputMixer As BAudioMixer
+
+Dim mMixer As Long
 
 Dim mVol As Long
 Dim mCurrentId As Long
@@ -78,39 +79,39 @@ Implements KPrefsPage               ' // we're also a page handler
 Implements ISnarlExtension
 Implements MWndProcSink
 
-Private Sub InputMixer_ControlChanged(Control As audio_resource.BMixerLineControl, ByVal Value As Long)
-
-    If mAppToken = 0 Then
-        g_Debug "InputMixer.ControlChanged(): not registered with Snarl", LEMON_LEVEL_CRITICAL
-        Exit Sub
-
-    End If
-
-    Select Case LCase$(Control.Name)
-    Case "master volume"
-
-        If Control.Maximum < 1 Then
-            g_Debug "Extension.ControlChanged(): bad maximum setting '" & Control.Maximum & "' for '" & Control.Name & "'", LEMON_LEVEL_CRITICAL
-            Exit Sub
-
-        End If
-
-        uVolChanged Fix((Value / Control.Maximum) * 100)
-
-
-
-
-'            uVolChanged Control, Value ', g_SafeLong(mSettings.GetValueWithDefault("vol_detail", "2"))
-
-    Case "master mute"
-        uMuteChanged Value ', g_SafeLong(mSettings.GetValueWithDefault("mute_detail", "2"))
-
-    Case Else
-        g_Debug "InputMixer.ControlChanged(): unrecognised control '" & Control.Name & "'", LEMON_LEVEL_WARNING
-
-    End Select
-
-End Sub
+'Private Sub InputMixer_ControlChanged(Control As audio_resource.BMixerLineControl, ByVal Value As Long)
+'
+'    If mAppToken = 0 Then
+'        g_Debug "InputMixer.ControlChanged(): not registered with Snarl", LEMON_LEVEL_CRITICAL
+'        Exit Sub
+'
+'    End If
+'
+'    Select Case LCase$(Control.Name)
+'    Case "master volume"
+'
+'        If Control.Maximum < 1 Then
+'            g_Debug "Extension.ControlChanged(): bad maximum setting '" & Control.Maximum & "' for '" & Control.Name & "'", LEMON_LEVEL_CRITICAL
+'            Exit Sub
+'
+'        End If
+'
+'        uVolChanged Fix((Value / Control.Maximum) * 100)
+'
+'
+'
+'
+''            uVolChanged Control, Value ', g_SafeLong(mSettings.GetValueWithDefault("vol_detail", "2"))
+'
+'    Case "master mute"
+'        uMuteChanged Value ', g_SafeLong(mSettings.GetValueWithDefault("mute_detail", "2"))
+'
+'    Case Else
+'        g_Debug "InputMixer.ControlChanged(): unrecognised control '" & Control.Name & "'", LEMON_LEVEL_WARNING
+'
+'    End Select
+'
+'End Sub
 
 Private Function ISnarlExtension_GetConfigWindow() As Long
 Dim pPage As BPrefsPage
@@ -131,7 +132,9 @@ Dim pPage As BPrefsPage
 
                 .Add new_BPrefsControl("banner", "", "General")
 '                .Add new_BPrefsControl("fancytoggle2", "MultiNotificationMode", "Use separate mute and volume change classes?", , mSettings.GetValueWithDefault("MultiNotificationMode", "1"))
-                .Add new_BPrefsControl("fancytoggle2", "MeterStyleMode", "Show volume as a meter?", , mSettings.GetValueWithDefault("MeterStyleMode", "0"))
+                .Add new_BPrefsControl("fancytoggle2", "MeterStyleMode", "Display current volume level as a meter?", , mSettings.GetValueWithDefault("MeterStyleMode", "0"))
+                .Add new_BPrefsControl("fancytoggle2", "LegacyMeterSupport", "Enable legacy style support?", , mSettings.GetValueWithDefault("LegacyMeterSupport", "0"))
+                .Add new_BPrefsControl("label", "", "Enabling legacy style support sends the current volume level in the notification's text.")
 
 
                 .Add new_BPrefsControl("banner", "", "Volume Mute/Unmute")
@@ -177,13 +180,13 @@ Private Sub ISnarlExtension_GetInfo(Info As libSnarlExtn.extension_info)
         .Date = LIB_DATE
         .Description = "Notifies when the master volume changes state"
 
-        If g_IsWinVistaOrBetter() Then
-            .Flags = 0
-
-        Else
+'        If g_IsWinVistaOrBetter() Then
+'            .Flags = 0
+'
+'        Else
             .Flags = SNARL_EXTN_IS_CONFIGURABLE
-
-        End If
+'
+'        End If
 
         .IconPath = g_MakePath(App.Path) & "icon.png"
         .Name = App.Title
@@ -213,40 +216,40 @@ Private Function ISnarlExtension_Initialize() As Long
     Else
         g_Debug "XP or earlier"
 
-        ' /* have we got the right version of audio.resource? */
-
-        g_Debug "checking audio.resource..."
-        If Not uAudioResourceOk() Then
-            g_Debug "need audio.resource V48 or later", LEMON_LEVEL_CRITICAL Or LEMON_LEVEL_PROC_EXIT
-            mLastErr = "Needs audio.resource V48 or later"
-            ISnarlExtension_Initialize = 202
-            Exit Function
-
-        End If
-
-        g_Debug "ok"
-
-        ' /* have we got a mixer? */
-
-        g_Debug "checking mixers..."
-        If audio_resource.count_devices < 1 Then
-            g_Debug "no mixers", LEMON_LEVEL_CRITICAL Or LEMON_LEVEL_PROC_EXIT
-            mLastErr = "No audio devices detected"
-            ISnarlExtension_Initialize = 203
-            Exit Function
-
-        End If
-
-        g_Debug "ok: " & CStr(audio_resource.count_devices) & " mixer(s) found"
-
-Dim i As Long
-
-        For i = 1 To audio_resource.count_devices
-            With audio_resource.device_at(i)
-                g_Debug .Name & ": line_count=" & .CountLines & " mfr=" & .ManufacturerId & " prd=" & .ProductId
-
-            End With
-        Next i
+'        ' /* have we got the right version of audio.resource? */
+'
+'        g_Debug "checking audio.resource..."
+'        If Not uAudioResourceOk() Then
+'            g_Debug "need audio.resource V48 or later", LEMON_LEVEL_CRITICAL Or LEMON_LEVEL_PROC_EXIT
+'            mLastErr = "Needs audio.resource V48 or later"
+'            ISnarlExtension_Initialize = 202
+'            Exit Function
+'
+'        End If
+'
+'        g_Debug "ok"
+'
+'        ' /* have we got a mixer? */
+'
+'        g_Debug "checking mixers..."
+'        If audio_resource.count_devices < 1 Then
+'            g_Debug "no mixers", LEMON_LEVEL_CRITICAL Or LEMON_LEVEL_PROC_EXIT
+'            mLastErr = "No audio devices detected"
+'            ISnarlExtension_Initialize = 203
+'            Exit Function
+'
+'        End If
+'
+'        g_Debug "ok: " & CStr(audio_resource.count_devices) & " mixer(s) found"
+'
+'Dim i As Long
+'
+'        For i = 1 To audio_resource.count_devices
+'            With audio_resource.device_at(i)
+'                g_Debug .Name & ": line_count=" & .CountLines & " mfr=" & .ManufacturerId & " prd=" & .ProductId
+'
+'            End With
+'        Next i
 
     End If
 
@@ -269,21 +272,33 @@ Private Sub ISnarlExtension_Pulse()
 End Sub
 
 Private Sub ISnarlExtension_Start()
+Dim s As Single
 
     g_Debug "ISnarlExtension.Start()", LEMON_LEVEL_PROC_ENTER
 
-    If g_IsWinVistaOrBetter Then
-        ' /* create handler window */
-        EZRegisterClass CLASS_NAME
-        mhWnd = EZAddWindow(CLASS_NAME, Me, CLASS_NAME)
+    ' /* create handler window */
 
+    EZRegisterClass CLASS_NAME
+    mhWnd = EZAddWindow(CLASS_NAME, Me, CLASS_NAME)
+    g_Debug "messageport=" & g_HexStr(mhWnd)
+
+    If g_IsWinVistaOrBetter Then
+        g_Debug "Vista, Windows7 or better..."
         ' /* launch volume spy daemon */
         ShellExecute mhWnd, "open", g_MakePath(App.Path) & "snarl-audiomon.exe", vbNullString, vbNullString, 5
 
     Else
-        ' /* use audio.resource */
-        Set InputMixer = device_at(1)
-        mVol = current_master_volume_percent()
+        ' /* use win32mm */
+        g_Debug "XP or earlier..."
+        If mixerOpen(mMixer, 0, mhWnd, 0, CALLBACK_WINDOW) = MMSYSERR_NOERROR Then
+            mm_CurrentMasterVolumePercent mMixer, s
+            g_Debug "Mixer #0 opened okay, current master volume % is " & CStr(s)
+            mVol = CLng(s)
+
+        Else
+            g_Debug "Failed to open mixer #0", LEMON_LEVEL_CRITICAL
+
+        End If
 
     End If
 
@@ -326,6 +341,7 @@ Dim i As Long
     mAppToken = sn41RegisterApp(App.ProductName, App.Title, g_MakePath(App.Path) & "icon.png")
 
     If mAppToken Then
+        g_Debug "registered successfully"
         sn41AddClass mAppToken, CLASS_AUDIO_CHANGE, "Master volume"
 
     Else
@@ -345,15 +361,20 @@ Private Sub ISnarlExtension_Stop()
 
     sn41UnregisterApp mAppToken
 
-    If g_IsWinVistaOrBetter Then
-        ' /* zap window */
-        EZRemoveWindow mhWnd
-        EZUnregisterClass CLASS_NAME
-
-        ' /* kill volume spy daemon */
+    If g_IsWinVistaOrBetter() Then
+        g_Debug "Vista, Windows7 or better..."
+        ' /* kill audio monitoring daemon */
         ShellExecute mhWnd, "open", g_MakePath(App.Path) & "snarl-audiomon.exe", "-quit", vbNullString, 5
 
+    Else
+        g_Debug "XP or earlier..."
+        mixerClose mMixer
+
     End If
+
+    ' /* zap window */
+    EZRemoveWindow mhWnd
+    EZUnregisterClass CLASS_NAME
 
     g_Debug "", LEMON_LEVEL_PROC_EXIT
 
@@ -366,7 +387,7 @@ Private Sub ISnarlExtension_TidyUp()
     If Not (mPanel Is Nothing) Then _
         mPanel.Quit
 
-    Set InputMixer = Nothing
+'    Set InputMixer = Nothing
 
     g_Debug "", LEMON_LEVEL_PROC_EXIT
 
@@ -466,17 +487,17 @@ Dim sz As String
 
 End Function
 
-Private Function uAudioResourceOk() As Boolean
-
-    On Error Resume Next
-
-Dim c As Long
-
-    Err.Clear
-    c = audio_resource.count_devices()
-    uAudioResourceOk = (Err.Number = 0)
-
-End Function
+'Private Function uAudioResourceOk() As Boolean
+'
+'    On Error Resume Next
+'
+'Dim c As Long
+'
+'    Err.Clear
+'    c = audio_resource.count_devices()
+'    uAudioResourceOk = (Err.Number = 0)
+'
+'End Function
 
 'Private Sub VistaMixer_MuteChanged(ByVal Muted As Boolean)
 '
@@ -537,6 +558,8 @@ End Function
 'End Sub
 
 Private Function MWndProcSink_WndProc(ByVal hwnd As Long, ByVal uMsg As Long, ByVal wParam As Long, ByVal lParam As Long, ByVal PrevWndProc As Long, ReturnValue As Long) As Boolean
+Dim b As Boolean
+Dim s As Single
 
     Select Case uMsg
     Case &H440
@@ -559,36 +582,70 @@ Private Function MWndProcSink_WndProc(ByVal hwnd As Long, ByVal uMsg As Long, By
 
         End Select
 
+
+    Case MM_MIXM_CONTROL_CHANGE
+        If mm_CurrentMasterVolumePercent(mMixer, s) Then
+            If s <> mVol Then _
+                uVolChanged CLng(s)
+
+
+        End If
+
+
+    Case MM_MIXM_LINE_CHANGE
+        If mm_CurrentMasterMute(mMixer, b) Then
+            uMuteChanged (CLng(b) And 1)
+
+        End If
+
+
     End Select
 
 End Function
 
 Private Sub uVolChanged(ByVal Value As Long) ', ByVal Detail As Long)
 
+    On Error GoTo fail
+
     ' /* bounds and arg checking */
 
     If (Value = mVol) Or (Value < 0) Or (Value > 100) Then _
         Exit Sub
 
+    g_Debug "uVolChanged(): value=" & CStr(Value)
+
     mVol = Value
 
     ' /* if we're muted or not showing volume changes, ignore now */
 
-    If (current_master_mute() = True) Or (mSettings.GetValueWithDefault("show_vol", "1") <> "1") Then _
+Dim b As Boolean
+
+    mm_CurrentMasterMute mMixer, b
+    If (b) Or (mSettings.GetValueWithDefault("show_vol", "1") <> "1") Then _
         Exit Sub
 
     ' /* notify */
 
 Dim szTitle As String
 Dim szText As String
+Dim iVol As Integer
+
+    iVol = -1
+
+    g_Debug "uVolChanged(): vol_detail setting=" & mSettings.GetValueWithDefault("vol_detail", "2")
 
     Select Case g_SafeLong(mSettings.GetValueWithDefault("vol_detail", "2"))
     Case 1
         ' /* icon only */
 
     Case 2
+        ' /* simple */
         If mSettings.GetValueWithDefault("MeterStyleMode", "0") = "1" Then
-            szText = CStr(mVol)
+            ' /* if legacy style support is required, send current volume % in text */
+            If mSettings.GetValueWithDefault("LegacyMeterSupport", "0") = "1" Then _
+                szText = CStr(mVol)
+
+            iVol = mVol
 
         Else
             szTitle = CStr(mVol) & "%"
@@ -596,10 +653,21 @@ Dim szText As String
         End If
 
     Case 3
+        ' /* fancy */
         szTitle = "Volume changed"
 
         If mSettings.GetValueWithDefault("MeterStyleMode", "0") = "1" Then
-            szText = CStr(mVol)
+            If mSettings.GetValueWithDefault("LegacyMeterSupport", "0") = "1" Then
+                ' /* if legacy style support is required, send current volume % in text */
+                szText = CStr(mVol)
+
+            Else
+                ' /* otherwise send volume as text */
+                szText = "Current volume is " & CStr(mVol) & "%"
+
+            End If
+
+            iVol = mVol
 
         Else
             szText = "Current volume is " & CStr(mVol) & "%"
@@ -609,12 +677,17 @@ Dim szText As String
     End Select
 
     If sn41IsVisible(mCurrentId) Then
-        sn41EZUpdate mCurrentId, szTitle, szText, , uGetIcon(mVol)
+        sn41EZUpdate mCurrentId, szTitle, szText, , uGetIcon(mVol), IIf(iVol > -1, "value-percent::" & CStr(iVol), "")
 
     Else
-        mCurrentId = sn41EZNotify(mAppToken, CLASS_AUDIO_CHANGE, szTitle, szText, CUSTOM_DURATION, uGetIcon(mVol))
+        mCurrentId = sn41EZNotify(mAppToken, CLASS_AUDIO_CHANGE, szTitle, szText, CUSTOM_DURATION, uGetIcon(mVol), , , iVol)
 
     End If
+
+    Exit Sub
+
+fail:
+    g_Debug "uVolChanged(): " & Err.Description & " (" & CStr(Err.Number) & ")", LEMON_LEVEL_CRITICAL
 
 End Sub
 
