@@ -22,8 +22,8 @@ Dim mShowing As Boolean
 Dim mYPos As Single
 Dim mInfo As notification_info
 
-Const PRE_DEF_WIDTH = 256 ' 128
-Const IS_DOUBLE_HEIGHT = 0
+'Const PRE_DEF_WIDTH = 256 ' 128
+'Const IS_DOUBLE_HEIGHT = 0
 
 Implements IStyleInstance
 
@@ -56,7 +56,7 @@ Const STEP_SIZE = 1 / 16
     If InStr(mInfo.Scheme, "top") Then
 
         If mShowing Then
-            If mYPos < -1 Then
+            If mYPos < 0 Then
                 ' /* keep going... */
                 mYPos = mYPos + STEP_SIZE
                 y = ROUNDUP(mYPos)
@@ -130,28 +130,78 @@ Dim rc As RECT
 End Sub
 
 Private Sub IStyleInstance_UpdateContent(NotificationInfo As libSnarlStyles.notification_info)
-Const RX = 5
-
-    With NotificationInfo
-        .Title = Replace$(.Title, vbCrLf, " ")
-        .Text = Replace$(.Text, vbCrLf, " ")
-
-    End With
+Const MARGIN_SIZE = 3
+Const STAR_SIZE = 12
+Const TEXT_GAP = 0
+Const rx = 9
 
     LSet mInfo = NotificationInfo
 
+    ' /* we're (now) a V42 style so notificationinfo->title = App name; notificationinfo->text = content */
+
+Dim pContent As BPackedData
+Dim szTitle As String
+Dim szText As String
+Dim szSubText As String
+Dim cStars As Integer
+Dim s As Single
+
+    Set pContent = New BPackedData
+    With pContent
+        .SetTo NotificationInfo.Text
+
+        szTitle = .ValueOf("title")
+        szText = .ValueOf("text")
+        szSubText = .ValueOf("label-subtext")
+
+        If .Exists("value-percent") Then
+            s = Val(.ValueOf("value-percent"))
+            If (s < 0) Or (s > 100) Then _
+                s = -1
+
+        Else
+            s = -1
+
+        End If
+
+        If s > -1 Then
+            cStars = Fix(s / 20)
+
+        Else
+            cStars = -1
+
+        End If
+
+    End With
+
     ' /* get icon and calc text offsets from it */
 
+Dim pIcon As mfxBitmap
 Dim cxIcon As Long
 Dim xOffset As Long
-Dim pIcon As mfxBitmap
 Dim cyFont As Long
 
     Set pIcon = style_MakeSquareImage(load_image_obj(NotificationInfo.Icon))
 
     If is_valid_image(pIcon) Then
-        cxIcon = MIN(pIcon.Width, 24)                   ' // can't be bigger than 24px
-        xOffset = cxIcon + 2
+
+        Select Case gSettings.GetValueWithDefault("tiny.iconsize", "1")
+        Case "1"
+            ' /* small */
+            cxIcon = 16
+
+        Case "2"
+            ' /* medium */
+            cxIcon = 24
+
+        Case Else
+            ' /* large */
+            cxIcon = 32
+
+        End Select
+
+        cxIcon = MIN(pIcon.Width, cxIcon)
+        xOffset = cxIcon + 3                    ' // horizontal text offset
 
     End If
 
@@ -164,11 +214,13 @@ Dim yMargin As Long
 Dim ppd As BPackedData
 Dim sz As String
 
+Dim cyContent As Long               ' // the sum total height of title, text, subtext and meter with corresponding gaps
+
     With theView
 
         ' /* determine the required height */
 
-        .SetFont FONT_NAME, FONT_SIZE_TITLE, True
+        .SetFont FONT_NAME, FONT_SIZE_TITLE ', True
 
         If gSettings.GetValueWithDefault("tiny.cleartype", "0") = "1" Then
             .TextMode = MFX_TEXT_CLEARTYPE
@@ -178,115 +230,227 @@ Dim sz As String
 
         End If
 
+        ' /* title */
+
         sz = gSettings.GetValueWithDefault("tiny.font")
         If sz <> "" Then
             Set ppd = New BPackedData
             If ppd.SetTo(sz) Then _
-                .SetFont ppd.ValueOf("name"), ppd.ValueOf("size"), (ppd.ValueOf("bold") = "1")
+                .SetFont ppd.ValueOf("name"), Val(ppd.ValueOf("size")) + 1 ', (ppd.ValueOf("bold") = "1")
 
         End If
 
         cyFont = .StringHeight("A")
+        If szTitle <> "" Then _
+            cyContent = cyContent + cyFont + TEXT_GAP
 
-        If mInfo.Title <> "" Then _
-            cy = cy + cyFont
+        ' /* text */
 
-        If mInfo.Text <> "" Then _
-            cy = cy + cyFont
-
-
-        cy = MAX(cy, 24)
-
-        cy = cy + (2 * 2)               ' // 2px margin
-
-        If (mInfo.Text = "") And (mInfo.Title = "") Then
-            ' /* special case: icon only */
-            .SizeTo 48 + (2 * 2), cy
-            xIcon = Fix((.Width - 24) / 2)
-
-        Else
-
-            Select Case gSettings.GetValueWithDefault("tiny.size", "1")
-            Case "1"
-                ' /* tiny */
-                .SizeTo 192, cy
-
-            Case "3"
-                ' /* large */
-                .SizeTo 512, cy
-
-            Case Else
-                ' /* medium */
-                .SizeTo 384, cy
-
-            End Select
-
-            xIcon = 2
+        sz = gSettings.GetValueWithDefault("tiny.font")
+        If sz <> "" Then
+            Set ppd = New BPackedData
+            If ppd.SetTo(sz) Then _
+                .SetFont ppd.ValueOf("name"), Val(ppd.ValueOf("size"))
 
         End If
 
-        yMargin = Fix((.Height - (cyFont * 2)) / 2)
-'        yMargin = 2
+        cyFont = .StringHeight("A")
+        If szText <> "" Then _
+            cyContent = cyContent + cyFont + TEXT_GAP
+
+        ' /* meter */
+
+        If cStars > -1 Then _
+            cyContent = cyContent + STAR_SIZE + TEXT_GAP
+
+        ' /* subtext - uses same font as text but drawn in 90% alpha */
+
+        If szSubText <> "" Then _
+            cyContent = cyContent + cyFont + TEXT_GAP
+
+
+        ' /* tidy content size up */
+
+        If cyContent > 0 Then _
+            cyContent = cyContent - TEXT_GAP
+
+        cyContent = cyContent + (2 * MARGIN_SIZE)
+
+        ' /* must be at least big enough for the icon */
+
+        cy = MAX(cyContent, cxIcon)
+        .SizeTo 320, cy
+
+        If (szText = "") And (szTitle = "") Then
+            ' /* special case: icon only */
+            xIcon = Fix((.Width - cxIcon) / 2)
+
+        Else
+            xIcon = 4
+
+        End If
+
+        If cyContent < cy Then
+            yMargin = Fix((cy - cyContent) / 2)
+
+        Else
+            yMargin = MARGIN_SIZE
+
+        End If
+
 
         ' /* background */
 
         .EnableSmoothing True
         .SetHighColour gSettings.GetValueWithDefault("tiny.background", CStr(rgba(0, 0, 0)))
-        .FillRoundRect .Bounds, RX, RX
+        .FillRoundRect .Bounds, rx, rx
 
-        .SetHighColour rgba(255, 255, 255, 16)
-        .SetLowColour rgba(255, 255, 255, 0)
-        .FillRoundRect .Bounds, RX, RX, MFX_VERT_GRADIENT
+        ' /* border */
+
+        .SetHighColour gSettings.GetValueWithDefault("tiny.border", CStr(rgba(252, 243, 0)))
+        .StrokeRoundRect .Bounds, rx, rx, 2
+
+        ' /* shading */
+
+Dim dCol As Long
+
+        dCol = Val(gSettings.GetValueWithDefault("tiny.shading", CStr(rgba(0, 0, 0))))
+
+        If gSettings.GetValueWithDefault("tiny.invertshading", "0") = "1" Then
+            .SetHighColour g_SetRGB32Alpha(dCol, 128)
+            .SetLowColour g_SetRGB32Alpha(dCol, 0)
+
+        Else
+            .SetHighColour g_SetRGB32Alpha(dCol, 0)
+            .SetLowColour g_SetRGB32Alpha(dCol, 128)
+
+        End If
+
+        .FillRoundRect .Bounds, rx, rx, MFX_VERT_GRADIENT
 
 '        .SetHighColour rgba(0, 0, 0)
 '        .FillRoundRect .Bounds, RX, RX
 '        .FillRect new_BRect(0, 0, .Width - 1, (RX / 2) - 1)         ' // square-up the top
 
-        If (NotificationInfo.Flags And S_NOTIFICATION_IS_PRIORITY) Then
-            .SetHighColour rgba(255, 0, 0, 0)
-            .SetLowColour rgba(255, 0, 0)
-            .FillRoundRect .Bounds, RX, RX, MFX_VERT_GRADIENT
-'            .SetHighColour rgba(255, 0, 0)
-'            .StrokeRoundRect .Bounds, RX, RX
-
-        End If
+'        If (NotificationInfo.Flags And S_NOTIFICATION_IS_PRIORITY) Then
+'            .SetHighColour rgba(255, 0, 0, 0)
+'            .SetLowColour rgba(255, 0, 0)
+'            .FillRoundRect .Bounds, rx, rx, MFX_VERT_GRADIENT
+''            .SetHighColour rgba(255, 0, 0)
+''            .StrokeRoundRect .Bounds, RX, RX
+'
+'        End If
 
         ' /* icon */
 
         If Not (pIcon Is Nothing) Then _
-            .DrawScaledImage pIcon, new_BPoint(xIcon, 2), new_BPoint(cxIcon, cxIcon), 240
+            .DrawScaledImage pIcon, new_BPoint(xIcon, Fix((.Height - cxIcon) / 2)), new_BPoint(cxIcon, cxIcon), 240
 
         ' /* labels */
 
         .SetHighColour gSettings.GetValueWithDefault("tiny.foreground", CStr(rgba(255, 255, 255)))
 
+
+        ' /* create the base rect */
+
+        Set pr = .Bounds.InsetByCopy(MARGIN_SIZE, 0)
+        pr.Left = pr.Left + xOffset
+        pr.OffsetBy 0, yMargin
+
+
         ' /* title */
 
-        Set pr = .Bounds.InsetByCopy(2, yMargin)
-        pr.Left = pr.Left + xOffset
-        sz = .GetFormattedText(mInfo.Title, pr.Width, True)
-        If mInfo.Text = "" Then _
-            pr.OffsetBy 0, Fix((pr.Height - cyFont) / 2)
-
-        .DrawString sz, pr, IIf((mInfo.Text = "") And Not (is_valid_image(pIcon)), MFX_ALIGN_H_CENTER, MFX_ALIGN_LEFT)
-
-        ' /* text */
-
-        Set pr = .Bounds.InsetByCopy(2, yMargin)
-        pr.Left = pr.Left + xOffset
-        sz = .GetFormattedText(mInfo.Text, pr.Width, True)
-        If mInfo.Title = "" Then
-            pr.OffsetBy 0, Fix((pr.Height - cyFont) / 2)
-
-        Else
-            pr.OffsetBy 0, cyFont
+        sz = gSettings.GetValueWithDefault("tiny.font")
+        If sz <> "" Then
+            Set ppd = New BPackedData
+            If ppd.SetTo(sz) Then _
+                .SetFont ppd.ValueOf("name"), Val(ppd.ValueOf("size")) + 1 ', (ppd.ValueOf("bold") = "1")
 
         End If
 
-        .DrawString sz, pr
+        sz = .GetFormattedText(szTitle, pr.Width, True)
+        If sz <> "" Then
+            .DrawString sz, pr, MFX_ALIGN_LEFT
+            pr.OffsetBy 0, .StringHeight("A") + TEXT_GAP
 
-        .SetHighColour rgba(0, 0, 0, 102)
-        .StrokeRoundRect .Bounds, RX, RX
+        End If
+
+
+        ' /* text */
+
+        sz = gSettings.GetValueWithDefault("tiny.font")
+        If sz <> "" Then
+            Set ppd = New BPackedData
+            If ppd.SetTo(sz) Then _
+                .SetFont ppd.ValueOf("name"), Val(ppd.ValueOf("size"))
+
+        End If
+
+        sz = .GetFormattedText(szText, pr.Width, True)
+        If sz <> "" Then
+            .DrawString sz, pr, MFX_ALIGN_LEFT
+            pr.OffsetBy 0, .StringHeight("A") + TEXT_GAP
+
+        End If
+
+Dim pImg As mfxBitmap
+Dim pImgG As mfxBitmap
+Dim i As Integer
+
+        ' /* meter */
+
+        If cStars > -1 Then
+            Set pImg = load_image_obj(g_MakePath(App.Path) & "star.png")
+            Set pImgG = load_image_obj(g_MakePath(App.Path) & "star.png")
+            pImgG.MakeGreyscale
+
+            For i = 0 To 4
+                If i <= cStars - 1 Then
+                    .DrawScaledImage pImg, pr.TopLeft.OffsetByCopy(i * (STAR_SIZE + 1), 0), new_BPoint(STAR_SIZE, STAR_SIZE)
+
+                Else
+                    .DrawScaledImage pImgG, pr.TopLeft.OffsetByCopy(i * (STAR_SIZE + 1), 0), new_BPoint(STAR_SIZE, STAR_SIZE)
+
+                End If
+
+            Next i
+
+            pr.OffsetBy 0, STAR_SIZE + TEXT_GAP
+
+        End If
+
+
+        ' /* subtext */
+
+        dCol = Val(gSettings.GetValueWithDefault("tiny.foreground", CStr(rgba(255, 255, 255))))
+        .SetHighColour g_SetRGB32Alpha(dCol, 230)
+
+        sz = .GetFormattedText(szSubText, pr.Width, True)
+        If sz <> "" Then
+            .DrawString sz, pr, MFX_ALIGN_LEFT
+            pr.OffsetBy 0, .StringHeight("A") + TEXT_GAP
+
+        End If
+
+
+
+'        If szTitle = "" Then
+'            pr.OffsetBy 0, Fix((pr.Height - cyFont) / 2)
+'
+'        Else
+'            pr.OffsetBy 0, cyFont + 1
+'
+'        End If
+'
+'        .DrawString sz, pr
+
+        ' /* glass effect */
+
+        If gSettings.GetValueWithDefault("tiny.useglass", "1") = "1" Then
+            .SetHighColour rgba(255, 255, 255, 63)
+            .FillRoundRect new_BRect(0, 0, .Bounds.Right, Fix(.Bounds.Height / 2)), rx, rx
+
+        End If
 
     End With
 

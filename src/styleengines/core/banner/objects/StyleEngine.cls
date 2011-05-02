@@ -13,7 +13,7 @@ Attribute VB_PredeclaredId = False
 Attribute VB_Exposed = True
 Option Explicit
 
-Private Const LIB_DATE = "20-Sep-2010"
+Private Const LIB_DATE = "28-Apr-2011"
 
 Dim mLastErr As String
 Dim mPanel As BPrefsPanel
@@ -117,6 +117,7 @@ Private Function IStyleEngine_GetConfigWindow(ByVal StyleName As String) As Long
     If StyleName <> "Tiny" Then _
         Exit Function
 
+Dim pPage As IStylePage
 Dim pp As BPrefsPage
 Dim sz As String
 
@@ -129,29 +130,25 @@ Dim sz As String
             .SetWidth 300
             .SetWindow 1
 
-            Set pp = new_BPrefsPage("", Nothing, New TTinyPage)
+            ' /* create prefs page based on style (tiny only for now) */
+
+            Set pPage = New TTinyPage
+
+            ' /* create prefs page */
+
+            Set pp = new_BPrefsPage("", Nothing, pPage)
+
+            ' /* ask the style page to add its content */
+
+            pPage.Init pp
+
+            ' /* test and reset buttons - all */
 
             With pp
-
-                .Add new_BPrefsControl("banner", "", "Appearance")
-                .Add new_BPrefsControl("fancycycle", "tiny.size", "Small|Medium|Large", "Size:", gSettings.GetValueWithDefault("tiny.size", "1"))
-                
-                sz = uCreatePackedFontStr("Tahoma", 7)
-                .Add new_BPrefsControl("fancyfontpicker", "tiny.font", "", "Font:", gSettings.GetValueWithDefault("tiny.font", sz))
-
-                .Add new_BPrefsControl("fancytoggle2", "tiny.cleartype", "Use ClearType™ font aliasing", "", gSettings.GetValueWithDefault("tiny.cleartype", "0"))
-
-                .Add new_BPrefsControl("fancycolourpicker", "tiny.background", "", "Background:", gSettings.GetValueWithDefault("tiny.background", CStr(rgba(0, 0, 0))))
-                .Add new_BPrefsControl("fancycolourpicker", "tiny.foreground", "", "Text:", gSettings.GetValueWithDefault("tiny.foreground", CStr(rgba(255, 255, 255))))
-
-
-                ' /* test and reset buttons - all */
-        
                 .Add new_BPrefsControl("separator", "", "")
                 .Add new_BPrefsControl("fancybutton2", "test", "Test")
                 .Add new_BPrefsControl("separator", "", "")
                 .Add new_BPrefsControl("fancybutton2", "reset", "Reset to Factory Settings")
-
 
 '        If (mCurrent.Flags And E_METER_STYLE_CAN_CHANGE_FONT) Then
 '            .Add new_BPrefsControl("fancyfontpicker", "text", "", "Text font:", uCreatePackedFontStr(mCurrent.ReadSetting("text_font"), mCurrent.ReadSetting("text_size")))
@@ -270,6 +267,23 @@ End Function
 
 Private Function IStyleEngine_Initialize() As melon.M_RESULT
 
+    ' /* tiny style defaults */
+
+    Set gTinyDefaults = New BPackedData
+    With gTinyDefaults
+
+        .Add "tiny.iconsize", "2"
+        .Add "tiny.font", "name::Verdana#?size::7#?bold::0"
+        .Add "tiny.cleartype", "0"
+        .Add "tiny.useglass", "1"
+        .Add "tiny.invertshading", "0"
+        .Add "tiny.background", CStr(rgba(96, 32, 0))
+        .Add "tiny.foreground", CStr(rgba(255, 255, 255))
+        .Add "tiny.border", CStr("-10040320")
+        .Add "tiny.shading", CStr(rgba(0, 0, 0))
+    
+    End With
+
     Set gSettings = New CConfFile
     gSettings.SetTo sn41GetConfigPath() & "etc\banner.settings"
 
@@ -324,9 +338,9 @@ Private Sub IStyleEngine_StyleAt(ByVal Index As Long, Style As libSnarlStyles.st
         Case 2
             .Name = "Tiny"
             .Description = "Displays the notfication in a tiny bubble in the top right corner of the screen."
-            .Major = 0
-            .Minor = 2
-            .Flags = S_STYLE_CUSTOM_SHOW Or S_STYLE_CUSTOM_HIDE Or S_STYLE_SINGLE_INSTANCE Or S_STYLE_DONT_QUEUE Or S_STYLE_IS_CONFIGURABLE
+            .Major = 1
+            .Minor = 0
+            .Flags = S_STYLE_CUSTOM_SHOW Or S_STYLE_CUSTOM_HIDE Or S_STYLE_SINGLE_INSTANCE Or S_STYLE_DONT_QUEUE Or S_STYLE_IS_CONFIGURABLE Or S_STYLE_V42_CONTENT
             .Schemes = "Top|Bottom|Top Left|Top Right|Bottom Left|Bottom Right"
 
         Case 3

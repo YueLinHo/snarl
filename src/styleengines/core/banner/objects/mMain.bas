@@ -10,3 +10,4 @@ Public Const SCHEME_2 = "2004"
 
 Public gSettings As CConfFile
 
+Public gTinyDefaults As BPackedData
