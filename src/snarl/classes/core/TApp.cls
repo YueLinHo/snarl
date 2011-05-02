@@ -418,6 +418,7 @@ Dim i As Long
             .hWndReply = mInfo.hWnd                 ' // if still no reply window, use app-defined value (which may still be 0)
 
         .IconPath = pData.ValueOf("icon")
+
         .Priority = Val(pData.ValueOf("priority"))
         Set .Socket = ReplySocket
 

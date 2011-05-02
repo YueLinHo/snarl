@@ -1867,6 +1867,7 @@ Dim i As Long
         End If
 
         ReDim mListener(0)
+        mListenerCount = 0
 
     End If
 
@@ -1997,8 +1998,6 @@ Private Sub uAddListener(ByVal IPAddr As String, ByVal IsGNTP As Boolean)
     mListener(mListenerCount).Go IPAddr, IsGNTP
 
 End Sub
-
-
 
 Private Function uIsFullScreenMode() As Boolean
 Static hWnd As Long

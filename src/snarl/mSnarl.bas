@@ -13,6 +13,11 @@ Option Explicit
     '/
     '*********************************************************************************************/
 
+    ' /* these are used by the deprecated SNARL_GET_VERSION and for GNTP responses */
+Public Const APP_VER = 2
+Public Const APP_SUB_VER = 4
+
+
 Public Declare Sub CoFreeUnusedLibrariesEx Lib "ole32" (ByVal dwUnloadDelay As Long, ByVal dwReserved As Long)
 Private Declare Function GetTempPath Lib "kernel32" Alias "GetTempPathA" (ByVal nBufferLength As Long, ByVal lpBuffer As String) As Long
 Private Declare Function LockWorkStation Lib "user32.dll" () As Long

@@ -1,6 +1,12 @@
 
 	Snarl Change Log
 
+	- GNTP notifications will now attempt to use the class icon and then
+	  application icon (in that order) if no notification icon is
+	  provided.  (42.96)
+
+	- GNTP handling code largely rewritten to be more robust.  (42.96)
+
 	- Bug associated with adding actions to a notification in the wait
 	  queue fixed.  (42.89)
 

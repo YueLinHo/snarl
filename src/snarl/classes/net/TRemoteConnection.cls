@@ -662,60 +662,94 @@ Dim i As Integer
 End Function
 
 Private Sub uDoGNTP(ByVal bytesTotal As Long)
+Dim ppd As BPackedData
+Dim szReply As String
+Dim sz As String
 
     On Error GoTo er
-
-Dim sz As String
-Dim h As Long
-
-Dim szResponseHeaders As String
 
     theSocket.PeekData sz
 
     If g_SafeRightStr(sz, 4) = vbCrLf & vbCrLf Then
-        Debug.Print "TRemoteConnection.uDoGNTP(): end of packet"
-        mGNTPRequest = ""
-        theSocket.GetData mGNTPRequest
-        h = gntp_Process(mGNTPRequest, theSocket, szResponseHeaders)
+'        Debug.Print "end of packet"
 
-        ' /* build response */
+        theSocket.GetData sz
+        If gntp_Process(sz, szReply, theSocket) Then
+            uOutput "success! response=" & Replace$(szReply, vbCrLf, "¶")
+            theSocket.SendData szReply
 
-        sz = "GNTP/1.0 -"
+        Else
+            uOutput "failed: response=" & Replace$(szReply, vbCrLf, "¶")
+            theSocket.SendData szReply
 
-        Select Case h
-        Case 0
-            sz = sz & "OK"
+        End If
 
-        Case Else
-            sz = sz & "ERROR"
-
-        End Select
-
-        ' /* response encryption type (always NONE for now) */
-
-        sz = sz & " NONE" & vbCrLf
-
-        ' /* response headers */
-        
-        sz = sz & szResponseHeaders
-
-        Debug.Print "uDoGNTP(): replying with '" & sz & "'"
-
-        ' /* generic headers */
-
-        sz = sz & "Origin-Machine-Name: " & get_host_name() & vbCrLf
-        sz = sz & "Origin-Software-Name: Snarl" & vbCrLf
-        sz = sz & "Origin-Software-Version: " & App.Comments & " (" & App.Major & "." & App.Revision & ")" & vbCrLf
-        sz = sz & "Origin-Platform-Name: " & g_GetOSName() & " " & g_GetServicePackName() & vbCrLf
-        sz = sz & "Origin-Platform-Version: " & g_GetOSVersionString() & vbCrLf
-        sz = sz & "X-Message-Daemon: Snarl" & vbCrLf
-        sz = sz & "X-Timestamp: " & Format$(Now(), "MM/DD/YYYY HH:MM:SS AMPM")
-
-        ' /* reply */
-
-        theSocket.SendData sz & vbCrLf & vbCrLf
+        theSocket.CloseSocket
 
     End If
+
+
+
+'
+'
+'
+'
+'
+'
+'
+'    On Error GoTo er
+'
+'Dim sz As String
+'Dim h As Long
+'
+'Dim szResponseHeaders As String
+'
+'    theSocket.PeekData sz
+'
+'    If g_SafeRightStr(sz, 4) = vbCrLf & vbCrLf Then
+'        Debug.Print "TRemoteConnection.uDoGNTP(): end of packet"
+'        mGNTPRequest = ""
+'        theSocket.GetData mGNTPRequest
+'        h = gntp_Process(mGNTPRequest, theSocket, szResponseHeaders)
+'
+'        ' /* build response */
+'
+'        sz = "GNTP/1.0 -"
+'
+'        Select Case h
+'        Case 0
+'            sz = sz & "OK"
+'
+'        Case Else
+'            sz = sz & "ERROR"
+'
+'        End Select
+'
+'        ' /* response encryption type (always NONE for now) */
+'
+'        sz = sz & " NONE" & vbCrLf
+'
+'        ' /* response headers */
+'
+'        sz = sz & szResponseHeaders
+'
+'        Debug.Print "uDoGNTP(): replying with '" & sz & "'"
+'
+'        ' /* generic headers */
+'
+'        sz = sz & "Origin-Machine-Name: " & get_host_name() & vbCrLf
+'        sz = sz & "Origin-Software-Name: Snarl" & vbCrLf
+'        sz = sz & "Origin-Software-Version: " & App.Comments & " (" & App.Major & "." & App.Revision & ")" & vbCrLf
+'        sz = sz & "Origin-Platform-Name: " & g_GetOSName() & " " & g_GetServicePackName() & vbCrLf
+'        sz = sz & "Origin-Platform-Version: " & g_GetOSVersionString() & vbCrLf
+'        sz = sz & "X-Message-Daemon: Snarl" & vbCrLf
+'        sz = sz & "X-Timestamp: " & Format$(Now(), "MM/DD/YYYY HH:MM:SS AMPM")
+'
+'        ' /* reply */
+'
+'        theSocket.SendData sz & vbCrLf & vbCrLf
+'
+'    End If
 
     Exit Sub
 
@@ -758,5 +792,17 @@ er:
     ' /* drop the connection */
 
     theSocket.CloseSocket
+
+End Sub
+
+Private Sub uOutput(ByVal Text As String)
+
+#If GNTP_TEST = 1 Then
+    form1.output Text
+
+#Else
+    g_Debug Text
+
+#End If
 
 End Sub

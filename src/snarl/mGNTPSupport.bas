@@ -64,118 +64,132 @@ End Type
 
 Dim mSection() As String
 Dim mDirective As String
-Dim mResponse As String
-Dim mExtError As String
+Dim mCustomHeaders As String
 
-Public Function gntp_Process(ByVal Request As String, ByRef ReplySocket As CSocket, ByRef Response As String) As E_GNTP_CODES
+' /*********************************************************************************************
+'   gntp_Process() -- Master GNTP request handler
+'
+'   Inputs
+'       Request - unabridged request content
+'       Sender - sending socket object (only used for notifications)
+'
+'   Outputs
+'       Response - GNTP response that should be sent back to the source socket
+'
+'   Return Value
+'       True if the request was processed successfully, false otherwise.  Note that, as per
+'       GNTP specifications, the resulting Response should be sent to the socket and the
+'       socket closed irrespective of success or failure.
+'
+' *********************************************************************************************/
+
+Public Function gntp_Process(ByVal Request As String, ByRef Response As String, ByRef Sender As CSocket) As Boolean
 
     ' /* return a GNTP error code here */
 
     On Error GoTo er
 
-    Request = toUnicodeUTF8(Request)
+    mCustomHeaders = ""
 
-    Debug.Print "length: " & Len(Request)
-    mResponse = ""
+    uOutput ""
+    uOutput "gntp_Process(): " & Replace$(Request, vbCrLf, "�")
 
     ' /* split into sections */
 
     mSection = Split(Request, vbCrLf & vbCrLf)
-    Debug.Print "sections: " & UBound(mSection)
+    uOutput "gntp_Process(): sections=" & UBound(mSection) - 1
 
-    If UBound(mSection) > 0 Then
-
-        ' /* parse section 1 - must be the info block */
-
-        mDirective = ""
-
-        gntp_Process = uParse(0)
-        If gntp_Process = 0 Then
-            Debug.Print "directive: " & mDirective
-
-            Select Case mDirective
-            Case "REGISTER"
-                gntp_Process = uDoRegistration()
-                If gntp_Process = 0 Then _
-                    mResponse = "Response-Action: REGISTER" & vbCrLf
-
-            Case "NOTIFY"
-                gntp_Process = uDoNotification(ReplySocket)
-                If gntp_Process = 0 Then _
-                    mResponse = "Response-Action: NOTIFY" & vbCrLf
-
-            Case Else
-                Debug.Print "gntp_process(): unsupported directive '" & mDirective & "'"
-                gntp_Process = INVALID_REQUEST
-
-            End Select
-
-        Else
-            ' /* return value already set */
-            Debug.Print "gntp_process(): invalid info block"
-
-        End If
-
-    Else
-        Debug.Print "gntp_process(): invalid number of sections"
-        gntp_Process = INVALID_REQUEST
+    If UBound(mSection) < 1 Then
+        uOutput "gntp_Process(): failed: no sections"
+        Response = uCreateResponse(INVALID_REQUEST)
+        Exit Function
 
     End If
 
-    ' /* was it successful? */
+    ' /* parse section 1 - must be the info block */
 
-    If gntp_Process <> 0 Then
-        ' /* error response headers */
-         mResponse = "Error-Code: " & CStr(gntp_Process) & vbCrLf & _
-                     "Error-Description: " & uErrStr(gntp_Process) & IIf(mExtError <> "", "(" & mExtError & ")", "") & vbCrLf
+    mDirective = ""
+
+    If Not uParse(0, Response) Then
+        uOutput "gntp_Process(): failed: invalid info block"
+        Response = uCreateResponse(INVALID_REQUEST)
+        Exit Function
 
     End If
+
+    uOutput "gntp_Process(): info block okay, directive=" & mDirective
+
+    Select Case mDirective
+    Case "REGISTER"
+        gntp_Process = uDoRegistration(Response)
+
+    Case "NOTIFY"
+        gntp_Process = uDoNotification(Response, Sender)
+
+    Case Else
+        uOutput "gntp_Process(): unsupported directive '" & mDirective & "'"
+        Response = uCreateResponse(INVALID_REQUEST)
+
+    End Select
+
+''    ' /* was it successful? */
+''
+''    If gntp_Process <> 0 Then
+''        ' /* error response headers */
+''         mResponse = "Error-Code: " & CStr(gntp_Process) & vbCrLf & _
+''                     "Error-Description: " & uErrStr(gntp_Process) & IIf(mExtError <> "", "(" & mExtError & ")", "") & vbCrLf
+''
+''    End If
+
+    uOutput "gntp_Process(): done"
+
+'    gntp_Process = True
 
     Exit Function
 
 er:
-    Debug.Print err.Description
+    Debug.Print "gntp_Process(): panic: " & err.Description
 
 End Function
 
-Private Function uErrStr(ByVal Code As Long) As String
-
-    Select Case Code
-    Case 300
-        'The request contained an unsupported directive, invalid headers or values, or was otherwise malformed
-        uErrStr = "Invalid request"
-
-    Case 301
-        'The request was not a GNTP request
-        uErrStr = "Unknown protocol"
-
-    Case 302
-        'The request specified an unknown or unsupported GNTP version
-        uErrStr = "Unknown protocol version"
-
-    Case 303
-        'The request was missing required information
-        uErrStr = "Required header missing"
-
-    Case 400
-        'The request supplied a missing or wrong password/key or was otherwise not authorized
-        uErrStr = "Not authorized"
-
-    Case 401
-        'Application is not registered to send notifications
-        uErrStr = "Unknown application"
-
-    Case 402
-        'Notification type is not registered by the application
-        uErrStr = "Unknown notification"
-
-    Case 500
-        'An internal server error occurred while processing the request
-        uErrStr = "Internal server error"
-
-    End Select
-
-End Function
+'Private Function uErrStr(ByVal Code As Long) As String
+'
+'    Select Case Code
+'    Case 300
+'        'The request contained an unsupported directive, invalid headers or values, or was otherwise malformed
+'        uErrStr = "Invalid request"
+'
+'    Case 301
+'        'The request was not a GNTP request
+'        uErrStr = "Unknown protocol"
+'
+'    Case 302
+'        'The request specified an unknown or unsupported GNTP version
+'        uErrStr = "Unknown protocol version"
+'
+'    Case 303
+'        'The request was missing required information
+'        uErrStr = "Required header missing"
+'
+'    Case 400
+'        'The request supplied a missing or wrong password/key or was otherwise not authorized
+'        uErrStr = "Not authorized"
+'
+'    Case 401
+'        'Application is not registered to send notifications
+'        uErrStr = "Unknown application"
+'
+'    Case 402
+'        'Notification type is not registered by the application
+'        uErrStr = "Unknown notification"
+'
+'    Case 500
+'        'An internal server error occurred while processing the request
+'        uErrStr = "Internal server error"
+'
+'    End Select
+'
+'End Function
 
 Private Function uBool(ByVal str As String) As Boolean
 
@@ -187,66 +201,86 @@ Private Function uBool(ByVal str As String) As Boolean
 
 End Function
 
-Private Function uDoRegistration() As E_GNTP_CODES
+Private Function uDoRegistration(ByRef Response As String) As Boolean
+
+    mCustomHeaders = "Response-Action: REGISTER" & vbCrLf
+
 Dim pp As BPackedData
 
     Set pp = New BPackedData
     If Not pp.SetTo(mSection(0), vbCrLf, ": ") Then
-        Debug.Print "uDoRegistration: bad data"
-        uDoRegistration = INVALID_REQUEST
+        uOutput "uDoRegistration(): bad data"
+        Response = uCreateResponse(INVALID_REQUEST)
         Exit Function
 
     End If
 
     ' /* required items */
 
+Dim szAppName As String
+Dim szAppSig As String
+
     If Not pp.Exists("Application-Name") Then
-        Debug.Print "uDoRegistration: missing app name"
-        uDoRegistration = REQUIRED_HEADER_MISSING
+        uOutput "uDoRegistration(): missing app name"
+        Response = uCreateResponse(REQUIRED_HEADER_MISSING)
         Exit Function
 
+    Else
+        szAppName = pp.ValueOf("Application-Name")
+        szAppSig = "application/x-gntp-" & Replace$(szAppName, " ", "_")
+
     End If
+
+Dim dwCount As Long
 
     If Not pp.Exists("Notifications-Count") Then
-        Debug.Print "uDoRegistration: missing count"
-        uDoRegistration = REQUIRED_HEADER_MISSING
+        uOutput "uDoRegistration(): missing count"
+        Response = uCreateResponse(REQUIRED_HEADER_MISSING)
+        Exit Function
+
+    Else
+        dwCount = g_SafeLong(pp.ValueOf("Notifications-Count"))
+
+    End If
+
+    ' /* special Snarl feature: zero notifications means unregister */
+
+    If dwCount = 0 Then
+        uOutput "uDoRegistration(): app requested an unregister"
+        Response = uCreateResponse(0)
+
+#If GNTP_TEST Then
+        snarl_unregister szAppSig
+
+#Else
+        g_DoAction "unreg", 0, g_newBPackedData("app-sig::" & szAppSig)
+
+#End If
         Exit Function
 
     End If
+
 
 Dim px As T_REG
 
     LSet mRegistration = px
 
     With mRegistration
-        .AppName = pp.ValueOf("Application-Name")
-        .Count = g_SafeLong(pp.ValueOf("Notifications-Count"))
+        .AppName = szAppName
+        .Signature = szAppSig
+        .Count = dwCount
         ReDim .NotificationType(.Count)
-        .Signature = "application/x-gntp-" & Replace$(.AppName, " ", "_")
 
-        ' /* R2.4.1 */
-        .IconPath = g_MakePath(App.Path) & "etc\icons\no_icon.png"
         If pp.Exists("Application-Icon") Then _
             .IconPath = pp.ValueOf("Application-Icon")
 
     End With
 
-    ' /* special Snarl feature: zero notifications means unregister */
-
-'Dim pne As T_NOTIFICATION_EXTRA
-
-    If mRegistration.Count = 0 Then
-        Debug.Print "uDoRegistration: app requested unregister"
-        g_DoAction "unreg", 0, g_newBPackedData("app-sig::" & mRegistration.Signature)
-        Exit Function
-
-    End If
-
     ' /* otherwise must have the right number of sections */
 
     If UBound(mSection) < mRegistration.Count Then
-        Debug.Print "uDoRegistration: not enough sections"
-        uDoRegistration = INVALID_REQUEST
+        uOutput "uDoRegistration(): not enough sections"
+        Response = uCreateResponse(INVALID_REQUEST)
         Exit Function
 
     End If
@@ -256,60 +290,92 @@ Dim px As T_REG
 Dim i As Long
 
     For i = 1 To mRegistration.Count
-        uDoRegistration = uAddNotificationType(mSection(i), i - 1)
-        If uDoRegistration <> 0 Then
-            Debug.Print "uDoRegistration: bad notification type " & i
+        ' /* if adding any of the notification types fails, we fail */
+        If Not uAddNotificationType(mSection(i), i - 1, Response) Then _
             Exit Function
 
-        End If
     Next i
 
     ' /* sections pr.Count to end should be resource identifiers */
 
-    Debug.Print "uDoRegistration: parsing resource identifiers " & CStr(mRegistration.Count) & " to " & CStr(UBound(mSection))
+    uOutput "uDoRegistration(): parsing resource identifiers " & CStr(mRegistration.Count) & " to " & CStr(UBound(mSection) - 1)
 
-    For i = mRegistration.Count To UBound(mSection)
-        uParse i
+    For i = mRegistration.Count To UBound(mSection) - 1
+        uParse i, ""
 
     Next i
 
+    uOutput "uDoRegistration(): registering with Snarl..."
+
     ' /* register here */
 
-    mRegistration.Token = g_DoAction("register", 0, _
-                                     g_newBPackedData("app-sig::" & mRegistration.Signature & _
-                                                      "#?title::" & mRegistration.AppName & _
-                                                      "#?icon::" & mRegistration.IconPath))
+    With mRegistration
 
-    If mRegistration.Token = 0 Then
-        Debug.Print "uDoRegistration: registration failed (" & CStr(g_QuickLastError()) & ")"
-        uDoRegistration = INTERNAL_SERVER_ERROR
+#If GNTP_TEST Then
+        .Token = snarl_register(.Signature, .AppName, .IconPath)
+
+#Else
+        .Token = g_DoAction("register", 0, _
+                                         g_newBPackedData("app-sig::" & .Signature & _
+                                                          "#?title::" & .AppName & _
+                                                          "#?icon::" & .IconPath))
+#End If
+
+    End With
+
+    ' /* if registration fails, quit now */
+
+    If mRegistration.Token < 1 Then
+        uOutput "uDoRegistration(): registration failed (" & CStr(Abs(mRegistration.Token)) & ")"
+        Response = uCreateResponse(INTERNAL_SERVER_ERROR)
         Exit Function
 
     End If
 
+    ' /* add notification types as classes */
+
+Dim hr As Long
+
     With mRegistration
         For i = 0 To .Count - 1
-            ' /* check for error here? */
-            Debug.Print "reg->" & g_DoAction("addclass", 0, _
-                                             g_newBPackedData("app-sig::" & mRegistration.Signature & _
-                                                              "#?id::" & .NotificationType(i).Name & _
-                                                              "#?name::" & .NotificationType(i).DisplayName & _
-                                                              "#?enabled::" & IIf(.NotificationType(i).Enabled, "1", "0") & _
-                                                              "#?icon::" & .NotificationType(i).Icon))
+
+#If GNTP_TEST Then
+            hr = snDoRequest("addclass?app-sig=" & .Signature & _
+                             "&id=" & .NotificationType(i).Name & _
+                             "&name=" & .NotificationType(i).DisplayName & _
+                             "&enabled=" & IIf(.NotificationType(i).Enabled, "1", "0") & _
+                             "&icon=" & .NotificationType(i).Icon)
+
+            uOutput "uDoRegistration(): addclass '" & .NotificationType(i).Name & "' returned " & CStr(hr)
+
+#Else
+
+            g_DoAction "addclass", 0, _
+                       g_newBPackedData("app-sig::" & mRegistration.Signature & _
+                                        "#?id::" & .NotificationType(i).Name & _
+                                        "#?name::" & .NotificationType(i).DisplayName & _
+                                        "#?enabled::" & IIf(.NotificationType(i).Enabled, "1", "0") & _
+                                        "#?icon::" & .NotificationType(i).Icon)
+#End If
 
         Next i
 
     End With
 
+    ' /* done */
+
+    Response = uCreateResponse(0)
+    uDoRegistration = True
+
 End Function
 
-Private Function uAddNotificationType(ByVal str As String, ByVal Index As Long) As E_GNTP_CODES
+Private Function uAddNotificationType(ByVal str As String, ByVal Index As Long, ByRef Response As String) As Boolean
 Dim pp As BPackedData
 
     Set pp = New BPackedData
     If Not pp.SetTo(str, vbCrLf, ": ") Then
-        Debug.Print "uAddNotificationType(): bad data"
-        uAddNotificationType = INVALID_REQUEST
+        uOutput "uAddNotificationType(): invalid data for notification type #" & CStr(Index)
+        Response = uCreateResponse(INVALID_REQUEST)
         Exit Function
 
     End If
@@ -320,8 +386,8 @@ Dim pp As BPackedData
     'Required - The name (type) of the notification being registered
 
     If Not pp.Exists("Notification-Name") Then
-        Debug.Print "missing required arg"
-        uAddNotificationType = REQUIRED_HEADER_MISSING
+        uOutput "uAddNotificationType(): missing required arg Notification-Name for notification type #" & CStr(Index)
+        Response = uCreateResponse(REQUIRED_HEADER_MISSING)
         Exit Function
 
     End If
@@ -345,7 +411,7 @@ Dim sx() As String
         .Enabled = uBool(pp.ValueOf("Notification-Enabled"))
         .Icon = pp.ValueOf("Notification-Icon")
 
-        ' /* sort out the icon */
+        ' /* if the icon is actually an identifier, map it to the locally saved copy */
 
         If g_SafeLeftStr(.Icon, 19) = "x-growl-resource://" Then
             sx = Split(.Icon, "://")
@@ -358,11 +424,15 @@ Dim sx() As String
         If .DisplayName = "" Then _
             .DisplayName = .Name
 
+        uOutput "uAddNotificationType(): got notification type " & CStr(Index) & " (" & .Name & "�" & .DisplayName & "�" & IIf(.Enabled, "Enabled", "Disabled") & "�" & .Icon & ")"
+
     End With
+
+    uAddNotificationType = True
 
 End Function
 
-Private Function uParse(ByVal SectionIndex As Long) As E_GNTP_CODES
+Private Function uParse(ByVal SectionIndex As Long, ByRef Response As String) As Boolean
 Dim s() As String
 
     ' /* parses the first line of the given section and returns
@@ -370,13 +440,13 @@ Dim s() As String
 
     s = Split(mSection(SectionIndex), vbCrLf)
     If UBound(s) < 1 Then
-        Debug.Print "uParse(): bad data"
-        uParse = INVALID_REQUEST
+        uOutput "uParse(): failed: invalid section"
+        Response = uCreateResponse(INVALID_REQUEST)
         Exit Function
 
     End If
 
-'    Debug.Print "section length: " & UBound(s) & " line1: " & s(0)
+    uOutput "uParse(): section header='" & s(0) & "'"
 
     ' /* identify section type from the first line */
 
@@ -384,12 +454,13 @@ Dim x() As String
 
     If g_SafeLeftStr(s(0), 4) = "GNTP" Then
         ' /* information line first */
-        uParse = uParseInfoLine(s(0))
+        uParse = uParseInfoLine(s(0), Response)
 
     ElseIf g_SafeLeftStr(s(0), 12) = "Identifier: " Then
         ' /* resource identifier */
         x = Split(s(0), ": ")
         uSaveBinary SectionIndex + 1, x(1)
+        uParse = True
 
     Else
         ' /* other headers... */
@@ -398,13 +469,13 @@ Dim x() As String
 
 End Function
 
-Private Function uParseInfoLine(ByVal str As String) As E_GNTP_CODES
+Private Function uParseInfoLine(ByVal str As String, ByRef Response As String) As Boolean
 Dim s() As String
 
     s = Split(str, " ")
     If UBound(s) < 2 Then
-        Debug.Print "uParseInfoLine(): not enough parms"
-        uParseInfoLine = INVALID_REQUEST
+        uOutput "uParseInfoLine(): not enough params"
+        Response = uCreateResponse(INVALID_REQUEST)
         Exit Function           ' // not enough params
 
     End If
@@ -413,22 +484,22 @@ Dim v() As String
 
     v = Split(s(0), "/")
     If UBound(v) <> 1 Then
-        Debug.Print "uParseInfoLine(): not GNTP"
-        uParseInfoLine = UNKNOWN_PROTOCOL
+        uOutput "uParseInfoLine(): not GNTP"
+        Response = uCreateResponse(UNKNOWN_PROTOCOL)
         Exit Function           ' // not GNTP
     
     End If
 
     If v(0) <> "GNTP" Then
-        Debug.Print "uParseInfoLine(): not GNTP"
-        uParseInfoLine = UNKNOWN_PROTOCOL
+        uOutput "uParseInfoLine(): not GNTP"
+        Response = uCreateResponse(UNKNOWN_PROTOCOL)
         Exit Function           ' // not GNTP
     
     End If
 
     If v(1) <> "1.0" Then
-        Debug.Print "uParseInfoLine(): not 1.0"
-        uParseInfoLine = UNKNOWN_PROTOCOL_VERSION
+        uOutput "uParseInfoLine(): not 1.0"
+        Response = uCreateResponse(UNKNOWN_PROTOCOL_VERSION)
         Exit Function
 
     End If
@@ -440,8 +511,8 @@ Dim v() As String
         mDirective = s(1)
 
     Case Else
-        Debug.Print "uParseInfoLine(): unsupported directive"
-        uParseInfoLine = INVALID_REQUEST
+        uOutput "uParseInfoLine(): unsupported directive"
+        Response = uCreateResponse(INVALID_REQUEST)
         Exit Function           ' // bad directive
 
     End Select
@@ -450,11 +521,13 @@ Dim v() As String
     Case "NONE"
     
     Case Else
-        Debug.Print "uParseInfoLine(): unsupported encryption (" & s(2) & ")"
-        uParseInfoLine = INVALID_REQUEST
+        uOutput "uParseInfoLine(): unsupported encryption (" & s(2) & ")"
+        Response = uCreateResponse(INVALID_REQUEST)
         Exit Function           ' // unsupported encryption
 
     End Select
+
+    uParseInfoLine = True
 
 End Function
 
@@ -464,8 +537,7 @@ Dim i As Integer
     On Error Resume Next
 
     Identifier = "gntp-res-" & Identifier
-
-    Debug.Print "uSaveBinary(): writing binary to %TEMP%" & Identifier & ".png"
+    uOutput "uSaveBinary(): writing binary content to " & g_GetTempPath() & Identifier & ".png"
 
     i = FreeFile()
     Open g_GetTempPath() & Identifier & ".png" For Binary Access Write As #i
@@ -474,36 +546,27 @@ Dim i As Integer
 
 End Sub
 
-Private Function uDoNotification(ByRef ReplySocket As CSocket) As E_GNTP_CODES
+Private Function uDoNotification(ByRef Response As String, ByRef Sender As CSocket) As Boolean
+
+    mCustomHeaders = "Response-Action: NOTIFY"
+
 Dim pp As BPackedData
 
     ' /* convert the mime-style section into packed data */
 
     Set pp = New BPackedData
     If Not pp.SetTo(mSection(0), vbCrLf, ": ") Then
-        Debug.Print "uDoNotification: bad data"
-        uDoNotification = INVALID_REQUEST
+        uOutput "uDoNotification(): bad data"
+        Response = uCreateResponse(INVALID_REQUEST)
         Exit Function
 
     End If
 
-'Dim i As Long
-'Dim s1 As String
-'Dim s2 As String
-'
-'    Form1.List1.AddItem "##########"
-'
-'    For i = 1 To pp.Count
-'        pp.EntryAt i, s1, s2
-'        Form1.List1.AddItem s1 & "->" & s2
-'
-'    Next i
-
     ' /* required items */
 
     If (Not pp.Exists("Application-Name")) Or (Not pp.Exists("Notification-Name")) Or (Not pp.Exists("Notification-Title")) Then
-        Debug.Print "uDoNotification: missing required arg"
-        uDoNotification = REQUIRED_HEADER_MISSING
+        uOutput "uDoNotification(): missing required arg"
+        Response = uCreateResponse(REQUIRED_HEADER_MISSING)
         Exit Function
 
     End If
@@ -511,14 +574,6 @@ Dim pp As BPackedData
 'Dim pn As T_GNTP_NOTIFICATION
 '
 '    With pn
-'        'Notification-Icon: <url> | <uniqueid>
-'        'Optional - The icon to display with the notification.
-'        .Icon = pp.ValueOf("Notification-Icon")
-'        'Notification-Coalescing-ID: <string>
-'        'Optional - If present, should contain the value of the Notification-ID header of a previously-sent notification. This serves
-'        'as a hint to the notification system that this notification should replace/update the matching previous notification. The
-'        'notification system may ignore this hint.
-'        .CoalesceID = pp.ValueOf("Notification-Coalescing-ID")
 '        'Notification-Callback-Context: <string>
 '        'Optional - Any data (will be passed back in the callback unmodified)
 '        .CallbackContext = pp.ValueOf("Notification-Callback-Context")
@@ -544,14 +599,14 @@ Dim px As BPackedData
         'Required - The name (type) of the notification (must match a previously registered notification name registered by the
         'application specified in Application-Name)
         .Add "id", pp.ValueOf("Notification-Name")
-        
+
         'Notification-Title: <string>
         'Required - The notification's title
-        .Add "title", pp.ValueOf("Notification-Title")
+        .Add "title", g_toUnicodeUTF8(Replace$(pp.ValueOf("Notification-Title"), Chr$(13), vbCrLf))
         
         'Notification-Text: <string>
         'Optional - The notification's text. (defaults to "")
-        .Add "text", pp.ValueOf("Notification-Text")
+        .Add "text", g_toUnicodeUTF8(Replace$(pp.ValueOf("Notification-Text"), Chr$(13), vbCrLf))
 
         'Notification-Sticky: <boolean>
         'Optional - Indicates if the notification should remain displayed until dismissed by the user. (default to False)
@@ -562,17 +617,20 @@ Dim px As BPackedData
         'Notification-Priority: <int>
         'Optional - A higher number indicates a higher priority. This is a display hint for the receiver which may be ignored. (valid
         'values are between -2 and 2, defaults to 0)
-        ' /* translate priority into a Snarl-friendly one */
-'        Select Case g_SafeLong(pp.ValueOf("Notification-Priority"))
-'        Case 1, 2
-'            .Add "priority", "1"
-'
-'        Case -1, -2
-'            .Add "priority", "-1"
-'
-'        End Select
+        .Add "priority", g_SafeLong(pp.ValueOf("Notification-Priority"))
 
-        .Add "priority", g_SafeLong(pp.ValueOf("Notification-Priority"))        ' // R2.4 DR8: pass through unchanged
+        'Notification-Coalescing-ID: <string>
+        'Optional - If present, should contain the value of the Notification-ID header of a previously-sent notification. This serves
+        'as a hint to the notification system that this notification should replace/update the matching previous notification. The
+        'notification system may ignore this hint.
+        If pp.Exists("Notification-Coalescing-ID") Then _
+            .Add "update-uid", pp.ValueOf("Notification-Coalescing-ID")
+
+        'Notification-ID: <string>
+        'Optional - A unique ID for the notification. If used, this should be unique for every request, even if the notification is
+        'replacing a current notification (see Notification-Coalescing-ID)
+        If pp.Exists("Notification-ID") Then _
+            .Add "uid", pp.ValueOf("Notification-ID")
 
         'Notification-Callback-Target: <string>
         'Optional - An alternate target for callbacks from this notification. If passed, the standard behavior of performing the
@@ -581,25 +639,20 @@ Dim px As BPackedData
         If pp.ValueOf("Notification-Callback-Target") <> "" Then _
             .Add "callback", pp.ValueOf("Notification-Callback-Target")
 
-        'Notification-ID: <string>
-        'Optional - A unique ID for the notification. If used, this should be unique for every request, even if the notification is
-        'replacing a current notification (see Notification-Coalescing-ID)
-        If pp.ValueOf("Notification-ID") <> "" Then _
-            .Add "uid", pp.ValueOf("Notification-ID")
 
-        ' /* R2.4.1 - sort out the icon */
+        ' /* sort out the icon */
 
 Dim sx() As String
 Dim sz As String
 
-        ' /* sort out the icon */
-
+        'Notification-Icon: <url> | <uniqueid>
+        'Optional - The icon to display with the notification.
         sz = pp.ValueOf("Notification-Icon")
         If g_SafeLeftStr(sz, 19) = "x-growl-resource://" Then
             sx = Split(sz, "://")
             .Add "icon", g_GetTempPath() & "gntp-res-" & sx(1) & ".png"
 
-        Else
+        ElseIf sz <> "" Then
             .Add "icon", sz
 
         End If
@@ -608,20 +661,99 @@ Dim sz As String
 
     ' /* do the notification */
 
-    If g_DoAction("notify", 0, px, IIf(ReplySocket.LocalIP <> "127.0.0.1", NF_REMOTE, 0) Or App.Major, ReplySocket) = 0 Then
-        Debug.Print "uDoNotification(): <notify> failed: " & CStr(g_QuickLastError())
+Dim hr As Long
+
+#If GNTP_TEST = 1 Then
+
+    sz = px.AsString()
+    sz = Replace$(sz, "::", "=")
+    sz = Replace$(sz, "#?", "&")
+    hr = snDoRequest("notify?" & sz)
+
+    If hr > 0 Then
+        Response = uCreateResponse(0)
+        uDoNotification = True
+        
+    End If
+
+#Else
+    hr = g_DoAction("notify", 0, px, IIf(Sender.LocalIP <> "127.0.0.1", NF_REMOTE, 0) Or App.Major, Sender)
+    If hr = 0 Then
+        ' /* failed */
+
+        uOutput "uDoNotification(): <notify> failed: " & CStr(g_QuickLastError())
         Select Case g_QuickLastError()
         Case SNARL_ERROR_AUTH_FAILURE
-            uDoNotification = NOT_AUTHORIZED
+            Response = uCreateResponse(NOT_AUTHORIZED)
 
         Case SNARL_ERROR_NOT_REGISTERED
-            uDoNotification = UNKNOWN_APPLICATION
+            Response = uCreateResponse(UNKNOWN_APPLICATION)
 
         Case Else
-            uDoNotification = INTERNAL_SERVER_ERROR
+            Response = uCreateResponse(INTERNAL_SERVER_ERROR)
 
         End Select
 
+    Else
+        Response = uCreateResponse(0)
+        uDoNotification = True
+
     End If
 
+
+#End If
+
 End Function
+
+Private Function uCreateResponse(ByVal ResponseCode As E_GNTP_CODES) As String
+Dim sz As String
+
+    sz = "GNTP/1.0 "
+
+    Select Case ResponseCode
+    Case 0
+        sz = sz & "-OK"
+
+    Case Else
+        sz = sz & "-ERROR"
+
+    End Select
+
+    sz = sz & " NONE" & vbCrLf
+
+    If mCustomHeaders <> "" Then _
+        sz = sz & mCustomHeaders & vbCrLf
+
+    ' /* generic headers */
+
+    sz = sz & "Origin-Machine-Name: " & get_host_name() & vbCrLf
+
+#If GNTP_TEST = 1 Then
+    sz = sz & "Origin-Software-Name: " & App.ProductName & vbCrLf
+    sz = sz & "Origin-Software-Version: " & App.Major & "." & App.Minor & "." & App.Revision & vbCrLf
+
+#Else
+    sz = sz & "Origin-Software-Name: Snarl" & vbCrLf
+    sz = sz & "Origin-Software-Version: " & CStr(APP_VER) & "." & CStr(APP_SUB_VER) & " (" & CStr(App.Major) & "." & CStr(App.Revision) & ")" & vbCrLf
+
+#End If
+    sz = sz & "Origin-Platform-Name: Windows" & vbCrLf
+    sz = sz & "Origin-Platform-Version: " & g_GetOSVersionString() & vbCrLf
+
+    sz = sz & "X-Timestamp: " & Format$(Now(), "MM/DD/YYYY HH:MM:SS AMPM")
+
+    uCreateResponse = sz & vbCrLf & vbCrLf
+
+End Function
+
+Private Sub uOutput(ByVal Text As String)
+
+#If GNTP_TEST = 1 Then
+    form1.uOutput Text
+
+#Else
+    g_Debug Text
+
+#End If
+
+End Sub

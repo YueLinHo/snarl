@@ -18,11 +18,6 @@ Option Explicit
 Private Declare Function GetCurrentProcessId Lib "kernel32" () As Long
 Private Declare Function GetClipboardFormatName Lib "user32" Alias "GetClipboardFormatNameA" (ByVal wFormat As Long, ByVal lpString As String, ByVal nMaxCount As Long) As Long
 
-    ' /* these are only used by the deprecated SNARL_GET_VERSION, we still maintain them however */
-
-Private Const APP_VER = 2
-Private Const APP_SUB_VER = 4
-
     ' /* used for decoding incoming standard commands */
 
 Private Type SNARLSTRUCTI
@@ -782,6 +777,9 @@ Dim pData As BPackedData
 
     Set pData = New BPackedData
     pData.SetTo g_UTF8(pReq.PacketData)
+
+    If pData.Exists("value-percent") Then _
+        Debug.Print pData.ValueOf("value-percent")
 
     ' /* parse the command */
 

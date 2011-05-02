@@ -408,7 +408,7 @@ Dim lDur As E_NOTIFICATION_DURATION
 
     ' /* R2.4 DR7: if still no icon, use app's icon */
 
-'    If Info.IconPath = "" Then _
+    If Info.IconPath = "" Then _
         Info.IconPath = Me.App.Icon
 
     ' /* R2.31d3: custom ack */
