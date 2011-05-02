@@ -191,11 +191,17 @@ Private Sub Command1_Click()
 End Sub
 
 Private Sub Command4_Click()
+Dim hr As Long
+
+    hr = snarl_register(App.ProductName, App.Title, App.Path & "\icon.png")
+    If hr <= 0 Then
+        MsgBox "Couldn't find Snarl.", vbExclamation Or vbOKOnly, App.Title
+        Exit Sub
+
+    End If
+
 Dim szIcon As String
 Dim sz As String
-
-    If mToken = 0 Then _
-        Exit Sub
 
     szIcon = Text3.Text
     If g_SafeLeftStr(szIcon, 2) = ".\" Then _
@@ -241,34 +247,17 @@ Dim sz As String
 End Sub
 
 Private Sub Form_Load()
-Dim hr As Long
 
-    If Not snIsSnarlRunning() Then
-        MsgBox "Snarl isn't running - launch Snarl, then run this demo.", vbExclamation Or vbOKOnly, App.Title
-        Unload Me
-
-    Else
-        hr = snarl_register(App.ProductName, App.Title, App.Path & "\icon.png")
-        If hr > 0 Then
-            Me.Caption = "Registered with Snarl V" & CStr(snarl_version()) & " (" & Hex$(hr) & ")"
-            mToken = hr
-            
-        Else
-            Me.Caption = "Error registering with Snarl: " & Abs(hr)
-
-        End If
-
-        Text3.Text = ".\icon.png"
-        Label4.Caption = HScroll1.Value & "%"
-
-    End If
+    Me.Caption = App.Title
+    Text3.Text = ".\icon.png"
+    Label4.Caption = HScroll1.Value & "%"
 
 End Sub
 
 Private Sub Form_Unload(Cancel As Integer)
 Dim hr As Long
 
-    hr = snarl_unregister(mToken)
+    hr = snarl_unregister(App.ProductName)
     If hr = 0 Then
         Debug.Print "unregistered ok"
 
