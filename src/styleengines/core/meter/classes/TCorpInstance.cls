@@ -186,27 +186,14 @@ Dim ppd As BPackedData
 
     If ppd.Exists("value-percent") Then
         mPercent = Val(ppd.ValueOf("value-percent"))
-
-        If mPercent < 0# Then
-            mPercent = 0#
-
-        ElseIf mPercent > 100# Then
-            mPercent = 100#
-
-        End If
+        If (mPercent < 0#) Or (mPercent > 100#) Then _
+            mPercent = -1#
 
     ElseIf g_IsNumeric(mText) Then
-
         mPercent = Val(mText)
         mText = ""
-
-        If mPercent < 0# Then
-            mPercent = 0#
-
-        ElseIf mPercent > 100# Then
-            mPercent = 100#
-
-        End If
+        If (mPercent < 0#) Or (mPercent > 100#) Then _
+            mPercent = -1#
 
     Else
         mPercent = -1#                          ' // means we don't need a meter...
