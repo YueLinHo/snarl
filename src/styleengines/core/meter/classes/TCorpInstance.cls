@@ -311,7 +311,7 @@ Dim cxMaster As Long
         ' /* subtext */
 
         If mSubtext <> "" Then
-            .SetFont mStyle.ReadSetting("title_font"), mStyle.ReadSetting("title_size")
+            .SetFont mStyle.ReadSetting("text_font"), mStyle.ReadSetting("text_size")
             Set prTemp = pr.Duplicate
             prTemp.Left = xPos
             prTemp.Bottom = 16384
@@ -517,7 +517,7 @@ Dim pr As BRect
             If (mTitle = "") And (mText = "") And (mMeterRect Is Nothing) Then _
                 mSubtextRect.OffsetTo mSubtextRect.Left, Fix((.Height - mSubtextRect.Height) / 2)
 
-            .SetFont mStyle.ReadSetting("title_font"), mStyle.ReadSetting("title_size")
+            .SetFont mStyle.ReadSetting("text_font"), mStyle.ReadSetting("text_size")
             .SetHighColour g_MakeRGBA(mBaseTextCol, 250)
             .DrawString mSubtext, mSubtextRect
 
