@@ -21,7 +21,6 @@ Implements KPrefsPanel
 Implements KPrefsPage
 
 Private Sub KPrefsPage_AllAttached()
-
 End Sub
 
 Private Sub KPrefsPage_Attached()

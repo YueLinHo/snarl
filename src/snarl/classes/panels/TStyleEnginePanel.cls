@@ -14,7 +14,7 @@ Attribute VB_Exposed = False
 Option Explicit
 
 Dim mPanel As BPrefsPanel
-Dim mPage As BPrefsPage
+'Dim mPage As BPrefsPage
 Dim mhWndPanel As Long
 
 Dim mSelectedEngine As String
@@ -29,28 +29,28 @@ Private Sub KPrefsPage_AllAttached()
 End Sub
 
 Private Sub KPrefsPage_Attached()
-Dim pc As BControl
-Dim pm As CTempMsg
-
-    Set pm = New CTempMsg
-    pm.Add "item-height", 24&
-    Set pc = new_BPrefsControl("listbox", "lb>engines", , , , pm)
-    pc.SizeTo 0, 128
-    mPage.Add pc
-
-    Set pc = new_BPrefsControl("label", "lbl>desc")
-    pc.SizeTo 0, 26
-    mPage.Add pc
-
-    mPage.Add new_BPrefsControl("label", "", "Installed in:")
-    Set pc = new_BPrefsControl("label", "lbl>path")
-    pc.SizeTo 0, 26
-    mPage.Add pc
-
-    mPage.Add new_BPrefsControl("fancytoolbar", "ftb>engine", "Show in Explorer||Install...")
-
-    mPage.Add new_BPrefsControl("fancybutton2", "fb2>loadunload", "Unload")
-'    mPage.Add new_BPrefsControl("fancybutton2", "fb2>install", "Install...")
+'Dim pc As BControl
+'Dim pm As CTempMsg
+'
+'    Set pm = New CTempMsg
+'    pm.Add "item-height", 24&
+'    Set pc = new_BPrefsControl("listbox", "lb>engines", , , , pm)
+'    pc.SizeTo 0, 128
+'    mPage.Add pc
+'
+'    Set pc = new_BPrefsControl("label", "lbl>desc")
+'    pc.SizeTo 0, 26
+'    mPage.Add pc
+'
+'    mPage.Add new_BPrefsControl("label", "", "Installed in:")
+'    Set pc = new_BPrefsControl("label", "lbl>path")
+'    pc.SizeTo 0, 26
+'    mPage.Add pc
+'
+'    mPage.Add new_BPrefsControl("fancytoolbar", "ftb>engine", "Show in Explorer||Install...")
+'
+'    mPage.Add new_BPrefsControl("fancybutton2", "fb2>loadunload", "Unload")
+''    mPage.Add new_BPrefsControl("fancybutton2", "fb2>install", "Install...")
 
 End Sub
 
@@ -68,7 +68,7 @@ Dim sz As String
 
                 mSelectedEngine = pEngineInfo.Name
 
-                If mPage.Find("lbl>desc", pc) Then
+                If mPanel.Find("lbl>desc", pc) Then
                     If (pEngineInfo.Obj Is Nothing) Then
                         pc.SetText "Not loaded"
 
@@ -79,10 +79,10 @@ Dim sz As String
 
                 End If
 
-                If mPage.Find("lbl>path", pc) Then _
+'                If mPage.Find("lbl>path", pc) Then _
                     pc.SetText pEngineInfo.Path
 
-                If mPage.Find("fb2>loadunload", pc) Then
+                If mPanel.Find("fb2>loadunload", pc) Then
                     If (pEngineInfo.Obj Is Nothing) Then
                         pc.SetText "Load"
 
@@ -106,7 +106,7 @@ Dim sz As String
 
         ' /* retrieve info for the currently selected engine */
 
-        If Not mPage.Find("lb>engines", pc) Then _
+        If Not mPanel.Find("lb>engines", pc) Then _
             Exit Sub
 
         If Not g_StyleRoster.EngineAt(Val(pc.GetValue), pEngineInfo) Then _
@@ -211,14 +211,14 @@ End Sub
 
 Private Sub KPrefsPage_Create(Page As BPrefsPage)
 
-    Set mPage = Page
-    mPage.SetMargin 0
+'    Set mPage = Page
+'    mPage.SetMargin 0
 
 End Sub
 
 Private Sub KPrefsPage_Destroy()
 
-    Set mPage = Nothing
+'    Set mPage = Nothing
 
 End Sub
 
@@ -254,21 +254,53 @@ Private Sub KPrefsPanel_Selected(ByVal Command As String)
 End Sub
 
 Public Sub Go(ByVal hWndPanel As Long)
+Dim pp As BPrefsPage
+Dim pc As BControl
+Dim pm As CTempMsg
 
     mhWndPanel = hWndPanel
     Set mPanel = New BPrefsPanel
-    mPanel.SetHandler Me
-    mPanel.SetWindow 1                  ' // SPECIAL HACK: tells the BPrefsPanel not to auto-display during Go()
 
-'    mPanel.AddPage new_BPrefsPage("Engines", gfxlibSafeLoadImageO(g_MakePath(App.Path) & "etc\icons\style_engine.png"), Me)
+    With mPanel
+        .SetHandler Me
+        .SetTitle "Installed Style Engines"
+        .SetWidth 500
+        .SetWindow 1                  ' // SPECIAL HACK: tells the BPrefsPanel not to auto-display during Go()
 
-    mPanel.AddPage new_BPrefsPage("", , Me)
+        Set pp = new_BPrefsPage("", , Me)
 
-    mPanel.SetTitle "Installed Style Engines"
-    mPanel.SetWidth 280
+        With pp
+            .SetMargin 0
+'            .SetWidth 390
 
-    mPanel.Go
-    g_SetWindowIconToAppResourceIcon mPanel.hWnd
+            Set pm = New CTempMsg
+'            pm.Add "item-height", 24&
+            pm.Add "item-height", 48&
+            Set pc = new_BPrefsControl("listbox", "lb>engines", , , , pm)
+            pc.SizeTo 0, 128
+            .Add pc
+        
+            Set pc = new_BPrefsControl("label", "lbl>desc")
+            pc.SizeTo 0, 26
+            .Add pc
+        
+'            mPage.Add new_BPrefsControl("label", "", "Installed in:")
+'            Set pc = new_BPrefsControl("label", "lbl>path")
+'            pc.SizeTo 0, 26
+'            mPage.Add pc
+
+            .Add new_BPrefsControl("fancytoolbar", "ftb>engine", "Show in Explorer||Install...")
+            .Add new_BPrefsControl("fancybutton2", "fb2>loadunload", "Unload")
+        '    mPage.Add new_BPrefsControl("fancybutton2", "fb2>install", "Install...")
+    
+        End With
+
+        .AddPage pp
+
+        .Go
+        g_SetWindowIconToAppResourceIcon .hWnd
+
+    End With
 
 Dim rcConfig As RECT
 Dim rc As RECT
@@ -296,7 +328,7 @@ Dim pc As BControl
 Dim sz As String
 Dim i As Long
 
-    If Not (mPage.Find("lb>engines", pc)) Then _
+    If Not (mPanel.Find("lb>engines", pc)) Then _
         Exit Function
 
     If Not (g_StyleRoster Is Nothing) Then
@@ -306,7 +338,10 @@ Dim i As Long
                 For i = 1 To .CountEngines
                     If .EngineAt(i, pEngineInfo) Then
                         With pEngineInfo
-                            sz = sz & IIf(.Name = "", "<unknown>", .Name) & " V" & CStr(.Version) & "." & CStr(.Revision) & " (" & .Date & ")|"
+                            sz = sz & IIf(.Name = "", "<unknown>", g_RemoveExtension(.Name)) & _
+                                      " V" & CStr(.Version) & "." & CStr(.Revision) & _
+                                      IIf(.Date <> "", " (" & .Date & ")", "") & "#?0#?" & _
+                                      IIf(.Description <> "", .Description, " ") & "|"
 
                         End With
                     End If
@@ -317,25 +352,25 @@ Dim i As Long
 
             ' /* set the icons */
 
-            Set pm = New CTempMsg
-
-            With g_StyleRoster
-
-                For i = 1 To .CountEngines
-                    .EngineAt i, pEngineInfo
-                    If (pEngineInfo.Obj Is Nothing) Then
-                        sz = "broken.png"
-
-                    Else
-                        sz = "style_engine.png"
-
-                    End If
-
-                    prefskit_SetItem pc, i, "image-file", g_MakePath(App.Path) & "etc\icons\" & sz
-
-                Next i
-
-            End With
+'            Set pm = New CTempMsg
+'
+'            With g_StyleRoster
+'
+'                For i = 1 To .CountEngines
+'                    .EngineAt i, pEngineInfo
+'                    If (pEngineInfo.Obj Is Nothing) Then
+'                        sz = "broken.png"
+'
+'                    Else
+'                        sz = "style_engine.png"
+'
+'                    End If
+'
+'                    prefskit_SetItem pc, i, "image-file", g_MakePath(App.Path) & "etc\icons\" & sz
+'
+'                Next i
+'
+'            End With
 
         Else
             pc.SetText "<None>"

@@ -1,6 +1,8 @@
 
 	Snarl Change Log
 
+	- Further improvements to the missed notifications panel.  (42.98)
+
 	- GNTP notifications will now attempt to use the class icon and then
 	  application icon (in that order) if no notification icon is
 	  provided.  (42.96)

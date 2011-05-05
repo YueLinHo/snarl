@@ -42,7 +42,7 @@ End Sub
 Private Sub KPrefsPage_ControlChanged(Control As prefs_kit_d2.BControl, ByVal Value As String)
 Dim pmi As OMMenuItem
 Dim pc As BControl
-'Dim sz As String
+Dim sz As String
 Dim i As Long
 
     Select Case Control.GetName()
@@ -57,6 +57,24 @@ Dim i As Long
             prefskit_SetItem pc, 2, "enabled", IIf(mSelected.Info.Actions.CountItems, 1&, 0&)
 
         End If
+
+'Dim sz As String
+
+        sz = Replace$(mSelected.Info.Title, vbCrLf, "¶ ")
+        If sz <> "" Then _
+            sz = sz & vbCrLf
+
+        sz = sz & Replace$(mSelected.Info.Text, vbCrLf, "¶ ")
+
+        prefskit_SafeSetText mPanel, "the_detail", sz
+
+Dim pm As CTempMsg
+
+        Set pm = New CTempMsg
+        pm.Add "image-file", mSelected.Info.IconPath
+        If mPanel.Find("the_icon", pc) Then _
+            pc.DoExCmd B_SET_ITEM, pm
+
 
 '        prefskit_SafeSetText mPanel, "the_title", Replace$(mSelected.Title, vbCrLf, "¶ ")
 '        prefskit_SafeSetText mPanel, "the_text", Replace$(mSelected.Text, vbCrLf, "¶ ")
@@ -211,32 +229,27 @@ Dim pm As CTempMsg
 
                 .Add new_BPrefsControl("label", "", "While you were away...")
 
+                ' /* list */
+
                 Set pm = New CTempMsg
                 pm.Add "item-height", 36&
                 Set pc = new_BPrefsControl("listbox", "item_list", , , , pm)
-                pc.SizeTo 0, 280
+                pc.SizeTo 0, 220
                 .Add pc
 
-'                .Add new_BPrefsControl("label", "", "Title")
-'                Set pm = New CTempMsg
-'                pm.Add "locked", 1&
-'                .Add new_BPrefsControl("fancyedit", "the_title", "", , , pm)
-'
-'                .Add new_BPrefsControl("label", "", "Text")
-'                Set pm = New CTempMsg
-'                pm.Add "locked", 1&
-'                .Add new_BPrefsControl("fancyedit", "the_text", "", , , pm)
-        
-'                .Add new_BPrefsControl("label", "", "Source")
-                .Add new_BPrefsControl("label", "the_detail", Space$(256))
-        
-'                .Add new_BPrefsControl("label", "sending_app", Space$(128))
-'                .Add new_BPrefsControl("label", "sending_class", "Class:")
-
-'                .Add new_BPrefsControl("label", "", "Callback")
-'                .Add new_BPrefsControl("label", "the_callback", "")
+                ' /* toolbar */
 
                 .Add new_BPrefsControl("fancytoolbar", "toolbar_options", "Invoke|Actions|Copy to Clipboard|Display", , , , False)
+
+                ' /* icon and content */
+
+                Set pm = New CTempMsg
+                pm.Add "scale_to_fit", 1&
+                Set pc = new_BPrefsControl("image", "the_icon", "", , , pm)
+                pc.SizeTo 48, 48
+                .Add pc
+
+                .Add new_BPrefsControl("label", "the_detail", Space$(256))
 
 '                .Add new_BPrefsControl("fancybutton2", "fb>ack", "Invoke Callback", , , , False)
         

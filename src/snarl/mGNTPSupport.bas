@@ -148,7 +148,7 @@ Public Function gntp_Process(ByVal Request As String, ByRef Response As String, 
     Exit Function
 
 er:
-    Debug.Print "gntp_Process(): panic: " & err.Description
+    Debug.Print "gntp_Process(): panic: " & Err.Description
 
 End Function
 
@@ -749,7 +749,7 @@ End Function
 Private Sub uOutput(ByVal Text As String)
 
 #If GNTP_TEST = 1 Then
-    form1.uOutput Text
+    Form1.Output Text
 
 #Else
     g_Debug Text
