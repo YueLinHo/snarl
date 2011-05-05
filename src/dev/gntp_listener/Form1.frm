@@ -56,6 +56,19 @@ Private Sub Form_Load()
 
     End If
 
+Dim sz As String
+
+    sz = g_GetSystemFolderStr(CSIDL_DESKTOPDIRECTORY)
+    If sz = "" Then
+        Me.Output "couldn't locate desktop folder"
+
+    Else
+        l3OpenLog g_MakePath(sz) & "gntplistener.log"
+
+    End If
+
+    g_SetWindowIconToAppResourceIcon2 Me.hWnd
+
     Me.Output App.ProductName & " initialised"
 
 End Sub
@@ -70,6 +83,7 @@ End Sub
 Private Sub Form_Unload(Cancel As Integer)
 
     theSocket.CloseSocket
+    l3CloseLog
 
 End Sub
 
@@ -92,5 +106,7 @@ Public Sub Output(ByVal Text As String)
         .SelStart = Len(.Text)
 
     End With
+
+    g_Debug Text
 
 End Sub
