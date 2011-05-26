@@ -16,6 +16,13 @@
 	Change Log
 	==========
 
+	banner.styleengine
+
+	- Minor cosmetic changes to Tiny style look and default
+	  colours.  (39.84)
+
+
+
 	meter.styleengine
 
 	- Fixed some bugs in the Corporate style.  (39.84)
@@ -54,6 +61,10 @@
 
 
 	mobile.styleengine
+
+	- Added WebForward style.  (41.6)
+
+	- Bumped NMA and Toasty styles to 1.0.  (41.6)
 
 	- Added Notify My Android style.  (41.3)
 
