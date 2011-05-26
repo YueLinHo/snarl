@@ -1,12 +1,19 @@
 
 
+	Change Log
+	==========
+
+
+	Banner Style Engine
+
+	- Minor cosmetic changes to Tiny style look and default
+	  colours.  (39.84)
 
 
 
 
 
-
-	Meter Style Engine Change Log
+	Meter Style Engine
 
 	- Fixed some bugs in the Corporate style.  (39.84)
 
