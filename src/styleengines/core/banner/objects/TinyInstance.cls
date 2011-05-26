@@ -305,6 +305,10 @@ Dim cyContent As Long               ' // the sum total height of title, text, su
         .SetHighColour gSettings.GetValueWithDefault("tiny.background", CStr(rgba(0, 0, 0)))
         .FillRoundRect .Bounds, rx, rx
 
+        .SetHighColour rgba(255, 255, 255, 127)
+        .SetLowColour rgba(0, 0, 0, 127)
+        .StrokeFancyRoundRect .Bounds, rx, rx
+
         ' /* border */
 
         .SetHighColour gSettings.GetValueWithDefault("tiny.border", CStr(rgba(252, 243, 0)))
