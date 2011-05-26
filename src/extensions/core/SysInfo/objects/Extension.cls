@@ -50,8 +50,8 @@ Option Explicit
     '
     ' */
 
-Private Const LIB_DATE = "28-Mar-2011"
-Private Const LIB_RELEASE = "3.03"
+Private Const LIB_DATE = "25-May-2011"
+Private Const LIB_RELEASE = "3.04"
 Private Const EXT_NAME = "SysInfo"
 Private Const EXT_COMMENT = "Tracks events specific to this computer"
 
@@ -131,6 +131,7 @@ Dim pm As CTempMsg
             Set pPage = new_BPrefsPage("CPU", load_image_obj(g_MakePath(App.Path) & IIf(g_IsIDE, "bin\", "") & "cpu.png"), Me)
             With pPage
                 .SetMargin 32
+                .Add new_BPrefsControl("fancytoggle2", "cpu.enabled", "Monitor system load?", , mConfig.ValueOf("cpu.enabled"))
                 .Add new_BPrefsControl("label", "", "Warn when system load is at least:")
 
                 Set pm = New CTempMsg
@@ -140,7 +141,7 @@ Dim pm As CTempMsg
                 pm.Add "label_size", 64&
                 pm.Add "suffix", "%"
                 pm.Add "colour", rgba(255, 172, 172)
-                .Add new_BPrefsControl("fancyslider", "cpu.high_mark", "", "", mConfig.ValueOf("cpu.high_mark"), pm)
+                .Add new_BPrefsControl("fancyslider", "cpu.high_mark", "", "", mConfig.ValueOf("cpu.high_mark"), pm, (mConfig.ValueOf("cpu.enabled") = "1"))
 
                 .Add new_BPrefsControl("label", "", "For at least:")
 
@@ -150,9 +151,9 @@ Dim pm As CTempMsg
                 pm.Add "freq", 5&
                 pm.Add "label_size", 64&
                 pm.Add "suffix", " seconds"
-                .Add new_BPrefsControl("fancyslider", "cpu.duration", "", "", mConfig.ValueOf("cpu.duration"), pm)
+                .Add new_BPrefsControl("fancyslider", "cpu.duration", "", "", mConfig.ValueOf("cpu.duration"), pm, (mConfig.ValueOf("cpu.enabled") = "1"))
                 .Add new_BPrefsSeparator
-                .Add new_BPrefsControl("fancybutton2", "cpu.test", "Test Settings")
+                .Add new_BPrefsControl("fancybutton2", "cpu.test", "Test Settings", , , , (mConfig.ValueOf("cpu.enabled") = "1"))
 
             End With
 
@@ -194,6 +195,7 @@ Dim pm As CTempMsg
             Set pPage = new_BPrefsPage("Disk", load_image_obj(g_MakePath(App.Path) & IIf(g_IsIDE, "bin\", "") & "diskfree.png"), Me)
             With pPage
                 .SetMargin 32
+                .Add new_BPrefsControl("fancytoggle2", "disk.enabled", "Monitor disk space?", , mConfig.ValueOf("disk.enabled"))
                 .Add new_BPrefsControl("label", "", "Warn when disk free space drops to:")
 
                 Set pm = New CTempMsg
@@ -203,15 +205,15 @@ Dim pm As CTempMsg
                 pm.Add "label_size", 50&
                 pm.Add "suffix", "%"
                 pm.Add "colour", rgba(255, 172, 172)
-                .Add new_BPrefsControl("fancyslider", "disk.low_mark", "", "", mConfig.ValueOf("disk.low_mark"), pm)
+                .Add new_BPrefsControl("fancyslider", "disk.low_mark", "", "", mConfig.ValueOf("disk.low_mark"), pm, (mConfig.ValueOf("disk.enabled") = "1"))
 
-                .Add new_BPrefsControl("fancytoggle2", "disk.watch_optical", "Watch optical media?", , mConfig.ValueOf("disk.watch_optical"))
-                .Add new_BPrefsControl("fancytoggle2", "disk.watch_removable", "Watch removable media?", , mConfig.ValueOf("disk.watch_removable"))
-                .Add new_BPrefsControl("label", "", "Note that floppy drives are never scanned, even if the above setting is enabled.")
+                .Add new_BPrefsControl("fancytoggle2", "disk.watch_optical", "Watch optical media?", , mConfig.ValueOf("disk.watch_optical"), , (mConfig.ValueOf("disk.enabled") = "1"))
+                .Add new_BPrefsControl("fancytoggle2", "disk.watch_removable", "Watch removable media (excludes floppy drives)?", , mConfig.ValueOf("disk.watch_removable"), , (mConfig.ValueOf("disk.enabled") = "1"))
+'                .Add new_BPrefsControl("label", "", "Note that floppy drives are never scanned, even if the above setting is enabled.")
                 .Add new_BPrefsControl("label", "", "Information to include in notification:")
-                .Add new_BPrefsControl("fancycycle", "disk.verbosity", "Simple|Meter|Detailed", "", mConfig.ValueOf("disk.verbosity"))
+                .Add new_BPrefsControl("fancycycle", "disk.verbosity", "Simple|Meter|Detailed", "", mConfig.ValueOf("disk.verbosity"), , (mConfig.ValueOf("disk.enabled") = "1"))
                 .Add new_BPrefsSeparator
-                .Add new_BPrefsControl("fancybutton2", "disk.test", "Test Settings")
+                .Add new_BPrefsControl("fancybutton2", "disk.test", "Test Settings", , , , (mConfig.ValueOf("disk.enabled") = "1"))
 
             End With
 
@@ -250,11 +252,12 @@ Dim pm As CTempMsg
             Set pPage = new_BPrefsPage("Network", load_image_obj(g_MakePath(App.Path) & IIf(g_IsIDE, "bin\", "") & "network.png"), Me)
             With pPage
                 .SetMargin 32
+                .Add new_BPrefsControl("fancytoggle2", "nic.enabled", "Monitor network and dial-up connections?", , mConfig.ValueOf("nic.enabled"))
                 .Add new_BPrefsControl("label", "", "Information to include in notification:")
-                .Add new_BPrefsControl("fancycycle", "nic.verbosity", "None (Icon Only)|Simple|Detailed", "", mConfig.ValueOf("nic.verbosity"))
+                .Add new_BPrefsControl("fancycycle", "nic.verbosity", "None (Icon Only)|Simple|Detailed", "", mConfig.ValueOf("nic.verbosity"), , (mConfig.ValueOf("nic.enabled") = "1"))
                 .Add new_BPrefsSeparator
-                .Add new_BPrefsControl("fancybutton2", "nic.test", "Test Settings (Network)")
-                .Add new_BPrefsControl("fancybutton2", "dun.test", "Test Settings (Dial-up / VPN)")
+                .Add new_BPrefsControl("fancybutton2", "nic.test", "Test Settings (Network)", , , , (mConfig.ValueOf("nic.enabled") = "1"))
+                .Add new_BPrefsControl("fancybutton2", "dun.test", "Test Settings (Dial-up / VPN)", , , , (mConfig.ValueOf("nic.enabled") = "1"))
 
             End With
 
@@ -285,7 +288,7 @@ Dim pm As CTempMsg
             Set pPage = new_BPrefsPage("About", load_image_obj(g_MakePath(App.Path) & IIf(g_IsIDE, "bin\", "") & "about.png"), Me)
             With pPage
                 .SetMargin 32
-                .Add new_BPrefsControl("label", "", "SysInfo Extension")
+                .Add new_BPrefsControl("label", "", "SysInfo Extension R" & LIB_RELEASE)
                 .Add new_BPrefsControl("label", "", "Version " & CStr(App.Major) & "." & CStr(App.Revision) & " (" & LIB_DATE & ")")
                 .Add new_BPrefsControl("label", "", App.LegalCopyright)
                 .Add new_BPrefsControl("label", "", "")
@@ -390,6 +393,7 @@ Dim i As Integer
     Set mConfig = New CConfFile
     mConfig.SetTo sn41GetConfigPath() & "sysinfo.config"
 
+    uCfgCheck "cpu.enabled", "1"        ' // R3.04
     uCfgCheck "cpu.high_mark", "90"
     uCfgCheck "cpu.duration", "10"
 
@@ -403,8 +407,10 @@ Dim i As Integer
     uCfgCheck "ram.show_text", "1"      ' // include help text
     uCfgCheck "ram.use_meter", "1"      ' // meter instead of text (low RAM only)
 
+    uCfgCheck "nic.enabled", "1"        ' // R3.04
     uCfgCheck "nic.verbosity", "3"
 
+    uCfgCheck "disk.enabled", "1"       ' // R3.04
     uCfgCheck "disk.low_mark", "10"
     uCfgCheck "disk.watch_removable", "1"
     uCfgCheck "disk.watch_optical", "0"
@@ -437,38 +443,13 @@ Dim i As Integer
     sn41AddClass mToken, CLASS_IP_CHANGE, "IP address change"
 
     Set mAdapterList = new_BTagList()
-
-    Set theNICTimer = new_BTimer(4000)
-    Set theVolTimer = new_BTimer(2000)
-
-    Set theNetRoster = New TNetRoster2
-    With theNetRoster
-        .LockRoster
-        .Refresh
-        .UnlockRoster
-
-    End With
-
-    Set theDUNRoster = New TDUNRoster
-    With theDUNRoster
-        .LockRoster
-        .Refresh
-        .UnlockRoster
-
-    End With
-
     Set theVolRoster = New TSimpleVolRoster
-    With theVolRoster
-        .LockRoster
-        .SetWatchedVolumes False, True
-        .Refresh
-        .UnlockRoster
 
-    End With
 
-    ' /* call once to get baseline */
+    ' /* call kernel info once to get baseline */
 
     krnl_GetSystemInfo
+    g_Debug "[Start]: krnl_GetProcessorCount()=" & CStr(krnl_GetProcessorCount())
     krnl_GetCurrentTotalCPUPercent
 
     ' /* configure the handler */
@@ -476,23 +457,37 @@ Dim i As Integer
     With theHandler
         .SetLowPowerThreshold Val(mConfig.ValueOf("power.low_mark"))
         .SetLowRAMThreshold Val(mConfig.ValueOf("ram.low_mark"))
-        .SetHighCPUThreshold Val(mConfig.ValueOf("cpu.high_mark"))
-        .SetHighCPUDuration Val(mConfig.ValueOf("cpu.duration"))
-        .SetLowDiskThreshold Val(mConfig.ValueOf("disk.low_mark"))
-        .SetWatchOptical (mConfig.ValueOf("disk.watch_optical") = "1")
-        .SetWatchRemovable (mConfig.ValueOf("disk.watch_removable") = "1")
+'        .SetHighCPUThreshold Val(mConfig.ValueOf("cpu.high_mark"))
+'        .SetHighCPUDuration Val(mConfig.ValueOf("cpu.duration"))
+'        .SetLowDiskThreshold Val(mConfig.ValueOf("disk.low_mark"))
+'        .SetWatchOptical (mConfig.ValueOf("disk.watch_optical") = "1")
+'        .SetWatchRemovable (mConfig.ValueOf("disk.watch_removable") = "1")
+
+        .ConfigChanged "cpu.high_mark", mConfig.ValueOf("cpu.high_mark")
+        .ConfigChanged "cpu.duration", mConfig.ValueOf("cpu.duration")
+        .ConfigChanged "cpu.enabled", mConfig.ValueOf("cpu.enabled")            ' // set last
+
+        .ConfigChanged "disk.low_mark", mConfig.ValueOf("disk.low_mark")
+        .ConfigChanged "disk.watch_optical", mConfig.ValueOf("disk.watch_optical")
+        .ConfigChanged "disk.watch_removable", mConfig.ValueOf("disk.watch_removable")
+        .ConfigChanged "disk.enabled", mConfig.ValueOf("disk.enabled")            ' // set last
+
+
         .SetEnabled True
 
     End With
+
+    ' /* NIC/DUN and volume scanning is handled by this object */
+
+    uEnableNICScanning (mConfig.ValueOf("nic.enabled") = "1")
+    uEnableVolScanning True
 
 End Sub
 
 Private Sub ISnarlExtension_Stop()
 
-    Set theNICTimer = Nothing
-    Set theVolTimer = Nothing
-    Set theDUNRoster = Nothing
-    Set theNetRoster = Nothing
+    uEnableNICScanning False
+    uEnableVolScanning False
 
     sn41UnregisterApp mToken
     mToken = 0
@@ -605,16 +600,6 @@ Dim l As Long
                      "The system has been at least " & CStr(LoadPercent) & "% busy for " & CStr(Duration) & " seconds", , _
                      "!system-warning", , , , "action::Task Manager...,taskmgr.exe#?action::Run...,!system run_dialog#?action::Shutdown...,!system shutdown_dialog")
 
-    ' /* if we have a valid notification token and we're running V42+, add actions */
-
-'    If (l) And (sn41GetVersion() > 41) Then
-'
-'        sn42AddAction l, "Task Manager...", "taskmgr.exe"
-'        sn42AddAction l, "Run...", "!system run_dialog"
-'        sn42AddAction l, "Shutdown...", "!system shutdown_dialog"
-'
-'    End If
-
 End Sub
 
 Private Sub theHandler_OnDiskThresholdReached(ByVal FreePercent As Integer, ByVal Path As String)
@@ -624,6 +609,7 @@ Private Sub theHandler_OnDiskThresholdReached(ByVal FreePercent As Integer, ByVa
 
 Dim szTitle As String
 Dim szText As String
+Dim szExtra As String
 
     szTitle = Path
 
@@ -645,13 +631,14 @@ Dim szText As String
 
     Case 2
         ' /* meter */
-        szText = CStr(FreePercent)
+        szText = CStr(100 - FreePercent)
 
     Case 3
         ' /* detailed */
         With New TSimpleVolume
             If .SetTo(Path) Then
                 szText = g_FileSizeToStringEx2(.Available) & " of " & g_FileSizeToStringEx2(.Capacity) & " remaining"
+                szExtra = "value-percent::" & CStr(100 - FreePercent)
 
             Else
                 szText = "??" & Path
@@ -673,7 +660,7 @@ Dim l As Long
     l = sn41EZNotify(mToken, _
                      CLASS_LOW_DISK, _
                      szTitle, _
-                     szText, , "!disk-low_space", , , , "action::Open," & Path)
+                     szText, , "!disk-low_space", , , , "action::Open," & Path & IIf(szExtra <> "", "#?" & szExtra, ""))
 
 '    If l Then _
         sn42AddAction l, "Open", Path
@@ -751,7 +738,7 @@ Dim sz As String
                                CLASS_POWER_LOW, _
                                IIf(mConfig.ValueOf("power.show_text") = "1", "Battery getting low", ""), _
                                sz, _
-                               0, _
+                               , _
                                "!battery-low", _
                                1)
 
@@ -1061,29 +1048,62 @@ Private Sub KPrefsPage_ControlChanged(Control As BControl, ByVal Value As String
     mConfig.Update Control.GetName, Value
     mConfig.Save
 
+Dim pc As BControl
+
     Select Case Control.GetName
+
+    Case "cpu.enabled"
+        If Control.Page.Find("cpu.high_mark", pc) Then _
+            pc.SetEnabled (Value = "1")
+
+        If Control.Page.Find("cpu.duration", pc) Then _
+            pc.SetEnabled (Value = "1")
+
+        If Control.Page.Find("cpu.test", pc) Then _
+            pc.SetEnabled (Value = "1")
+
+
     Case "power.low_mark"
         theHandler.SetLowPowerThreshold Val(Value)
 
     Case "ram.low_mark"
         theHandler.SetLowRAMThreshold Val(Value)
 
-    Case "cpu.high_mark"
-        theHandler.SetHighCPUThreshold Val(Value)
 
-    Case "cpu.duration"
-        theHandler.SetHighCPUDuration Val(Value)
+    Case "disk.enabled"
+        If Control.Page.Find("disk.low_mark", pc) Then _
+            pc.SetEnabled (Value = "1")
 
-    Case "disk.low_mark"
-        theHandler.SetLowDiskThreshold Val(Value)
+        If Control.Page.Find("disk.watch_optical", pc) Then _
+            pc.SetEnabled (Value = "1")
 
-    Case "disk.watch_optical"
-        theHandler.SetWatchOptical (Value = "1")
+        If Control.Page.Find("disk.watch_removable", pc) Then _
+            pc.SetEnabled (Value = "1")
 
-    Case "disk.watch_removable"
-        theHandler.SetWatchRemovable (Value = "1")
+        If Control.Page.Find("disk.verbosity", pc) Then _
+            pc.SetEnabled (Value = "1")
+
+        If Control.Page.Find("disk.test", pc) Then _
+            pc.SetEnabled (Value = "1")
+
+
+    Case "nic.enabled"
+        
+        uEnableNICScanning (Value = "1")
+
+        If Control.Page.Find("nic.verbosity", pc) Then _
+            pc.SetEnabled (Value = "1")
+
+        If Control.Page.Find("nic.test", pc) Then _
+            pc.SetEnabled (Value = "1")
+
+        If Control.Page.Find("dun.test", pc) Then _
+            pc.SetEnabled (Value = "1")
+
 
     End Select
+
+    theHandler.ConfigChanged Control.GetName, Value
 
 End Sub
 
@@ -1148,7 +1168,6 @@ Private Sub uCfgCheck(ByVal Name As String, ByVal Default As String)
 
     If Not mConfig.Exists(Name) Then _
         mConfig.Add Name, Default
-
 
 End Sub
 
@@ -1334,3 +1353,72 @@ Private Sub theVolTimer_Pulse()
     theVolRoster.Refresh
 
 End Sub
+
+Private Sub uEnableNICScanning(ByVal Enabled As Boolean)
+
+    If Enabled Then
+
+        ' /* scan the current NIC and DUN adapters */
+
+        Set theNetRoster = New TNetRoster2
+        With theNetRoster
+            .LockRoster
+            .Refresh
+            .UnlockRoster
+
+        End With
+
+        Set theDUNRoster = New TDUNRoster
+        With theDUNRoster
+            .LockRoster
+            .Refresh
+            .UnlockRoster
+
+        End With
+
+        ' /* start watching */
+
+        Set theNICTimer = new_BTimer(4000)
+        g_Debug "uEnableNICScanning(): enabled"
+
+    Else
+        ' /* kill the timer */
+        Set theNICTimer = Nothing
+
+        ' /* delete the rosters */
+        Set theDUNRoster = Nothing
+        Set theNetRoster = Nothing
+        g_Debug "uEnableNICScanning(): disabled"
+
+    End If
+
+End Sub
+
+Private Sub uEnableVolScanning(ByVal Enabled As Boolean)
+
+    If Enabled Then
+
+        ' /* scan the current mounted volumes */
+
+        With theVolRoster
+            .LockRoster
+            .SetWatchedVolumes False, True
+            .Refresh
+            .UnlockRoster
+
+        End With
+
+        ' /* start watching */
+
+        g_Debug "uEnableVolScanning(): enabled"
+        Set theVolTimer = new_BTimer(2000)
+
+    Else
+        ' /* kill the timer */
+        Set theVolTimer = Nothing
+        g_Debug "uEnableVolScanning(): disabled"
+
+    End If
+
+End Sub
+
