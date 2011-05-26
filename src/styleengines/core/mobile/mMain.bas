@@ -5,17 +5,17 @@ Public gID As Long
 
 Dim mList As BTagList
 
-Public Sub g_AddThis(ByRef It As TGenericPhoneInstance)
+Public Sub g_AddThis(ByRef This As BTagItem)
 
     If (mList Is Nothing) Then _
         Set mList = new_BTagList()
 
-    mList.Add It
+    mList.Add This
 
 End Sub
 
-Public Sub g_RemoveThis(ByRef It As BTagItem)
+Public Sub g_RemoveThis(ByRef This As BTagItem)
 
-    mList.Remove mList.IndexOf(It.Name)
+    mList.Remove mList.IndexOf(This.Name)
 
 End Sub
