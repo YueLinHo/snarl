@@ -439,6 +439,17 @@ Dim i As Long
         If .uReplyMsg = 0 Then _
             .uReplyMsg = mInfo.uMsg                 ' // if still no reply message, use app-defined value (which may still be 0)
 
+
+
+        ' /* R2.4.2: caller can now request a particular style */
+
+        If pData.Exists("style") Then
+            .StyleName = style_GetStyleName(pData.ValueOf("style"))
+            .SchemeName = style_GetSchemeName(pData.ValueOf("style"))
+
+        End If
+
+
         ' /* V42 styles need the unabridged content */
 
         .OriginalContent = Replace$(pData.AsString(), "\n", vbCrLf)

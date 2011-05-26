@@ -71,7 +71,10 @@ Private Sub Class_Initialize()
 End Sub
 
 Private Sub Class_Terminate()
-'//
+
+    If Not (theSocket Is Nothing) Then _
+        theSocket.CloseSocket
+
 End Sub
 
 Public Sub Accept(ByVal Id As Long, ByVal IsGNTP As Boolean)
@@ -663,6 +666,7 @@ End Function
 
 Private Sub uDoGNTP(ByVal bytesTotal As Long)
 Dim ppd As BPackedData
+Dim bKeepOpen As Boolean
 Dim szReply As String
 Dim sz As String
 
@@ -671,32 +675,16 @@ Dim sz As String
     theSocket.PeekData sz
 
     If g_SafeRightStr(sz, 4) = vbCrLf & vbCrLf Then
-'        Debug.Print "end of packet"
-
         theSocket.GetData sz
-        If gntp_Process(sz, szReply, theSocket) Then
-            uOutput "success! response=" & Replace$(szReply, vbCrLf, "¶")
-            theSocket.SendData szReply
+        gntp_Process sz, theSocket, szReply, bKeepOpen
+        uOutput "TRemoteConnection.uDoGNTP(): response=" & Replace$(szReply, vbCrLf, "¶")
+        theSocket.SendData szReply
 
-        Else
-            uOutput "failed: response=" & Replace$(szReply, vbCrLf, "¶")
-            theSocket.SendData szReply
-
-        End If
-
-        theSocket.CloseSocket
+        If Not bKeepOpen Then _
+            theSocket.CloseSocket
 
     End If
 
-
-
-'
-'
-'
-'
-'
-'
-'
 '    On Error GoTo er
 '
 'Dim sz As String
@@ -704,36 +692,9 @@ Dim sz As String
 '
 'Dim szResponseHeaders As String
 '
-'    theSocket.PeekData sz
-'
-'    If g_SafeRightStr(sz, 4) = vbCrLf & vbCrLf Then
-'        Debug.Print "TRemoteConnection.uDoGNTP(): end of packet"
-'        mGNTPRequest = ""
-'        theSocket.GetData mGNTPRequest
-'        h = gntp_Process(mGNTPRequest, theSocket, szResponseHeaders)
-'
-'        ' /* build response */
-'
-'        sz = "GNTP/1.0 -"
-'
-'        Select Case h
-'        Case 0
-'            sz = sz & "OK"
-'
-'        Case Else
-'            sz = sz & "ERROR"
-'
-'        End Select
-'
-'        ' /* response encryption type (always NONE for now) */
-'
-'        sz = sz & " NONE" & vbCrLf
-'
 '        ' /* response headers */
 '
 '        sz = sz & szResponseHeaders
-'
-'        Debug.Print "uDoGNTP(): replying with '" & sz & "'"
 '
 '        ' /* generic headers */
 '
@@ -744,12 +705,6 @@ Dim sz As String
 '        sz = sz & "Origin-Platform-Version: " & g_GetOSVersionString() & vbCrLf
 '        sz = sz & "X-Message-Daemon: Snarl" & vbCrLf
 '        sz = sz & "X-Timestamp: " & Format$(Now(), "MM/DD/YYYY HH:MM:SS AMPM")
-'
-'        ' /* reply */
-'
-'        theSocket.SendData sz & vbCrLf & vbCrLf
-'
-'    End If
 
     Exit Sub
 
@@ -757,7 +712,6 @@ er:
     g_Debug "TRemoteConnection.uDoGNTP(): " & err.Description, LEMON_LEVEL_CRITICAL
 
     ' /* drop the connection */
-
     theSocket.CloseSocket
 
 End Sub
@@ -798,7 +752,7 @@ End Sub
 Private Sub uOutput(ByVal Text As String)
 
 #If GNTP_TEST = 1 Then
-    form1.output Text
+    Form1.output Text
 
 #Else
     g_Debug Text

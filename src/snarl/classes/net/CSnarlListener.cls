@@ -59,6 +59,9 @@ Public Sub Quit()
 
     End If
 
+    ReDim mConn(0)
+    mCount = 0
+
 End Sub
 
 Private Sub theSocket_OnConnectionRequest(ByVal requestID As Long)

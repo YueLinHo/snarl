@@ -75,21 +75,21 @@ Dim mCustomHeaders As String
 '
 '   Outputs
 '       Response - GNTP response that should be sent back to the source socket
+'       KeepSocketOpen - Set to TRUE if the socket should remain open
 '
 '   Return Value
-'       True if the request was processed successfully, false otherwise.  Note that, as per
-'       GNTP specifications, the resulting Response should be sent to the socket and the
-'       socket closed irrespective of success or failure.
+'       None
 '
 ' *********************************************************************************************/
 
-Public Function gntp_Process(ByVal Request As String, ByRef Response As String, ByRef Sender As CSocket) As Boolean
+Public Sub gntp_Process(ByVal Request As String, ByRef Sender As CSocket, ByRef Response As String, ByRef KeepSocketOpen As Boolean)
 
     ' /* return a GNTP error code here */
 
     On Error GoTo er
 
     mCustomHeaders = ""
+    KeepSocketOpen = False
 
     uOutput ""
     uOutput "gntp_Process(): " & Replace$(Request, vbCrLf, "¶")
@@ -102,7 +102,7 @@ Public Function gntp_Process(ByVal Request As String, ByRef Response As String, 
     If UBound(mSection) < 1 Then
         uOutput "gntp_Process(): failed: no sections"
         Response = uCreateResponse(INVALID_REQUEST)
-        Exit Function
+        Exit Sub
 
     End If
 
@@ -113,7 +113,7 @@ Public Function gntp_Process(ByVal Request As String, ByRef Response As String, 
     If Not uParse(0, Response) Then
         uOutput "gntp_Process(): failed: invalid info block"
         Response = uCreateResponse(INVALID_REQUEST)
-        Exit Function
+        Exit Sub
 
     End If
 
@@ -121,10 +121,10 @@ Public Function gntp_Process(ByVal Request As String, ByRef Response As String, 
 
     Select Case mDirective
     Case "REGISTER"
-        gntp_Process = uDoRegistration(Response)
+        Debug.Print uDoRegistration(Response)
 
     Case "NOTIFY"
-        gntp_Process = uDoNotification(Response, Sender)
+        Debug.Print uDoNotification(Response, Sender, KeepSocketOpen)
 
     Case Else
         uOutput "gntp_Process(): unsupported directive '" & mDirective & "'"
@@ -132,64 +132,13 @@ Public Function gntp_Process(ByVal Request As String, ByRef Response As String, 
 
     End Select
 
-''    ' /* was it successful? */
-''
-''    If gntp_Process <> 0 Then
-''        ' /* error response headers */
-''         mResponse = "Error-Code: " & CStr(gntp_Process) & vbCrLf & _
-''                     "Error-Description: " & uErrStr(gntp_Process) & IIf(mExtError <> "", "(" & mExtError & ")", "") & vbCrLf
-''
-''    End If
-
     uOutput "gntp_Process(): done"
-
-'    gntp_Process = True
-
-    Exit Function
+    Exit Sub
 
 er:
-    Debug.Print "gntp_Process(): panic: " & Err.Description
+    Debug.Print "gntp_Process(): panic: " & err.Description
 
-End Function
-
-'Private Function uErrStr(ByVal Code As Long) As String
-'
-'    Select Case Code
-'    Case 300
-'        'The request contained an unsupported directive, invalid headers or values, or was otherwise malformed
-'        uErrStr = "Invalid request"
-'
-'    Case 301
-'        'The request was not a GNTP request
-'        uErrStr = "Unknown protocol"
-'
-'    Case 302
-'        'The request specified an unknown or unsupported GNTP version
-'        uErrStr = "Unknown protocol version"
-'
-'    Case 303
-'        'The request was missing required information
-'        uErrStr = "Required header missing"
-'
-'    Case 400
-'        'The request supplied a missing or wrong password/key or was otherwise not authorized
-'        uErrStr = "Not authorized"
-'
-'    Case 401
-'        'Application is not registered to send notifications
-'        uErrStr = "Unknown application"
-'
-'    Case 402
-'        'Notification type is not registered by the application
-'        uErrStr = "Unknown notification"
-'
-'    Case 500
-'        'An internal server error occurred while processing the request
-'        uErrStr = "Internal server error"
-'
-'    End Select
-'
-'End Function
+End Sub
 
 Private Function uBool(ByVal str As String) As Boolean
 
@@ -203,7 +152,7 @@ End Function
 
 Private Function uDoRegistration(ByRef Response As String) As Boolean
 
-    mCustomHeaders = "Response-Action: REGISTER" & vbCrLf
+    mCustomHeaders = "Response-Action: REGISTER"
 
 Dim pp As BPackedData
 
@@ -313,6 +262,7 @@ Dim i As Long
 
 #If GNTP_TEST Then
         .Token = snarl_register(.Signature, .AppName, .IconPath)
+        .Token = 999        ' // don't fail
 
 #Else
         .Token = g_DoAction("register", 0, _
@@ -446,7 +396,7 @@ Dim s() As String
 
     End If
 
-    uOutput "uParse(): section header='" & s(0) & "'"
+    uOutput "uParse(): section " & CStr(SectionIndex) & " header='" & s(0) & "'"
 
     ' /* identify section type from the first line */
 
@@ -546,7 +496,7 @@ Dim i As Integer
 
 End Sub
 
-Private Function uDoNotification(ByRef Response As String, ByRef Sender As CSocket) As Boolean
+Private Function uDoNotification(ByRef Response As String, ByRef Sender As CSocket, ByRef KeepSocketOpen As Boolean) As Boolean
 
     mCustomHeaders = "Response-Action: NOTIFY"
 
@@ -571,19 +521,20 @@ Dim pp As BPackedData
 
     End If
 
-'Dim pn As T_GNTP_NOTIFICATION
-'
-'    With pn
-'        'Notification-Callback-Context: <string>
-'        'Optional - Any data (will be passed back in the callback unmodified)
-'        .CallbackContext = pp.ValueOf("Notification-Callback-Context")
-'        'Notification-Callback-Context-Type: <string>
-'        'Optional, but Required if 'Notification-Callback-Context' is passed - The type of data being passed in
-'        'Notification-Callback-Context (will be passed back in the callback unmodified). This does not need to be of any pre-defined
-'        'type, it is only a convenience to the sending application.
-'        .CallbackContextType = pp.ValueOf("Notification-Callback-Context-Type")
-'
-'    End With
+
+    ' /* sections pr.Count to end should be resource identifiers */
+
+    uOutput "uDoNotification(): scanning for resource identifiers in blocks 1 to " & CStr(UBound(mSection) - 1) & "..."
+
+Dim i As Long
+
+    For i = 1 To UBound(mSection) - 1
+        uParse i, ""
+
+    Next i
+
+    uOutput "uDoNotification(): building notification content..."
+
 
     ' /* build the Snarl packet */
 
@@ -636,9 +587,28 @@ Dim px As BPackedData
         'Optional - An alternate target for callbacks from this notification. If passed, the standard behavior of performing the
         'callback over the original socket will be ignored and the callback data will be passed to this target instead. See the 'Url
         'Callbacks' section for more information.
-        If pp.ValueOf("Notification-Callback-Target") <> "" Then _
+        If pp.ValueOf("Notification-Callback-Target") <> "" Then
+            ' /* static callback */
             .Add "callback", pp.ValueOf("Notification-Callback-Target")
 
+        ElseIf (pp.ValueOf("Notification-Callback-Context") <> "") And (pp.ValueOf("Notification-Callback-Context-Type") <> "") Then
+            ' /* we have a dynamic callback */
+
+            'Notification-Callback-Context: <string>
+            'Optional - Any data (will be passed back in the callback unmodified)
+
+            'Notification-Callback-Context-Type: <string>
+            'Optional, but Required if 'Notification-Callback-Context' is passed - The type of data being passed in
+            'Notification-Callback-Context (will be passed back in the callback unmodified). This does not need to be of any pre-defined
+            'type, it is only a convenience to the sending application.
+
+            .Add "callback-context", pp.ValueOf("Notification-Callback-Context")
+            .Add "callback-type", pp.ValueOf("Notification-Callback-Context-Type")
+
+            uOutput "uDoNotification(): dynamic callback specified: context=" & pp.ValueOf("Notification-Callback-Context") & " type=" & pp.ValueOf("Notification-Callback-Context-Type")
+            KeepSocketOpen = True
+
+        End If
 
         ' /* sort out the icon */
 
@@ -659,6 +629,21 @@ Dim sz As String
 
     End With
 
+    ' /* add anything starting with Data- */
+
+Dim szd As String
+
+    With pp
+        .Rewind
+        Do While .GetNextItem(sz, szd)
+            If g_SafeLeftStr(sz, 5) = "Data-" Then _
+                px.Add sz, szd
+
+        Loop
+
+    End With
+
+
     ' /* do the notification */
 
 Dim hr As Long
@@ -670,14 +655,24 @@ Dim hr As Long
     sz = Replace$(sz, "#?", "&")
     hr = snDoRequest("notify?" & sz)
 
-    If hr > 0 Then
-        Response = uCreateResponse(0)
-        uDoNotification = True
-        
-    End If
+    Response = uCreateResponse(0)
+    uDoNotification = True
 
 #Else
-    hr = g_DoAction("notify", 0, px, IIf(Sender.LocalIP <> "127.0.0.1", NF_REMOTE, 0) Or App.Major, Sender)
+
+Dim lFlags As E_NOTIFICATION_FLAGS
+
+    If Sender.LocalIP <> "127.0.0.1" Then _
+        lFlags = lFlags Or NF_REMOTE
+
+
+    ' /* new for R2.4.2 */
+        lFlags = lFlags Or NF_IS_GNTP
+
+'    If (px.Exists("callback-context")) And (px.Exists("callback-type")) Then _
+        lFlags = lFlags Or NF_GNTP_CALLBACK
+
+    hr = g_DoAction("notify", 0, px, lFlags Or App.Major, Sender)
     If hr = 0 Then
         ' /* failed */
 
@@ -705,6 +700,45 @@ Dim hr As Long
 
 End Function
 
+Private Function uError(ByVal ResponseCode As E_GNTP_CODES) As String
+
+    Select Case ResponseCode
+    Case INVALID_REQUEST
+        'The request contained an unsupported directive, invalid headers or values, or was otherwise malformed
+        uError = "Invalid request"
+
+    Case UNKNOWN_PROTOCOL
+        'The request was not a GNTP request
+        uError = "Unknown protocol"
+
+    Case UNKNOWN_PROTOCOL_VERSION
+        'The request specified an unknown or unsupported GNTP version
+        uError = "Unknown protocol version"
+
+    Case REQUIRED_HEADER_MISSING
+        'The request was missing required information
+        uError = "Required header missing"
+
+    Case NOT_AUTHORIZED
+        'The request supplied a missing or wrong password/key or was otherwise not authorized
+        uError = "Not authorized"
+
+    Case UNKNOWN_APPLICATION
+        'Application is not registered to send notifications
+        uError = "Unknown application"
+
+    Case UNKNOWN_NOTIFICATION
+        'Notification type is not registered by the application
+        uError = "Unknown notification"
+
+    Case INTERNAL_SERVER_ERROR
+        'An internal server error occurred while processing the request
+        uError = "Internal server error"
+
+    End Select
+
+End Function
+
 Private Function uCreateResponse(ByVal ResponseCode As E_GNTP_CODES) As String
 Dim sz As String
 
@@ -721,26 +755,22 @@ Dim sz As String
 
     sz = sz & " NONE" & vbCrLf
 
+    ' /* error details */
+
+    If ResponseCode <> 0 Then
+         sz = sz & "Error-Code: " & CStr(ResponseCode) & vbCrLf & _
+                   "Error-Description: " & uError(ResponseCode) & vbCrLf
+
+    End If
+
+    ' /* custom headers */
+
     If mCustomHeaders <> "" Then _
         sz = sz & mCustomHeaders & vbCrLf
 
     ' /* generic headers */
-
-    sz = sz & "Origin-Machine-Name: " & get_host_name() & vbCrLf
-
-#If GNTP_TEST = 1 Then
-    sz = sz & "Origin-Software-Name: " & App.ProductName & vbCrLf
-    sz = sz & "Origin-Software-Version: " & App.Major & "." & App.Minor & "." & App.Revision & vbCrLf
-
-#Else
-    sz = sz & "Origin-Software-Name: Snarl" & vbCrLf
-    sz = sz & "Origin-Software-Version: " & CStr(APP_VER) & "." & CStr(APP_SUB_VER) & " (" & CStr(App.Major) & "." & CStr(App.Revision) & ")" & vbCrLf
-
-#End If
-    sz = sz & "Origin-Platform-Name: Windows" & vbCrLf
-    sz = sz & "Origin-Platform-Version: " & g_GetOSVersionString() & vbCrLf
-
-    sz = sz & "X-Timestamp: " & Format$(Now(), "MM/DD/YYYY HH:MM:SS AMPM")
+    
+    uAddStandardHeaders sz
 
     uCreateResponse = sz & vbCrLf & vbCrLf
 
@@ -749,7 +779,7 @@ End Function
 Private Sub uOutput(ByVal Text As String)
 
 #If GNTP_TEST = 1 Then
-    Form1.Output Text
+    Form1.output Text
 
 #Else
     g_Debug Text
@@ -757,3 +787,92 @@ Private Sub uOutput(ByVal Text As String)
 #End If
 
 End Sub
+
+Public Function gntp_CreateCallbackResponse(ByVal Name As String, ByVal Application As String, ByRef OriginalContent As String, ByRef Response As String) As Boolean
+Dim pp As BPackedData
+
+    Set pp = New BPackedData
+    If Not pp.SetTo(OriginalContent) Then
+        uOutput "gntp_CreateCallbackResponse(): OriginalContent missing or invalid"
+        Exit Function
+
+    End If
+
+    If (Not pp.Exists("callback-context")) Or (Not pp.Exists("callback-type")) Then
+        uOutput "gntp_CreateCallbackResponse(): callback-context and/or callback-type missing"
+        Exit Function
+
+    End If
+
+    Response = "GNTP/1.0 -CALLBACK NONE" & vbCrLf
+
+    'Application-Name: <string>
+    'Required - The name of the application that sent the original request
+    Response = Response & "Application-Name: " & Application & vbCrLf
+
+    'Notification-ID: <string>
+    'Required - The value of the 'Notification-ID' header from the original request
+    Response = Response & "Notification-ID: " & pp.ValueOf("uid") & vbCrLf
+
+    'Notification-Callback-Result: <string>
+    'Required - [CLICKED|CLOSED|TIMEDOUT] | [CLICK|CLOSE|TIMEOUT]
+    Response = Response & "Notification-Callback-Result: " & Name & vbCrLf
+
+    'Notification-Callback-Timestamp: <date>
+    'Required - The date and time the callback occurred
+    Response = Response & "Notification-Callback-Timestamp: " & Format$(Now(), "MM/DD/YYYY HH:MM:SS AMPM") & vbCrLf
+
+    'Notification-Callback-Context: <string>
+    'Required - The value of the 'Notification-Callback-Context' header from the original request
+    Response = Response & "Notification-Callback-Context: " & pp.ValueOf("callback-context") & vbCrLf
+
+    'Notification-Callback-Context-Type: <string>
+    'Required - The value of the 'Notification-Callback-Context-Type' header from the original request
+    Response = Response & "Notification-Callback-Context-Type: " & pp.ValueOf("callback-type") & vbCrLf
+
+    ' /* add anything with 'Data-' */
+
+Dim szn As String
+Dim szv As String
+
+    With pp
+        Do While .GetNextItem(szn, szv)
+            If g_SafeLeftStr(szn, 5) = "Data-" Then _
+                Response = Response & szn & ": " & szv & vbCrLf
+
+        Loop
+
+    End With
+
+    'Callbacks may also contain the generic headers defined in the 'Responses' section, as well as custom headers as defined in the 'Custom Headers' portion of the 'Requests' section above.
+
+    uAddStandardHeaders Response
+
+    uOutput "gntp_CreateCallbackResponse(): response=" & Response
+    Response = Response & vbCrLf & vbCrLf
+
+    gntp_CreateCallbackResponse = True
+
+End Function
+
+Private Sub uAddStandardHeaders(ByRef Response As String)
+
+    Response = Response & "Origin-Machine-Name: " & get_host_name() & vbCrLf
+
+#If GNTP_TEST = 1 Then
+    Response = Response & "Origin-Software-Name: " & App.ProductName & vbCrLf
+    Response = Response & "Origin-Software-Version: " & App.Major & "." & App.Minor & "." & App.Revision & vbCrLf
+
+#Else
+    Response = Response & "Origin-Software-Name: Snarl" & vbCrLf
+    Response = Response & "Origin-Software-Version: " & CStr(APP_VER) & "." & CStr(APP_SUB_VER) & " (" & CStr(App.Major) & "." & CStr(App.Revision) & ")" & vbCrLf
+
+#End If
+    Response = Response & "Origin-Platform-Name: Windows " & g_GetOSVersionString(True) & vbCrLf
+    Response = Response & "Origin-Platform-Version: " & g_GetOSVersionString() & vbCrLf
+
+    Response = Response & "X-Message-Daemon: Snarl" & vbCrLf
+    Response = Response & "X-Timestamp: " & Format$(Now(), "MM/DD/YYYY HH:MM:SS AMPM")
+
+End Sub
+

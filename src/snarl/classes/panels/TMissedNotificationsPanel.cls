@@ -71,7 +71,7 @@ Dim i As Long
 Dim pm As CTempMsg
 
         Set pm = New CTempMsg
-        pm.Add "image-file", mSelected.Info.IconPath
+        pm.Add "image-file", g_TranslateIconPath(mSelected.Info.IconPath, "")
         If mPanel.Find("the_icon", pc) Then _
             pc.DoExCmd B_SET_ITEM, pm
 
@@ -249,7 +249,7 @@ Dim pm As CTempMsg
                 pc.SizeTo 48, 48
                 .Add pc
 
-                .Add new_BPrefsControl("label", "the_detail", Space$(256))
+                .Add new_BPrefsControl("label", "the_detail", Space$(512))
 
 '                .Add new_BPrefsControl("fancybutton2", "fb>ack", "Invoke Callback", , , , False)
         
@@ -345,7 +345,7 @@ Dim i As Long
         With pMissed
             For i = 1 To .CountItems
                 Set pItem = .TagAt(i)
-                pc.DoExCmd B_EXTENDED_COMMANDS.B_SET_ITEM, prefskit_CreateImageMessage(i, load_image_obj(pItem.Info.IconPath), pItem.WasSeen)
+                pc.DoExCmd B_EXTENDED_COMMANDS.B_SET_ITEM, prefskit_CreateImageMessage(i, load_image_obj(g_TranslateIconPath(pItem.Info.IconPath, "")), pItem.WasSeen)
 
             Next i
 

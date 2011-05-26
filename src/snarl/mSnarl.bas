@@ -53,6 +53,7 @@ Public Const SNARL_CLASS_ANON = "_ANL"
 Public Enum E_NOTIFICATION_FLAGS
     NF_REMOTE = &H80000000
     NF_SECURE = &H40000000
+    NF_IS_GNTP = &H20000000           ' // R2.4.2: GNTP-based notification
 
     NF_MERGE = &H1000
 
@@ -280,9 +281,10 @@ Public gLastNotification As Date    ' // V41.47 - last notification timestamp
 Public ghWndMain As Long
 Public gUpdateFilename As String        ' // name of the update file to download
 
-Dim myUpdateCheck As TAutoUpdate
+Dim mUpdateCheck As TAutoUpdate
+Dim mBetaUpdateCheck As TAutoUpdate
 
-Public gCurrentLowPriorityId As Long    ' // only one can be on-screen at any one time
+'Public gCurrentLowPriority As T_NOTIFICATION_INFO       ' // only one can be on-screen at any one time
 Public gSnarlToken As Long              ' // when Snarl registers with itself
 Public gSnarlPassword As String         ' // created on the fly
 
@@ -697,29 +699,32 @@ Dim i As Long
     melonLibInit g_ExtnRoster
     melonLibOpen g_ExtnRoster
 
-#If BETA_REL = 1 Then
 
-Dim pBetaPanel As TBetaPanel
-
-    If (Not gPrefs.AgreeBetaUsage) Then
-        Set pBetaPanel = New TBetaPanel
-        pBetaPanel.Go
-
-    End If
-
-#End If
-
-    Set myUpdateCheck = New TAutoUpdate
-
+    Set mUpdateCheck = New TAutoUpdate
     If g_ConfigGet("auto_update") = "1" Then
         g_Debug "Main(): Doing auto-update check..."
-        If myUpdateCheck.Check(False) Then _
+        If mUpdateCheck.Check(False, "http://www.fullphat.net/updateinfo/snarl.updateinfo") Then _
             g_Debug "Main(): auto-update check initiated"
 
     Else
         g_Debug "Main(): Auto-update is disabled"
 
     End If
+
+    ' /* R2.4.1: check for beta release as well */
+
+    Set mBetaUpdateCheck = New TAutoUpdate
+
+    If g_ConfigGet("auto_beta_update") = "1" Then
+        g_Debug "Main(): Doing auto-update (beta) check..."
+        If mBetaUpdateCheck.Check(False, "http://snarlwin.svn.sourceforge.net/viewvc/snarlwin/snarl-beta.updateinfo") Then _
+            g_Debug "Main(): beta auto-update check initiated"
+
+    Else
+        g_Debug "Main(): Auto-update is disabled"
+
+    End If
+
 
     ' /* done */
 
@@ -748,15 +753,10 @@ Dim pBetaPanel As TBetaPanel
 
     End If
 
-    Set myUpdateCheck = Nothing         ' // this will abort the request if it's still running...
+    Set mUpdateCheck = Nothing         ' // this will abort the request if it's still running...
 
 Dim uSnarlGlobal As Long
 Dim t As Long
-
-
-#If BETA_REL = 1 Then
-    Set pBetaPanel = Nothing
-#End If
 
     t = GetTickCount()
     g_IsQuitting = True
@@ -897,6 +897,7 @@ Public Function g_ConfigInit() As Boolean
         ' /* R2.4.1 */
 
         .Add "allow_right_clicks", "0"
+        .Add "auto_beta_update", "0"
 
     End With
 
@@ -1890,7 +1891,7 @@ End Sub
 
 Public Sub g_DoManualUpdateCheck()
 
-    If myUpdateCheck.Check(True) Then
+    If mUpdateCheck.Check(True, "http://www.fullphat.net/updateinfo/snarl.updateinfo") Then
         g_Debug "g_DoManualUpdateCheck(): check initiated"
 
     Else
@@ -2328,8 +2329,6 @@ Public Function g_DoNotify(ByVal AppToken As Long, ByRef pData As BPackedData, O
 
     End If
 
-'Dim i As Long
-
     ' /* look for the new "replace-uid" and "update-uid" and "merge-uid" args:
     '    "replace" will remove the notification with the specified uid if it's
     '    still on-screen; "update-uid" will cause the specified notification
@@ -2389,7 +2388,6 @@ Dim pApp As TApp
 
     ' /* R2.4 DR7: if "app-sig" argument is specified then look for the app by signature */
 
-'    sz = pData.ValueOf("app-sig")
     If pData.ValueOf("app-sig") <> "" Then
         If g_AppRoster.FindBySignature(pData.ValueOf("app-sig"), pApp, pData.ValueOf("password")) Then
             ' /* R2.4.1 - support for "class" keyword */
@@ -2441,9 +2439,8 @@ Dim pApp As TApp
 
     End If
 
-
     ' /* include the remote sender (if there is one) - small kludge here for
-    '    Growl/UDP which doesn't have a reply socket */
+    '    Growl/UDP which won't have a reply socket */
 
 Dim szRemoteHost As String
 
@@ -2472,7 +2469,7 @@ Dim szRemoteHost As String
 
 End Function
 
-Public Function g_DoAction(ByVal action As String, ByVal Token As Long, ByRef Args As BPackedData, Optional ByVal InternalFlags As E_NOTIFICATION_FLAGS, Optional ByRef ReplySocket As CSocket) As Long
+Public Function g_DoAction(ByVal action As String, ByVal Token As Long, ByRef Args As BPackedData, Optional ByVal InternalFlags As E_NOTIFICATION_FLAGS, Optional ByRef ReplySocket As CSocket, Optional ByVal SenderPID As Long) As Long
 
     ' /* this is the central hub for all incoming requests, be they from SNP, Growl/UDP
     '    or Win32.  "Token" here can be either the app token or the notification token;
@@ -2524,7 +2521,7 @@ Dim pApp As TApp
         g_DoAction = g_DoNotify(Token, Args, ReplySocket, InternalFlags)
 
     Case "reg", "register"
-        g_DoAction = g_AppRoster.Add41(Args, (InternalFlags And NF_REMOTE))
+        g_DoAction = g_AppRoster.Add41(Args, (InternalFlags And NF_REMOTE), SenderPID)
 
     Case "remclass"
         g_DoAction = uRemClass(Token, Args)

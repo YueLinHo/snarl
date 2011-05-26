@@ -222,7 +222,7 @@ Private Property Get MVersionInfo_Version() As Long
 
 End Property
 
-Public Function Add41(ByRef Data As BPackedData, Optional ByVal IsRemote As Boolean) As Long
+Public Function Add41(ByRef Data As BPackedData, Optional ByVal IsRemote As Boolean, Optional ByVal SenderPID As Long) As Long
 Dim sz As String
 Dim i As Long
 
@@ -288,6 +288,27 @@ Dim pInfo As T_SNARL_APP
 
         .Signature = sz
         .LargeIcon = .Icon                       ' // no need for two icons: V41 spec recommends 128x128px icon
+
+        ' / R2.4.1 Beta 3 - if (still) no icon, try to use the sender exe's one */
+
+Dim pi As BIcon
+
+        If (.Icon = "") And (SenderPID <> 0) Then
+            sz = g_GetExeFullPath(SenderPID)
+            If sz <> "" Then
+                With new_BIconContent(sz)
+                    If .GetIcon(B_GET_ICON_BIGGEST Or B_GET_ICON_MOST_COLOURS, pi) Then
+                        With New mfxView
+                            .SizeTo pi.Width, pi.Height
+                            .DrawScaledImage pi.Render, , new_BPoint(pi.Width, pi.Height)
+                            pInfo.Icon = g_GetSafeTempIconPath()
+                            .WriteToFile pInfo.Icon, "image/png"
+
+                        End With
+                    End If
+                End With
+            End If
+        End If
 
         If Data.Exists("reply-to") Then
             ' /* V42.22: new name */

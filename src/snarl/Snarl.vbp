@@ -92,7 +92,7 @@ Description="Snarl Global Notification System"
 CompatibleMode="0"
 MajorVer=42
 MinorVer=0
-RevisionVer=99
+RevisionVer=102
 AutoIncrementVer=1
 ServerSupportFiles=0
 VersionComments="R2.4.1"
@@ -101,7 +101,7 @@ VersionFileDescription="Snarl"
 VersionLegalCopyright="© 2005-2011 full phat products"
 VersionLegalTrademarks="Inspired by Growl for Mac OS X"
 VersionProductName="application/x-vnd.fullphat-snarl"
-CondComp="BETA_REL = 0 : USE_LEMON_3 = 1 : EXCL_PUBLIC = 1"
+CondComp="USE_LEMON_3 = 1 : EXCL_PUBLIC = 1"
 CompilationType=0
 OptimizationType=0
 FavorPentiumPro(tm)=0

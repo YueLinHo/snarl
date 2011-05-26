@@ -35,7 +35,7 @@ Dim mCurrentForward As Long
 Dim mCurrentForwardName As String
 Dim mCurrentCondition As Long
 
-Public Event Done()
+Public Event done()
 
 Implements KPrefsPanel
 Implements KPrefsPage
@@ -221,7 +221,7 @@ End Sub
 Private Sub KPrefsPanel_Quit()
 Dim rc As RECT
 
-    RaiseEvent Done
+    RaiseEvent done
     g_ShowWindow mhWndPanel, True, True
 
     GetWindowRect mhWndPanel, rc
@@ -277,6 +277,9 @@ Dim pc As BControl
             .Add new_BPrefsControl("fancytoggle2", "use_custom_icon", "Use custom icon?", "Icon:")
             .Add new_BPrefsControl("fancyfilepicker", "custom_icon", , , "")
 
+            ' /* view-only */
+            .Add new_BPrefsControl("fancytoggle2", "ignore_input", "Ignore mouse and other input events?", "Interaction:")
+
             ' /* test button */
             .Add new_BPrefsSeparator
             .Add new_BPrefsControl("fancybutton2", "test", "Test")
@@ -314,8 +317,8 @@ Dim pc As BControl
             .Add new_BPrefsControl("fancytoggle2", "use_custom_ack", "Custom callback?", "")
             .Add new_BPrefsControl("fancyedit", "custom_ack", , "Callback:")
 
-            ' /* view-only */
-            .Add new_BPrefsControl("fancytoggle2", "ignore_input", "Ignore mouse and other input events?", "Interaction:")
+            ' /* R2.31: duplicates renamed to spamming */
+            .Add new_BPrefsControl("fancytoggle2", "block_spam", "Prevent notification flooding?", "Other:")
 
             ' /* R2.31: test button here too */
             .Add new_BPrefsSeparator
@@ -330,7 +333,7 @@ Dim pc As BControl
 
 
 
-        Set pp = new_BPrefsPage("Forwarding", load_image_obj(g_MakePath(App.Path) & "etc\icons\class-fwd.png"), Me)
+        Set pp = new_BPrefsPage("Shadowing", load_image_obj(g_MakePath(App.Path) & "etc\icons\class-fwd.png"), Me)
         With pp
             .SetMargin 0
             .SetWidth 300
@@ -378,6 +381,9 @@ Dim pc As BControl
             .Add new_BPrefsControl("banner", "", "When I'm away...")
             .Add new_BPrefsControl("fancycycle", "override-away", "Default|Log as Missed|Display Sticky|Discard|Display Normally|Display High Priority", "Action:", gSelectedClass.GetValue("override-away"))
 
+'            ' /* R2.31: log during DnD */
+'            .Add new_BPrefsControl("fancytoggle2", "log_during_dnd", "Always log when I'm busy", "")
+
             .Add new_BPrefsControl("banner", "", "When I'm busy...")
             .Add new_BPrefsControl("fancycycle", "override-busy", "Default|Log as Missed|Display Sticky|Discard|Display Normally|Display High Priority", "Action:", gSelectedClass.GetValue("override-busy"))
 
@@ -399,11 +405,6 @@ Dim pc As BControl
             ' /* duplicates */
 '            .Add new_BPrefsControl("fancycycle", "duplicates", "Allow|Block|Delay", "Flooding:")
 
-            ' /* R2.31: duplicates renamed to spamming */
-            .Add new_BPrefsControl("fancytoggle2", "block_spam", "Attempt to stop notification flooding?", "Other:")
-
-            ' /* R2.31: log during DnD */
-            .Add new_BPrefsControl("fancytoggle2", "log_during_dnd", "Log when Do Not Disturb is enabled?", "")
             .Add new_BPrefsControl("label", "", " ")
 
 

@@ -748,7 +748,7 @@ Dim lToken As Long
 
     ' /* pass to master function */
 
-    uDoV42Request = g_DoAction(szAction, lToken, pData, App.Major)      ' // R2.4.1 include major API version in this
+    uDoV42Request = g_DoAction(szAction, lToken, pData, App.Major, , SenderPID)    ' // R2.4.1 include major API version in this
 
     If uDoV42Request = 0 Then
         uDoV42Request = -g_QuickLastError()

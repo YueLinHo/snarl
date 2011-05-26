@@ -445,7 +445,7 @@ Dim pm As CTempMsg
             For i = 1 To .CountApps()
                 pm.Replace "index", i
 '                sz = IIf(.AppAt(i).LargeIcon <> "", .AppAt(i).LargeIcon, .AppAt(i).Icon)
-                sz = .AppAt(i).Icon
+                sz = g_TranslateIconPath(.AppAt(i).Icon, "")
                 If Not g_Exists(sz) Then _
                     sz = g_MakePath(App.Path) & "etc\icons\no_icon.png"
 

@@ -1233,46 +1233,80 @@ Dim pmi As OMMenuItem
 End Function
 
 Private Sub uNotify(ByVal Code As Integer, Optional ByVal Data As String)
+Dim szResponse As String
 Dim szData As String
 Dim n As Integer
 
     If Not (mInfo.Socket Is Nothing) Then
         ' /* if we have a socket, then reply to that */
 
-        ' /* FIXFIXFIX - what about GNTP? */
+        Code = Code + 270               ' // convert into "proper" V42 notification
 
-        Code = Code + 270
+        If (mInfo.IntFlags And NF_IS_GNTP) Then
+            ' /* R2.4.2: GNTP handling */
 
-        ' /* most callbacks are deprecated as of V42 - INVOKED, EXPIRED and ACTION are the only
-        '    ones which aren't, so we only do these for SNP */
+            Select Case Code
+            Case SNARL_NOTIFY_INVOKED
+                szData = "CLICKED"
 
-        Select Case Code
-        Case SNARL_NOTIFY_INVOKED, SNARL_NOTIFY_EXPIRED
-            ' /* nothing special to do here */
+            Case SNARL_NOTIFY_EXPIRED
+                szData = "TIMEDOUT"
 
-        Case SNARL_NOTIFY_ACTION, SNARL_NOTIFY_MENU
-            ' /* send the data verbatim */
-            szData = "/" & Data
+            Case SNARL_NOTIFY_CLOSED
+                szData = "CLOSED"
 
-        Case Else
-            g_Debug "CSnarlWindow.uNotify(): not sending deprecated command " & CStr(Code)
-            Exit Sub
+            Case Else
+                g_Debug "CSnarlWindow.uNotify(): GNTP does not support notification " & CStr(Code)
+                Exit Sub
 
-        End Select
+            End Select
 
-        g_Debug "CSnarlWindow.uNotify(): dest=" & mInfo.Socket.RemoteHostIP & ":" & CStr(mInfo.Socket.RemotePort)
+            If gntp_CreateCallbackResponse(szData, mInfo.ClassObj.App.Name, mInfo.OriginalContent, szResponse) Then
+                g_Debug "CSnarlWindow.uNotify(): sending GNTP callback response to " & mInfo.Socket.RemoteHostIP & ":" & CStr(mInfo.Socket.RemotePort)
+                mInfo.Socket.SendData szResponse
 
-        mInfo.Socket.SendData "SNP/2.0/" & CStr(Code) & _
-                              "/" & uSNP2CallbackResponse(Code) & _
-                              "/" & CStr(mInfo.Token) & szData & _
-                              vbCrLf
+            Else
+                g_Debug "CSnarlWindow.uNotify(): failed to create GNTP response", LEMON_LEVEL_CRITICAL
+
+            End If
+
+            ' /* close the socket now, as per the GNTP specification */
+
+            mInfo.Socket.CloseSocket
+
+        Else
+            ' /* SNP2 */
+
+            ' /* most callbacks are deprecated as of V42 - INVOKED, EXPIRED and ACTION are the only
+            '    ones which aren't, so we only do these for SNP */
+
+            Select Case Code
+            Case SNARL_NOTIFY_INVOKED, SNARL_NOTIFY_EXPIRED
+                ' /* nothing special to do here */
+
+            Case SNARL_NOTIFY_ACTION, SNARL_NOTIFY_MENU
+                ' /* send the data verbatim */
+                szData = "/" & Data
+
+            Case Else
+                g_Debug "CSnarlWindow.uNotify(): not sending deprecated command " & CStr(Code)
+                Exit Sub
+
+            End Select
+
+            g_Debug "CSnarlWindow.uNotify(): dest=" & mInfo.Socket.RemoteHostIP & ":" & CStr(mInfo.Socket.RemotePort)
+
+            mInfo.Socket.SendData "SNP/2.0/" & CStr(Code) & _
+                                  "/" & uSNP2CallbackResponse(Code) & _
+                                  "/" & CStr(mInfo.Token) & szData & _
+                                  vbCrLf
+
+        End If
 
     ElseIf (IsWindow(mInfo.hWndReply) <> 0) And (mInfo.uReplyMsg <> 0) Then
-
         ' /* otherwise, if we have a valid window and message, reply to that */
 
         n = LoWord(g_SafeLong(g_SafeRightStr(Data, Len(Data) - 1)))
-
         g_Debug "CSnarlWindow.uNotify(): sending " & CStr(Code) & " to 0x" & g_HexStr(mInfo.hWndReply) & _
                 " using 0x" & g_HexStr(mInfo.uReplyMsg, 4) & " token=" & CStr(mInfo.Token) & " data=" & CStr(n), LEMON_LEVEL_INFO
 

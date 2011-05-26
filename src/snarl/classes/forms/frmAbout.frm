@@ -499,7 +499,7 @@ End Sub
 Private Sub GrowlUDPSocket_OnDataArrival(ByVal bytesTotal As Long)
 Dim b() As Byte
 
-    Debug.Print bytesTotal
+'    Debug.Print bytesTotal
     GrowlUDPSocket.GetData b(), vbArray + vbByte
     g_ProcessGrowlUDP b(), bytesTotal, GrowlUDPSocket.RemoteHost
 
@@ -519,16 +519,10 @@ Private Sub Image2_MouseMove(Button As Integer, Shift As Integer, x As Single, y
 
 End Sub
 
-Private Sub Label2_Click()
-
-End Sub
-
 Private Sub KPrefsPage_AllAttached()
-
 End Sub
 
 Private Sub KPrefsPage_Attached()
-
 End Sub
 
 Private Sub KPrefsPage_ControlChanged(Control As prefs_kit_d2.BControl, ByVal Value As String)
@@ -1140,6 +1134,7 @@ Dim pm As CTempMsg
 
             .Go
             g_SetWindowIconToAppResourceIcon .hWnd
+            g_ShowWindow .hWnd, True, True
             SetForegroundWindow .hWnd
 
         End With

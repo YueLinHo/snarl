@@ -28,7 +28,7 @@ Private Sub Class_Terminate()
 
 End Sub
 
-Public Function Check(ByVal OverrideLastCheck As Boolean) As Boolean
+Public Function Check(ByVal OverrideLastCheck As Boolean, ByVal PathToUpdateInfo As String) As Boolean
 
     If Not (myUpdateCheck Is Nothing) Then
         g_Debug "TAutoUpdate.Check(): already in progress..."
@@ -56,7 +56,7 @@ Dim n As Long
     ' /* initiate the async operation */
 
     Set myUpdateCheck = New BWebRequest
-    Check = myUpdateCheck.GetContent("http://www.fullphat.net/updateinfo/snarl.updateinfo")
+    Check = myUpdateCheck.GetContent(PathToUpdateInfo)
 
 End Function
 
@@ -64,6 +64,8 @@ Private Sub uDecodeUpdateFile(ByVal Content As String)
 Dim szURL As String
 Dim sz As String
 Dim i As Long
+
+    Content = Replace$(Content, vbCrLf, Chr$(10))       '// avoid unix/win encoding clashes
 
     g_Debug "TAutoUpdate.uDecodeUpdateFile(): #" & Content & "#"
 

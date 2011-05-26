@@ -39,6 +39,8 @@ Dim mActive As BTagList
 Dim mWait As BTagList
 Dim mMissedX As BTagList
 
+Dim mCurrentLowPriority As TNotification
+
 Implements MLibrary
 Implements MVersionInfo
 
@@ -207,6 +209,7 @@ Dim lQuantum As Long
     ' /* R2.3: set datestamp */
 
     Info.DateStamp = Now()
+    
 
     ' /* R2.4: generate the "OriginalContent" content */
 
@@ -318,9 +321,8 @@ Dim pn As TNotification
     End If
 
 
-    ' /* R2.4: low-priority notifications cannot be sticky */
-
     If (Info.Priority < 0) And (Info.Timeout = 0) Then
+        ' /* R2.4: low-priority notifications cannot be sticky */
         Info.Timeout = Val(g_ConfigGet("default_duration"))
 
     ElseIf Info.Timeout = -1 Then
@@ -411,12 +413,12 @@ Dim nPMode As E_PRESENCE_ACTIONS
 
         Case PA_LOG_AS_MISSED
             ' /* put in missed list (unless class setting says otherwise) and return the token */
-            If Info.ClassObj.GetValue("log_during_dnd") = "1" Then
+'            If Info.ClassObj.GetValue("log_during_dnd") = "1" Then
                 uAddToMissedList Info
                 Add = Info.Token
                 Exit Function
 
-            End If
+'            End If
 
         Case PA_MAKE_STICKY
             Info.Timeout = 0
@@ -447,15 +449,6 @@ Dim nPMode As E_PRESENCE_ACTIONS
     '
     '    ============================================================================= */
 
-
-    If Info.Priority < 0 Then
-        ' /* R2.4: for low priority notifications only one may be visible
-        '    at any one time, so zap any existing */
-
-        If Me.IsVisible(gCurrentLowPriorityId, "", "", "") Then _
-            Me.Hide gCurrentLowPriorityId, "", "", ""
-
-    End If
 
     ' /* R2.4: merging */
 
@@ -600,6 +593,20 @@ Dim pStyle As TStyle
 
     End If
 
+    ' /* only one low priority notification can be on screen at once... */
+
+    If (Info.Priority < 0) And (Not (mCurrentLowPriority Is Nothing)) Then
+        With mCurrentLowPriority
+            Me.Hide .Info.Token, .Info.CustomUID, .Info.ClassObj.App.Signature, .Info.ClassObj.App.Password
+
+        End With
+
+        Set mCurrentLowPriority = Nothing
+
+    End If
+
+
+
     ' /* create the on-screen instance */
 
 
@@ -654,6 +661,7 @@ Dim i As Long
 
     g_Debug "TNotificationRoster.Add(): placing at " & ar.Left & "," & ar.Top & "-" & ar.Right & "," & ar.Bottom
 
+
     ' /* add it to our list */
 
     Set pn = New TNotification
@@ -664,10 +672,11 @@ Dim i As Long
 
     Add = Info.Token
 
-    ' /* R2.4: if this was a low priority notification, remember the token */
+    ' /* R2.4: if this was a low priority notification, remember it */
 
     If Info.Priority < 0 Then _
-        gCurrentLowPriorityId = Add
+        Set mCurrentLowPriority = pn
+
 
     ' /* R2.4 DR8: last thing to do - play the sound */
 

@@ -1,6 +1,47 @@
 
 	Snarl Change Log
 
+	- Released as R2.4.1 b3.  (42.101)
+
+	- Headers beginning with "Data-" in a GNTP notification request are
+	  now stored and included in any subsequent CALLBACK response.  (42.101)
+
+	- Fixed bug in GNTP notification parsing code which wasn't saving
+	  embedded icons out.  (42.101)
+
+	- Snarl will now check for a new beta release on startup if config
+	  entry "auto_beta_update" is set to "1".  There is currently no
+	  GUI setting for this, hence the config file must be edited manually.
+	  (42.101)
+
+	- If no icon is provided by an application, Snarl will now attempt to
+	  use the first icon in the application's executable.  This only
+	  applies to applications which register using the Win32 messaging
+	  subsystem and who provide their PID in wParam when sending the
+	  WM_COPYDATA message.  (42.100)
+
+	- Released as R2.4.1 b2.  (42.99)
+
+	- Fixed bug which was allowing multiple low-priority notifications to
+	  appear when using a password.  (42.99)
+
+	- !icons are now displayed correctly in the application list.  (42.99)
+
+	- Fixed bug in GNTP socket callback response content.  (42.99)
+
+	- Class configuration panel [Forwarding] page renamed to [Shadowing].
+	  (42.99)
+
+	- Implemented GNTP socket callbacks.  (42.99)
+
+	- Missed Notifications panel now displays !icons correctly.  (42.99)
+
+	- Notifications can now request a particular style by using the new
+	  "style=<style>/<scheme>" argument within <notify>.  This is only
+	  a request however; it's not guaranteed to be honoured.  (42.99)  
+
+	- Released as R2.4.1 b1.  (42.98)
+
 	- Further improvements to the missed notifications panel.  (42.98)
 
 	- GNTP notifications will now attempt to use the class icon and then
