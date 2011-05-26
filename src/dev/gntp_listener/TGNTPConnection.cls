@@ -23,29 +23,29 @@ Public Sub Accept(ByVal Request As Long)
 
 End Sub
 
+Private Sub Class_Terminate()
+
+    If Not (theSocket Is Nothing) Then _
+        theSocket.CloseSocket
+
+End Sub
+
 Private Sub theSocket_OnDataArrival(ByVal bytesTotal As Long)
 Dim ppd As BPackedData
+Dim bKeepOpen As Boolean
 Dim szReply As String
 Dim sz As String
-Dim b As Boolean
 
     theSocket.PeekData sz
 
     If g_SafeRightStr(sz, 4) = vbCrLf & vbCrLf Then
-'        Debug.Print "end of packet"
-
         theSocket.GetData sz
-        If gntp_Process(sz, szReply, theSocket) Then
-            Form1.Output "success! response=" & Replace$(szReply, vbCrLf, "¶")
-            theSocket.SendData szReply
+        gntp_Process sz, theSocket, szReply, bKeepOpen
+        Form1.Output "response=" & Replace$(szReply, vbCrLf, "¶")
 
-        Else
-            Form1.Output "failed: response=" & Replace$(szReply, vbCrLf, "¶")
-            theSocket.SendData szReply
-
-        End If
-
-        theSocket.CloseSocket
+        theSocket.SendData szReply
+        If Not bKeepOpen Then _
+            theSocket.CloseSocket
 
     End If
 

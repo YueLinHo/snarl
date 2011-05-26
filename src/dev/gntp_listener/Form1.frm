@@ -46,8 +46,7 @@ Attribute theSocket.VB_VarHelpID = -1
 Private Sub Form_Load()
 
     Set theSocket = New CSocket
-    theSocket.Bind 23053
-    If Not theSocket.Listen Then
+    If Not theSocket.Bind(23053) Then
         MsgBox App.Title & " failed: socket already in use.  Ensure Snarl is not already listening for incoming" & vbCrLf & _
                "GNTP notifications and click Retry, or click Cancel to quit.", vbCritical Or vbOKOnly, "Can't start..."
 
@@ -55,6 +54,8 @@ Private Sub Form_Load()
         Exit Sub
 
     End If
+
+    theSocket.Listen
 
 Dim sz As String
 
@@ -89,7 +90,7 @@ End Sub
 
 Private Sub theSocket_OnConnectionRequest(ByVal requestID As Long)
 
-    Me.Output "[ ConnectionRequest ]"
+    Me.Output vbCrLf & "[ ConnectionRequest ]"
 
     mCount = mCount + 1
     ReDim Preserve mConn(mCount)
