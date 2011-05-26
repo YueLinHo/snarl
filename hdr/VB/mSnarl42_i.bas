@@ -120,7 +120,7 @@ Public Enum SNARL_STATUS_CODE
     SNARL_NOTIFY_INVOKED = 304              '// note this was "ACK" in a previous life
     SNARL_NOTIFY_MENU                       '// indicates an item was selected from user-defined menu (deprecated as of V42)
 '    SNARL_NOTIFY_EX_CLICK                 '// user clicked the middle mouse button (deprecated as of V42)
-'    SNARL_NOTIFY_CLOSED                   '// user clicked the notification's close gadget
+    SNARL_NOTIFY_CLOSED = 307               '// user clicked the notification's close gadget (GNTP only)
 
     ' /* the following is generic to SNP and the Win32 API */
 
@@ -345,10 +345,10 @@ Dim sz As String
 
     sz = "unregister?"
 
-    If VarType(TokenOrSignature) = vbLong Then
+    If varType(TokenOrSignature) = vbLong Then
         sz = sz & "token=" & CStr(TokenOrSignature)
 
-    ElseIf VarType(TokenOrSignature) = vbString Then
+    ElseIf varType(TokenOrSignature) = vbString Then
         sz = sz & "app-sig=" & CStr(TokenOrSignature)
 
     Else
