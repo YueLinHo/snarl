@@ -243,7 +243,6 @@ Dim mSysKeyTest As Long
 Dim mTrayIcon As BNotifyIcon
 
 Dim m_About As String
-'Dim mTaskbarCreated As Long
 Dim m_SelectedApp As String         ' // current selected application in listbox
 
 Dim mPrefs As T_CONFIG
@@ -253,16 +252,19 @@ Dim mPanel As BPrefsPanel
 Dim mAppsPage As TAppsPage
 
     ' /* listening sockets */
-Dim WithEvents JSONSocket As CSocket            ' // 9889 (TCP)
-Attribute JSONSocket.VB_VarHelpID = -1
+'Dim WithEvents JSONSocket As CSocket            ' // 9889 (TCP)
+    ' /* active JSON connections */
+'Dim mJSONSocket() As CJSONSocket
+'Dim mSockets As Long
+'Dim mListener() As CSnarlListener               ' // 9887 (TCP) - all local ip addresses
+'Dim mListenerCount As Long
+
 Dim WithEvents GrowlUDPSocket As CSocket        ' // 9887 (UDP)
 Attribute GrowlUDPSocket.VB_VarHelpID = -1
-Dim mListener() As CSnarlListener               ' // 9887 (TCP) - all local ip addresses
-Dim mListenerCount As Long
+Dim mSNPListener As CSnarlListener              ' // 9887 (TCP) on 0.0.0.0
+Dim mGNTPListener As CSnarlListener             ' // 23053 (TCP) on 0.0.0.0
+Dim mJSONListener As CSnarlListener             ' // 9889 (TCP) on 0.0.0.0
 
-    ' /* active JSON connections */
-Dim mJSONSocket() As CJSONSocket
-Dim mSockets As Long
 
 Dim mClickThruOver As CSnarlWindow
 Dim mMenuOpen As Boolean
@@ -1217,7 +1219,6 @@ Dim j As Long
 End Sub
 
 Private Sub KPrefsPanel_Selected(ByVal Command As String)
-
 End Sub
 
 Private Sub Label1_Click()
@@ -1240,7 +1241,6 @@ Private Property Get MMessageSink_Name() As String
 End Property
 
 Private Function MMessageSink_Received(message As melon.MMessage) As Boolean
-
 End Function
 
 Friend Sub bUpdateExtList()
@@ -1314,28 +1314,28 @@ Dim sz() As String
 
 End Function
 
-Private Sub JSONSocket_OnConnect()
-
-    g_Debug "JSONSocket.OnConnect()", LEMON_LEVEL_PROC
-
-End Sub
-
-Private Sub JSONSocket_OnConnectionRequest(ByVal requestID As Long)
-
-    g_Debug "JSONSocket.OnConnectionRequest(): requestID=0x" & g_HexStr(requestID), LEMON_LEVEL_PROC
-
-    mSockets = mSockets + 1
-    ReDim Preserve mJSONSocket(mSockets)
-    Set mJSONSocket(mSockets) = New CJSONSocket
-    mJSONSocket(mSockets).Accept requestID
-
-End Sub
-
-Private Sub JSONSocket_OnDataArrival(ByVal bytesTotal As Long)
-
-    g_Debug "JSONSocket.OnDataArrival(): bytesTotal=" & g_HexStr(bytesTotal), LEMON_LEVEL_PROC
-
-End Sub
+'Private Sub JSONSocket_OnConnect()
+'
+'    g_Debug "JSONSocket.OnConnect()", LEMON_LEVEL_PROC
+'
+'End Sub
+'
+'Private Sub JSONSocket_OnConnectionRequest(ByVal requestID As Long)
+'
+'    g_Debug "JSONSocket.OnConnectionRequest(): requestID=0x" & g_HexStr(requestID), LEMON_LEVEL_PROC
+'
+'    mSockets = mSockets + 1
+'    ReDim Preserve mJSONSocket(mSockets)
+'    Set mJSONSocket(mSockets) = New CJSONSocket
+'    mJSONSocket(mSockets).Accept requestID
+'
+'End Sub
+'
+'Private Sub JSONSocket_OnDataArrival(ByVal bytesTotal As Long)
+'
+'    g_Debug "JSONSocket.OnDataArrival(): bytesTotal=" & g_HexStr(bytesTotal), LEMON_LEVEL_PROC
+'
+'End Sub
 
 Friend Function bSetHotkeys(Optional ByVal KeyCode As Long = 0) As Boolean
 
@@ -1774,24 +1774,29 @@ Public Sub EnableJSON(ByVal Enabled As Boolean)
 
     If Enabled Then
         g_Debug "creating JSON listener..."
+        Set mJSONListener = New CSnarlListener
+        mJSONListener.Go JSON_DEFAULT_PORT
 
-        Set JSONSocket = New CSocket
-        JSONSocket.Bind "9889", "127.0.0.1"
-        JSONSocket.Listen
-
-        g_Debug "listening on " & JSONSocket.LocalIP & ":" & JSONSocket.LocalPort & "..."
+'        Set JSONSocket = New CSocket
+'        JSONSocket.Bind "9889", "127.0.0.1"
+'        JSONSocket.Listen
+'
+'        g_Debug "listening on " & JSONSocket.LocalIP & ":" & JSONSocket.LocalPort & "..."
 
     Else
         g_Debug "stopping JSON listener..."
-        If Not (JSONSocket Is Nothing) Then
-            JSONSocket.CloseSocket
-            Set JSONSocket = Nothing
-            g_Debug "JSON listener stopped"
+        mJSONListener.Quit
+        Set mJSONListener = Nothing
 
-        Else
-            g_Debug "wasn't started", LEMON_LEVEL_WARNING
-
-        End If
+'        If Not (JSONSocket Is Nothing) Then
+'            JSONSocket.CloseSocket
+'            Set JSONSocket = Nothing
+'            g_Debug "JSON listener stopped"
+'
+'        Else
+'            g_Debug "wasn't started", LEMON_LEVEL_WARNING
+'
+'        End If
     End If
 
     g_Debug "", LEMON_LEVEL_PROC_EXIT
@@ -1799,33 +1804,41 @@ Public Sub EnableJSON(ByVal Enabled As Boolean)
 End Sub
 
 Public Sub EnableSNP(ByVal Enabled As Boolean)
-Dim szAddr() As String
-Dim i As Long
 
     g_Debug "frmAbout.EnableSNP(" & CStr(Enabled) & ")", LEMON_LEVEL_PROC_ENTER
 
     If Enabled Then
-        g_Debug "getting local ip address table..."
-        ' /* get local ip addresses */
-        szAddr() = Split(get_ip_address_table(), " ")
 
-        If UBound(szAddr()) > -1 Then
+        Set mSNPListener = New CSnarlListener
+        mSNPListener.Go SNP_DEFAULT_PORT
 
-            ' /* add SNP/tcp and GNTP listeners */
+        Set mGNTPListener = New CSnarlListener
+        mGNTPListener.Go GNTP_DEFAULT_PORT
 
-            For i = 0 To UBound(szAddr())
-                If szAddr(i) <> "0.0.0.0" Then
-                    uAddListener szAddr(i), False                   ' // SNP listener
-                    uAddListener szAddr(i), True                    ' // GNTP listener
+'        uAddListener SNP_DEFAULT_PORT
+'        uAddListener GNTP_DEFAULT_PORT
 
-                End If
-
-            Next i
-
-        Else
-            g_Debug "couldn't read local ip address table", LEMON_LEVEL_WARNING
-
-        End If
+'        g_Debug "getting local ip address table..."
+'        ' /* get local ip addresses */
+'        szAddr() = Split(get_ip_address_table(), " ")
+'
+'        If UBound(szAddr()) > -1 Then
+'
+'            ' /* add SNP/tcp and GNTP listeners */
+'
+'            For i = 0 To UBound(szAddr())
+'                If szAddr(i) <> "0.0.0.0" Then
+'                    uAddListener szAddr(i), False                   ' // SNP listener
+'                    uAddListener szAddr(i), True                    ' // GNTP listener
+'
+'                End If
+'
+'            Next i
+'
+'        Else
+'            g_Debug "couldn't read local ip address table", LEMON_LEVEL_WARNING
+'
+'        End If
 
         ' /* R2.4: native Growl/UDP support */
 
@@ -1848,21 +1861,27 @@ Dim i As Long
 
         End If
 
-        g_Debug "stopping SNP listeners..."
+        mSNPListener.Quit
+        Set mSNPListener = Nothing
 
-        If mListenerCount Then
-            For i = 1 To mListenerCount
-                mListener(i).Quit
+        mGNTPListener.Quit
+        Set mGNTPListener = Nothing
 
-            Next i
-
-        Else
-            g_Debug "no listeners", LEMON_LEVEL_WARNING
-
-        End If
-
-        ReDim mListener(0)
-        mListenerCount = 0
+'        g_Debug "stopping SNP listeners..."
+'
+'        If mListenerCount Then
+'            For i = 1 To mListenerCount
+'                mListener(i).Quit
+'
+'            Next i
+'
+'        Else
+'            g_Debug "no listeners", LEMON_LEVEL_WARNING
+'
+'        End If
+'
+'        ReDim mListener(0)
+'        mListenerCount = 0
 
     End If
 
@@ -1985,14 +2004,14 @@ Friend Sub bReadyToRun()
 
 End Sub
 
-Private Sub uAddListener(ByVal IPAddr As String, ByVal IsGNTP As Boolean)
-
-    mListenerCount = mListenerCount + 1
-    ReDim Preserve mListener(mListenerCount)
-    Set mListener(mListenerCount) = New CSnarlListener
-    mListener(mListenerCount).Go IPAddr, IsGNTP
-
-End Sub
+'Private Sub uAddListener(ByVal PortNumber As Long)  '//ByVal IPAddr As String,
+'
+'    mListenerCount = mListenerCount + 1
+'    ReDim Preserve mListener(mListenerCount)
+'    Set mListener(mListenerCount) = New CSnarlListener
+'    mListener(mListenerCount).Go PortNumber
+'
+'End Sub
 
 Private Function uIsFullScreenMode() As Boolean
 Static hWnd As Long

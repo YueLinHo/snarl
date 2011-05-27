@@ -17,6 +17,9 @@ Option Explicit
 Public Const APP_VER = 2
 Public Const APP_SUB_VER = 4
 
+Public Const GNTP_DEFAULT_PORT = 23053
+Public Const SNP_DEFAULT_PORT = 9887
+Public Const JSON_DEFAULT_PORT = 9889
 
 Public Declare Sub CoFreeUnusedLibrariesEx Lib "ole32" (ByVal dwUnloadDelay As Long, ByVal dwReserved As Long)
 Private Declare Function GetTempPath Lib "kernel32" Alias "GetTempPathA" (ByVal nBufferLength As Long, ByVal lpBuffer As String) As Long

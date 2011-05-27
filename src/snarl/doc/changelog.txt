@@ -1,6 +1,13 @@
 
 	Snarl Change Log
 
+	- Fixed bug in SNP2 socket handling code which was causing requests to
+	  be mistakenly handled as GNTP.  (42.102)
+
+	- Tidied up GNTP and SNP socket binding code.  We now use the wildcard
+	  IP address (0.0.0.0) rather than enumerating all local addresses.
+	  (42.102)
+
 	- Released as R2.4.1 b3.  (42.101)
 
 	- Headers beginning with "Data-" in a GNTP notification request are
