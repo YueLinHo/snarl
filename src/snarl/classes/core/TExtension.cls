@@ -16,95 +16,102 @@ Option Explicit
 Private Declare Function GetModuleHandle Lib "kernel32" Alias "GetModuleHandleA" (ByVal lpModuleName As String) As Long
 Private Declare Sub CoFreeLibrary Lib "ole32.dll" (ByVal hInst As Long)
 
-'Public Enum E_EXTENSION_STATUS
-'    E_NOT_AN_EXTENSION              ' // couldn't create the object or assign it to MVersionInfo/MWndProcSink
-'    E_NOT_ENABLED                   ' // creatable but not enabled (in exclude list)
-'    E_ENABLED                       ' // enabled, started ok
-'    E_FAILED_TO_START               ' // enabled, failed to start
-'
-'End Enum
-    
+Public Enum E_EXTENSION_STATE
+    E_ES_FAILED = -1                '// mError should contain reason
+    E_ES_NOT_LOADED = 0
+    E_ES_LOADED = 1
+
+End Enum
+
 Dim mInfo As extension_info
 
-Dim mClass As String
-
 Dim mObj As MWndProcSink
-Dim mObj2 As ISnarlExtension
-Dim mEnabled As Boolean             '// means "not in exclude list"
-Dim mStarted As Boolean             '// only applies if mEnabled is True - means extension started ok
+Dim mObj41 As ISnarlExtension
+'Dim mEnabled As Boolean             '// means "not in exclude list"
+'Dim mStarted As Boolean             '// only applies if mEnabled is True - means extension started ok
 Dim mLastErr As String
 
 Dim mhWndPrefsPanel As Long
 
-Implements MObject
+Dim mClass As String
+Dim mPath As String
+Dim mState As E_EXTENSION_STATE
+
+Implements mObject
 Implements MWndProcSink
 
 Private Property Get MObject_Type() As String
 
 End Property
 
-Public Function SetTo(ByVal Class As String, ByVal Path As String) As Boolean
-
-    ' /* first (and only) check to see if the passed class really is an extension */
+Public Sub SetTo(ByVal Class As String, ByVal Path As String)
 
     g_Debug "TExtension.SetTo()", LEMON_LEVEL_PROC_ENTER
 
-    SetTo = uInit(Class, Path)
+    mClass = Class
+    mPath = Path
+
+    ' /* uInit() attempts to create the extension object and, if successful, queries information
+    '    about it - it does not start or initialize the extension */
+
+    If uInit() Then
+        g_Debug "'" & Class & "': ok"
+
+    Else
+        g_Debug "'" & Class & "': failed (" & mLastErr & ")"
+
+    End If
+
+    Set mObj = Nothing
+    Set mObj41 = Nothing
 
     g_Debug "", LEMON_LEVEL_PROC_EXIT
 
-End Function
+End Sub
 
-Private Function uInit(ByVal Class As String, ByVal Path As String) As Boolean
+Private Function uInit() As Boolean         ' // ByVal Class As String, ByVal Path As String
 Dim iExt As ISnarlExtension
+Dim iSink As MWndProcSink
 Dim iVer As MVersionInfo
-Dim hr As Long
 
-    ' /* reminder! the reason for breaking out the object creation into a seperate
-    '    function is so that enabling and disabling an extension cause Snarl to
-    '    (a) confirm the extension is (still) valid and (b) to retrieve information
-    '    about the extension each time.  This function is called by SetTo()
-    '    whenever the extension is first discovered and subsequently by uEnable()
-    '    whenever it needs to be started up */
+    ' /* creates, but does _not_ initialize, the extension */
 
     On Error Resume Next
 
-    g_Debug "TExtension.uInit()", LEMON_LEVEL_PROC_ENTER
+    g_Debug "TExtension.uInit('" & mClass & "')", LEMON_LEVEL_PROC_ENTER
 
-    g_Debug "clsid is '" & Class & "', testing for V41 API..."
+    mLastErr = ""
+    mState = E_ES_NOT_LOADED
 
     err.Clear
-    Set iExt = CreateObject(Class & ".extension")
+    Set iExt = CreateObject(mClass & ".extension")
     If (err.Number = 0) And (Not (iExt Is Nothing)) Then
         ' /* is V41 extension */
         g_Debug "V41 extension"
         iExt.GetInfo mInfo
-        Set mObj2 = iExt
+        Set mObj41 = iExt
 
     Else
-
         ' /* must support MVersionInfo */
-
         g_Debug "not V41 extension, checking MVersionInfo support..."
-
         err.Clear
-        Set iVer = CreateObject(Class & ".extension")
+        Set iVer = CreateObject(mClass & ".extension")
         If err.Number <> 0 Then
             g_Debug "doesn't support MVersionInfo (" & err.Description & ")", LEMON_LEVEL_CRITICAL Or LEMON_LEVEL_PROC_EXIT
+            mLastErr = "Not a valid extension"
+            mState = E_ES_FAILED
             Exit Function
 
         End If
 
         ' /* must support MWndProcSink */
-
-Dim iSink As MWndProcSink
-
         g_Debug "checking MWndProcSink support..."
-
         err.Clear
         Set iSink = iVer
         If err.Number <> 0 Then
             g_Debug "doesn't support MWndProcSink (" & err.Description & ")", LEMON_LEVEL_CRITICAL Or LEMON_LEVEL_PROC_EXIT
+            mLastErr = "Not a valid extension"
+            mState = E_ES_FAILED
             Exit Function
 
         End If
@@ -115,13 +122,13 @@ Dim dw As Long
 
         If iVer.Version >= 40 Then
             ' /* V40 extensions must support MSimpleEnum */
-
             g_Debug "V40 extension, checking MSimpleEnum support..."
-
             err.Clear
             Set iEnum = iVer
             If err.Number <> 0 Then
                 g_Debug "doesn't support MSimpleEnum", LEMON_LEVEL_CRITICAL Or LEMON_LEVEL_PROC_EXIT
+                mLastErr = "Not a valid extension"
+                mState = E_ES_FAILED
                 Exit Function
 
             End If
@@ -181,7 +188,7 @@ Dim dw As Long
             End If
 
             If .Path = "" Then _
-                .Path = Path
+                .Path = mPath
 
             .IconPath = g_MakePath(.Path) & "icon.png"
 
@@ -194,36 +201,58 @@ Dim dw As Long
 
     End If
 
-    mClass = Class
-
-    g_Debug "success! name='" & mInfo.Name & "' release='" & mInfo.Release & "' (V" & CStr(mInfo.Version) & "." & CStr(mInfo.Revision) & ")", LEMON_LEVEL_INFO Or LEMON_LEVEL_PROC_EXIT
     uInit = True
 
 End Function
 
 Public Function Name() As String
 
-    Name = mInfo.Name
+    Name = IIf(mInfo.Name = "", mClass, mInfo.Name)
 
 End Function
 
 Public Function Description() As String
 
-    Description = mInfo.Description
+'    MsgBox mClass & " > " & mState
+
+    Select Case mState
+    Case E_ES_FAILED
+        Description = "Failed: " & mLastErr
+
+    Case E_ES_NOT_LOADED
+        Description = "Not loaded" ' IIf(mInfo.Description = "", "Failed: " & mLastErr, mInfo.Description)
+
+    Case E_ES_LOADED
+        Description = mInfo.Description
+
+    End Select
 
 End Function
 
-Public Function IsEnabled() As Boolean
+Public Function State() As E_EXTENSION_STATE
 
-    IsEnabled = mEnabled
+    State = mState
+
+End Function
+
+Public Function IsConfigurable() As Boolean
+
+    If mState = E_ES_LOADED Then _
+        IsConfigurable = (mInfo.Flags And SNARL_EXTN_IS_CONFIGURABLE)
 
 End Function
 
-Public Function StartedOkay() As Boolean
-
-    StartedOkay = mStarted
-
-End Function
+'Public Function IsEnabled() As Boolean
+'
+'    IsEnabled = mEnabled
+'
+'End Function
+'
+'Public Function StartedOkay() As Boolean
+'
+'    StartedOkay = mStarted
+'
+'End Function
 
 Public Function Icon() As String
 
@@ -237,99 +266,96 @@ Public Function Path() As String
 
 End Function
 
-Public Sub SetEnabled(ByVal Enabled As Boolean)
+Public Function SetEnabled(ByVal Enabled As Boolean) As Boolean
 
     If Enabled Then
-        uEnable
+        SetEnabled = uEnable()
 
     Else
-        uDisable True
+        SetEnabled = uDisable(True)
 
     End If
 
-End Sub
+End Function
 
-Private Sub uEnable()
+Private Function uEnable() As Boolean
 
     On Error Resume Next
 
-    If mEnabled Then _
-        Exit Sub
-
-    mStarted = False
-    mLastErr = ""
+    If mState = E_ES_LOADED Then _
+        Exit Function
 
     ' /* create instance */
 
-    uInit mClass, mInfo.Path
+    If Not uInit() Then '//mClass, mInfo.Path
+        g_Debug "TExtension.uEnable(): uInit() failed on '" & mClass & "'", LEMON_LEVEL_CRITICAL
+        Exit Function
 
-    ' /* is always enabled, even if it doesn't start... */
-
-    mEnabled = True
+    End If
 
 Dim dw As Long
 
-    If Not (mObj2 Is Nothing) Then
+    If Not (mObj41 Is Nothing) Then
         ' /* V41 */
-
-        dw = mObj2.Initialize()
+        dw = mObj41.Initialize()
         If dw <> 0 Then
             ' /* failed */
             uGetLastError
             g_Debug "TExtension.uEnable(): '" & mInfo.Name & "' failed to initialize (" & mLastErr & ")", LEMON_LEVEL_WARNING
+            mState = E_ES_FAILED
 
         Else
             ' /* success */
-            mObj2.Start
-            mStarted = True
+            mObj41.Start
+            mState = E_ES_LOADED
 
         End If
 
     Else
-        ' /* send it a SNARL_EXT_INIT */
-
+        ' /* V40 or earlier, so send it a SNARL_EXT_INIT */
         dw = M_FAILED
         uCallProc SNARL_EXT_INIT, 0, 0, dw
-
         If dw = M_OK Then
             ' /* no return value for SNARL_EXT_START */
             uCallProc SNARL_EXT_START, 0, 0, 0
-            mStarted = True
+            mState = E_ES_LOADED
 
         Else
             ' /* extension returned error *//
-            g_Debug "TExtension.uEnable(): '" & mInfo.Name & "' responded with 0x" & g_HexStr(dw) & " to SNARL_EXT_INIT"
             uGetLastError
-
-            g_Debug "TExtension.uEnable(): lasterror is '" & mLastErr & "'"
+            g_Debug "TExtension.uEnable(): '" & mInfo.Name & "' failed SNARL_EXT_INIT (0x" & g_HexStr(dw) & "): " & mLastErr
+            mState = E_ES_FAILED
 
         End If
 
     End If
 
-End Sub
+    uEnable = True
 
-Private Sub uDisable(ByVal UnloadNow As Boolean)
+End Function
 
-'    If Not mEnabled Then _
-        Exit Sub
+Private Function uDisable(ByVal UnloadNow As Boolean) As Boolean
 
-    If Not (mObj2 Is Nothing) Then
+    ' /* can't disable a failed extension */
+
+    If mState = E_ES_FAILED Then _
+        Exit Function
+
+    If Not (mObj41 Is Nothing) Then
         ' /* V41 */
-
-        If mStarted Then
-            mObj2.Stop
-            mObj2.Tidyup
+        If mState = E_ES_LOADED Then
+            ' /* only stop it if it's loaded */
+            mObj41.Stop
+            mObj41.TidyUp
 
         End If
 
         ' /* trash it */
-        Set mObj2 = Nothing
+        Set mObj41 = Nothing
 
     Else
         ' /* pre-V41 */
-
-        If mStarted Then
+        If mState = E_ES_LOADED Then
             ' /* no return value for SNARL_EXT_STOP */
             uCallProc SNARL_EXT_STOP, 0, 0, 0
 
@@ -343,150 +369,50 @@ Private Sub uDisable(ByVal UnloadNow As Boolean)
 
     End If
 
+
     If UnloadNow Then
-        If Not g_IsWinXPOrBetter() Then
-        ' /* for pre-Windows XP systems, we try to flush the object out using CoFreeLibrary() */
+        If g_IsWinXPOrBetter() Then
+            CoFreeUnusedLibrariesEx 0, 0
+
+        Else
+            ' /* for pre-Windows XP systems, we try to flush the object out using CoFreeLibrary() */
 '            hModule = GetModuleHandle(.Name)
 '            g_Debug "TExtension.uTrash(): hModule('" & .Name & "')=0x" & g_HexStr(hModule)
 '            CoFreeLibrary hModule
 
-        Else
-            ' /* for XP and beyond we use this instead */
-            CoFreeUnusedLibrariesEx 0, 0
-
         End If
-
     End If
 
-    mStarted = False
-    mEnabled = False
+    mState = E_ES_NOT_LOADED
+    uDisable = True
 
-End Sub
-
-'Public Function SetEnabled2(ByVal Enabled As Boolean, Optional ByVal DelayUnload As Boolean, Optional ByVal WriteConfig As Boolean = True) As Boolean
-'Dim bErr As Boolean
-'Dim dw As Long
-'
-'    ' /* nothing to do? */
-'
-''    If Enabled = menabled Then _
-''        Exit Function
-''
-''    If Enabled Then
-''
-''        ' /* create the object */
-''
-''        If Not bInit(mInfo.Name, mInfo.Path, False) Then
-''            g_Debug "TExtension.SetEnabled2(): failed to create instance of '" & mInfo.Name & "'", LEMON_LEVEL_CRITICAL
-''            mlasterr = "Unable to create instance, please contact the Extension vendor"
-''            Exit Function
-''
-''        End If
-''
-''        ' /* send it a SNARL_EXT_INIT */
-''
-''        If Not uCallProc(SNARL_EXT_INIT, 0, 0, dw) Then
-''            ' /* lasterror is already set */
-''            g_Debug "TExtension.SetEnabled2(): " & mInfo.Name & ": uCallProc(SNARL_EXT_INIT) failed", LEMON_LEVEL_CRITICAL
-''            Exit Function
-''
-''        End If
-''
-''        If dw <> M_OK Then
-''            ' /* extension returned error *//
-''            mlasterr = uGetLastError(mInfo.Object)
-''            g_Debug "TExtension.SetEnabled2(): SNARL_EXT_INIT returned error code " & g_HexStr(dw) & " last_error=" & mlasterr
-''            Exit Function
-''
-''        End If
-''
-''        ' /* call SNARL_EXT_START if the extension isn't already running */
-''
-''        If Not mstarted Then
-''            If Not uCallProc(SNARL_EXT_START, 0, 0, dw) Then
-''                ' /* lasterror is already set */
-''                g_Debug "TExtension.SetEnabled2(): " & mInfo.Name & ": uCallProc(SNARL_EXT_START) failed", LEMON_LEVEL_CRITICAL
-''                Exit Function
-''
-''            End If
-''
-''            If dw <> M_OK Then
-''                ' /* extension returned error *//
-''                mlasterr = uGetLastError(mInfo.Object)
-''                g_Debug "TExtension.SetEnabled2(): SNARL_EXT_START returned error code " & g_HexStr(dw) & " last_error=" & mlasterr
-''                Exit Function
-''
-''            End If
-''
-''            g_Debug "TExtension.SetEnabled2(): SNARL_EXT_START=" & g_HexStr(dw)
-''            mstarted = True
-''
-''        End If
-''
-''    Else
-''
-''        ' /* do SNARL_EXT_STOP but only if the extension is running */
-''
-''        If mstarted Then
-''            dw = uCallProc(SNARL_EXT_STOP, 0, 0, bErr)
-''            g_Debug "TExtension.SetEnabled2(): SNARL_EXT_STOP=" & g_HexStr(dw)
-''            mstarted = False
-''
-''        End If
-''
-''        ' /* send the extension a SNARL_EXT_QUIT */
-''
-''        dw = uCallProc(SNARL_EXT_QUIT, 0, 0, bErr)
-''        g_Debug "TExtension.SetEnabled2(): SNARL_EXT_QUIT=" & g_HexStr(dw)
-''
-''        ' /* trash it */
-''        Set mInfo.Object = Nothing
-''
-''        If Not DelayUnload Then
-''            If Not g_IsWinXPOrBetter() Then
-''            ' /* for pre-Windows XP systems, we try to flush the object out using CoFreeLibrary() */
-''    '            hModule = GetModuleHandle(.Name)
-''    '            g_Debug "TExtension.uTrash(): hModule('" & .Name & "')=0x" & g_HexStr(hModule)
-''    '            CoFreeLibrary hModule
-''
-''            Else
-''                ' /* for XP and beyond we use this instead */
-''                CoFreeUnusedLibrariesEx 0, 0
-''
-''            End If
-''        End If
-''    End If
-''
-''    menabled = Enabled
-''
-''    ' /* write out the exclude file */
-''
-''    If WriteConfig Then _
-''        g_ExtnRoster.WriteExcludeList
-''
-''    SetEnabled2 = True
-'
-'End Function
+End Function
 
 Public Function DoPrefs(ByVal hWndPrefsPanel As Long) As Boolean
 
-    If Not mEnabled Then
-        g_Debug "TExtension.DoPrefs(): '" & mInfo.Name & "' is not enabled", LEMON_LEVEL_WARNING
+'    If Not mEnabled Then
+'        g_Debug "TExtension.DoPrefs(): '" & mInfo.Name & "' is not enabled", LEMON_LEVEL_WARNING
+'        Exit Function
+'
+'    End If
+'
+'    If (mInfo.Flags And SNARL_EXTN_IS_CONFIGURABLE) = 0 Then
+'        g_Debug "TExtension.DoPrefs(): '" & mInfo.Name & "' is not configurable", LEMON_LEVEL_WARNING
+'        Exit Function
+'
+'    End If
+
+    If Not Me.IsConfigurable Then
+        g_Debug "TExtension.DoPrefs(): '" & mClass & "' is not configurable", LEMON_LEVEL_WARNING
         Exit Function
 
     End If
 
-    If (mInfo.Flags And SNARL_EXTN_IS_CONFIGURABLE) = 0 Then
-        g_Debug "TExtension.DoPrefs(): '" & mInfo.Name & "' is not configurable", LEMON_LEVEL_WARNING
-        Exit Function
-
-    End If
-    
 Dim hWndConfig As Long
 
-    If Not (mObj2 Is Nothing) Then
+    If Not (mObj41 Is Nothing) Then
         ' /* V41 */
-        hWndConfig = mObj2.GetConfigWindow()
+        hWndConfig = mObj41.GetConfigWindow()
 
     ElseIf Not (mObj Is Nothing) Then
         ' /* send it a SNARL_EXT_PREFS */
@@ -552,9 +478,9 @@ Private Function uGetLastError() As String
 
     mLastErr = ""
 
-    If Not (mObj2 Is Nothing) Then
+    If Not (mObj41 Is Nothing) Then
         ' /* V41 */
-        mObj2.LastError mLastErr
+        mObj41.LastError mLastErr
 
     ElseIf Not (mObj Is Nothing) Then
         ' /* pre-V41 */
@@ -588,17 +514,17 @@ Public Function LastError() As String
 
 End Function
 
-Public Function Copyright() As String
-
-    Copyright = mInfo.Copyright
-
-End Function
-
-Public Function SupportURL() As String
-
-    SupportURL = mInfo.URL
-
-End Function
+'Public Function Copyright() As String
+'
+'    Copyright = mInfo.Copyright
+'
+'End Function
+'
+'Public Function SupportURL() As String
+'
+'    SupportURL = mInfo.URL
+'
+'End Function
 
 'Public Function FriendlyName() As String
 '
@@ -623,30 +549,30 @@ Private Function MWndProcSink_WndProc(ByVal hWnd As Long, ByVal uMsg As Long, By
 
 End Function
 
-Public Function SysVer() As Long
+'Public Function SysVer() As Long
+'
+'    SysVer = mInfo.Version
+'
+'End Function
 
-    SysVer = mInfo.Version
+'Public Function SysRev() As Long
+'
+'    SysRev = mInfo.Revision
+'
+'End Function
 
-End Function
-
-Public Function SysRev() As Long
-
-    SysRev = mInfo.Revision
-
-End Function
-
-Public Function Flags() As SNARL_EXTENSION_FLAGS
-
-    Flags = mInfo.Flags
-
-End Function
+'Public Function Flags() As SNARL_EXTENSION_FLAGS
+'
+'    Flags = mInfo.Flags
+'
+'End Function
 
 Public Sub Pulse()
 
-    If (mObj2 Is Nothing) Or ((mInfo.Flags And SNARL_EXTN_WANTS_PULSE) = 0) Or (Not mStarted) Then _
+    If (mObj41 Is Nothing) Or ((mInfo.Flags And SNARL_EXTN_WANTS_PULSE) = 0) Or (mState <> E_ES_LOADED) Then _
         Exit Sub
 
-    mObj2.Pulse
+    mObj41.Pulse
 
 End Sub
 
@@ -661,8 +587,7 @@ Dim sz As String
 
     With mInfo
         ' /* R2.4 */
-        If (.Version <> 0) And (.Revision <> 0) Then _
-            sz = "Version: " & CStr(.Version) & "." & CStr(.Revision)
+        sz = "Version: " & IIf(.Version = 0, "?", CStr(.Version)) & "." & IIf(.Revision = 0, "?", CStr(.Revision))
 
         If .Date <> "" Then _
             sz = sz & " (" & .Date & ")"
