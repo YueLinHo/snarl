@@ -985,7 +985,7 @@ Dim i As Long
 
     If AppToken = 0 Then
         ' /* close them all */
-        g_Debug "TNotificationRoster.CloseMultiple(): no hWndReply - closing all..."
+        g_Debug "TNotificationRoster.CloseMultiple(): closing all..."
 
         If mActive.CountItems Then
             ' /* fade all notifications out together */
@@ -1672,5 +1672,16 @@ Public Sub UpdateMissedPanel()
 
     If Not (mMissedPanel Is Nothing) Then _
         mMissedPanel.UpdateList
+
+End Sub
+
+Public Sub CloseMostRecent()
+Dim pn As TNotification
+
+    If mActive.CountItems > 0 Then
+        Set pn = mActive.TagAt(mActive.CountItems)
+        pn.Remove
+
+    End If
 
 End Sub
