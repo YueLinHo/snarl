@@ -159,6 +159,7 @@ End Type
 
 Public gSysAdmin As T_SNARL_ADMIN
 Public gExtDetailsToken As Long
+Public gStyleEngineDetailsToken As Long
 
 Public Type T_SNARL_ICON_THEME
     Name As String
@@ -268,7 +269,7 @@ Dim mWriteConfigOnUnlock As Boolean
 'Public g_Settings As ConfigFile
 Dim m_Alerts As ConfigSection
 
-Public g_IgnoreLock As Long         ' // if >0 don't alert when app registers - overrides class setting
+'Public g_IgnoreLock As Long         ' // if >0 don't alert when app registers - overrides class setting
 Public gSelectedClass As TAlert
 Public gDebugMode As Boolean
 'Public mAwayCount As Long           ' // R2.4 DR8: renamed and reimplemented
@@ -1296,17 +1297,17 @@ Dim pc As TAlert
 
 End Function
 
-Public Sub g_AddIgnoreLock()
-
-    g_IgnoreLock = g_IgnoreLock + 1
-
-End Sub
-
-Public Sub g_RemIgnoreLock()
-
-    g_IgnoreLock = g_IgnoreLock - 1
-
-End Sub
+'Public Sub g_AddIgnoreLock()
+'
+'    g_IgnoreLock = g_IgnoreLock + 1
+'
+'End Sub
+'
+'Public Sub g_RemIgnoreLock()
+'
+'    g_IgnoreLock = g_IgnoreLock - 1
+'
+'End Sub
 
 Public Sub g_WriteToLog(ByVal Title As String, ByVal Text As String)
 Dim sz As String
