@@ -121,12 +121,9 @@ Private Function MLibrary_Open() As melon.M_RESULT
 Dim pFolder As storage_kit.Node
 Dim i As Long
 
-        g_AddIgnoreLock         ' // we don't want loads of 'xxx registered with Snarl' notifications...
+        g_AppRoster.LockRegister    ' // we don't want loads of 'xxx registered with Snarl' notifications...
 
         ' /* R2.31: configure our exclude list */
-
-        Set mExcluded = New CConfFile
-        mExcluded.SetTo gPrefs.SnarlConfigPath & "extensions\exclude"
 
         uGetExcludeList
         uGetVersionList         ' // R2.2: keep a record of which versions are installed
@@ -163,7 +160,7 @@ Dim i As Long
 '            End If
 '        End If
 
-        g_RemIgnoreLock
+        g_AppRoster.UnlockRegister
 
         Set thePulseTimer = New BTimer
         thePulseTimer.SetTo 250
@@ -207,14 +204,14 @@ Dim i As Long
 
 End Function
 
-Private Function MRoster_ItemAt(ByVal Index As Long) As melon.MObject
+Private Function MRoster_ItemAt(ByVal Index As Long) As melon.mObject
 
     If (Index > 0) And (Index <= mCount) Then _
         Set MRoster_ItemAt = mExt(Index)
 
 End Function
 
-Private Function MRoster_NextItem(Item As melon.MObject) As Boolean
+Private Function MRoster_NextItem(Item As melon.mObject) As Boolean
 
     If mIndex <= mCount Then
         Set Item = mExt(mIndex)
@@ -266,58 +263,62 @@ End Property
 '
 'End Function
 
-Private Function uGetExtension(ByRef Folder As storage_kit.Node, Optional ByVal CheckVersion As Boolean) As Boolean
+Private Function uGetExtension(ByRef Node As storage_kit.Node, Optional ByVal CheckVersion As Boolean) As Boolean
 
-    ' /* 'folder' should be the folder (or marker file) which contains the extension */
+    ' /* Node should be the folder or 'xxx.extension' file which contains the extension */
+
+    If (Node Is Nothing) Then _
+        Exit Function
 
     On Error Resume Next
 
-    If (Folder Is Nothing) Then _
-        Exit Function
-
-Dim szExtension As String
+Dim szClassId As String
 Dim fLinked As Boolean
 Dim t As Long
 
     t = GetTickCount()
 
-    If Folder.IsFolder Then
+    If Node.IsFolder Then
         ' /* old-style extension - is actually in this folder */
+'        szClassId = Node.Filename
+'        fLinked = False
+'
+'        If MRoster_FindItem(szClassId) <> 0 Then
+'            g_Debug "TExtensionRoster.uGetExtension(): '" & szClassId & "' is already loaded"
+'            Exit Function
+'
+'        End If
 
-        szExtension = Folder.Filename
-        fLinked = False
+        ' /********** 2.4.2: no longer supported ************/
 
-        If MRoster_FindItem(szExtension) <> 0 Then
-            g_Debug "TExtensionRoster.uGetExtension(): '" & szExtension & "' is already loaded"
-            Exit Function
+        Exit Function
 
-        End If
 
-    Else
+    ElseIf LCase$(Node.Extension) = "extension" Then
         ' /* new style extension - installed elsewhere */
-
-        If LCase$(Folder.Extension) <> "extension" Then _
-            Exit Function
-
-        szExtension = Folder.Filename
+        szClassId = g_RemoveExtension(Node.Filename)
         fLinked = True
 
-        If MRoster_FindItem(g_RemoveExtension(szExtension)) <> 0 Then
-            g_Debug "TExtensionRoster.uGetExtension(): '" & g_RemoveExtension(szExtension) & "' is already loaded"
-            Exit Function
-
-        End If
+    Else
+        g_Debug "TExtensionRoster.uGetExtension(): '" & Node.File & "' is not suitable"
+        Exit Function
 
     End If
+
+    ' /* already in the roster? */
+
+    If MRoster_FindItem(szClassId) <> 0 Then
+        g_Debug "TExtensionRoster.uGetExtension(): '" & g_RemoveExtension(szClassId) & "' exists in roster", LEMON_LEVEL_CRITICAL
+        Exit Function
+
+    End If
+
+    ' /* create and initialise the extension object */
 
 Dim px As TExtension
 
     Set px = New TExtension
-
-    ' /* if SetTo() fails then this isn't a bona-fide extension */
-
-    If Not px.SetTo(g_RemoveExtension(szExtension), Folder.File) Then _
-        Exit Function
+    px.SetTo g_RemoveExtension(szClassId), Node.File
 
     ' /* initialised okay, so add it to our list */
 
@@ -326,18 +327,12 @@ Dim px As TExtension
     ' /* set enabled state */
 
     If (Not (mExcluded Is Nothing)) Or (Not gDebugMode) Then
-        px.SetEnabled Not mExcluded.Exists(g_RemoveExtension(Folder.Filename))
-
-        ' /* we return TRUE here even if the extension is disabled or failed to initialise */
-
+        px.SetEnabled Not mExcluded.Exists(szClassId)
         uGetExtension = True
-
-    Else
-        g_Debug "TExtensionRoster.uGetExtension(): exclude list not loaded", LEMON_LEVEL_WARNING
 
     End If
 
-    g_Debug "TExtensionRoster.uGetExtension(): " & szExtension & "took " & CStr(GetTickCount() - t) & "ms"
+    g_Debug "TExtensionRoster.uGetExtension(): " & szClassId & "took " & CStr(GetTickCount() - t) & "ms"
 
 End Function
 
@@ -379,7 +374,7 @@ End Function
 
 Public Sub Reload()
 
-    g_AddIgnoreLock
+    g_AppRoster.LockRegister
 
     MLibrary_Close
 
@@ -390,7 +385,7 @@ Public Sub Reload()
 
     MLibrary_Open
 
-    g_RemIgnoreLock
+    g_AppRoster.UnlockRegister
 
 End Sub
 
@@ -434,7 +429,8 @@ Dim i As Long
 
         If mCount Then
             For i = 1 To mCount
-                If Not mExt(i).IsEnabled Then _
+                ' /* bit of weird logic here: if the extension is *not* loaded, then it's ClassId should be added */
+                If mExt(i).State <> E_ES_LOADED Then _
                     .Add mExt(i).Class
 
             Next i
@@ -450,8 +446,9 @@ End Sub
 
 Private Sub uGetExcludeList()
 
-    If Not (mExcluded Is Nothing) Then _
-        mExcluded.Reload
+    Set mExcluded = New CConfFile
+    mExcluded.SetTo gPrefs.SnarlConfigPath & "extensions\exclude"
+    mExcluded.Reload
 
 End Sub
 
@@ -710,16 +707,16 @@ Dim anExt As TExtension
 
     End If
 
-    Set anExt = New TExtension
-    If anExt.SetTo(Class, "") Then
-        ' /* initialised okay, so add it to our list */
-        uAdd anExt, False
-        LoadExtensionByClass = True
-
-    Else
-        Result = Class & " is not a valid extension"
-
-    End If
+'    Set anExt = New TExtension
+'    If anExt.SetTo(Class, "") Then
+'        ' /* initialised okay, so add it to our list */
+'        uAdd anExt, False
+'        LoadExtensionByClass = True
+'
+'    Else
+'        Result = Class & " is not a valid extension"
+'
+'    End If
 
 End Function
 

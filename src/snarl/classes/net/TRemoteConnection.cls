@@ -58,9 +58,10 @@ Private Type T_NETWORK_INFO
 End Type
 
 Dim mId As Long
-Dim mContent As String
+'Dim mContent As String
+'Dim mIsGNTP As Boolean
 
-Dim mIsGNTP As Boolean
+Dim mType As Long               ' // actually the port number
 Dim mGNTPRequest As String
 
 Dim WithEvents theSocket As CSocket
@@ -77,12 +78,13 @@ Private Sub Class_Terminate()
 
 End Sub
 
-Public Sub Accept(ByVal Id As Long, ByVal IsGNTP As Boolean)
+Public Sub Accept(ByVal Id As Long, ByVal PortNumber As Long) '// IsGNTP As Boolean)
 
-    g_Debug "TRemoteConnection.Accept(): Id=0x" & g_HexStr(Id), LEMON_LEVEL_PROC
+    g_Debug "TRemoteConnection.Accept(): Id=0x" & g_HexStr(Id) & " Type=" & CStr(PortNumber), LEMON_LEVEL_PROC
 
     mId = Id
-    mIsGNTP = IsGNTP
+    mType = PortNumber
+'    mIsGNTP = IsGNTP
 
     Set theSocket = New CSocket
     theSocket.Accept Id
@@ -109,11 +111,14 @@ End Sub
 
 Private Sub theSocket_OnDataArrival(ByVal bytesTotal As Long)
 
-    If mIsGNTP Then
+    If mType = GNTP_DEFAULT_PORT Then
         uDoGNTP bytesTotal
 
-    Else
+    ElseIf mType = SNP_DEFAULT_PORT Then
         uDoSNP bytesTotal
+
+    ElseIf mType = JSON_DEFAULT_PORT Then
+        uDoJSON bytesTotal
 
     End If
 
@@ -137,26 +142,26 @@ Private Sub theSocket_OnSendProgress(ByVal bytesSent As Long, ByVal bytesRemaini
 
 End Sub
 
-Private Sub uProcessSNP(ByVal Request As String)
-
-    g_Debug "TRemoteConnection.uProcessSNP(): incoming notification from " & theSocket.RemoteHostIP & ":" & theSocket.RemotePort & "..."
-
-    If g_ConfigGet("listen_for_snarl") = "0" Then
-        g_Debug "TRemoteConnection.uProcessSNP(): ignored (user disabled incoming notifications)"
-        theSocket.SendData uCreateReply(SNP_ERROR_NOT_RUNNING)
-        Exit Sub
-
-    End If
-
-    If LCase$(g_SafeLeftStr(Request, 6)) = "snp://" Then
-        uTranslateSNP2 g_SafeRightStr(Request, Len(Request) - 6)
-
-    Else
-        uTranslateSNP Request
-    
-    End If
-
-End Sub
+'Private Sub uProcessSNP(ByVal Request As String)
+'
+'    g_Debug "TRemoteConnection.uProcessSNP(): incoming notification from " & theSocket.RemoteHostIP & ":" & theSocket.RemotePort & "..."
+'
+'    If g_ConfigGet("listen_for_snarl") = "0" Then
+'        g_Debug "TRemoteConnection.uProcessSNP(): ignored (user disabled incoming notifications)"
+'        theSocket.SendData uCreateReply(SNP_ERROR_NOT_RUNNING)
+'        Exit Sub
+'
+'    End If
+'
+'    If LCase$(g_SafeLeftStr(Request, 6)) = "snp://" Then
+'        uTranslateSNP2 g_SafeRightStr(Request, Len(Request) - 6)
+'
+'    Else
+'        uTranslateSNP Request
+'
+'    End If
+'
+'End Sub
 
 Private Sub uTranslateSNP2(ByVal Request As String)
 
@@ -214,18 +219,10 @@ Dim sz As String
     End Select
 
 Dim hr As Long
-'Dim pne As T_NOTIFICATION_EXTRA
 
     ' /* process the command */
 
-'    With pne
-'        .IsRemoteApp = True
-'        Set .ReplySocket = theSocket
-'        .APIVersion = 42
-'
-'    End With
-
-    hr = g_DoAction(sCommand, Val(ppd.ValueOf("token")), ppd, True, theSocket)
+    hr = g_DoAction(sCommand, Val(ppd.ValueOf("token")), ppd, , theSocket)
     If hr <> 0 Then
         ' /* success */
         uSNP2Reply SNARL_SUCCESS, IIf(hr <> -1, CStr(hr), "")
@@ -684,28 +681,6 @@ Dim sz As String
             theSocket.CloseSocket
 
     End If
-
-'    On Error GoTo er
-'
-'Dim sz As String
-'Dim h As Long
-'
-'Dim szResponseHeaders As String
-'
-'        ' /* response headers */
-'
-'        sz = sz & szResponseHeaders
-'
-'        ' /* generic headers */
-'
-'        sz = sz & "Origin-Machine-Name: " & get_host_name() & vbCrLf
-'        sz = sz & "Origin-Software-Name: Snarl" & vbCrLf
-'        sz = sz & "Origin-Software-Version: " & App.Comments & " (" & App.Major & "." & App.Revision & ")" & vbCrLf
-'        sz = sz & "Origin-Platform-Name: " & g_GetOSName() & " " & g_GetServicePackName() & vbCrLf
-'        sz = sz & "Origin-Platform-Version: " & g_GetOSVersionString() & vbCrLf
-'        sz = sz & "X-Message-Daemon: Snarl" & vbCrLf
-'        sz = sz & "X-Timestamp: " & Format$(Now(), "MM/DD/YYYY HH:MM:SS AMPM")
-
     Exit Sub
 
 er:
@@ -717,25 +692,53 @@ er:
 End Sub
 
 Private Sub uDoSNP(ByVal bytesTotal As Long)
+Dim sz As String
 
     On Error GoTo er
 
-Dim sz As String
-Dim i As Long
+    theSocket.PeekData sz
 
+    If g_SafeRightStr(sz, 1) <> vbLf Then _
+        Exit Sub
+
+    g_Debug "TRemoteConnection.uDoSNP(): SNP packet received from " & theSocket.RemoteHostIP & ":" & theSocket.RemotePort & "..."
     theSocket.GetData sz
 
-    i = InStr(sz, Chr$(13))
-    If i > 0 Then
-        g_Debug "TRemoteConnection.uDoSNP(): SNP packet received"
-        mContent = mContent & g_SafeLeftStr(sz, i - 1)
-        uProcessSNP mContent
-        mContent = ""
-
-    Else
-        mContent = mContent & sz
+    If g_ConfigGet("listen_for_snarl") = "0" Then
+        g_Debug "TRemoteConnection.uDoSNP(): ignored (user disabled incoming notifications)"
+        theSocket.SendData uCreateReply(SNP_ERROR_NOT_RUNNING)
+        theSocket.CloseSocket           ' // R2.4.2
+        Exit Sub
 
     End If
+
+    sz = g_SafeLeftStr(sz, Len(sz) - 1)        ' // strip the trailing CR
+
+    If LCase$(g_SafeLeftStr(sz, 6)) = "snp://" Then
+        g_Debug "TRemoteConnection.uDoSNP(): is SNP2 request"
+        uTranslateSNP2 g_SafeRightStr(sz, Len(sz) - 6)
+
+    Else
+        g_Debug "TRemoteConnection.uDoSNP(): is SNP1 request"
+        uTranslateSNP sz
+
+    End If
+
+'Dim i As Long
+'
+'    theSocket.GetData sz
+'
+'    i = InStr(sz, Chr$(13))
+'    If i > 0 Then
+'        g_Debug "TRemoteConnection.uDoSNP(): SNP packet received"
+'        mContent = mContent & g_SafeLeftStr(sz, i - 1)
+'        uProcessSNP mContent
+'        mContent = ""
+'
+'    Else
+'        mContent = mContent & sz
+'
+'    End If
 
     Exit Sub
 
@@ -760,3 +763,80 @@ Private Sub uOutput(ByVal Text As String)
 #End If
 
 End Sub
+
+Private Sub uDoJSON(ByVal bytesTotal As Long)
+Dim szReply As String
+Dim sz As String
+
+    On Error GoTo er
+
+    g_Debug "TRemoteConnection.uDoJSON(): id=0x" & g_HexStr(mId) & " bytesTotal=" & CStr(bytesTotal), LEMON_LEVEL_PROC
+
+    theSocket.GetData sz
+
+    If g_ConfigGet("listen_for_json") = "1" Then
+        If uParseJSON(sz) Then
+            szReply = "200 OK"
+
+        Else
+            szReply = "402 Payment Required"
+
+        End If
+
+    Else
+        ' /* JSON listening is not enabled */
+        g_Debug "TRemoteConnection.uDoJSON(): user has disabled JSON listening", LEMON_LEVEL_INFO
+        szReply = "404 Not Found"
+
+    End If
+
+    theSocket.SendData "HTTP/1.0 " & szReply & vbCrLf & Format$(Now(), "ddd, d mmm yyyy hh:mm:ss") & " GMT" & vbCrLf & _
+                       "Content-Type: text/html" & vbCrLf & "Content-Length: 0" & vbCrLf & vbCrLf
+
+er:
+    theSocket.CloseSocket
+
+End Sub
+
+Private Function uParseJSON(ByVal HTTP As String) As Boolean
+Dim po As BJSONObject
+
+    Set po = New BJSONObject
+    If Not po.SetFromHTTP(HTTP) Then
+        g_Debug "TRemoteConnection.uParseJSON(): failed to create JSON object", LEMON_LEVEL_CRITICAL
+        Exit Function
+
+    End If
+
+Dim pv As BJSONValue
+
+    If Not po.Find("action", pv) Then
+        g_Debug "TRemoteConnection.uParseJSON(): 'action' value missing", LEMON_LEVEL_CRITICAL
+        Exit Function
+
+    End If
+
+    If pv.AsLong <> 1 Then
+        g_Debug "TRemoteConnection.uParseJSON(): incorrect 'action' value", LEMON_LEVEL_CRITICAL
+        Exit Function
+
+    End If
+
+Dim tt As String
+Dim tx As String
+
+    If po.Find("description", pv) Then _
+        tx = pv.AsString()
+
+    If po.Find("title", pv) Then _
+        tt = pv.AsString()
+
+    g_Debug "TRemoteConnection.uParseJSON(): request #" & g_HexStr(mId) & " title=" & tt & " text=" & tx
+
+    uParseJSON = (g_PrivateNotify(SNARL_CLASS_JSON, tt, tx) <> 0)
+
+'    uDo = (sn41EZNotify(gSnarlToken, SNARL_CLASS_JSON, tt, tx) <> 0)
+
+End Function
+
+

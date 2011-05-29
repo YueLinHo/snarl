@@ -32,6 +32,7 @@ Dim mIndex As Long
 Dim mRefs As Long
 Dim mAppToken As Long       ' // V41
 Dim mSnarlAppMsg As Long
+Dim mRegLock As Long        ' // R2.4.2: was global
 
 Implements MLibrary
 Implements MRoster
@@ -176,14 +177,14 @@ Dim i As Long
 
 End Function
 
-Private Function MRoster_ItemAt(ByVal Index As Long) As melon.MObject
+Private Function MRoster_ItemAt(ByVal Index As Long) As melon.mObject
 
     If (Index > 0) And (Index <= mCount) Then _
         Set MRoster_ItemAt = mApp(Index)
 
 End Function
 
-Private Function MRoster_NextItem(Item As melon.MObject) As Boolean
+Private Function MRoster_NextItem(Item As melon.mObject) As Boolean
 
     If mIndex <= mCount Then
         Set Item = mApp(mIndex)
@@ -366,7 +367,7 @@ Dim bShow As Boolean
 
     ' /* don't show if it's us or we're locked */
 
-    If (pa.Name = App.Title) Or (g_IgnoreLock) > 0 Then
+    If (pa.Name = App.Title) Or (mRegLock) > 0 Then
         bShow = False
 
     ElseIf g_ConfigGet("notify_on_first_register") = "1" Then
@@ -479,9 +480,9 @@ End Function
 '
 '    ' /* don't show if it's us or we're locked */
 '
-''Debug.Print "(): " & gPrefs.notify_on_first_register & " >> " & g_IgnoreLock
+''Debug.Print "(): " & gPrefs.notify_on_first_register & " >> " & mRegLock
 '
-'    If (theApp.Name = App.Title) Or (g_IgnoreLock) > 0 Then
+'    If (theApp.Name = App.Title) Or (mRegLock) > 0 Then
 '        bShow = False
 '
 '    ElseIf g_ConfigGet("notify_on_first_register") = "1" Then
@@ -714,7 +715,7 @@ Static i As Long
     If mCount = 0 Then _
         Exit Sub
 
-    g_Debug "TApplicationRoster.SendToAll(): sending event " & CStr(EventId) & " to all apps..."
+    g_Debug "TApplicationRoster.SendToAll(): sending event ID '" & CStr(EventId) & "' to all registered apps..."
 
     For i = mCount To 1 Step -1
         If (IsWindow(mApp(i).hWnd) <> 0) And (mApp(i).uMsg <> 0) Then _
@@ -816,7 +817,7 @@ Dim i As Long
 
     ' /* don't show if it's us unregistering ;-) */
 
-    If (sz <> App.Title) And (g_IgnoreLock < 1) And (g_ConfigGet("notify_on_first_register") = "0") Then _
+    If (sz <> App.Title) And (mRegLock < 1) And (g_ConfigGet("notify_on_first_register") = "0") Then _
         g_PrivateNotify SNARL_CLASS_APP_UNREG, "Application unregistered", _
                      sz & " unregistered successfully with Snarl", , _
                      szIcon
@@ -1134,3 +1135,14 @@ Dim rt As Long
 
 End Sub
 
+Public Sub LockRegister()
+
+    mRegLock = mRegLock + 1
+
+End Sub
+
+Public Sub UnlockRegister()
+
+    mRegLock = mRegLock - 1
+
+End Sub

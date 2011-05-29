@@ -13,17 +13,17 @@ Attribute VB_PredeclaredId = False
 Attribute VB_Exposed = False
 Option Explicit
 
-'/*********************************************************************************************
-'/
-'/  File:           TExtPage.cls
-'/
-'/  Description:    The loaded extensions preferences page
-'/
-'/  © 2009 full phat products
-'/
-'/  This file may be used under the terms of the Simplified BSD Licence
-'/
-'*********************************************************************************************/
+    '/*********************************************************************************************
+    '/
+    '/  File:           TExtPage.cls
+    '/
+    '/  Description:    The loaded extensions preferences page
+    '/
+    '/  © 2009 full phat products
+    '/
+    '/  This file may be used under the terms of the Simplified BSD Licence
+    '/
+    '*********************************************************************************************/
 
 Dim mPage As BPrefsPage
 Dim mCurrent As TExtension
@@ -31,7 +31,6 @@ Dim mCurrent As TExtension
 Implements KPrefsPage
 
 Private Sub KPrefsPage_AllAttached()
-
 End Sub
 
 Private Sub KPrefsPage_Attached()
@@ -48,17 +47,13 @@ Dim i As Long
                                             "untick it's entry in the list below:")
 
         Set pm = New CTempMsg
-        pm.Add "checkboxes", 1
-        pm.Add "item-height", 38
+'        pm.Add "checkboxes", 1
+        pm.Add "item-height", 36&
         Set pc = new_BPrefsControl("listbox", "lb>extensions", , , "1", pm)
         pc.SizeTo 0, 160
         .Add pc
 
-        Set pc = new_BPrefsControl("fancytoolbar", "ftb>extension", "Details|Configure...|Show in Explorer")
-        prefskit_SetItem pc, 1, "enabled", 0&
-        prefskit_SetItem pc, 2, "enabled", 0&
-        prefskit_SetItem pc, 3, "enabled", 0&
-        .Add pc
+        .Add new_BPrefsControl("fancytoolbar", "extension_toolbar", "Start|Stop|Details|Configure...||Show in Explorer")
 
 
 '        .Add new_BPrefsControl("fancybutton2", "fb2>ext.cfg", "Configure", , , , False)
@@ -134,22 +129,32 @@ Dim b As Boolean
 '
 '        End If
 
-    Case "ftb>extension"
+    Case "extension_toolbar"
+        '//"Start|Stop|Details|Configure...||Show in Explorer"
+
+        If (mCurrent Is Nothing) Then
+            g_Debug "TExtPage.ControlChanged(): extension_toolbar: no selected extension", LEMON_LEVEL_CRITICAL
+            Exit Sub
+
+        End If
 
         Select Case Val(Value)
         Case 1
-            ' /* details */
-            If Not (mCurrent Is Nothing) Then _
-                mCurrent.ShowDetails
+            mCurrent.SetEnabled True
+            uUpdateExtensions
 
         Case 2
-            ' /* configure */
-            If Not (mCurrent Is Nothing) Then _
-                mCurrent.DoPrefs mPage.Panel.hWnd
+            mCurrent.SetEnabled False
+            uUpdateExtensions
 
         Case 3
-            If Not (mCurrent Is Nothing) Then _
-                ShellExecute mPage.Panel.hWnd, "open", g_MakePath(mCurrent.Path), vbNullString, vbNullString, SW_SHOW
+            mCurrent.ShowDetails
+            
+        Case 4
+            mCurrent.DoPrefs mPage.Panel.hWnd
+
+        Case 6
+            ShellExecute mPage.Panel.hWnd, "open", g_MakePath(mCurrent.Path), vbNullString, vbNullString, SW_SHOW
             
 '            ' /* advanced */
 '            With New OMMenu
@@ -269,13 +274,13 @@ Dim i As Long
             g_ExtnRoster.WriteExcludeList
             uUpdateStatus
 
-            pm.Add "image-file", IIf((mCurrent.IsEnabled And Not mCurrent.StartedOkay), _
-                                     g_MakePath(App.Path) & "etc\icons\ext-error.png", mCurrent.Icon)
+            pm.Add "image-file", IIf(mCurrent.State = E_ES_FAILED, _
+                                     g_MakePath(App.Path) & "etc\icons\bad.png", mCurrent.Icon)
 
-            pm.Add "subtext", IIf((mCurrent.IsEnabled And Not mCurrent.StartedOkay), _
+            pm.Add "subtext", IIf(mCurrent.State = E_ES_FAILED, _
                                     "Failed to start: " & mCurrent.LastError, mCurrent.Description)
 
-            pm.Add "greyscale", IIf(mCurrent.IsEnabled, 0&, -1&)
+            pm.Add "greyscale", IIf(mCurrent.State = E_ES_NOT_LOADED, -1&, 0&)
 
             Control.DoExCmd B_SET_ITEM, pm
 
@@ -332,17 +337,12 @@ Private Sub KPrefsPage_PanelResized(ByVal Width As Long, ByVal Height As Long)
 End Sub
 
 Private Sub uUpdateExtensions()
-
-    If (g_ExtnRoster Is Nothing) Then _
-        Exit Sub
-
 Dim pc As BControl
 
-    If Not (mPage.Find("lb>extensions", pc)) Then _
+    If (g_ExtnRoster Is Nothing) Or (Not (mPage.Find("lb>extensions", pc))) Then _
         Exit Sub
 
     pc.DoExCmd "lock"
-
 
 Dim list_content As String
 Dim px As TExtension
@@ -367,7 +367,7 @@ Dim i As Long
 
     ' /* set the checkboxes and icons */
 
-Dim sz As String
+'Dim sz As String
 
     i = 0
     pr.Rewind
@@ -376,12 +376,9 @@ Dim sz As String
 
         Set pm = New CTempMsg
         pm.Add "index", i
-        pm.Add "checked", IIf(px.IsEnabled, 1&, 0&)
-        pm.Add "greyscale", IIf(px.IsEnabled, 0&, 1&)
-
-        sz = IIf((px.IsEnabled And Not px.StartedOkay), g_MakePath(App.Path) & "etc\icons\ext-error.png", px.Icon)
-
-        pm.Add "image-file", sz
+'        pm.Add "checked", IIf(px.State = E_ES_LOADED, 1&, 0&)
+        pm.Add "greyscale", IIf(px.State = E_ES_NOT_LOADED, 1&, 0&)
+        pm.Add "image-file", IIf(px.State = E_ES_FAILED, g_MakePath(App.Path) & "etc\icons\bad.png", px.Icon)
         pc.DoExCmd B_SET_ITEM, pm
 
     Loop
@@ -403,21 +400,24 @@ Dim sz As String
 
     Set pm = New CTempMsg
 
-    sz = "Not enabled"
+'    sz = "Not enabled"
+'
+''    If mCurrent.IsEnabled Then _
+'        sz = IIf(mCurrent.StartedOkay, "Running", "Failed to start: " & mCurrent.LastError)
+'
+'    If mPage.Find("ext_stat", pc) Then _
+'        pc.SetText sz
 
-    If mCurrent.IsEnabled Then _
-        sz = IIf(mCurrent.StartedOkay, "Running", "Failed to start: " & mCurrent.LastError)
 
-    If mPage.Find("ext_stat", pc) Then _
-        pc.SetText sz
+    ' /* toolbar */
 
-
-    ' /* toolbar 'configure' button */
-
-    If mPage.Find("ftb>extension", pc) Then
-        prefskit_SetItem pc, 1, "enabled", -1&
-        prefskit_SetItem pc, 2, "enabled", IIf(mCurrent.IsEnabled, IIf((mCurrent.Flags And SNARL_EXTN_IS_CONFIGURABLE), 1&, 0&), 0&)
-        prefskit_SetItem pc, 3, "enabled", -1&
+    If mPage.Find("extension_toolbar", pc) Then
+        '//"Start|Stop|Details|Configure...||Show in Explorer"
+        prefskit_SetItem pc, 1, "enabled", IIf(mCurrent.State = E_ES_LOADED, 0&, 1&)
+        prefskit_SetItem pc, 2, "enabled", IIf(mCurrent.State = E_ES_LOADED, 1&, 0&)
+        prefskit_SetItem pc, 3, "enabled", IIf(mCurrent.State <> E_ES_FAILED, 1&, 0&)
+        prefskit_SetItem pc, 4, "enabled", IIf(mCurrent.IsConfigurable, 1&, 0&)
+        prefskit_SetItem pc, 6, "enabled", IIf(mCurrent.State <> E_ES_FAILED, 1&, 0&)
 
     End If
 

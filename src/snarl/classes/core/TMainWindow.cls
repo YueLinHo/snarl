@@ -597,7 +597,7 @@ Dim sz As String
     Case SNARL_LOAD_STYLE_ENGINE
         ' /* private - not due for documentation */
         If Not (g_StyleRoster Is Nothing) Then
-            uDoCmd = IIf(g_StyleRoster.Load(g_UTF8(pss.Text), "", True), M_OK, M_NOT_FOUND)
+            uDoCmd = IIf(g_StyleRoster.Load(g_UTF8(pss.Text), True), M_OK, M_NOT_FOUND)
 
         Else
             g_Debug "uDoCmd(): [SNARL_LOAD_STYLE_ENGINE] style roster is not available", LEMON_LEVEL_CRITICAL
@@ -608,7 +608,7 @@ Dim sz As String
     Case SNARL_UNLOAD_STYLE_ENGINE
         ' /* private - not due for documentation */
         If Not (g_ExtnRoster Is Nothing) Then
-            uDoCmd = IIf(g_StyleRoster.Unload(g_UTF8(pss.Text), ""), M_OK, M_NOT_FOUND)
+            uDoCmd = IIf(g_StyleRoster.Unload(g_UTF8(pss.Text)), M_OK, M_NOT_FOUND)
 
         Else
             g_Debug "uDoCmd(): [SNARL_UNLOAD_STYLE_ENGINE] style roster is not available", LEMON_LEVEL_CRITICAL

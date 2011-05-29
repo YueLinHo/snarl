@@ -133,7 +133,7 @@ End Function
 
 Private Function IStyleEngine_Name() As String
 
-    IStyleEngine_Name = "<snarl>"
+    IStyleEngine_Name = "[Internal Styles]"
 
 End Function
 
@@ -314,7 +314,7 @@ Dim bm As mfxBitmap
 
     On Error Resume Next
 
-Const RX = 20
+Const rx = 20
 
     cx = BORDER_SIZE
 
@@ -357,16 +357,16 @@ Dim prFrame As BRect
         If (NotificationInfo.Flags And S_NOTIFICATION_IS_PRIORITY) Then
             .SetHighColour rgba(236, 59, 0)
             .SetLowColour rgba(206, 52, 0)
-            .FillRoundRect .Bounds, RX, RX, MFX_VERT_GRADIENT
+            .FillRoundRect .Bounds, rx, rx, MFX_VERT_GRADIENT
             .SetHighColour rgba(255, 0, 0)
-            .StrokeRoundRect .Bounds, RX, RX
+            .StrokeRoundRect .Bounds, rx, rx
 
         Else
             .SetHighColour rgba(235, 235, 235)
             .SetLowColour rgba(205, 205, 205)
-            .FillRoundRect .Bounds, RX, RX, MFX_VERT_GRADIENT
+            .FillRoundRect .Bounds, rx, rx, MFX_VERT_GRADIENT
             .SetHighColour rgba(176, 176, 176)
-            .StrokeRoundRect .Bounds, RX, RX
+            .StrokeRoundRect .Bounds, rx, rx
 
         End If
 

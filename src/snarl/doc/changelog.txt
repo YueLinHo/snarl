@@ -1,6 +1,25 @@
 
 	Snarl Change Log
 
+	- Extension management significantly improved in a similar way to style
+	  engine management.  (42.102)
+
+	- Style engine management significantly improved.  All registered style
+	  engines are now displayed in the Styles/Advanced... panel and can be
+	  enabled or disabled on an engine by engine basis.  (42.102)
+
+	- Now registers system keys Win+Esc and Win+Ctrl+Esc which close the
+	  most recent notification and all notifications respectively.  (42.102)
+
+	- Fixed bug in SNP2 socket handling code which was causing requests to
+	  be mistakenly handled as GNTP.  (42.102)
+
+	- Tidied up GNTP and SNP socket binding code.  We now use the wildcard
+	  IP address (0.0.0.0) rather than enumerating all local addresses.
+	  (42.102)
+
+	- Released as R2.4.1.  (42.101)
+
 	- Released as R2.4.1 b3.  (42.101)
 
 	- Headers beginning with "Data-" in a GNTP notification request are
