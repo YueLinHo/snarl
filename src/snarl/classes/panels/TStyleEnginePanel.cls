@@ -14,10 +14,9 @@ Attribute VB_Exposed = False
 Option Explicit
 
 Dim mPanel As BPrefsPanel
-'Dim mPage As BPrefsPage
 Dim mhWndPanel As Long
 
-Dim mSelectedEngine As String
+Dim mCurrentEngine As TStyleEngine
 
 Implements KPrefsPanel
 Implements KPrefsPage
@@ -29,130 +28,163 @@ Private Sub KPrefsPage_AllAttached()
 End Sub
 
 Private Sub KPrefsPage_Attached()
-'Dim pc As BControl
-'Dim pm As CTempMsg
-'
-'    Set pm = New CTempMsg
-'    pm.Add "item-height", 24&
-'    Set pc = new_BPrefsControl("listbox", "lb>engines", , , , pm)
-'    pc.SizeTo 0, 128
-'    mPage.Add pc
-'
-'    Set pc = new_BPrefsControl("label", "lbl>desc")
-'    pc.SizeTo 0, 26
-'    mPage.Add pc
-'
-'    mPage.Add new_BPrefsControl("label", "", "Installed in:")
-'    Set pc = new_BPrefsControl("label", "lbl>path")
-'    pc.SizeTo 0, 26
-'    mPage.Add pc
-'
-'    mPage.Add new_BPrefsControl("fancytoolbar", "ftb>engine", "Show in Explorer||Install...")
-'
-'    mPage.Add new_BPrefsControl("fancybutton2", "fb2>loadunload", "Unload")
-''    mPage.Add new_BPrefsControl("fancybutton2", "fb2>install", "Install...")
-
 End Sub
 
 Private Sub KPrefsPage_ControlChanged(Control As prefs_kit_d2.BControl, ByVal Value As String)
-Dim pEngineInfo As T_SNARL_STYLE_ENGINE_INFO
 Dim pc As BControl
 Dim sz As String
+Dim i As Long
 
     Select Case Control.GetName()
-    Case "lb>engines"
-        mSelectedEngine = ""
 
-        With g_StyleRoster
-            If .EngineAt(Val(Value), pEngineInfo) Then
+    Case "engine_list"
+        Set mCurrentEngine = g_StyleRoster.EngineAt(Val(Value))
+        If Not (mCurrentEngine Is Nothing) Then
+            ' /* configure the toolbar */
+            If Control.Page.Find("style_engine_toolbar", pc) Then
+                prefskit_SetItem pc, 1, "enabled", IIf(mCurrentEngine.State = E_SE_LOADED, 0&, 1&)     ' // "Start"
+                prefskit_SetItem pc, 2, "enabled", IIf((mCurrentEngine.State = E_SE_LOADED) And (Not mCurrentEngine.IsSystem), 1&, 0&)     ' // "Stop"
+                prefskit_SetItem pc, 3, "enabled", IIf(mCurrentEngine.State = E_SE_LOADED, 1&, 0&)     ' // "Details"
+                
+                prefskit_SetItem pc, 5, "enabled", IIf((mCurrentEngine.State = E_SE_LOADED) And (Not mCurrentEngine.IsSystem), 1&, 0&)     ' // "Show in Explorer"
 
-                mSelectedEngine = pEngineInfo.Name
-
-                If mPanel.Find("lbl>desc", pc) Then
-                    If (pEngineInfo.Obj Is Nothing) Then
-                        pc.SetText "Not loaded"
-
-                    Else
-                        pc.SetText pEngineInfo.Description
-
-                    End If
-
-                End If
-
-'                If mPage.Find("lbl>path", pc) Then _
-                    pc.SetText pEngineInfo.Path
-
-                If mPanel.Find("fb2>loadunload", pc) Then
-                    If (pEngineInfo.Obj Is Nothing) Then
-                        pc.SetText "Load"
-
-                    Else
-                        pc.SetText "Unload"
-
-                    End If
-
-                    pc.SetEnabled ((pEngineInfo.Flags And &H80000000) = 0)
-
-                End If
-
-            Else
-            
             End If
 
-        End With
+            ' /* set the description label */
+            prefskit_SafeSetText Control.Page.Panel, "engine_desc", mCurrentEngine.Description
+
+        End If
 
 
-    Case "ftb>engine"
-
-        ' /* retrieve info for the currently selected engine */
-
-        If Not mPanel.Find("lb>engines", pc) Then _
-            Exit Sub
-
-        If Not g_StyleRoster.EngineAt(Val(pc.GetValue), pEngineInfo) Then _
+    Case "style_engine_toolbar"
+        If (mCurrentEngine Is Nothing) Then _
             Exit Sub
 
         Select Case Val(Value)
         Case 1
-            ShellExecute 0, "open", pEngineInfo.Path, vbNullString, vbNullString, SW_SHOWNORMAL
+            ' /* start */
+            If g_StyleRoster.Load(mCurrentEngine.Name, True) Then
+                g_PrivateNotify SNARL_CLASS_GENERAL, , mCurrentEngine.Name & " started successfully"
+                uUpdateList
 
-'        Case 3
-'            If g_StyleRoster.StylesForEngine(mSelectedEngine, sz) Then
-'                If MsgBox("Uninstalling this style engine will remove the following styles:" & vbCrLf & vbCrLf & sz & vbCrLf & vbCrLf & "Are you sure you want to do this?", _
-'                        vbQuestion Or vbYesNo, App.Title) = vbYes Then
+            Else
+                g_PrivateNotify SNARL_CLASS_GENERAL, , mCurrentEngine.Name & " failed to start", , "!system-warning"
+
+            End If
+
+        Case 2
+            ' /* stop */
+            sz = mCurrentEngine.Name
+            Set mCurrentEngine = Nothing
+
+            If g_StyleRoster.Unload(sz) Then
+                g_PrivateNotify SNARL_CLASS_GENERAL, , sz & " stopped successfully"
+                uUpdateList
+
+            End If
+
+        Case 3
+            ' /* details */
+            mCurrentEngine.DoDetailsNotification
+
+        Case 5
+            ' /* show in Explorer */
+            ShellExecute 0, "open", mCurrentEngine.Engine.Path, vbNullString, vbNullString, SW_SHOWNORMAL
+
+        End Select
+
+'    Case "lb>engines"
+'        mSelectedEngine = ""
+'
+'        With g_StyleRoster
+'            If .EngineAt(Val(Value), pEngineInfo) Then
+'
+'                mSelectedEngine = pEngineInfo.Name
+'
+'                If mPanel.Find("lbl>desc", pc) Then
+'                    If (pEngineInfo.Obj Is Nothing) Then
+'                        pc.SetText "Not loaded"
+'
+'                    Else
+'                        pc.SetText pEngineInfo.Description
+'
+'                    End If
 '
 '                End If
 '
+''                If mPage.Find("lbl>path", pc) Then _
+'                    pc.SetText pEngineInfo.Path
+'
+'                If mPanel.Find("fb2>loadunload", pc) Then
+'                    If (pEngineInfo.Obj Is Nothing) Then
+'                        pc.SetText "Load"
+'
+'                    Else
+'                        pc.SetText "Unload"
+'
+'                    End If
+'
+'                    pc.SetEnabled ((pEngineInfo.Flags And &H80000000) = 0)
+'
+'                End If
+'
+'            Else
+'
 '            End If
-
-        Case 3
-
-Dim szEngine As String
-
-            szEngine = InputBox("Style Engine to install?", App.Title)
-            If szEngine = "" Then _
-                Exit Sub
-
-            If g_GetExtension(szEngine) = "" Then _
-                szEngine = szEngine & ".styleengine"
-    
-            If g_StyleRoster.Load(szEngine, sz, True) Then
-                g_PrivateNotify "", "", szEngine & " installed ok", -1, g_MakePath(App.Path) & "etc\icons\style_engine.png"
-                uUpdateList
-    
-                If g_GetUserFolderPath(sz) Then
-                    sz = g_MakePath(sz) & "styles\" & szEngine
-                    If Not g_Exists(sz) Then _
-                        uCreateBlankFile sz
-    
-                End If
-    
-            Else
-                MsgBox sz, vbCritical Or vbOKOnly, "Error Installing Style Engine"
-    
-            End If
-
-        End Select
+'
+'        End With
+'
+'
+'    Case "ftb>engine"
+'
+'        ' /* retrieve info for the currently selected engine */
+'
+'        If Not mPanel.Find("lb>engines", pc) Then _
+'            Exit Sub
+'
+'        If Not g_StyleRoster.EngineAt(Val(pc.GetValue), pEngineInfo) Then _
+'            Exit Sub
+'
+'        Select Case Val(Value)
+'        Case 1
+'
+''        Case 3
+''            If g_StyleRoster.StylesForEngine(mSelectedEngine, sz) Then
+''                If MsgBox("Uninstalling this style engine will remove the following styles:" & vbCrLf & vbCrLf & sz & vbCrLf & vbCrLf & "Are you sure you want to do this?", _
+''                        vbQuestion Or vbYesNo, App.Title) = vbYes Then
+''
+''                End If
+''
+''            End If
+'
+'        Case 3
+'
+'Dim szEngine As String
+'
+'            szEngine = InputBox("Style Engine to install?", App.Title)
+'            If szEngine = "" Then _
+'                Exit Sub
+'
+'            If g_GetExtension(szEngine) = "" Then _
+'                szEngine = szEngine & ".styleengine"
+'
+'            If g_StyleRoster.Load(szEngine, sz, True) Then
+'                g_PrivateNotify "", "", szEngine & " installed ok", -1, g_MakePath(App.Path) & "etc\icons\style_engine.png"
+'                uUpdateList
+'
+'                If g_GetUserFolderPath(sz) Then
+'                    sz = g_MakePath(sz) & "styles\" & szEngine
+'                    If Not g_Exists(sz) Then _
+'                        uCreateBlankFile sz
+'
+'                End If
+'
+'            Else
+'                MsgBox sz, vbCritical Or vbOKOnly, "Error Installing Style Engine"
+'
+'            End If
+'
+'        End Select
 
     End Select
 
@@ -161,81 +193,69 @@ End Sub
 Private Sub KPrefsPage_ControlInvoked(Control As prefs_kit_d2.BControl)
 Dim sz As String
 
-    Select Case Control.GetName()
-    Case "fb2>done"
-        mPanel.Quit
-
-    Case "fb2>loadunload"
-        If (g_StyleRoster Is Nothing) Then _
-            Exit Sub
-
-        Select Case Control.GetText
-        Case "Load"
-            If g_StyleRoster.Load(mSelectedEngine, sz, True) Then
-                MsgBox "Style Engine '" & mSelectedEngine & "' loaded", vbInformation Or vbOKOnly, App.Title
-                uUpdateList
-
-            Else
-                MsgBox "Style Engine '" & mSelectedEngine & "' failed to load" & vbCrLf & vbCrLf & sz, vbInformation Or vbOKOnly, App.Title
-            
-            End If
-
-        Case "Unload"
-            
-            If g_StyleRoster.StylesForEngine(mSelectedEngine, sz) Then
-                If MsgBox("Uninstalling this style engine will remove the following styles:" & vbCrLf & vbCrLf & _
-                          sz & vbCrLf & "Are you sure you want to do this?", _
-                          vbQuestion Or vbYesNo, App.Title) = vbYes Then
-
-                    If g_StyleRoster.Unload(mSelectedEngine, sz) Then
-                        MsgBox "Style Engine '" & mSelectedEngine & "' unloaded", vbInformation Or vbOKOnly, App.Title
-                        uUpdateList
-
-                    Else
-                        MsgBox "Error unloading Style Engine", vbExclamation Or vbOKOnly, App.Title
-
-                    End If
-
-                End If
-            End If
-
-        End Select
-
-    End Select
+'    Select Case Control.GetName()
+'    Case "fb2>done"
+'        mPanel.Quit
+'
+'    Case "fb2>loadunload"
+'        If (g_StyleRoster Is Nothing) Then _
+'            Exit Sub
+'
+'        Select Case Control.GetText
+'        Case "Load"
+'            If g_StyleRoster.Load(mSelectedEngine, sz, True) Then
+'                MsgBox "Style Engine '" & mSelectedEngine & "' loaded", vbInformation Or vbOKOnly, App.Title
+'                uUpdateList
+'
+'            Else
+'                MsgBox "Style Engine '" & mSelectedEngine & "' failed to load" & vbCrLf & vbCrLf & sz, vbInformation Or vbOKOnly, App.Title
+'
+'            End If
+'
+'        Case "Unload"
+'
+'            If g_StyleRoster.StylesForEngine(mSelectedEngine, sz) Then
+'                If MsgBox("Uninstalling this style engine will remove the following styles:" & vbCrLf & vbCrLf & _
+'                          sz & vbCrLf & "Are you sure you want to do this?", _
+'                          vbQuestion Or vbYesNo, App.Title) = vbYes Then
+'
+'                    If g_StyleRoster.Unload(mSelectedEngine, sz) Then
+'                        MsgBox "Style Engine '" & mSelectedEngine & "' unloaded", vbInformation Or vbOKOnly, App.Title
+'                        uUpdateList
+'
+'                    Else
+'                        MsgBox "Error unloading Style Engine", vbExclamation Or vbOKOnly, App.Title
+'
+'                    End If
+'
+'                End If
+'            End If
+'
+'        End Select
+'
+'    End Select
 
 End Sub
 
 Private Sub KPrefsPage_ControlNotify(Control As prefs_kit_d2.BControl, ByVal Notification As String, Data As melon.MMessage)
-
 End Sub
 
 Private Sub KPrefsPage_Create(Page As BPrefsPage)
-
-'    Set mPage = Page
-'    mPage.SetMargin 0
-
 End Sub
 
 Private Sub KPrefsPage_Destroy()
-
-'    Set mPage = Nothing
-
 End Sub
 
 Private Sub KPrefsPage_Detached()
-
 End Sub
 
 Private Function KPrefsPage_hWnd() As Long
-
 End Function
 
 Private Sub KPrefsPage_PanelResized(ByVal Width As Long, ByVal Height As Long)
-
 End Sub
 
 Private Sub KPrefsPanel_PageChanged(ByVal NewPage As Long)
-
 End Sub
 
 Private Sub KPrefsPanel_Quit()
@@ -246,11 +266,9 @@ Private Sub KPrefsPanel_Quit()
 End Sub
 
 Private Sub KPrefsPanel_Ready()
-
 End Sub
 
 Private Sub KPrefsPanel_Selected(ByVal Command As String)
-
 End Sub
 
 Public Sub Go(ByVal hWndPanel As Long)
@@ -271,32 +289,24 @@ Dim pm As CTempMsg
 
         With pp
             .SetMargin 0
-'            .SetWidth 390
 
             Set pm = New CTempMsg
-'            pm.Add "item-height", 24&
-            pm.Add "item-height", 48&
-            Set pc = new_BPrefsControl("listbox", "lb>engines", , , , pm)
-            pc.SizeTo 0, 128
+            pm.Add "item-height", 36&
+            Set pc = new_BPrefsControl("listbox", "engine_list", , , , pm)
+            pc.SizeTo 0, 172
             .Add pc
         
-            Set pc = new_BPrefsControl("label", "lbl>desc")
+            Set pc = new_BPrefsControl("label", "engine_desc")
             pc.SizeTo 0, 26
             .Add pc
         
-'            mPage.Add new_BPrefsControl("label", "", "Installed in:")
-'            Set pc = new_BPrefsControl("label", "lbl>path")
-'            pc.SizeTo 0, 26
-'            mPage.Add pc
-
-            .Add new_BPrefsControl("fancytoolbar", "ftb>engine", "Show in Explorer||Install...")
-            .Add new_BPrefsControl("fancybutton2", "fb2>loadunload", "Unload")
-        '    mPage.Add new_BPrefsControl("fancybutton2", "fb2>install", "Install...")
+            .Add new_BPrefsControl("fancytoolbar", "style_engine_toolbar", "Start|Stop|Details||Show in Explorer")
+'            .Add new_BPrefsControl("fancybutton2", "fb2>loadunload", "Unload")
+            .Add new_BPrefsControl("fancybutton2", "fb2>install", "Install new Style Engine...")
     
         End With
 
         .AddPage pp
-
         .Go
         g_SetWindowIconToAppResourceIcon .hWnd
 
@@ -318,71 +328,73 @@ Dim rc As RECT
 
     g_ShowWindow mPanel.hWnd, True, True
 
-
 End Sub
 
 Private Function uUpdateList() As String
-Dim pEngineInfo As T_SNARL_STYLE_ENGINE_INFO
-Dim pm As CTempMsg
 Dim pc As BControl
+
+    If Not (mPanel.Find("engine_list", pc)) Then _
+        Exit Function
+
+Dim pse As TStyleEngine
 Dim sz As String
+Dim n As Long
 Dim i As Long
 
-    If Not (mPanel.Find("lb>engines", pc)) Then _
-        Exit Function
+    n = MAX(Val(pc.GetValue), 1)
 
     If Not (g_StyleRoster Is Nothing) Then
         If g_StyleRoster.CountEngines > 0 Then
 
-            With g_StyleRoster
-                For i = 1 To .CountEngines
-                    If .EngineAt(i, pEngineInfo) Then
-                        With pEngineInfo
-                            sz = sz & IIf(.Name = "", "<unknown>", g_RemoveExtension(.Name)) & _
-                                      " V" & CStr(.Version) & "." & CStr(.Revision) & _
-                                      IIf(.Date <> "", " (" & .Date & ")", "") & "#?0#?" & _
-                                      IIf(.Description <> "", .Description, " ") & "|"
+            With g_StyleRoster.EngineList
+                .Rewind
+                Do While .GetNextTag(pse) = B_OK
+                    sz = sz & pse.InfoString & "#?0#?"
+                    Select Case pse.State
+                    Case E_SE_LOADED
+                        sz = sz & "Loaded (" & pse.StyleCountString & ")"
 
-                        End With
-                    End If
-                Next i
+                    Case E_SE_NOT_LOADED
+                        sz = sz & "Not loaded"
+
+                    Case E_SE_FAILED
+                        sz = sz & "Failed: " & pse.Error
+
+                    End Select
+                    
+                    sz = sz & "|"
+
+                Loop
+
             End With
 
             pc.SetText g_SafeLeftStr(sz, Len(sz) - 1)
 
             ' /* set the icons */
 
-'            Set pm = New CTempMsg
-'
-'            With g_StyleRoster
-'
-'                For i = 1 To .CountEngines
-'                    .EngineAt i, pEngineInfo
-'                    If (pEngineInfo.Obj Is Nothing) Then
-'                        sz = "broken.png"
-'
-'                    Else
-'                        sz = "style_engine.png"
-'
-'                    End If
-'
-'                    prefskit_SetItem pc, i, "image-file", g_MakePath(App.Path) & "etc\icons\" & sz
-'
-'                Next i
-'
-'            End With
+            With g_StyleRoster.EngineList
+                .Rewind
+                Do While .GetNextTag(pse) = B_OK
+                    i = i + 1
+                    prefskit_SetItem pc, i, "image-file", g_MakePath(App.Path) & "etc\icons\" & IIf(pse.State = E_SE_LOADED, "good", "bad") & ".png"
+
+                Loop
+
+            End With
 
         Else
             pc.SetText "<None>"
+            n = 1
 
         End If
 
     Else
         pc.SetText "<Style Roster not running>"
+        n = 1
 
     End If
 
-    pc.SetValue "1"
+    pc.SetValue CStr(n)
 
 End Function
 
