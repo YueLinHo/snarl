@@ -252,19 +252,11 @@ Dim mPanel As BPrefsPanel
 Dim mAppsPage As TAppsPage
 
     ' /* listening sockets */
-'Dim WithEvents JSONSocket As CSocket            ' // 9889 (TCP)
-    ' /* active JSON connections */
-'Dim mJSONSocket() As CJSONSocket
-'Dim mSockets As Long
-'Dim mListener() As CSnarlListener               ' // 9887 (TCP) - all local ip addresses
-'Dim mListenerCount As Long
-
 Dim WithEvents GrowlUDPSocket As CSocket        ' // 9887 (UDP)
 Attribute GrowlUDPSocket.VB_VarHelpID = -1
 Dim mSNPListener As CSnarlListener              ' // 9887 (TCP) on 0.0.0.0
 Dim mGNTPListener As CSnarlListener             ' // 23053 (TCP) on 0.0.0.0
 Dim mJSONListener As CSnarlListener             ' // 9889 (TCP) on 0.0.0.0
-
 
 Dim mClickThruOver As CSnarlWindow
 Dim mMenuOpen As Boolean
@@ -282,6 +274,10 @@ Private Declare Function GetLastInputInfo Lib "user32" (ByRef plii As LASTINPUTI
 
 Dim WithEvents theIdleTimer As BTimer
 Attribute theIdleTimer.VB_VarHelpID = -1
+
+    ' /* R2.4.2 */
+Dim mKeyCloseAll As Long
+Dim mKeyClose As Long
 
 Implements MMessageSink
 Implements KPrefsPanel
@@ -309,56 +305,14 @@ Dim n As Integer
 
     Next n
 
-    ' /* add user messages to UIPI allowed filter */
-
-'    g_Debug "frmAbout.Load(): relaxing UIPI message filter..."
-'    g_Debug "frmAbout.Load(): o/s is 0x" & g_HexStr(g_GetNTVersion())
-'
-'    If g_GetNTVersion() >= NTWIN7 Then
-'        g_Debug "Windows 7 / Windows 2008 R2 (or better)..."
-'        ChangeWindowMessageFilterEx Me.hWnd, WM_SNARL_TRAY_ICON, MSGFLT_ALLOW, 0&
-'        ChangeWindowMessageFilterEx Me.hWnd, WM_REMOTENOTIFY, MSGFLT_ALLOW, 0&
-'        ChangeWindowMessageFilterEx Me.hWnd, WM_INSTALL_SNARL, MSGFLT_ALLOW, 0&
-'        ChangeWindowMessageFilterEx Me.hWnd, MSG_SHOW_PREFS, MSGFLT_ALLOW, 0&
-''        ChangeWindowMessageFilterEx Me.hWnd, MSG_QUIT, MSGFLT_ALLOW, 0&
-'        ChangeWindowMessageFilterEx Me.hWnd, WM_SNARLTEST, MSGFLT_ALLOW, 0&
-'        ChangeWindowMessageFilterEx Me.hWnd, WM_MANAGE_SNARL, MSGFLT_ALLOW, 0&
-'
-''WM_SNARL_TRAY_ICON     ' // WM_USER + 3
-''WM_REMOTENOTIFY        ' // WM_USER + 9
-''WM_INSTALL_SNARL       ' // WM_USER + 12
-''MSG_SHOW_PREFS         ' // WM_USER + 80
-''MSG_QUIT               ' // WM_USER + 81
-''WM_SNARLTEST           ' // WM_USER + 237
-''WM_MANAGE_SNARL        ' // WM_USER + 238
-'
-'    ElseIf g_GetNTVersion() = NTVISTA Then
-'        ' /* we will do this here but *NOT* in TMainWindow construction */
-'        g_Debug "Windows Vista / Windows 2008"
-'        ChangeWindowMessageFilter WM_SNARL_TRAY_ICON, MSGFLT_ADD
-'        ChangeWindowMessageFilter WM_REMOTENOTIFY, MSGFLT_ADD
-'        ChangeWindowMessageFilter WM_INSTALL_SNARL, MSGFLT_ADD
-'        ChangeWindowMessageFilter MSG_SHOW_PREFS, MSGFLT_ADD
-''        ChangeWindowMessageFilter MSG_QUIT, MSGFLT_ADD
-'        ChangeWindowMessageFilter WM_SNARLTEST, MSGFLT_ADD
-'        ChangeWindowMessageFilter WM_MANAGE_SNARL, MSGFLT_ADD
-'
-'    End If
-
-
-
-
-
     ' /* R2.4 DR8: register for TS session events */
 
     WTSRegisterSessionNotification Me.hWnd, NOTIFY_FOR_ALL_SESSIONS
 
-
-
-
     ' /* register the hotkeys */
 
     Me.bSetHotkeys
+    uSetNotificationHotkey True
 
     ' /* pre-load our 'About' text */
 
@@ -375,37 +329,9 @@ Dim n As Integer
         Close #n
     End If
 
-
-
     AddSubClass Me.hWnd, Me
 
-    ' /* create the tray menus */
-
-'    Set myIconMenu = New OMMenu
-
-'    With myIconMenu
-'        .AddItem .CreateItem("sticky", "Sticky Notifications")
-'        .AddSeparator
-'
-'        .AddItem .CreateItem("dnd", "Do Not Disturb", , , gPrefs.do_not_disturb)
-'        .AddItem .CreateItem("missed", "Missed Notifications...")
-'
-'        .AddSeparator
-'        .AddItem .CreateItem("restart", "Restart Snarl")
-'        .AddItem .CreateItem("stop", "Stop Snarl")
-'        .AddItem .CreateItem("quit", "Quit Snarl")
-'        .AddSeparator
-'        .AddItem .CreateItem("prefs", "Settings...")
-'        .AddItem .CreateItem("app_mgr", "App Manager...")
-'        .AddSeparator
-'        .AddItem .CreateItem("about", "About Snarl")
-'
-'    End With
-
     ' /* create the tray icon */
-
-'    mTaskbarCreated = RegisterWindowMessage("TaskbarCreated")
-'    g_Debug "_load: 'TaskbarCreated' = " & g_HexStr(mTaskbarCreated, 4)
 
     Set mTrayIcon = New BNotifyIcon
     mTrayIcon.SetTo Me.hWnd, WM_SNARL_TRAY_ICON
@@ -421,6 +347,7 @@ Dim n As Integer
     If g_ConfigGet("listen_for_snarl") = "1" Then _
         EnableSNP True
 
+    ' /* set dynamic version info */
 
     Label3(0).Caption = "Snarl " & g_Version()
     g_Debug "_load: Version = " & g_Version(), LEMON_LEVEL_INFO
@@ -473,7 +400,7 @@ Dim i As Long
     If g_ConfigGet("listen_for_json") = "1" Then _
         EnableJSON False
 
-
+    ' /* quit the prefs panel, if it's open */
 
     If Not (mPanel Is Nothing) Then
         g_Debug "_Unload(): closing prefs window..."
@@ -485,23 +412,17 @@ Dim i As Long
 
     Set mTrayIcon = Nothing
 
-'    g_Quit
-
     g_Debug "_Unload(): unsubclassing window..."
     RemoveSubClass Me.hWnd
 
-
     uUnregisterHotkeys
-
-
-'    lemonUnregister
+    uSetNotificationHotkey False
 
 End Sub
 
 Private Sub GrowlUDPSocket_OnDataArrival(ByVal bytesTotal As Long)
 Dim b() As Byte
 
-'    Debug.Print bytesTotal
     GrowlUDPSocket.GetData b(), vbArray + vbByte
     g_ProcessGrowlUDP b(), bytesTotal, GrowlUDPSocket.RemoteHost
 
@@ -647,30 +568,6 @@ Dim hWnd As Long
 
     End Select
 
-'    Case "go_app_manager"
-'        ShellExecute 0, "open", g_MakePath(App.Path) & "SNARLAPP_Manager.exe", vbNullString, vbNullString, SW_SHOW
-'
-'    Case "restart_style_roster"
-'        If Not (g_StyleRoster Is Nothing) Then
-'            melonLibClose g_StyleRoster
-'            Sleep 500
-''            MsgBox "Click OK when you're ready for the Style Roster to start up", vbInformation Or vbOKOnly, App.Title
-'            melonLibOpen g_StyleRoster
-'
-'            If mPage.Panel.Find("installed_styles", pc) Then _
-'                pc.Notify "update_list", Nothing
-'
-'
-'        End If
-'
-''    Case "dnd_settings"
-''        With New TStyleEnginePanel
-''            .Go mPage.Panel.hWnd
-''
-''        End With
-'
-'    End Select
-
 End Sub
 
 Private Sub KPrefsPage_ControlNotify(Control As prefs_kit_d2.BControl, ByVal Notification As String, Data As melon.MMessage)
@@ -702,32 +599,34 @@ Dim dw As Long
         ReturnValue = SendMessage(ghWndMain, uMsg, wParam, ByVal lParam)
         MWndProcSink_WndProc = True
 
-
     Case WM_HOTKEY
-        If LoWord(wParam) = mSysKeyPrefs Then
-'            sosOutput "ISubClassed.WndProc(): Old config hotkey pressed!", LEMON_LEVEL_WARNING
+        Select Case LoWord(wParam)
+        Case mSysKeyPrefs
             Me.NewDoPrefs
 
-        ElseIf LoWord(wParam) = mSysKeyTest Then
+        Case mSysKeyTest
             uDoSysInfoNotification
 
-        Else
+        Case mKeyClose
+            g_NotificationRoster.CloseMostRecent
+
+        Case mKeyCloseAll
+            g_NotificationRoster.CloseMultiple 0
+
+        Case Else
             g_Debug "ISubClassed.WndProc(): Spurious WM_HOTKEY received: " & _
                     g_HexStr(HiWord(wParam), 4) & " " & g_HexStr(LoWord(wParam), 4), LEMON_LEVEL_WARNING
 
-        End If
+        End Select
 
         MWndProcSink_WndProc = True
-
 
     Case MSG_SHOW_PREFS
         ' /* this message shouldn't arrive here anymore, being directed to TMainWindow instead */
         Me.NewDoPrefs
 
-
     Case MSG_QUIT, WM_CLOSE
         PostQuitMessage 0
-
 
     Case WM_SNARL_TRAY_ICON
         Select Case lParam
@@ -757,13 +656,6 @@ Dim dw As Long
     Case WM_EXITMENULOOP
         mMenuOpen = False
 
-'    Case mTaskbarCreated
-'        g_Debug "frmAbout.WndProc(): 'TaskbarCreated' received - adding icon..."
-'        uAddTrayIcon
-'
-'    Case Is > WM_USER
-'        Debug.Print ">> " & g_HexStr(uMsg, 4)
-
     Case WM_CLOSE
         Unload Me
         MWndProcSink_WndProc = True
@@ -789,28 +681,6 @@ Dim dw As Long
                 g_ClearPresence SP_AWAY_COMPUTER_LOCKED
 
         End Select
-
-
-
-'    Case WM_REMOTENOTIFY
-'
-'        Debug.Print "WM_REMOTENOTIFY: token=" & lParam & " notification=" & LoWord(wParam)
-'
-'        dw = uFindRemoteNotification(lParam)
-'        If dw = 0 Then
-'            g_Debug "WM_REMOTENOTIFY: token " & g_HexStr(lParam) & " not in remote list", LEMON_LEVEL_CRITICAL
-'
-'        Else
-'            mRemoteNotification(dw).Socket.Notify LoWord(wParam), CStr(lParam)
-'            Select Case LoWord(wParam)
-'            Case SNARL_NOTIFICATION_ACK, SNARL_NOTIFICATION_CLOSED
-'                uRemoveRemoteNotification dw
-'
-'            End Select
-'
-'        End If
-'
-'        MWndProcSink_WndProc = True
 
     End Select
 
@@ -1005,7 +875,6 @@ Dim pm As CTempMsg
 
             ' /* apps */
 
-
             Set mAppsPage = New TAppsPage
             .AddPage new_BPrefsPage("Apps", load_image_obj(g_MakePath(App.Path) & "etc\icons\apps.png"), mAppsPage)
             .AddPage new_BPrefsPage("Display", load_image_obj(g_MakePath(App.Path) & "etc\icons\display.png"), New TDisplayPage)
@@ -1013,9 +882,7 @@ Dim pm As CTempMsg
             .AddPage new_BPrefsPage("Extensions", load_image_obj(g_MakePath(App.Path) & "etc\icons\extensions.png"), New TExtPage)
             .AddPage new_BPrefsPage("Network", load_image_obj(g_MakePath(App.Path) & "etc\icons\network.png"), New TNetworkPage)
 
-
             ' /* presence */
-
 
             Set pp = new_BPrefsPage("Presence", load_image_obj(g_MakePath(App.Path) & "etc\icons\presence.png"), Me)
 
@@ -1052,9 +919,6 @@ Dim pm As CTempMsg
             End With
 
             .AddPage pp
-
-
-
 
             ' /* advanced page */
 
@@ -1314,29 +1178,6 @@ Dim sz() As String
 
 End Function
 
-'Private Sub JSONSocket_OnConnect()
-'
-'    g_Debug "JSONSocket.OnConnect()", LEMON_LEVEL_PROC
-'
-'End Sub
-'
-'Private Sub JSONSocket_OnConnectionRequest(ByVal requestID As Long)
-'
-'    g_Debug "JSONSocket.OnConnectionRequest(): requestID=0x" & g_HexStr(requestID), LEMON_LEVEL_PROC
-'
-'    mSockets = mSockets + 1
-'    ReDim Preserve mJSONSocket(mSockets)
-'    Set mJSONSocket(mSockets) = New CJSONSocket
-'    mJSONSocket(mSockets).Accept requestID
-'
-'End Sub
-'
-'Private Sub JSONSocket_OnDataArrival(ByVal bytesTotal As Long)
-'
-'    g_Debug "JSONSocket.OnDataArrival(): bytesTotal=" & g_HexStr(bytesTotal), LEMON_LEVEL_PROC
-'
-'End Sub
-
 Friend Function bSetHotkeys(Optional ByVal KeyCode As Long = 0) As Boolean
 
     ' /* return True if the prefs hotkey was registered ok */
@@ -1489,26 +1330,6 @@ Dim cb As Long
 
 End Sub
 
-'Private Sub myDownloadUpdateRequest_Completed()
-'
-'    mDownloadId = snShowMessage("Update Available", _
-'                                "An update for Snarl is available.  To install it now click this notification with the left mouse button", _
-'                                0, _
-'                                g_MakePath(App.Path) & "etc\icons\snarl.png", Me.hWnd, WM_INSTALL_SNARL)
-'
-'    Set myDownloadUpdateRequest = Nothing
-'    bDownloadPanelQuit
-'
-'End Sub
-'
-'Private Sub myDownloadUpdateRequest_TimedOut()
-'
-'    MsgBox "myDownloadUpdateRequest_TimedOut"
-'    Set myDownloadUpdateRequest = Nothing
-'    bDownloadPanelQuit
-'
-'End Sub
-
 Private Sub theIdleTimer_Pulse()
 Static b As Boolean
 
@@ -1529,7 +1350,6 @@ Static b As Boolean
 
         End If
     End If
-
 
 Dim n As Long
 
@@ -1642,14 +1462,6 @@ Dim i As Long
 
     End If
 
-    ' /* R2.31 - purge unused memory pages if we appear to be idle */
-
-'    If Abs(DateDiff("n", Now, gLastNotification)) > 5 Then
-'        EmptyWorkingSet GetCurrentProcess()
-'        gLastNotification = Now()           ' // fix timestamp so we don't constant do this...
-'
-'    End If
-
 End Sub
 
 Friend Sub bUpdateStylesList()
@@ -1663,111 +1475,6 @@ Dim pc As BControl
 
 End Sub
 
-'Friend Sub bStartUpdateDownload()
-'
-'    If Not (myDownloadUpdateRequest Is Nothing) Then
-'        MsgBox "bStartUpdateDownload(): Request is still processing.", vbCritical Or vbOKOnly, App.Title
-'        Exit Sub
-'
-'    End If
-'
-'    Set myDownloadUpdateRequest = New CHTTPRequest
-'    myDownloadUpdateRequest.GetFile "http://www.fullphat.net/updateinfo/" & gUpdateFilename, g_MakePath(App.Path) & gUpdateFilename, 60
-'
-'End Sub
-'
-'Friend Function bIsDownloadingUpdate() As Boolean
-'
-'    If (myDownloadUpdateRequest Is Nothing) Then _
-'        Exit Function
-'
-'    bIsDownloadingUpdate = True
-'
-'End Function
-'
-'Friend Sub bDownloadPanelQuit()
-'
-'    ' /* the "An Update is Available" panel was closed - but was a download initiated? */
-'
-'    If (mPanel Is Nothing) Then _
-'        Exit Sub
-'
-'Dim pc As BControl
-'
-'    ' /* "Check for Update" button */
-'
-'    If mPanel.Find("go_updates", pc) Then
-'        If Me.bIsDownloadingUpdate Then
-'            pc.SetText "Downloading Update..."
-'            pc.SetEnabled False
-'
-'        Else
-'            pc.SetText "Check for Update"
-'            pc.SetEnabled True
-'
-'        End If
-'    End If
-'
-'    If mPanel.Find("lbl_updates", pc) Then
-'        If Me.bIsDownloadingUpdate Then
-'            pc.SetText "You will be notified when the update is ready to be installed."
-'
-'        Else
-'            pc.SetText " "
-'
-'        End If
-'    End If
-'
-'End Sub
-
-'Public Sub AddRemoteNotification(ByVal Token As Long, ByRef Socket As TRemoteConnection)
-'
-'    mRemoteNotifications = mRemoteNotifications + 1
-'    ReDim Preserve mRemoteNotification(mRemoteNotifications)
-'    With mRemoteNotification(mRemoteNotifications)
-'        .Token = Token
-'        Set .Socket = Socket
-'
-'    End With
-'
-'End Sub
-'
-'Private Function uFindRemoteNotification(ByVal Token As Long) As Long
-'Dim i As Long
-'
-'    If mRemoteNotifications = 0 Then _
-'        Exit Function
-'
-'    For i = 1 To mRemoteNotifications
-'        If mRemoteNotification(i).Token = Token Then
-'           uFindRemoteNotification = i
-'           Exit Function
-'
-'        End If
-'
-'    Next i
-'
-'End Function
-'
-'Private Sub uRemoveRemoteNotification(ByVal Index As Long)
-'Dim i As Long
-'
-'    If (Index < 1) Or (Index > mRemoteNotifications) Then _
-'        Exit Sub
-'
-'    If Index < mRemoteNotifications Then
-'        For i = Index To (mRemoteNotifications - 1)
-'            LSet mRemoteNotification(i) = mRemoteNotification(i + 1)
-'
-'        Next i
-'
-'    End If
-'
-'    mRemoteNotifications = mRemoteNotifications - 1
-'    ReDim Preserve mRemoteNotification(mRemoteNotifications)
-'
-'End Sub
-
 Public Sub EnableJSON(ByVal Enabled As Boolean)
 
     g_Debug "frmAbout.EnableJSON(" & CStr(Enabled) & ")", LEMON_LEVEL_PROC_ENTER
@@ -1777,26 +1484,11 @@ Public Sub EnableJSON(ByVal Enabled As Boolean)
         Set mJSONListener = New CSnarlListener
         mJSONListener.Go JSON_DEFAULT_PORT
 
-'        Set JSONSocket = New CSocket
-'        JSONSocket.Bind "9889", "127.0.0.1"
-'        JSONSocket.Listen
-'
-'        g_Debug "listening on " & JSONSocket.LocalIP & ":" & JSONSocket.LocalPort & "..."
-
     Else
         g_Debug "stopping JSON listener..."
         mJSONListener.Quit
         Set mJSONListener = Nothing
 
-'        If Not (JSONSocket Is Nothing) Then
-'            JSONSocket.CloseSocket
-'            Set JSONSocket = Nothing
-'            g_Debug "JSON listener stopped"
-'
-'        Else
-'            g_Debug "wasn't started", LEMON_LEVEL_WARNING
-'
-'        End If
     End If
 
     g_Debug "", LEMON_LEVEL_PROC_EXIT
@@ -1814,31 +1506,6 @@ Public Sub EnableSNP(ByVal Enabled As Boolean)
 
         Set mGNTPListener = New CSnarlListener
         mGNTPListener.Go GNTP_DEFAULT_PORT
-
-'        uAddListener SNP_DEFAULT_PORT
-'        uAddListener GNTP_DEFAULT_PORT
-
-'        g_Debug "getting local ip address table..."
-'        ' /* get local ip addresses */
-'        szAddr() = Split(get_ip_address_table(), " ")
-'
-'        If UBound(szAddr()) > -1 Then
-'
-'            ' /* add SNP/tcp and GNTP listeners */
-'
-'            For i = 0 To UBound(szAddr())
-'                If szAddr(i) <> "0.0.0.0" Then
-'                    uAddListener szAddr(i), False                   ' // SNP listener
-'                    uAddListener szAddr(i), True                    ' // GNTP listener
-'
-'                End If
-'
-'            Next i
-'
-'        Else
-'            g_Debug "couldn't read local ip address table", LEMON_LEVEL_WARNING
-'
-'        End If
 
         ' /* R2.4: native Growl/UDP support */
 
@@ -1866,22 +1533,6 @@ Public Sub EnableSNP(ByVal Enabled As Boolean)
 
         mGNTPListener.Quit
         Set mGNTPListener = Nothing
-
-'        g_Debug "stopping SNP listeners..."
-'
-'        If mListenerCount Then
-'            For i = 1 To mListenerCount
-'                mListener(i).Quit
-'
-'            Next i
-'
-'        Else
-'            g_Debug "no listeners", LEMON_LEVEL_WARNING
-'
-'        End If
-'
-'        ReDim mListener(0)
-'        mListenerCount = 0
 
     End If
 
@@ -2003,15 +1654,6 @@ Friend Sub bReadyToRun()
     Set theReadyTimer = new_BTimer(2000, True)
 
 End Sub
-
-'Private Sub uAddListener(ByVal PortNumber As Long)  '//ByVal IPAddr As String,
-'
-'    mListenerCount = mListenerCount + 1
-'    ReDim Preserve mListener(mListenerCount)
-'    Set mListener(mListenerCount) = New CSnarlListener
-'    mListener(mListenerCount).Go PortNumber
-'
-'End Sub
 
 Private Function uIsFullScreenMode() As Boolean
 Static hWnd As Long
@@ -2154,4 +1796,36 @@ Dim i As Long
 
 End Function
 
+Private Sub uSetNotificationHotkey(ByVal Register As Boolean)
+
+    If Register Then
+        ' /* R2.4.2: registers Win+Esc and Win+Ctrl+Esc.  Win+Esc will close the most recent notification; Win+Ctrl+Esc closes all */
+
+        g_Debug "frmAbout.uSetNotificationHotkey(): registering hotkeys..."
+        
+        mKeyClose = register_system_key(Me.hWnd, vbKeyEscape, B_SYSTEM_KEY_WINDOWS)
+        If mKeyClose = 0 Then _
+            g_Debug "frmAbout.uSetNotificationHotkey(): couldn't register Win+Esc system key", LEMON_LEVEL_WARNING
+
+        mKeyCloseAll = register_system_key(Me.hWnd, vbKeyEscape, B_SYSTEM_KEY_WINDOWS Or B_SYSTEM_KEY_CONTROL)
+        If mKeyCloseAll = 0 Then _
+            g_Debug "frmAbout.uSetNotificationHotkey(): couldn't register Win+Ctrl+Esc system key", LEMON_LEVEL_WARNING
+
+    Else
+        ' /* R2.4.2: unregisters Win+Esc and Win+Ctrl+Esc */
+
+        g_Debug "frmAbout.uSetNotificationHotkey(): unregistering hotkeys..."
+
+        If mKeyClose Then _
+            unregister_system_key Me.hWnd, mKeyClose
+
+        If mKeyCloseAll Then _
+            unregister_system_key Me.hWnd, mKeyCloseAll
+
+        mKeyClose = 0
+        mKeyCloseAll = 0
+
+    End If
+
+End Sub
 
