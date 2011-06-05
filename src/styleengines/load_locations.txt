@@ -4,13 +4,13 @@
 	==============
 
 	Banner			0x2f000000
-	EZ			0x2f100000
 	Meter			0x2f080000
-	Prowl			0x11000000	To be redefined
+	EZ			0x2f100000
 	Mobile			0x2f180000
 	Prowl (reserved)	0x2f200000
 	Runnable		0x2f280000
 				0x2f300000
+	Prowl			0x2f380000
 
 
 	Change Log
@@ -24,6 +24,19 @@
 
 
 	meter.styleengine
+
+	- Corporate and Droid styles now properly support "new" legacy
+	  meter support setting.  (39.88)
+
+	- "Automatically detect numeric text?" option renamed to "Enable
+	  Legacy meter support?  (39.88)
+
+	- Corporate and Droid styles will now display any elements that
+	  begin with "label-" as per the modified V42 style specification.
+	  (39.88)
+
+	- Coroporate style "label-tagline" element renamed to "style-corp-
+	  tagline" as per the modified V42 style specification.  (39.88)
 
 	- Fixed some bugs in the Corporate style.  (39.84)
 
@@ -62,6 +75,11 @@
 
 	mobile.styleengine
 
+	- Schemes are now stored in %app_data%\full phat\snarl\styles\webforward
+	  (41.11)
+
+	- Can now access user guide from WebForward configuration panel.  (41.10)
+
 	- Added WebForward style.  (41.6)
 
 	- Bumped NMA and Toasty styles to 1.0.  (41.6)
@@ -76,8 +94,24 @@
 	- Initial cut.  (41.1)
 
 
+
+	prowl.styleengine
+
+	- Bumped to Prowl 2.0.  (39.43)
+
+	- Notification content is now url encoded before being sent.  (39.43)
+
+	- Fixed load address.  (39.43)
+
+	- Bumped copyright info.  (39.43)
+
+	- Code compiles again.  (39.43)
+
+
+
 	runnable.styleengine
 
 	- First pass.  (41.1)
+
 
 
