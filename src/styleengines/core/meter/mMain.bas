@@ -1,6 +1,11 @@
 Attribute VB_Name = "mMain"
 Option Explicit
 
+Public Type T_LABEL
+    Text As String
+    Frame As BRect
+
+End Type
 
 Private Declare Function CreateFont Lib "gdi32" Alias "CreateFontA" (ByVal h As Long, ByVal W As Long, ByVal E As Long, ByVal O As Long, ByVal W As Long, ByVal i As Long, ByVal u As Long, ByVal S As Long, ByVal c As Long, ByVal OP As Long, ByVal CP As Long, ByVal q As Long, ByVal PAF As Long, ByVal f As String) As Long
 Private Declare Function DeleteObject Lib "gdi32" (ByVal hObject As Long) As Long

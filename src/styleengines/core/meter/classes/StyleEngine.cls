@@ -589,7 +589,7 @@ Dim f As Boolean
 
         .Add new_BPrefsControl("banner", "", "Meter")
 
-        .Add new_BPrefsControl("fancytoggle2", "show_graphically", "Auto-detect numeric-only text?", "", mCurrent.ReadSetting("show_graphically"))
+        .Add new_BPrefsControl("fancytoggle2", "show_graphically", "Enable legacy meter support?", "", mCurrent.ReadSetting("show_graphically"))
         fUseMeter = (Val(mCurrent.ReadSetting("show_graphically")) <> 0)
 
         If (mCurrent.Flags And E_METER_STYLE_VARIABLE_METERS) Then

@@ -50,6 +50,10 @@ Dim mMeterRect As BRect
 
 Dim mBkCol As Long
 
+Dim mContent As BPackedData
+Dim mLabel() As T_LABEL
+Dim mLabels As Long
+
 Implements IStyleInstance
 Implements IMeterStyle
 
@@ -105,6 +109,9 @@ End Sub
 
 Private Sub IStyleInstance_UpdateContent(NotificationInfo As libSnarlStyles.notification_info)
 
+    ReDim mLabel(0)
+    mLabels = 0
+
     If (mView Is Nothing) Then
         Set mView = New mfxView
         mView.TextMode = MFX_TEXT_ANTIALIAS
@@ -149,31 +156,21 @@ Dim ppd As BPackedData
 
     If ppd.Exists("value-percent") Then
         mPercent = Val(ppd.ValueOf("value-percent"))
+        If (mPercent < 0#) Or (mPercent > 100#) Then _
+            mPercent = -1#
 
-        If mPercent < 0# Then
-            mPercent = 0#
-
-        ElseIf mPercent > 100# Then
-            mPercent = 100#
-
-        End If
-
-    ElseIf g_IsNumeric(ppd.ValueOf("text")) Then
-        mPercent = Val(ppd.ValueOf("text"))
+    ElseIf (mStyle.ReadSetting("show_graphically") = "1") And (g_IsNumeric(mText)) Then
+        mPercent = mText
         mText = ""
-
-        If mPercent < 0# Then
-            mPercent = 0#
-
-        ElseIf mPercent > 100# Then
-            mPercent = 100#
-
-        End If
+        If (mPercent < 0#) Or (mPercent > 100#) Then _
+            mPercent = -1#
 
     Else
         mPercent = -1#                          ' // means we don't need a meter...
 
     End If
+
+    Set mContent = ppd
 
     ' /* calculate notifcation size and internal measurements */
 
@@ -260,7 +257,6 @@ Dim fNeedGap As Boolean
         ' /* meter */
 
         If mPercent > -1 Then
-
             If fNeedGap Then _
                 Y = Y + EM_TITLE_TEXT
 
@@ -269,6 +265,43 @@ Dim fNeedGap As Boolean
             Y = Y + mMeterRect.Height
 
         End If
+
+
+        ' /* label-* */
+
+        .SetFont mStyle.ReadSetting("text_font"), mStyle.ReadSetting("text_size")
+
+Dim szn As String
+Dim szv As String
+
+        With mContent
+            .Rewind
+            Do While .GetNextItem(szn, szv)
+                If (g_SafeLeftStr(szn, 6) = "label-") And (szv <> "") Then
+                    Set prTemp = pr.Duplicate
+                    prTemp.Left = EM_MARGIN
+                    prTemp.Bottom = 16384
+                    mView.MeasureString szv, prTemp, prTemp
+
+                    If fNeedGap Then _
+                        Y = Y + EM_TITLE_TEXT
+
+                    mLabels = mLabels + 1
+                    ReDim Preserve mLabel(mLabels)
+                    With mLabel(mLabels)
+                        .Text = szv
+                        Set .Frame = new_BRect(EM_MARGIN, Y, mView.Width - EM_MARGIN - 1, Y + prTemp.Height - 1)
+
+                    End With
+
+                    fNeedGap = True
+                    Y = Y + prTemp.Height
+
+                End If
+            Loop
+
+        End With
+
 
         ' /* size the view */
 
@@ -351,7 +384,7 @@ Const RX = 20
 
 Dim pr As BRect
 
-        If Not (mMeterRect Is Nothing) Then
+        If mPercent > -1# Then
             .SetHighColour rgba(0, 0, 0, 60)
             .FillRoundRect mMeterRect, 4, 4
 
@@ -360,6 +393,25 @@ Dim pr As BRect
             pr.Right = pr.Left + ((mPercent / 100) * pr.Width) - 1
             If pr.Width > 3 Then _
                 .FillRoundRect pr, 4, 4
+
+        End If
+
+        ' /* label-* */
+
+Dim i As Long
+
+        If mLabels > 0 Then
+            .SetFont mStyle.ReadSetting("text_font"), mStyle.ReadSetting("text_size") - 1
+            .SetHighColour rgba(255, 255, 255, 190)
+
+            For i = 1 To mLabels
+                Set pr = mLabel(i).Frame.Duplicate
+                If (mTitle = "") And (mText = "") And (mMeterRect Is Nothing) Then _
+                    pr.OffsetTo pr.Left, Fix((.Height - pr.Height) / 2)
+
+                .DrawString mLabel(i).Text, pr, MFX_ALIGN_H_CENTER
+
+            Next i
 
         End If
 
