@@ -50,8 +50,8 @@ Option Explicit
     '
     ' */
 
-Private Const LIB_DATE = "25-May-2011"
-Private Const LIB_RELEASE = "3.04"
+Private Const LIB_DATE = "4-Jun-2011"
+Private Const LIB_RELEASE = "3.05"
 Private Const EXT_NAME = "SysInfo"
 Private Const EXT_COMMENT = "Tracks events specific to this computer"
 
@@ -70,6 +70,7 @@ Private Const CLASS_POWER_DISCONNECT = "pwrd"
 Private Const CLASS_POWER_LOW = "pwrl"
 Private Const CLASS_LOCK_KEY = "keyb"
 Private Const CLASS_IP_CHANGE = "ipch"
+Private Const CLASS_IE_DOWNLOAD = "iedl"
 
 Dim mLastErr As String
 Dim mhWndOwner As Long              ' // handle of the window which launched our config (typically Snarl's Prefs panel)
@@ -264,15 +265,19 @@ Dim pm As CTempMsg
             .AddPage pPage
 
 
-            ' /* Keyboard */
+            ' /* Other */
 
-            Set pPage = new_BPrefsPage("Keyboard", load_image_obj(g_MakePath(App.Path) & IIf(g_IsIDE, "bin\", "") & "keyboard.png"), Me)
+            Set pPage = new_BPrefsPage("Other", load_image_obj(g_MakePath(App.Path) & IIf(g_IsIDE, "bin\", "") & "keyboard.png"), Me)
             With pPage
                 .SetMargin 32
-                
+
+                .Add new_BPrefsControl("banner", "", "Keyboard")
                 .Add new_BPrefsControl("fancytoggle2", "keyb.watch_caps", "Watch Caps Lock?", , mConfig.ValueOf("keyb.watch_caps"))
                 .Add new_BPrefsControl("fancytoggle2", "keyb.watch_numl", "Watch Num Lock?", , mConfig.ValueOf("keyb.watch_numl"))
                 .Add new_BPrefsControl("fancytoggle2", "keyb.watch_scrl", "Watch Scroll Lock?", , mConfig.ValueOf("keyb.watch_scrl"))
+
+                .Add new_BPrefsControl("banner", "", "Internet Explorer")
+                .Add new_BPrefsControl("fancytoggle2", "other.ie", "Notify when an Internet Explorer download completes?", , mConfig.ValueOf("other.ie"))
 
 '                .Add new_BPrefsSeparator
 '                .Add new_BPrefsControl("fancybutton2", "nic.test", "Test Settings (Network)")
@@ -419,6 +424,8 @@ Dim i As Integer
     uCfgCheck "keyb.watch_caps", "1"
     uCfgCheck "keyb.watch_numl", "0"
     uCfgCheck "keyb.watch_scrl", "0"
+
+    uCfgCheck "other.ie", "0"
 
     mConfig.Save
 
