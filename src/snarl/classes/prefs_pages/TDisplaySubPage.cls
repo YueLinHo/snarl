@@ -13,22 +13,23 @@ Attribute VB_PredeclaredId = False
 Attribute VB_Exposed = False
 Option Explicit
 
-'/*********************************************************************************************
-'/
-'/  File:           TDisplaySubPage.cls
-'/
-'/  Description:    Provides the two sub-pages within the Display page
-'/
-'/  © 2009 full phat products
-'/
-'/  This file may be used under the terms of the Simplified BSD Licence
-'/
-'*********************************************************************************************/
+    '/*********************************************************************************************
+    '/
+    '/  File:           TDisplaySubPage.cls
+    '/
+    '/  Description:    Provides the two sub-pages within the Display page
+    '/
+    '/  © 2009 full phat products
+    '/
+    '/  This file may be used under the terms of the Simplified BSD Licence
+    '/
+    '*********************************************************************************************/
 
 Public Name As String
 
 Dim mPage As BPrefsPage
 Dim mStyle As TStyle
+Dim mThemes As BTagList
 
 Implements KPrefsPage
 
@@ -46,10 +47,11 @@ Dim i As Long
 
     Select Case Name
 
-
     Case "def"
 
         ' /* ~~~~~~~~ appearance ~~~~~~~~ */
+
+        uGetIconThemes
 
         mPage.Add new_BPrefsControl("banner", "", "General")
 
@@ -70,9 +72,8 @@ Dim i As Long
 
         mPage.Add new_BPrefsControl("fancytoggle2", "show_timestamp", "Show timestamp while pointer is over notification?", "", g_ConfigGet("show_timestamp"))
 
-
-
-
+        mPage.Add new_BPrefsControl("label", "", "Icon theme:")
+        mPage.Add new_BPrefsControl("fancycycle", "icon_theme", uGetIconThemeList(), , CStr(uIconThemeIndex()), , (mThemes.CountItems > 1))
 
 
     Case "lay"
@@ -314,6 +315,12 @@ Dim i As Long
 
         g_ConfigSet Control.GetName, Value
 
+
+    Case "icon_theme"
+        g_ConfigSet Control.GetName, mThemes.TagAt(Val(Value)).Value
+        g_LoadIconTheme
+
+
     End Select
 
 
@@ -342,15 +349,12 @@ Private Sub KPrefsPage_Destroy()
 End Sub
 
 Private Sub KPrefsPage_Detached()
-
 End Sub
 
 Private Sub KPrefsPage_GetPreferredSize(Width As Long, Height As Long)
-
 End Sub
 
 Private Function KPrefsPage_hWnd() As Long
-
 End Function
 
 Private Sub KPrefsPage_PanelResized(ByVal Width As Long, ByVal Height As Long)
@@ -442,5 +446,110 @@ End Sub
 '
 'End Sub
 
+Private Function uGetIconThemeList() As String
 
+    If (mThemes Is Nothing) Then
+        g_Debug "TDisplaySubPage.uGetIconThemeList(): list is null", LEMON_LEVEL_CRITICAL
+        Exit Function
 
+    End If
+
+Dim pt As BTagItem
+
+    With mThemes
+        .Rewind
+        Do While .GetNextTag(pt) = B_OK
+            uGetIconThemeList = uGetIconThemeList & pt.Name & "|"
+
+        Loop
+        
+    End With
+
+'    uGetIconThemeList = g_SafeLeftStr(uGetIconThemeList, Len(uGetIconThemeList) - 1)
+    g_Debug "TDisplaySubPage.uGetIconThemeList(): list is: " & uGetIconThemeList
+
+End Function
+
+Private Function uIconThemeIndex() As Long
+Dim sz As String
+
+    uIconThemeIndex = 1
+
+    sz = g_ConfigGet("icon_theme")
+    If sz = "" Then _
+        Exit Function
+
+    If (mThemes Is Nothing) Then
+        g_Debug "TDisplaySubPage.uIconThemeIndex(): list is null", LEMON_LEVEL_CRITICAL
+        Exit Function
+
+    End If
+
+Dim pt As BTagItem
+Dim i As Long
+
+    With mThemes
+        .Rewind
+        Do While .GetNextTag(pt) = B_OK
+            i = i + 1
+            If pt.Value = sz Then
+                uIconThemeIndex = i
+                Exit Function
+            
+            End If
+
+        Loop
+
+    End With
+
+End Function
+
+Private Function uTranslateIconTheme(ByVal Path As String) As String
+
+    Path = g_RemoveExtension(g_FilenameFromPath(Path))
+
+Dim s() As String
+
+    s = Split(Path, "@")
+    If UBound(s) = 1 Then
+        uTranslateIconTheme = s(1) & " by " & s(0)
+
+    Else
+        uTranslateIconTheme = Path
+
+    End If
+
+End Function
+
+Private Sub uGetIconThemes()
+Dim sz As String
+
+    g_Debug "TDisplaySubPage.uGetIconThemes()", LEMON_LEVEL_PROC_ENTER
+
+    ' /* get icon themes */
+
+    Set mThemes = new_BTagList()
+    mThemes.Add new_BTagItem("Default", "")
+
+    With New CFolderContent2
+        If .SetTo(g_MakePath(App.Path) & "etc\icons") Then
+            .Rewind
+            Do While .GetNextFile(sz)
+                If (g_IsFolder(sz)) And (g_GetExtension(sz, True) = "icons") Then _
+                    mThemes.Add new_BTagItem(uTranslateIconTheme(sz), g_RemoveExtension(g_FilenameFromPath(sz)))
+
+            Loop
+
+        Else
+            g_Debug "couldn't find \etc\icons", LEMON_LEVEL_CRITICAL
+
+        End If
+
+    End With
+
+    If mThemes.CountItems < 2 Then _
+        g_Debug "Only the default theme available", LEMON_LEVEL_WARNING
+
+    g_Debug "", LEMON_LEVEL_PROC_EXIT
+
+End Sub

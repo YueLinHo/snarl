@@ -106,15 +106,6 @@ Public Type T_NOTIFICATION_INFO
 
 End Type
 
-'Public Type T_NOTIFICATION_EXTRA
-'    IsRemoteApp As Boolean
-'    ReplySocket As CSocket
-'    RemoteAddr As String                ' // ip address
-'    APIVersion As Long
-'
-'End Type
-
-
 Public Type T_SNARL_STYLE_ENGINE_INFO
     Name As String
     Version As Long
@@ -187,8 +178,18 @@ Public Const MSG_SHOW_PREFS = WM_USER + 80
     '          2        Configure style or extension                        ("")
     ' */
 
+Public Enum E_SHOW_PREFS
+    E_SP_DO_PREFS
+    E_SP_INSTALL
+    E_SP_CONFIGURE
+    E_SP_RESTART
+    E_SP_UNLOAD
+    E_SP_LOAD
+
+End Enum
+
 Public bm_Close As MImage
-Public bm_Menu As MImage
+'Public bm_Menu As MImage
 Public bm_Actions As MImage
 Public bm_HasActions As MImage
 Public bm_Remote As MImage
@@ -325,6 +326,11 @@ Public Enum E_PRESENCE_ACTIONS
 
 End Enum
 
+    ' /* RunFile style stuff - shoudln't be global */
+Public gRunFiles As BTagList    '// BTagItem->Name = filename, BTagItem->Value = version
+                                '// version 1 = filename only, static template
+                                '// version 2 = filename with variable template
+                                '// version 3 = unabridged content in &/= format (usable by HeySnarl for example)
 
     ' /* requesters */
 Dim mReq() As TRequester
@@ -351,6 +357,7 @@ Dim l As Long
 
     l = FindWindow(WINDOW_CLASS, "Snarl")
 
+Dim n As E_SHOW_PREFS
 
     szArg = Split(Command$, " ")
     If UBound(szArg) > -1 Then
@@ -368,7 +375,6 @@ Dim l As Long
 
         Case "-install"
             ' /* must have one further arg: style engine or extension to install */
-
             If (UBound(szArg()) = 1) And (l <> 0) Then
                 PostMessage l, MSG_SHOW_PREFS, 1, ByVal RegisterClipboardFormat(szArg(1))
                 Exit Sub
@@ -377,9 +383,28 @@ Dim l As Long
 
         Case "-configure"
             ' /* must have one further arg: style or extension to install */
-
             If (UBound(szArg()) = 1) And (l <> 0) Then
                 PostMessage l, MSG_SHOW_PREFS, 2, ByVal RegisterClipboardFormat(szArg(1))
+                Exit Sub
+
+            End If
+
+        Case "-restart", "-unload", "-load"
+            ' /* must have one further arg: style or extension to restart */
+            If (UBound(szArg()) = 1) And (l <> 0) Then
+                Select Case LCase$(szArg(0))
+                Case "-restart"
+                    n = E_SP_RESTART
+
+                Case "-unload"
+                    n = E_SP_UNLOAD
+                    
+                Case "-load"
+                    n = E_SP_LOAD
+                    
+                End Select
+
+                PostMessage l, MSG_SHOW_PREFS, n, ByVal RegisterClipboardFormat(szArg(1))
                 Exit Sub
 
             End If
@@ -517,32 +542,6 @@ Dim dwFlags As Long
     
     gLastNotification = Now()
 
-
-    ' /* load up some required bits and bobs */
-
-    load_image g_MakePath(App.Path) & "etc\icons\close.png", bm_Close
-    load_image g_MakePath(App.Path) & "etc\icons\menu.png", bm_Menu
-    load_image g_MakePath(App.Path) & "etc\icons\actions.png", bm_Actions
-    load_image g_MakePath(App.Path) & "etc\icons\has_actions.png", bm_HasActions
-    load_image g_MakePath(App.Path) & "etc\icons\remote_app.png", bm_Remote
-    load_image g_MakePath(App.Path) & "etc\icons\secure.png", bm_Secure
-    load_image g_MakePath(App.Path) & "etc\icons\is_sticky.png", bm_IsSticky
-    load_image g_MakePath(App.Path) & "etc\icons\is_priority.png", bm_Priority
-
-    If Not g_IsValidImage(bm_Close) Then
-        Set bm_Close = g_CreateBadge("X")
-'        With New mfxView
-'            .SizeTo 24, 24
-'            .EnableSmoothing False
-'            .SetHighColour rgba(255, 0, 0)
-'            .FillRect .Bounds
-'            .SetHighColour rgba(0, 0, 0)
-'            .StrokeRect .Bounds
-'            Set bm_Close = .ConvertToBitmap()
-'
-'        End With
-    End If
-
     ' /* intialize the IP forwarding subsystem */
 
     g_ForwardInit
@@ -635,6 +634,11 @@ Dim szData As String
         g_ConfigSet "step_size", "1"
 
     End If
+
+    ' /* load up some required bits and bobs */
+
+    g_LoadIconTheme
+
 
 '    ' /* R2.4: managed style settings */
 '
@@ -736,9 +740,9 @@ Dim i As Long
 
     ' /* */
 
-    g_Debug "Main(): garbage collection"
-    If g_IsWinXPOrBetter() Then _
-        CoFreeUnusedLibrariesEx 0, 0
+'    g_Debug "Main(): garbage collection"
+'    If g_IsWinXPOrBetter() Then _
+'        CoFreeUnusedLibrariesEx 0, 0
 
     g_Debug "Main(): startup complete"
 
@@ -902,6 +906,11 @@ Public Function g_ConfigInit() As Boolean
 
         .Add "allow_right_clicks", "0"
         .Add "auto_beta_update", "0"
+
+        ' /* R2.4.2 */
+
+        .Add "only_allow_secure_apps", "0"
+        .Add "apps_must_register", "0"
 
     End With
 
@@ -1641,7 +1650,7 @@ Public Function g_SettingsPath() As String
 End Function
 
 Public Sub g_ProcessAck(ByVal Ack As String)
-Dim arg() As String
+Dim Arg() As String
 Dim argC As Long
 Dim pti As BTagList
 Dim i As Long
@@ -1651,8 +1660,8 @@ Dim i As Long
     If g_SafeLeftStr(Ack, 1) = "!" Then
         ' /* bang command */
 
-        arg = Split(g_SafeRightStr(Ack, Len(Ack) - 1), " ")
-        argC = UBound(arg)
+        Arg = Split(g_SafeRightStr(Ack, Len(Ack) - 1), " ")
+        argC = UBound(Arg)
 
         Set pti = new_BTagList
         
@@ -1660,12 +1669,12 @@ Dim i As Long
 
         If argC > 0 Then
             For i = 1 To argC
-                pti.Add new_BTagItem(arg(i), "")
+                pti.Add new_BTagItem(Arg(i), "")
 
             Next i
         End If
 
-        Select Case LCase$(arg(0))
+        Select Case LCase$(Arg(0))
 
         Case "snarl"
             uProcessSnarl pti
@@ -1674,7 +1683,7 @@ Dim i As Long
             uProcessSystem pti
 
         Case Else
-            g_Debug "g_ProcessAck(): unknown command '" & arg(0) & "'"
+            g_Debug "g_ProcessAck(): unknown command '" & Arg(0) & "'"
 
         End Select
 
@@ -2232,7 +2241,7 @@ Public Sub g_PopRequest2()
 
 End Sub
 
-Private Function uCreatePacked(ByVal ClassId As String, ByVal Title As String, ByVal Text As String, Optional ByVal Timeout As Long = -1, Optional ByVal Icon As String, Optional ByVal Priority As Long = 0, Optional ByVal Ack As String, Optional ByVal Flags As SNARL41_NOTIFICATION_FLAGS, Optional ByVal Password As String) As BPackedData
+Private Function uCreatePacked(ByVal ClassId As String, ByVal Title As String, ByVal Text As String, Optional ByVal Timeout As Long = -1, Optional ByVal Icon As String, Optional ByVal Priority As Long = 0, Optional ByVal Ack As String, Optional ByVal Flags As SNARL41_NOTIFICATION_FLAGS, Optional ByVal Password As String, Optional ByVal AddTestAction As Boolean) As BPackedData
 
     ' /* translate notification arguments into packed data
     '    currently this is only used by g_PrivateNotify()
@@ -2263,6 +2272,9 @@ Private Function uCreatePacked(ByVal ClassId As String, ByVal Title As String, B
 
         If Password <> "" Then _
             .Add "password", Password
+
+        If AddTestAction Then _
+            .Add "action", "Blank,@1"
 
     End With
 
@@ -2297,7 +2309,7 @@ End Function
 '
 'End Function
 
-Public Function g_PrivateNotify(ByVal ClassId As String, Optional ByVal Title As String, Optional ByVal Text As String, Optional ByVal Timeout As Long = -1, Optional ByVal Icon As String, Optional ByVal Priority As Long = 0, Optional ByVal Ack As String, Optional ByVal Flags As SNARL41_NOTIFICATION_FLAGS, Optional ByVal IntFlags As E_NOTIFICATION_FLAGS) As Long
+Public Function g_PrivateNotify(ByVal ClassId As String, Optional ByVal Title As String, Optional ByVal Text As String, Optional ByVal Timeout As Long = -1, Optional ByVal Icon As String, Optional ByVal Priority As Long = 0, Optional ByVal Ack As String, Optional ByVal Flags As SNARL41_NOTIFICATION_FLAGS, Optional ByVal IntFlags As E_NOTIFICATION_FLAGS, Optional ByVal AddTestAction As Boolean) As Long
 
     ' /* internal notification generator
     '
@@ -2305,7 +2317,7 @@ Public Function g_PrivateNotify(ByVal ClassId As String, Optional ByVal Title As
     '    without going via the Win32 messaging system */
 
     g_PrivateNotify = g_DoNotify(gSnarlToken, _
-                                 uCreatePacked(ClassId, Title, Text, Timeout, Icon, Priority, Ack, Flags, gSnarlPassword), _
+                                 uCreatePacked(ClassId, Title, Text, Timeout, Icon, Priority, Ack, Flags, gSnarlPassword, AddTestAction), _
                                  , _
                                  IntFlags Or App.Major)
 
@@ -2412,7 +2424,15 @@ Dim pApp As TApp
     Else
         ' /* special case: if the app token is 0 we use ourself as the sending app  */
         If AppToken = 0 Then
-            If g_AppRoster.FindByToken(gSnarlToken, pApp, gSnarlPassword) Then
+
+            ' /* R2.4.2: new security setting */
+
+            If g_ConfigGet("apps_must_register") = "1" Then
+                g_Debug "g_DoNotify(): not allowed: applications must register first", LEMON_LEVEL_CRITICAL
+                gSetLastError SNARL_ERROR_NOT_REGISTERED
+                Exit Function
+
+            ElseIf g_AppRoster.FindByToken(gSnarlToken, pApp, gSnarlPassword) Then
                 ' /* if we're using the Snarl app, we need the anonymous class */
                 g_Debug "g_DoNotify(): using Snarl anonymous class"
                 szClass = IIf((IntFlags And NF_REMOTE) = 0, SNARL_CLASS_ANON, SNARL_CLASS_ANON_NET)
@@ -3052,3 +3072,145 @@ fail:
 
 End Function
 
+Public Sub g_LoadIconTheme()
+Dim sz As String
+
+    sz = g_ConfigGet("icon_theme")
+
+    If Not g_Exists(g_MakePath(App.Path) & "etc\icons\" & sz & ".icons") Then
+        g_Debug "g_LoadIconTheme(): theme '" & sz & "' not found", LEMON_LEVEL_WARNING
+        sz = ""
+        g_ConfigSet "icon_theme", ""
+
+    Else
+        sz = sz & ".icons\"
+
+    End If
+
+    sz = g_MakePath(App.Path) & "etc\icons\" & sz
+
+    uSafeLoadImage sz, "widget-close.png", bm_Close
+    uSafeLoadImage sz, "widget-actions.png", bm_Actions
+    uSafeLoadImage sz, "emblem-actions.png", bm_HasActions
+    uSafeLoadImage sz, "emblem-remote.png", bm_Remote
+    uSafeLoadImage sz, "emblem-secure.png", bm_Secure
+    uSafeLoadImage sz, "emblem-sticky.png", bm_IsSticky
+    uSafeLoadImage sz, "emblem-priority.png", bm_Priority
+
+'    load_image sz & "menu.png", bm_Menu                 ' // no longer used
+
+
+    If Not g_IsValidImage(bm_Close) Then
+        Set bm_Close = g_CreateBadge("X")
+'        With New mfxView
+'            .SizeTo 24, 24
+'            .EnableSmoothing False
+'            .SetHighColour rgba(255, 0, 0)
+'            .FillRect .Bounds
+'            .SetHighColour rgba(0, 0, 0)
+'            .StrokeRect .Bounds
+'            Set bm_Close = .ConvertToBitmap()
+'
+'        End With
+    End If
+
+End Sub
+
+Private Sub uSafeLoadImage(ByVal Path As String, ByVal Name As String, ByRef Obj As mfxBitmap)
+
+    Set Obj = load_image_obj(Path & Name)
+    If Not is_valid_image(Obj) Then _
+        Set Obj = load_image_obj(g_MakePath(App.Path) & "etc\icons\" & Name)
+
+End Sub
+
+Public Sub g_RunFileLoadSchemes()
+Dim pt As BTagItem
+Dim sn As String
+Dim sd As String
+Dim prf As TRunFileScheme
+Dim pf As CConfFile
+
+    Set gRunFiles = new_BTagList()
+
+    ' /* load up new format entries */
+
+    sn = style_GetSnarlStylesPath()
+    If sn <> "" Then
+        sn = g_MakePath(sn) & "runfile"
+        With New CFolderContent2
+            If .SetTo(sn) Then
+                .Rewind
+                Do While .GetNextFile(sd)
+                    Set prf = New TRunFileScheme
+                    If prf.SetTo(sd) Then _
+                        gRunFiles.Add prf
+
+                Loop
+
+            Else
+                g_Debug "g_RunFileLoadSchemes(): %appdata%\styles\runfile\ missing", LEMON_LEVEL_CRITICAL
+
+            End If
+
+        End With
+
+    Else
+        g_Debug "g_RunFileLoadSchemes(): %appdata%\styles\ missing", LEMON_LEVEL_CRITICAL
+
+    End If
+
+    ' /* does the V1 config exist? */
+
+    With New CConfFile
+        If .SetTo(g_MakePath(App.Path) & "etc\runfile.conf", True) Then
+
+            g_Debug "g_RunFileLoadSchemes(): got V1 runfile config"
+
+            .Rewind
+            Do While .GetEntry(sn, sd)
+                If sn = "target" Then _
+                    gRunFiles.Add new_BTagItem(sd, "1")
+
+            Loop
+
+            g_Debug "g_RunFileLoadSchemes(): converting entries..."
+
+            ' /* convert to new format */
+
+            sn = style_GetSnarlStylesPath()
+            If sn <> "" Then
+                sn = g_MakePath(sn) & "runfile"
+                If g_Exists(sn) Then
+                    With gRunFiles
+                        .Rewind
+                        Do While .GetNextTag(pt) = B_OK
+                            Set pf = New CConfFile
+                            pf.SetTo g_MakePath(sn) & g_CreateGUID(True) & ".runfile"
+                            pf.Add "target=" & pt.Name
+                            pf.Add "version=1"
+                            pf.Save
+
+                        Loop
+
+                    End With
+
+                    ' /* delete old V1 config */
+
+                    g_Debug "g_RunFileLoadSchemes(): removing V1 runfile config..."
+                    DeleteFile g_MakePath(App.Path) & "etc\runfile.conf"
+
+                Else
+                    g_Debug "g_RunFileLoadSchemes(): %appdata%\styles\runfile\ missing", LEMON_LEVEL_CRITICAL
+
+                End If
+            Else
+                g_Debug "g_RunFileLoadSchemes(): %appdata%\styles\ missing", LEMON_LEVEL_CRITICAL
+
+            End If
+
+        End If
+
+    End With
+
+End Sub

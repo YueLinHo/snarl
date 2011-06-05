@@ -33,7 +33,7 @@ Dim mSettings As ConfigFile     ' // persistent settings
 Dim mAppConfig As ConfigSection ' // persistent app settings
 Dim mIsUnknown As Boolean       ' // new app (or, one without persistent settings anyway)
 
-Implements MObject
+Implements mObject
 
 Private Sub Class_Initialize()
 
@@ -360,10 +360,21 @@ Dim pClass As TAlert
     ' /* here, we must have a class... */
 
     If (pClass Is Nothing) Then
-        g_Debug "TApp.Show(): couldn't find a suitable class", LEMON_LEVEL_CRITICAL
+        g_Debug "TApp.Show41(): couldn't find a suitable class", LEMON_LEVEL_CRITICAL
         gSetLastError SNARL_ERROR_SYSTEM
         Exit Function
 
+    End If
+
+    ' /* R2.4.2: if "Don't show if foreground app?" is set, check now */
+
+    If pClass.GetValue("block_if_foreground") = "1" Then
+        If (mInfo.Pid <> 0) And (uGetForegroundPID() = mInfo.Pid) Then
+            g_Debug "TApp.Show41(): discarded: application is foreground", LEMON_LEVEL_INFO
+            gSetLastError SNARL_ERROR_DISCARDED
+            Exit Function
+
+        End If
     End If
 
     ' /* convert the packed data into a T_NOTIFICATION_INFO struct */
@@ -782,3 +793,16 @@ Public Sub SetReply(ByVal ReplyTo As Long, ByVal ReplyMessage As Long)
         mInfo.uMsg = ReplyMessage
 
 End Sub
+
+Private Function uGetForegroundPID() As Long
+Dim h As Long
+Dim p As Long
+
+    h = GetForegroundWindow()
+    If h = 0 Then _
+        Exit Function
+
+    If GetWindowThreadProcessId(h, p) <> 0 Then _
+        uGetForegroundPID = p
+
+End Function

@@ -81,7 +81,7 @@ Dim i As Long
 
     With mContent
         If .SchemeCount = 0 Then
-            g_Debug "TStyle.uGetSchemes(): style didn't provide any valid schemes", LEMON_LEVEL_WARNING
+            g_Debug "TStyle.uGetSchemes(): style '" & mContent.Info.Name & "' didn't provide any valid schemes", LEMON_LEVEL_WARNING
             .SchemeCount = 1
             ReDim .Scheme(.SchemeCount)
             .Scheme(.SchemeCount) = "<Default>"

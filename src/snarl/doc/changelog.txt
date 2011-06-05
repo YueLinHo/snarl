@@ -1,6 +1,49 @@
 
 	Snarl Change Log
 
+	- Extension exclude list wasn't being updated.  Now fixed.  (42.108)
+
+	- Fixed bug in notification roster which meant shadowed notifications would
+	  appears twice when a remote icon was specified.  (42.107)
+
+	- Major improvements to Run File 2.0 style.  Schemes now have a configurable
+	  name which is stored in the .runfile configuration file.  The file's name
+	  is not configurable via the UI and thus provides a constant for the
+	  scheme.  Type 1 schemes are now known as "simple", with type 2 and 3
+	  schemes as "complex" and "unabridged" respectively.  Type 3 schemes now
+	  utilise the template parameter which is passed prefixed to the notification
+	  content.  The link to the user guide and the hint text has been moved into
+	  the new scheme management panel and schemes are now created and edited via
+	  this panel.  (42.106)
+
+	- Actions indicator is now drawn when actions widget is visible.  (42.106)
+
+	- Renamed emblem and widget icons.  (42.106)
+
+	- Can now select notification HUD icons via [Display] page.  Dario's
+	  "Greyscale" theme is included with Snarl.  (42.106)
+
+	- Added new per-app "block_if_foreground" setting which will discard the
+	  notification if the appropriate setting is enabled and the application
+	  which is creating it is the foreground app.  This only works for
+	  applications registered via the Win32 API.  (42.106)
+
+	- Added new "Applications must register before creating Notifications?"
+	  setting to [Advanced] page.  (42.106)
+
+	- Bumped Run File style to 2.0 and changes the way it saves the scheme
+	  info.  (42.106)
+
+	- Added "Hide All Notifications" main (tray) menu option.  (42.106)
+
+	- Added "-restart", "-unload" and "-load" command-line arguments.  These
+	  respectively restart, unload and load a style or extension based on
+	  the classid (including .qualifier) of the item in question.  (42.105)
+
+	- Previously, if a managed style didn't provide suitable content for
+	  a notification, Snarl would not display the notification.  This has
+	  now been fixed, with Snarl using the built-in style.  (42.102)
+
 	- Extension management significantly improved in a similar way to style
 	  engine management.  (42.102)
 

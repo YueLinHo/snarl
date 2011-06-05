@@ -30,8 +30,7 @@ Option Explicit
 Dim mPanel As BPrefsPanel
 Dim mSelIndex As Long
 
-Dim mFile() As String
-Dim mFiles As Long
+Dim WithEvents mAddEditPanel As TRunFileEditPanel
 
 Dim mIsRunFile As Boolean
 Dim mConfFile As String
@@ -53,10 +52,22 @@ Dim i As Long
     Select Case Control.GetName()
     Case "list"
         mSelIndex = Val(Value)
+'        Select Case gRunFiles.TagAt(mSelIndex).Value
+'        Case "1"
+'            sz = "Snarl will pass specific notification elements as individual arguments, as follows: " & vbCrLf & vbCrLf & _
+'                 gRunFiles.TagAt(mSelIndex).Name & " ""<notification title>"" ""<notification text>"" ""<sender>""" & vbCrLf & vbCrLf & _
+'                 "Any elements prefixed with either ""data-"" or ""value-"" will also be included as additional arguments."
+'
+'        Case "2"
+'            sz = "variable template"
+'
+'        End Select
+
+        prefskit_SafeSetText mPanel, "file_hint", sz
+
 
         ' /* toolbar */
 '        prefskit_SafeEnable mPanel, "toolbar_options", (Value <> "0")
-'        prefskit_SafeSetText mPanel, "the_title", Replace$(mSelected.Title, vbCrLf, "¶ ")
 
 '        If mPanel.Find("toolbar_options", pc) Then
 ''            prefskit_SetItem pc, 1, "enabled", IIf(mSelected.DefaultAck <> "", 1&, 0&)
@@ -69,9 +80,7 @@ Dim i As Long
         Select Case Val(Value)
         Case 1
             ' /* add */
-            sz = fd_QuickPickFile()
-            If sz <> "" Then _
-                uAddEntry sz
+            uAddNewEntry
 
         Case 2
             If mSelIndex <> 0 Then _
@@ -84,6 +93,21 @@ Dim i As Long
 End Sub
 
 Private Sub KPrefsPage_ControlInvoked(Control As prefs_kit_d2.BControl)
+Dim prf As TRunFileScheme
+
+    Select Case Control.GetName
+    Case "list"
+        Set prf = gRunFiles.TagAt(Val(Control.GetValue))
+        Set mAddEditPanel = New TRunFileEditPanel
+        mAddEditPanel.Go mPanel.hWnd, prf
+
+'        ShellExecute Control.Page.Panel.hWnd, "open", prf.File, vbNullString, vbNullString, 5
+
+    Case "go_user_guide"
+        ShellExecute Control.Page.Panel.hWnd, "open", g_MakePath(App.Path) & "etc\RunFileUserGuide\index.html", vbNullString, vbNullString, 5
+
+    End Select
+
 End Sub
 
 Private Sub KPrefsPage_ControlNotify(Control As prefs_kit_d2.BControl, ByVal Notification As String, Data As melon.MMessage)
@@ -123,10 +147,9 @@ Public Function Go(ByVal IsRunFile As Boolean) As Long
 Dim pPage As BPrefsPage
 Dim pc As BControl
 Dim pm As CTempMsg
-Dim sn As String
-Dim sd As String
 
     mIsRunFile = IsRunFile
+
     If mIsRunFile Then
         mConfFile = "runfile"
 
@@ -135,25 +158,9 @@ Dim sd As String
 
     End If
 
+
     If (mPanel Is Nothing) Then
 
-        mFiles = 0
-        ReDim mFile(0)
-
-        With New CConfFile
-            If .SetTo(g_MakePath(App.Path) & "etc\" & mConfFile & ".conf", True) Then
-                .Rewind
-                Do While .GetEntry(sn, sd)
-                    mFiles = mFiles + 1
-                    ReDim Preserve mFile(mFiles)
-                    mFile(mFiles) = sd
-
-                Loop
-            End If
-
-        End With
-
-        
         Set mPanel = New BPrefsPanel
         With mPanel
             .SetHandler Me
@@ -176,14 +183,21 @@ Dim sd As String
                 .Add new_BPrefsControl("fancytoolbar", "toolbar_options", "Add...|Remove")
 ''                .Add new_BPrefsControl("fancybutton2", "fb>ack", "Invoke Callback", , , , False)
 
-                If mIsRunFile Then
-'                    .Add new_BPrefsControl("label", "", "Each scheme represents an individual file to run")
-                    .Add new_BPrefsControl("label", "", "Snarl will pass notification elements as arguments to the file it runs, as follows: " & vbCrLf & _
-                                                        "<file> ""<notification title>"" ""<notification text>"" ""<sender>"".")
-
-                    .Add new_BPrefsControl("label", "", "Any notification elements prefixed with either ""data-"" or ""value-"" are also included as an additional arguments.")
-
-                End If
+'                If mIsRunFile Then
+'                    Set pc = new_BPrefsControl("label", "file_hint")
+'                    pc.SizeTo 0, 90
+'                    .Add pc
+'
+''                    .Add new_BPrefsControl("label", "", "Each scheme represents an individual file to run")
+'''                    .Add new_BPrefsControl("label", "", "Snarl will pass notification elements as arguments to the file it runs, as follows: " & vbCrLf & _
+'''                                                        "<file> ""<notification title>"" ""<notification text>"" ""<sender>"".")
+'''
+'''                    .Add new_BPrefsControl("label", "", "Any notification elements prefixed with either ""data-"" or ""value-"" are also included as an additional arguments.")
+'
+'                    .Add new_BPrefsSeparator
+'                    .Add new_BPrefsControl("fancybutton2", "go_user_guide", "User Guide")
+'
+'                End If
 
             End With
 
@@ -200,124 +214,26 @@ Dim sd As String
 
 End Function
 
-'Private Sub uUpdateList()
-'
-'    If (g_NotificationRoster Is Nothing) Then _
-'        Exit Sub
-'
-'Dim pc As BControl
-'
-'    If Not mPanel.Find("lb>missed", pc) Then _
-'        Exit Sub
-'
-'Dim pInfo As T_NOTIFICATION_INFO
-'Dim pm As CTempMsg
-'Dim sz As String
-'Dim i As Long
-'Dim n As Long
-'Dim sza As String
-'
-'    n = Val(pc.GetValue())
-'
-'    With g_NotificationRoster
-'
-'        prefskit_SafeEnable mPanel, "fb>clear", (.MissedCount > 0)
-'
-'        If .MissedCount Then
-'
-'            ' /* build the content string */
-'
-'            For i = 1 To .MissedCount
-'                .MissedAt i, pInfo
-'                sza = Replace$(pInfo.Title, "|", ":")
-'                sza = Replace$(sza, vbCrLf, "¶")
-'                sz = sz & g_FormattedMidStr(sza, 54) & "#?0#?"
-'
-'                sza = Replace$(pInfo.Text, "|", ":")
-'                sza = Replace$(sza, vbCrLf, "¶")
-'                sz = sz & g_FormattedMidStr(sza, 54) & "|"
-''                sz = sz & g_FormattedMidStr(Replace$(pInfo.Title, "|", ":"), 54) & "#?0#?" & "From " & pInfo.Sender & " (" & pInfo.Class & ") at " & Format$(pInfo.DateStamp, "hh:mm:ss") & "|"
-'
-'            Next i
-'
-'            pc.SetText g_SafeLeftStr(sz, Len(sz) - 1)
-'
-'            ' /* set the icons */
-'
-'            Set pm = New CTempMsg
-'            For i = 1 To .MissedCount
-'                .MissedAt i, pInfo
-'                pm.Replace "index", i
-'                pm.Remove "image-object"
-'                pm.Add "image-object", pInfo.Icon
-'                pc.DoExCmd B_EXTENDED_COMMANDS.B_SET_ITEM, pm
-'
-'            Next i
-'
-'        Else
-'            pc.SetText ""
-'
-'        End If
-'
-'    End With
-'
-'    pc.SetValue CStr(n + 1)
-'
-'End Sub
-'
-'Public Sub UpdateList()
-'
-'    If Not (mPanel Is Nothing) Then _
-'        uUpdateList
-'
-'End Sub
+Private Sub uAddNewEntry()
+Dim prf As TRunFileScheme
 
-Private Sub uAddEntry(ByVal Path As String)
+    Set prf = New TRunFileScheme
+    If prf.CreateNew Then
+        Set mAddEditPanel = New TRunFileEditPanel
+        mAddEditPanel.Go mPanel.hWnd, prf
+        g_RunFileLoadSchemes
+        uRefreshList
 
-    mFiles = mFiles + 1
-    ReDim Preserve mFile(mFiles)
-    mFile(mFiles) = Path
-
-Dim i As Long
-
-    With New CConfFile
-        For i = 1 To mFiles
-            .Add "target", mFile(i)
-
-        Next i
-
-        .Save g_MakePath(App.Path) & "etc\" & mConfFile & ".conf"
-
-    End With
-
-    uRefreshList
+    End If
 
 End Sub
 
 Private Sub uRemEntry(ByVal Index As Long)
-Dim i As Long
+Dim prf As TRunFileScheme
 
-    If Index < mFiles Then
-        For i = Index To (mFiles - 1)
-            mFile(i) = mFile(i + 1)
-
-        Next i
-
-    End If
-
-    mFiles = mFiles - 1
-    ReDim Preserve mFile(mFiles)
-
-    With New CConfFile
-        For i = 1 To mFiles
-            .Add "target", mFile(i)
-
-        Next i
-
-        .Save g_MakePath(App.Path) & "etc\" & mConfFile & ".conf"
-
-    End With
-
+    Set prf = gRunFiles.TagAt(Index)
+    DeleteFile prf.File
+    gRunFiles.Remove Index
     uRefreshList
 
 End Sub
@@ -330,22 +246,27 @@ Dim pc As BControl
 
 Dim sz As String
 Dim n As Long
-Dim i As Long
+
+Dim pt As BTagItem
 
     n = Val(pc.GetValue())
 
-    If mFiles Then
-        For i = 1 To mFiles
-            sz = sz & mFile(i)
-            If i < mFiles Then _
-                sz = sz & "|"
+    With gRunFiles
+        .Rewind
+        Do While .GetNextTag(pt) = B_OK
+            sz = sz & pt.Name & "|"
 
-        Next i
+        Loop
 
-    End If
+    End With
 
-    pc.SetText sz
-    pc.SetValue CStr(n)
+    pc.SetText g_SafeLeftStr(sz, Len(sz) - 1)
+    pc.SetValue CStr(MAX(n, 1))
 
 End Sub
 
+Private Sub mAddEditPanel_Done()
+
+    uRefreshList
+    
+End Sub

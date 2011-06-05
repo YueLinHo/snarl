@@ -479,11 +479,17 @@ End Function
 '
 'End Function
 
-Public Function Load(ByVal ClassId As String, ByVal NotifyVersionChange As Boolean) As Boolean
+Public Function Load(ByVal ClassId As String, ByVal NotifyVersionChange As Boolean, ByVal NotifyItHappened As Boolean) As Boolean
 Dim pse As TStyleEngine
 
     If Not mList.Find(ClassId, pse) Then
         g_Debug "TStyleRoster.Load(): style engine '" & ClassId & "' not found", LEMON_LEVEL_CRITICAL
+        Exit Function
+
+    End If
+
+    If pse.State = E_SE_LOADED Then
+        g_Debug "TStyleRoster.Load(): style engine '" & ClassId & "' is already running", LEMON_LEVEL_WARNING
         Exit Function
 
     End If
@@ -494,20 +500,36 @@ Dim pse As TStyleEngine
         uAddStyles pse.Engine
         frmAbout.bUpdateStylesList
         uWriteStartupList
+        If NotifyItHappened Then _
+            g_PrivateNotify SNARL_CLASS_GENERAL, , ClassId & " started successfully"
         Load = True
 
     Else
         g_Debug "TStyleRoster.Load(): style engine '" & ClassId & "' failed to load", LEMON_LEVEL_CRITICAL
+        If NotifyItHappened Then _
+            g_PrivateNotify SNARL_CLASS_GENERAL, , ClassId & " failed to start", , "!system-warning"
 
     End If
 
 End Function
 
-Public Function Unload(ByVal Engine As String) As Boolean
+Public Function Unload(ByVal Engine As String, ByVal NotifyItHappened As Boolean) As Boolean
 Dim pse As TStyleEngine
 
     If Not mList.Find(Engine, pse) Then
         g_Debug "TStyleRoster.Unload(): '" & Engine & "' not in list", LEMON_LEVEL_CRITICAL
+        Exit Function
+
+    End If
+
+    If pse.IsSystem Then
+        g_Debug "TStyleRoster.Unload(): cannot unload system style engine", LEMON_LEVEL_CRITICAL
+        Exit Function
+
+    End If
+
+    If pse.State = E_SE_NOT_LOADED Then
+        g_Debug "TStyleRoster.Unload(): '" & Engine & "' is not running", LEMON_LEVEL_WARNING
         Exit Function
 
     End If
@@ -533,6 +555,9 @@ Dim j As Long
 
     frmAbout.bUpdateStylesList
     uWriteStartupList
+    If NotifyItHappened Then _
+        g_PrivateNotify SNARL_CLASS_GENERAL, , Engine & " stopped successfully"
+
     Unload = True
 
 End Function

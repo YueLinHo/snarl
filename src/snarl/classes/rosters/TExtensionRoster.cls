@@ -332,7 +332,7 @@ Dim px As TExtension
 
     End If
 
-    g_Debug "TExtensionRoster.uGetExtension(): " & szClassId & "took " & CStr(GetTickCount() - t) & "ms"
+    g_Debug "TExtensionRoster.uGetExtension(): '" & szClassId & "' took " & CStr(GetTickCount() - t) & "ms"
 
 End Function
 
@@ -482,34 +482,34 @@ Dim pn As storage_kit.Node
 
 End Function
 
-Public Function UnloadExtension(ByVal Name As String) As M_RESULT
-Dim i As Long
-
-    ' /* looks for the specified extension and, if it exists, unloads it cleanly */
-
-    i = uFind(Name)
-    If i = 0 Then
-        g_Debug "TExtensionRoster.UnloadExtension(): '" & Name & "' not found", LEMON_LEVEL_CRITICAL
-        UnloadExtension = M_NOT_FOUND
-        Exit Function
-
-    End If
-
-    ' /* unload it but don't update the exclude file */
-
-    g_Debug "TExtensionRoster.UnloadExtension(): stopping '" & Name & "'..."
-'    mExt(i).SetEnabled2 False, , False
-
-    mExt(i).SetEnabled False
-
-    ' /* remove it from our list */
-
-    uRemove i
-
-    frmAbout.bUpdateExtList
-    frmAbout.bUpdateAppList
-
-End Function
+'Public Function UnloadExtension(ByVal Name As String) As M_RESULT
+'Dim i As Long
+'
+'    ' /* looks for the specified extension and, if it exists, unloads it cleanly */
+'
+'    i = uFind(Name)
+'    If i = 0 Then
+'        g_Debug "TExtensionRoster.UnloadExtension(): '" & Name & "' not found", LEMON_LEVEL_CRITICAL
+'        UnloadExtension = M_NOT_FOUND
+'        Exit Function
+'
+'    End If
+'
+'    ' /* unload it but don't update the exclude file */
+'
+'    g_Debug "TExtensionRoster.UnloadExtension(): stopping '" & Name & "'..."
+''    mExt(i).SetEnabled2 False, , False
+'
+'    mExt(i).SetEnabled False
+'
+'    ' /* remove it from our list */
+'
+'    uRemove i
+'
+'    frmAbout.bUpdateExtList
+'    frmAbout.bUpdateAppList
+'
+'End Function
 
 Private Sub uRemove(ByVal Index As Long)
 Dim i As Long
@@ -696,29 +696,29 @@ Dim i As Long
 
 End Sub
 
-Public Function LoadExtensionByClass(ByVal Class As String, ByRef Result As String) As Boolean
-Dim anExt As TExtension
-
-'    MsgBox MRoster_FindItem(Class)
-
-    If MRoster_FindItem(Class) Then
-        Result = "Extension is already loaded"
-        Exit Function
-
-    End If
-
-'    Set anExt = New TExtension
-'    If anExt.SetTo(Class, "") Then
-'        ' /* initialised okay, so add it to our list */
-'        uAdd anExt, False
-'        LoadExtensionByClass = True
+'Public Function LoadExtensionByClass(ByVal Class As String, ByRef Result As String) As Boolean
+'Dim anExt As TExtension
 '
-'    Else
-'        Result = Class & " is not a valid extension"
+''    MsgBox MRoster_FindItem(Class)
+'
+'    If MRoster_FindItem(Class) Then
+'        Result = "Extension is already loaded"
+'        Exit Function
 '
 '    End If
-
-End Function
+'
+''    Set anExt = New TExtension
+''    If anExt.SetTo(Class, "") Then
+''        ' /* initialised okay, so add it to our list */
+''        uAdd anExt, False
+''        LoadExtensionByClass = True
+''
+''    Else
+''        Result = Class & " is not a valid extension"
+''
+''    End If
+'
+'End Function
 
 
 

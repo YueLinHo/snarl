@@ -294,6 +294,8 @@ Dim pInfo As T_SNARL_APP
 
 Dim pi As BIcon
 
+        .Pid = SenderPID            ' // R2.4.2: added
+
         If (.Icon = "") And (SenderPID <> 0) Then
             sz = g_GetExeFullPath(SenderPID)
             If sz <> "" Then

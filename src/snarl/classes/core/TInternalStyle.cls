@@ -123,12 +123,11 @@ End Function
 
 Private Function IStyleEngine_Initialize() As melon.M_RESULT
 
-    ' /* TO-DO: check if SNB is installed okay? */
+'    g_RunFileLoadSchemes
 
 End Function
 
 Private Function IStyleEngine_LastError() As String
-
 End Function
 
 Private Function IStyleEngine_Name() As String
@@ -189,7 +188,7 @@ Private Sub IStyleEngine_StyleAt(ByVal Index As Long, Style As libSnarlStyles.st
             .Description = "Executes a file, passing the notification content as arguments"
             .Flags = S_STYLE_IS_WINDOWLESS Or S_STYLE_IS_CONFIGURABLE Or S_STYLE_V42_CONTENT
             .IconPath = g_MakePath(App.Path) & "etc\icons\runfile.png"
-            .Major = 1
+            .Major = 2
             .Minor = 0
             .Name = RUN_STYLE_NAME
             .Schemes = uGetFileSchemes("runfile")
@@ -238,24 +237,58 @@ Private Sub IStyleInstance_Show(ByVal Visible As Boolean)
 End Sub
 
 Private Sub IStyleInstance_UpdateContent(NotificationInfo As libSnarlStyles.notification_info)
+Dim prf As TRunFileScheme
 
     If IsIPForwarder Then
         uIPFStyleUpdate NotificationInfo
 
     ElseIf IsFileRunner Then
-        
+        ' /* notificationinfo->scheme is the name */
+
+        With gRunFiles
+            .Rewind
+            Do While .GetNextTag(prf) = B_OK
+                If LCase$(prf.Name) = NotificationInfo.Scheme Then
+                    uDoFileRunner NotificationInfo, prf
+                    Exit Sub
+
+                End If
+
+            Loop
+
+            g_Debug "TInternalStyle.UpdateContent(): scheme '" & NotificationInfo.Scheme & "' not found", LEMON_LEVEL_CRITICAL
+
+        End With
+
+
+    ElseIf IsImage Then
+        ' /* Not enabled in R2.4 - for further development */
+        uImageStyleUpdate NotificationInfo
+
+    Else
+        uDefStyleUpdate NotificationInfo
+
+    End If
+
+End Sub
+
+Private Sub uDoFileRunner(ByRef NotificationInfo As notification_info, ByRef Scheme As TRunFileScheme)
 Dim ppd As BPackedData
-        
-        ' /* title is sender name, text is original info */
-        
+Dim s As String
+Dim t As String
+Dim u As String
+
+    ' /* title is sender name, text is original info */
+
+    Select Case Scheme.Version
+
+    Case 1
+        g_Debug "TInternalStyle.uDoFileRunner(): sending V1 content to '" & Scheme.Target & "'..."
+
         Set ppd = New BPackedData
         ppd.SetTo NotificationInfo.Text
 
         ' /* format is <file_to_run> <title> <text> <sender> [data-] */
-
-Dim s As String
-Dim t As String
-Dim u As String
 
         With ppd
             .Rewind
@@ -279,24 +312,37 @@ Dim u As String
         ' /* launch the file using the "open" verb.  we must also escape any CRLF's back to "\n"'s
         '    as these can play havoc with MS-DOS batch files */
 
-        ShellExecute 0, "open", NotificationInfo.Scheme, g_Quote(Replace$(ppd.ValueOf("title"), vbCrLf, "\n")) & " " & _
-                                                         g_Quote(Replace$(ppd.ValueOf("text"), vbCrLf, "\n")) & " " & _
-                                                         g_Quote(NotificationInfo.Title) & _
-                                                         u, vbNullString, SW_SHOW
+        ShellExecute 0, "open", Scheme.Target, g_Quote(Replace$(ppd.ValueOf("title"), vbCrLf, "\n")) & " " & _
+                                               g_Quote(Replace$(ppd.ValueOf("text"), vbCrLf, "\n")) & " " & _
+                                               g_Quote(NotificationInfo.Title) & _
+                                               u, vbNullString, SW_SHOW
 
         ' /* FOR FUTURE DEVELOPMENT: setting notification_info->Flags to -1 tells
         '    Snarl that the original notification should be displayed on-screen */
 
 '        NotificationInfo.Flags = -1
 
-    ElseIf IsImage Then
-        ' /* Not enabled in R2.4 - for further development */
-        uImageStyleUpdate NotificationInfo
 
-    Else
-        uDefStyleUpdate NotificationInfo
+    Case 2
+        ' /* replace anything surrounded by %..% with the equivalent from the notification content */
+        g_Debug "TInternalStyle.uDoFileRunner(): template is '" & Scheme.Template & "'"
+        Set ppd = New BPackedData
+        ppd.SetTo NotificationInfo.Text
+        s = uReplaceMarkers(Scheme.Template, ppd)
+        g_Debug "TInternalStyle.uDoFileRunner(): fixed-up template is '" & s & "'..."
+        ShellExecute 0, "open", Scheme.Target, s, vbNullString, SW_SHOW
 
-    End If
+
+    Case 3
+        ' /* &/= format */
+        s = g_URLEncode(NotificationInfo.Text)
+        s = Replace$(s, "#?", "&")
+        s = Replace$(s, "::", "=")
+        s = s & "&app=" & NotificationInfo.Title
+        g_Debug "TInternalStyle.uDoFileRunner(): sending V3 content to '" & Scheme.Target & "'..."
+        ShellExecute 0, "open", Scheme.Target, g_Quote(Scheme.Template & s), vbNullString, SW_SHOW
+
+    End Select
 
 End Sub
 
@@ -408,17 +454,17 @@ Dim prFrame As BRect
 End Sub
 
 Private Function uGetFileSchemes(ByVal Name As String) As String
-Dim sd As String
-Dim sn As String
+Dim pt As BTagItem
 
-    With New CConfFile
-        If .SetTo(g_MakePath(App.Path) & "etc\" & Name & ".conf", True) Then
-            .Rewind
-            Do While .GetEntry(sn, sd)
-                uGetFileSchemes = uGetFileSchemes & sd & "|"
+    g_RunFileLoadSchemes
 
-            Loop
-        End If
+    With gRunFiles
+        .Rewind
+        Do While .GetNextTag(pt) = B_OK
+            uGetFileSchemes = uGetFileSchemes & pt.Name & "|"
+
+        Loop
+
     End With
 
     uGetFileSchemes = g_SafeLeftStr(uGetFileSchemes, Len(uGetFileSchemes) - 1)
@@ -446,4 +492,45 @@ Dim pb As mfxBitmap
     End With
 
 End Sub
+
+Private Function uReplaceMarkers(ByVal str As String, ByRef Content As BPackedData) As String
+Dim bWantEndMarker As Boolean
+Dim szMarker As String
+Dim i As Long
+Dim j As Long
+
+    If str = "" Then _
+        Exit Function
+
+    j = 1
+    i = InStr(str, "%")
+
+    Do While i
+        If bWantEndMarker Then
+            ' /* found end marker... */
+            szMarker = mId$(str, j, i - j)
+            uReplaceMarkers = uReplaceMarkers & Content.ValueOf(szMarker)
+            i = i + 1
+            j = i
+
+        Else
+            ' /* found start marker... */
+            uReplaceMarkers = uReplaceMarkers & mId$(str, j, i - j)
+            i = i + 1
+            j = i
+
+        End If
+        
+        bWantEndMarker = Not bWantEndMarker
+        i = InStr(i, str, "%")
+
+    Loop
+
+    If bWantEndMarker Then _
+        Debug.Print "syntax error"
+    
+    If Len(str) >= j Then _
+        uReplaceMarkers = uReplaceMarkers & Right$(str, Len(str) - j + 1)
+
+End Function
 

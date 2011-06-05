@@ -448,6 +448,9 @@ Dim i As Long
 
     Set pm = New CTempMsg
     With mStyle
+
+        prefskit_SafeSetText mPage.Panel, "lbl>schemes", "This style has " & CStr(.CountSchemes) & " scheme" & IIf(.CountSchemes = 1, "", "s") & ":"
+
         If .CountSchemes Then
             For i = 1 To .CountSchemes
                 pm.Replace "index", i

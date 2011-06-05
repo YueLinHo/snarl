@@ -50,7 +50,9 @@ Dim pm As CTempMsg
 
         Set pm = New CTempMsg
         pm.Add "item-height", 30&
-        .Add new_BPrefsControl("listbox", "cb>apps", "", "", "0", pm)
+        Set pc = new_BPrefsControl("listbox", "cb>apps", "", "", "0", pm)
+        pc.SizeTo 0, 140
+        .Add pc
 
         .Add new_BPrefsControl("fancytoolbar", "ftb>app", "Details|Settings...|Unregister")
 

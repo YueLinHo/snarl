@@ -23,19 +23,16 @@ Public Enum E_EXTENSION_STATE
 
 End Enum
 
+Dim mClass As String
+Dim mPath As String
+Dim mState As E_EXTENSION_STATE
 Dim mInfo As extension_info
 
 Dim mObj As MWndProcSink
 Dim mObj41 As ISnarlExtension
-'Dim mEnabled As Boolean             '// means "not in exclude list"
-'Dim mStarted As Boolean             '// only applies if mEnabled is True - means extension started ok
 Dim mLastErr As String
 
 Dim mhWndPrefsPanel As Long
-
-Dim mClass As String
-Dim mPath As String
-Dim mState As E_EXTENSION_STATE
 
 Implements mObject
 Implements MWndProcSink
@@ -282,8 +279,11 @@ Private Function uEnable() As Boolean
 
     On Error Resume Next
 
-    If mState = E_ES_LOADED Then _
+    If mState = E_ES_LOADED Then
+        g_Debug "TExtension.uEnable(): '" & mClass & "' is already loaded", LEMON_LEVEL_WARNING
         Exit Function
+
+    End If
 
     ' /* create instance */
 
@@ -348,6 +348,9 @@ Private Function uDisable(ByVal UnloadNow As Boolean) As Boolean
             mObj41.Stop
             mObj41.TidyUp
 
+        Else
+            g_Debug "TExtension.uDisable(): '" & mClass & "' is not loaded", LEMON_LEVEL_WARNING
+
         End If
 
         ' /* trash it */
@@ -361,6 +364,9 @@ Private Function uDisable(ByVal UnloadNow As Boolean) As Boolean
 
             ' /* no return value for SNARL_EXT_QUIT */
             uCallProc SNARL_EXT_QUIT, 0, 0, 0
+
+        Else
+            g_Debug "TExtension.uDisable(): '" & mClass & "' is not loaded", LEMON_LEVEL_WARNING
 
         End If
 

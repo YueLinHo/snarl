@@ -42,6 +42,10 @@ Dim pm As CTempMsg
 
         .Add new_BPrefsControl("label", "", "Snarl will listen on ports 9887 and 23053 for incoming notifications, and port 9889 for incoming JSON notifications.  You may need to adjust your firewall settings in order to receive these.")
 
+'        .Add new_BPrefsControl("fancytoggle2", "haycart", "Enable HAYBARN monitoring?", "", "0", , False)
+'        .Add new_BPrefsControl("fancytoggle2", "haycart", "Enable CORNFLOWER monitoring?", "", "0", , False)
+
+
 '        .Add new_BPrefsControl("separator", "")
 ''        pm.Replace "text", "Forward notifications?"
 ''        .Add new_BPrefsControl("fancytoggle", "ft>forward", , "Sending:", "0", pm, False)

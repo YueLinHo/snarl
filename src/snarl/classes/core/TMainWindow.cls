@@ -169,6 +169,9 @@ Private Function MWndProcSink_WndProc(ByVal hWnd As Long, ByVal uMsg As Long, By
             ' /* configure specified style engine or extension */
             uConfigure uAtomName(lParam)
 
+        Case Is > 2
+            ' /* configure specified style engine or extension */
+            uProcessArg wParam, uAtomName(lParam)
 
         Case Else
             frmAbout.NewDoPrefs
@@ -566,7 +569,7 @@ Dim sz As String
     Case SNARL_UNLOAD_EXTENSION
         ' /* added as private in V38, will be doc'd in V40 */
         If Not (g_ExtnRoster Is Nothing) Then
-            uDoCmd = g_ExtnRoster.UnloadExtension(g_UTF8(pss.Text))
+'            uDoCmd = g_ExtnRoster.UnloadExtension(g_UTF8(pss.Text))
 
         Else
             g_Debug "uDoCmd(): [SNARL_UNLOAD_EXTENSION] extension roster is not available", LEMON_LEVEL_CRITICAL
@@ -597,7 +600,7 @@ Dim sz As String
     Case SNARL_LOAD_STYLE_ENGINE
         ' /* private - not due for documentation */
         If Not (g_StyleRoster Is Nothing) Then
-            uDoCmd = IIf(g_StyleRoster.Load(g_UTF8(pss.Text), True), M_OK, M_NOT_FOUND)
+            uDoCmd = IIf(g_StyleRoster.Load(g_UTF8(pss.Text), True, False), M_OK, M_NOT_FOUND)
 
         Else
             g_Debug "uDoCmd(): [SNARL_LOAD_STYLE_ENGINE] style roster is not available", LEMON_LEVEL_CRITICAL
@@ -608,7 +611,7 @@ Dim sz As String
     Case SNARL_UNLOAD_STYLE_ENGINE
         ' /* private - not due for documentation */
         If Not (g_ExtnRoster Is Nothing) Then
-            uDoCmd = IIf(g_StyleRoster.Unload(g_UTF8(pss.Text)), M_OK, M_NOT_FOUND)
+            uDoCmd = IIf(g_StyleRoster.Unload(g_UTF8(pss.Text), False), M_OK, M_NOT_FOUND)
 
         Else
             g_Debug "uDoCmd(): [SNARL_UNLOAD_STYLE_ENGINE] style roster is not available", LEMON_LEVEL_CRITICAL
@@ -743,7 +746,7 @@ Dim pData As BPackedData
 Dim lToken As Long
 
     Set pData = New BPackedData
-    pData.SetTo g_DecodeURL(sz)
+    pData.SetTo g_URLDecode(sz)
     lToken = g_SafeLong(pData.ValueOf("token"))
 
     ' /* pass to master function */
@@ -901,6 +904,70 @@ Dim i As Long
 
 End Function
 
-'Private Sub uInstall(ByVal Item As String)
+Private Function uProcessArg(ByVal Arg As E_SHOW_PREFS, ByVal Item As String) As Boolean
+Dim pe As TExtension
+
+    Item = Replace$(Item, "%20", " ")
+    g_Debug "TMainWindow.uProcessArg(): arg=" & Arg & " data=" & Item
+
+    Select Case LCase$(g_GetExtension(Item))
+    Case "extension"
+
+        If (g_ExtnRoster Is Nothing) Then
+            g_Debug "TMainWindow.uProcessArg(): cannot process: no extension roster", LEMON_LEVEL_CRITICAL
+            Exit Function
+
+        End If
+
+        Item = g_RemoveExtension(Item)
+
+        Select Case Arg
+        Case E_SP_RESTART
+            If g_ExtnRoster.Find(Item, pe) Then
+                pe.SetEnabled False
+                pe.SetEnabled True
+
+            End If
+
+        Case E_SP_UNLOAD
+            If g_ExtnRoster.Find(Item, pe) Then _
+                pe.SetEnabled False
+
+        Case E_SP_LOAD
+            If g_ExtnRoster.Find(Item, pe) Then _
+                pe.SetEnabled True
+
+        End Select
+
+'        i = g_ExtnRoster.IndexOf(g_RemoveExtension(Item))
+'        If i Then
+'            frmAbout.NewDoPrefs 5
+'            uConfigure = frmAbout.DoExtensionConfig(i)
 '
-'End Sub
+'        End If
+
+    Case "styleengine", "style"
+
+        If (g_StyleRoster Is Nothing) Then
+            g_Debug "TMainWindow.uProcessArg(): cannot process: no style roster", LEMON_LEVEL_CRITICAL
+            Exit Function
+
+        End If
+
+        Select Case Arg
+        Case E_SP_RESTART
+            g_StyleRoster.Unload Item, True
+            g_StyleRoster.Load Item, True, True
+
+        Case E_SP_UNLOAD
+            g_StyleRoster.Unload Item, True
+
+        Case E_SP_LOAD
+            g_StyleRoster.Load Item, True, True
+
+        End Select
+
+    End Select
+
+End Function
+

@@ -60,7 +60,7 @@ Dim sz As String
     Select Case Control.GetName
     Case "show_on_screen", "use_style", "custom_timeout", "use_custom_icon", "custom_icon", _
          "use_custom_sound", "custom_sound", "ignore_input", "use_custom_ack", "custom_ack", "log_during_dnd", "block_spam", _
-         "override-normal", "override-away", "override-busy"
+         "override-normal", "override-away", "override-busy", "block_if_foreground"
 
         gSelectedClass.SetValue Control.GetName, Value
 
@@ -404,6 +404,9 @@ Dim pc As BControl
 
             ' /* duplicates */
 '            .Add new_BPrefsControl("fancycycle", "duplicates", "Allow|Block|Delay", "Flooding:")
+
+            .Add new_BPrefsControl("fancytoggle2", "block_if_foreground", "Block if foreground application?", , gSelectedClass.GetValue("block_if_foreground"))
+
 
             .Add new_BPrefsControl("label", "", " ")
 

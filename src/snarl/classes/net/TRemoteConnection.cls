@@ -193,7 +193,7 @@ Dim i As Long
         Request = Replace(Request, "=", "::")
 
         ' /* create the BPackedData */
-        ppd.SetTo g_DecodeURL(Request)
+        ppd.SetTo g_URLDecode(Request)
 
     End If
 

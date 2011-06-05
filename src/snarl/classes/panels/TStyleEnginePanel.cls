@@ -63,25 +63,15 @@ Dim i As Long
         Select Case Val(Value)
         Case 1
             ' /* start */
-            If g_StyleRoster.Load(mCurrentEngine.Name, True) Then
-                g_PrivateNotify SNARL_CLASS_GENERAL, , mCurrentEngine.Name & " started successfully"
+            If g_StyleRoster.Load(mCurrentEngine.Name, True, True) Then _
                 uUpdateList
-
-            Else
-                g_PrivateNotify SNARL_CLASS_GENERAL, , mCurrentEngine.Name & " failed to start", , "!system-warning"
-
-            End If
 
         Case 2
             ' /* stop */
             sz = mCurrentEngine.Name
             Set mCurrentEngine = Nothing
-
-            If g_StyleRoster.Unload(sz) Then
-                g_PrivateNotify SNARL_CLASS_GENERAL, , sz & " stopped successfully"
+            If g_StyleRoster.Unload(sz, True) Then _
                 uUpdateList
-
-            End If
 
         Case 3
             ' /* details */

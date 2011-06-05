@@ -1436,17 +1436,28 @@ Static bmOld As mfxBitmap
 End Sub
 
 Private Function uGetContent2() As mfxBitmap
+Dim pbm As mfxBitmap
 
     On Error Resume Next
 
-    If (mInstance Is Nothing) Then _
+    If Not (mInstance Is Nothing) Then _
+        Set pbm = create_bitmap_from_image(mInstance.GetContent())
+
+    If (pbm Is Nothing) Then
+        ' /* managed style didn't provide content so we switch to the built-in one */
+        g_Debug "CSnarlWindow.uGetContent2(): selected style didn't provide usable content", LEMON_LEVEL_WARNING
+        Set mInstance = New TInternalStyle
+        mStyleFlags = S_STYLE_MULTI_INSTANCE
+        uUpdateInstance
+        Set pbm = create_bitmap_from_image(mInstance.GetContent())
+
+    End If
+
+    If (pbm Is Nothing) Then
+        g_Debug "CSnarlWindow.uGetContent2(): FATAL: couldn't not get notification content", LEMON_LEVEL_CRITICAL
         Exit Function
 
-Dim pbm As mfxBitmap
-
-    Set pbm = create_bitmap_from_image(mInstance.GetContent())
-    If (pbm Is Nothing) Then _
-        Exit Function
+    End If
 
     ' /* R2.4: apply scaling */
 
@@ -1493,8 +1504,8 @@ Const EMBLEM_SIZE = 14
 
     ' /* if notification isn't click-through and the mouse pointer isn't
     '    over it, and it has actions, draw the actions indicator emblem */
-
-    If (Not mClickThru) And (Not mCloseButtonVisible) And (mInfo.Actions.CountItems > 0) Then
+                    '//And (Not mCloseButtonVisible)
+    If (Not mClickThru) And (mInfo.Actions.CountItems > 0) Then
         pv.DrawScaledImage bm_HasActions, pt, new_BPoint(EMBLEM_SIZE, EMBLEM_SIZE), 230
         pt.OffsetBy -(EMBLEM_SIZE + 1), 0
 
@@ -1550,7 +1561,7 @@ Private Sub uUpdateStyleContent(ByRef Info As T_NOTIFICATION_INFO)
     On Error GoTo er
 
     If (mInstance Is Nothing) Then _
-        Exit Sub
+        Set mInstance = New TInternalStyle
 
 
     With Info
@@ -1589,6 +1600,19 @@ Private Sub uUpdateStyleContent(ByRef Info As T_NOTIFICATION_INFO)
 
     End With
 
+    uUpdateInstance
+    Exit Sub
+
+er:
+    g_Debug "CSnarlWindow.uUpdateStyleContent(): " & err.Description, LEMON_LEVEL_CRITICAL
+
+End Sub
+
+Private Sub uUpdateInstance()
+
+    If (mInstance Is Nothing) Then _
+        Exit Sub
+
     ' /* translate into a notification_info struct that the style type lib can understand */
 
 Dim pInfo As notification_info
@@ -1600,28 +1624,24 @@ Dim pInfo As notification_info
 '        .Scheme = Replace$(LCase$(Info.SchemeName), Chr$(255), "")
 
         If (mStyleFlags And S_STYLE_V42_CONTENT) Then
-            .Title = Info.ClassObj.App.Name
-            .Text = Info.OriginalContent
+            .Title = mInfo.ClassObj.App.Name
+            .Text = mInfo.OriginalContent
 
         Else
-            .Title = Info.Title
-            .Text = Info.Text
+            .Title = mInfo.Title
+            .Text = mInfo.Text
 
         End If
 
-        .Icon = g_TranslateIconPath(Info.IconPath, mStylePath)
-        .Scheme = LCase$(Info.SchemeName)
+        .Icon = g_TranslateIconPath(mInfo.IconPath, mStylePath)
+        .Scheme = LCase$(mInfo.SchemeName)
 
-        If Info.Priority > 0 Then _
+        If mInfo.Priority > 0 Then _
             .Flags = .Flags Or S_NOTIFICATION_IS_PRIORITY
 
     End With
 
     mInstance.UpdateContent pInfo
-    Exit Sub
-
-er:
-    g_Debug "CSnarlWindow.uUpdateStyleContent(): " & err.Description, LEMON_LEVEL_CRITICAL
 
 End Sub
 

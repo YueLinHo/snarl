@@ -60,7 +60,7 @@ Dim mContent As T_ALERT
 
 Public LastNotificationGeneratedTick As Long
 
-Implements MObject
+Implements mObject
 
 Private Sub Class_Initialize()
 
@@ -111,7 +111,8 @@ Dim bEnabled As Boolean
                         "use_custom_sound::0#?custom_sound::#?" & _
                         "log_during_dnd::1#?block_spam::0#?" & _
                         "normal_mode::1#?away_mode::1#?busy_mode::1#?" & _
-                        "override-normal::1#?override-away::1#?override-busy::1"
+                        "override-normal::1#?override-away::1#?override-busy::1#?" & _
+                        "block_if_foreground::0"
 
         Set .Forward = new_BTagList()
 

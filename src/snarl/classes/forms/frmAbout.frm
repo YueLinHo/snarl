@@ -709,6 +709,7 @@ Dim update_config   As Boolean
     SetForegroundWindow Me.hWnd
 
     With New OMMenu
+        .AddItem .CreateItem("hide_all", "Hide All Notifications")
         .AddItem .CreateItem("sticky", "Sticky Notifications", , , (g_ConfigGet("sticky_snarls") = "1"))
         .AddSeparator
 
@@ -786,6 +787,11 @@ Dim update_config   As Boolean
             If Not (g_NotificationRoster Is Nothing) Then _
                 g_NotificationRoster.ShowMissedPanel
 
+        Case "hide_all"
+            ' /* R2.4.2 */
+            If Not (g_NotificationRoster Is Nothing) Then _
+                g_NotificationRoster.CloseMultiple 0
+
         Case Else
             If g_SafeLeftStr(pi.Name, 1) = "!" Then _
                 g_AppRoster.SnarlAppDo Val(g_SafeRightStr(pi.Name, Len(pi.Name) - 1)), SNARLAPP_DO_PREFS
@@ -829,6 +835,8 @@ Dim pm As CTempMsg
 
     If (mPanel Is Nothing) Then
 
+        g_Debug "frmAbout.NewDoPrefs(): creating panel..."
+
         Set mPanel = New BPrefsPanel
         With mPanel
             .SetHandler Me
@@ -838,6 +846,7 @@ Dim pm As CTempMsg
 
             ' /* general page */
 
+            g_Debug "frmAbout.NewDoPrefs(): general page..."
             Set pp = new_BPrefsPage("General", load_image_obj(g_MakePath(App.Path) & "etc\icons\general.png"), Me)
 
             With pp
@@ -875,8 +884,10 @@ Dim pm As CTempMsg
 
             ' /* apps */
 
+            g_Debug "frmAbout.NewDoPrefs(): apps page..."
             Set mAppsPage = New TAppsPage
             .AddPage new_BPrefsPage("Apps", load_image_obj(g_MakePath(App.Path) & "etc\icons\apps.png"), mAppsPage)
+
             .AddPage new_BPrefsPage("Display", load_image_obj(g_MakePath(App.Path) & "etc\icons\display.png"), New TDisplayPage)
             .AddPage new_BPrefsPage("Styles", load_image_obj(g_MakePath(App.Path) & "etc\icons\styles.png"), New TStylesPage)
             .AddPage new_BPrefsPage("Extensions", load_image_obj(g_MakePath(App.Path) & "etc\icons\extensions.png"), New TExtPage)
@@ -884,6 +895,7 @@ Dim pm As CTempMsg
 
             ' /* presence */
 
+            g_Debug "frmAbout.NewDoPrefs(): presence page..."
             Set pp = new_BPrefsPage("Presence", load_image_obj(g_MakePath(App.Path) & "etc\icons\presence.png"), Me)
 
             With pp
@@ -922,6 +934,7 @@ Dim pm As CTempMsg
 
             ' /* advanced page */
 
+            g_Debug "frmAbout.NewDoPrefs(): advanced page..."
             Set pp = new_BPrefsPage("Advanced", load_image_obj(g_MakePath(App.Path) & "etc\icons\advanced.png"), Me)
 
             With pp
@@ -935,6 +948,12 @@ Dim pm As CTempMsg
                 .Add new_BPrefsControl("fancytoggle2", "", "Use a hotkey to activate Snarl's menu?", "", "0", , False)
                 .Add new_BPrefsControl("key_picker", "", , , CStr(MOD_WIN) & "," & g_ConfigGet("hotkey_prefs"), , False)
                 .Add new_BPrefsControl("label", "", "Press the key you want to use in the boxes above.  Note that the modifiers (the combination of SHIFT and CTRL keys) used are automatically set.")
+
+                ' /* security */
+
+                .Add new_BPrefsControl("banner", "", "Security")
+                .Add new_BPrefsControl("fancytoggle2", "only_allow_secure_apps", "Only allow password-protected applications?", "", g_ConfigGet("only_allow_secure_apps"), , False)
+                .Add new_BPrefsControl("fancytoggle2", "apps_must_register", "Applications must register before creating notifications?", "", g_ConfigGet("apps_must_register"))
 
                 ' /* legacy support */
 
@@ -962,10 +981,20 @@ Dim pm As CTempMsg
             .AddPage pp
 
 
+
+
+
+            ' /* About page */
+
+            g_Debug "frmAbout.NewDoPrefs(): about page..."
             .AddPage new_BPrefsPage("About", load_image_obj(g_MakePath(App.Path) & "etc\icons\about.png"), New TAboutPage)
+
+
+            ' /* Debug page */
 
             If gDebugMode Then
 
+                g_Debug "frmAbout.NewDoPrefs(): debug page..."
                 Set pp = new_BPrefsPage("Debug", load_image_obj(g_MakePath(App.Path) & "etc\icons\debug.png"), Me)
 
                 With pp
@@ -998,10 +1027,12 @@ Dim pm As CTempMsg
 
             End If
 
+            g_Debug "frmAbout.NewDoPrefs(): displaying..."
             .Go
             g_SetWindowIconToAppResourceIcon .hWnd
             g_ShowWindow .hWnd, True, True
             SetForegroundWindow .hWnd
+            g_Debug "frmAbout.NewDoPrefs(): done"
 
         End With
 

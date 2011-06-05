@@ -142,10 +142,12 @@ Dim b As Boolean
         Case 1
             mCurrent.SetEnabled True
             uUpdateExtensions
+            g_ExtnRoster.WriteExcludeList
 
         Case 2
             mCurrent.SetEnabled False
             uUpdateExtensions
+            g_ExtnRoster.WriteExcludeList
 
         Case 3
             mCurrent.ShowDetails
@@ -393,21 +395,7 @@ Private Sub uUpdateStatus()
     If (mPage Is Nothing) Or (mCurrent Is Nothing) Then _
         Exit Sub
 
-Dim pctb As BControl
-Dim pm As MMessage
 Dim pc As BControl
-Dim sz As String
-
-    Set pm = New CTempMsg
-
-'    sz = "Not enabled"
-'
-''    If mCurrent.IsEnabled Then _
-'        sz = IIf(mCurrent.StartedOkay, "Running", "Failed to start: " & mCurrent.LastError)
-'
-'    If mPage.Find("ext_stat", pc) Then _
-'        pc.SetText sz
-
 
     ' /* toolbar */
 
@@ -440,30 +428,30 @@ Dim szError As String
 Dim szPath As String
 Dim sz As String
 
-    sz = InputBox("Enter the name of the extension to install", "Install Extension")
-    If sz = "" Then _
-        Exit Sub
-
-'    If LCase$(g_GetExtension(sz)) <> "extension" Then _
-        sz = sz & ".extension"
-
-    If Not (g_ExtnRoster Is Nothing) Then
-        If g_ExtnRoster.LoadExtensionByClass(sz, szError) Then
-            If g_GetUserFolderPath(szPath) Then
-                uCreateMarkerFile g_MakePath(szPath) & "extensions\" & sz & ".extension"
-                If Not (g_ExtnRoster Is Nothing) Then _
-                    g_ExtnRoster.WriteExcludeList
-
-            End If
-
-            uUpdateExtensions
-
-        Else
-            MsgBox szError, vbOKOnly Or vbExclamation, "Error Installing Extension"
-        
-        End If
-
-    End If
+'    sz = InputBox("Enter the name of the extension to install", "Install Extension")
+'    If sz = "" Then _
+'        Exit Sub
+'
+''    If LCase$(g_GetExtension(sz)) <> "extension" Then _
+'        sz = sz & ".extension"
+'
+'    If Not (g_ExtnRoster Is Nothing) Then
+'        If g_ExtnRoster.LoadExtensionByClass(sz, szError) Then
+'            If g_GetUserFolderPath(szPath) Then
+'                uCreateMarkerFile g_MakePath(szPath) & "extensions\" & sz & ".extension"
+'                If Not (g_ExtnRoster Is Nothing) Then _
+'                    g_ExtnRoster.WriteExcludeList
+'
+'            End If
+'
+'            uUpdateExtensions
+'
+'        Else
+'            MsgBox szError, vbOKOnly Or vbExclamation, "Error Installing Extension"
+'
+'        End If
+'
+'    End If
 
 End Sub
 

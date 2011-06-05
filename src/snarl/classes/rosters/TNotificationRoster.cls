@@ -41,6 +41,13 @@ Dim mMissedX As BTagList
 
 Dim mCurrentLowPriority As TNotification
 
+Enum E_STYLE_FORWARD_FLAGS
+    SFF_WHEN_BUSY = 1
+    SFF_WHEN_AWAY = 2
+    SFF_WHEN_NOT_AWAY_OR_BUSY = 4
+
+End Enum
+
 Implements MLibrary
 Implements MVersionInfo
 
@@ -214,10 +221,8 @@ Dim lQuantum As Long
     ' /* R2.4: generate the "OriginalContent" content */
 
     ' /* ===============================================
-    '
     '   Note: this is temporary until TNotification
     '   can take care of window creation (see notes below)
-    '
     '    =============================================== */
 
     g_KludgeNotificationInfo Info
@@ -236,49 +241,6 @@ Dim sv As String
             Do While .GetNextItem(sn, sv)
                 If sn = "action" Then _
                     uGetAction Info.Actions, sv
-
-            Loop
-
-        End With
-    End If
-
-    ' /* R2.3: send to any selected non-window styles */
-
-Dim pCopyInfo As T_NOTIFICATION_INFO
-Dim pt As BTagItem
-Dim fc As Long
-
-    If Not (Info.ClassObj.ForwardList Is Nothing) Then
-        With Info.ClassObj.ForwardList
-            .Rewind
-            Do While .GetNextTag(pt) = B_OK
-                fc = Val(pt.Value)
-
-                Debug.Print "TNotificationRoster.Add(): is_dnd=" & g_IsDND() & " is_away=" & g_IsAway() & "cond=" & g_HexStr(fc)
-
-                If (g_IsDND()) And ((fc And 1) <> 0) Then
-                    fc = -1
-
-                ElseIf (g_IsAway()) And ((fc And 2) <> 0) Then
-                    fc = -1
-
-                ElseIf (fc And 4) <> 0 Then
-                    fc = -1
-
-                Else
-                    fc = 0
-
-                End If
-
-                If fc <> 0 Then
-                    Debug.Print "TNotificationRoster.Add(): forwarding to " & pt.Name
-
-                    LSet pCopyInfo = Info
-                    pCopyInfo.StyleName = style_GetStyleName(pt.Name)
-                    pCopyInfo.SchemeName = style_GetSchemeName(pt.Name)
-                    uCopyTo pCopyInfo ', Info.ClassObj
-
-                End If
 
             Loop
 
@@ -319,6 +281,55 @@ Dim pn As TNotification
         End If
 
     End If
+
+
+    ' /* R2.3: send to any selected non-window styles */
+
+Dim pCopyInfo As T_NOTIFICATION_INFO
+Dim pt As BTagItem
+Dim fc As Long              ' // needs to be an enum before we forget what the flags mean!
+
+    If Not (Info.ClassObj.ForwardList Is Nothing) Then
+        With Info.ClassObj.ForwardList
+            .Rewind
+            Do While .GetNextTag(pt) = B_OK
+                fc = Val(pt.Value)
+
+                Debug.Print "TNotificationRoster.Add(): is_dnd=" & g_IsDND() & " is_away=" & g_IsAway() & "cond=" & g_HexStr(fc)
+
+                If (g_IsDND()) And ((fc And SFF_WHEN_BUSY) <> 0) Then
+                    ' /* shadow only when busy */
+                    fc = -1
+
+                ElseIf (g_IsAway()) And ((fc And SFF_WHEN_AWAY) <> 0) Then
+                    ' /* shadow only when away */
+                    fc = -1
+
+                ElseIf (fc And SFF_WHEN_NOT_AWAY_OR_BUSY) <> 0 Then
+                    ' /* shadow when present and not busy */
+                    fc = -1
+
+                Else
+                    ' /* no shadowing */
+                    fc = 0
+
+                End If
+
+                If fc <> 0 Then
+                    g_Debug "TNotificationRoster.Add(): shadowing to '" & pt.Name & "'..."
+                    LSet pCopyInfo = Info
+                    pCopyInfo.StyleName = style_GetStyleName(pt.Name)
+                    pCopyInfo.SchemeName = style_GetSchemeName(pt.Name)
+                    uCopyTo pCopyInfo ', Info.ClassObj
+
+                End If
+            Loop
+        End With
+    End If
+
+
+
+
 
 
     If (Info.Priority < 0) And (Info.Timeout = 0) Then
