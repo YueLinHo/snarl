@@ -211,8 +211,8 @@ Private Sub IStyleEngine_StyleAt(ByVal Index As Long, Style As libSnarlStyles.st
         .Description = App.FileDescription
         .Flags = S_STYLE_IS_CONFIGURABLE Or S_STYLE_IS_WINDOWLESS Or S_STYLE_WANT_APP_NAME
         .IconPath = g_MakePath(App.Path) & "icon.png"
-        .Major = 1
-        .Minor = 1
+        .Major = 2
+        .Minor = 0
         .Name = "Prowl"
         .Path = g_MakePath(App.Path)
         .Schemes = "Standard"
@@ -224,7 +224,6 @@ Private Sub IStyleEngine_StyleAt(ByVal Index As Long, Style As libSnarlStyles.st
 End Sub
 
 Private Sub IStyleEngine_TidyUp()
-
 End Sub
 
 Private Function IStyleEngine_Version() As Long

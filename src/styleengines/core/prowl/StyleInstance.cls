@@ -64,8 +64,8 @@ Dim sz As String
     sz = "https://prowl.weks.net/publicapi/add?" & _
          "apikey=" & gConfig.UserKey & _
          "&application=" & uGetAppName(NotificationInfo.Title) & _
-         "&event=" & uGetTitle(NotificationInfo.Title) & _
-         "&description=" & uTidy(NotificationInfo.Text) & _
+         "&event=" & g_URLEncode(uGetTitle(NotificationInfo.Title)) & _
+         "&description=" & g_URLEncode(uTidy(NotificationInfo.Text)) & _
          "&priority=" & IIf(NotificationInfo.Flags And S_NOTIFICATION_IS_PRIORITY, "1", "0")
 
 'Dim szEscaped As String
