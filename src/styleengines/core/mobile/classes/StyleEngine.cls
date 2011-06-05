@@ -46,7 +46,7 @@ Option Explicit
     '
     ' */
 
-Private Const LIB_DATE = "19-Apr-2011"
+Private Const LIB_DATE = "31-May-2011"
 
 Private Const STYLE_NAME_TOASTY = "Toasty"
 Private Const STYLE_NAME_NMA = "Notify My Android"
@@ -155,10 +155,9 @@ Dim pc As BControl
                     .Add pc
 
                     .Add new_BPrefsControl("fancyplusminus", "wf_add_remove")
-                    .Add new_BPrefsControl("label", "", "Each scheme must consist of a base URL and template which are combined to form an HTTP request.")
-                    .Add new_BPrefsControl("label", "", "Any elements enclosed with '%' in the template will be replaced with the correspondingly named notification component (e.g. %title% will be replaced with the notification title).")
-
-''                .Add new_BPrefsControl("fancybutton2", "fb>ack", "Invoke Callback", , , , False)
+                    .Add new_BPrefsControl("label", "", "Each scheme must consist of a base URL and a template which are combined to form an HTTP GET request.")
+                    .Add new_BPrefsControl("label", "", "Any elements enclosed with '%' in the template will be replaced with the correspondingly named notification component (e.g. %title% will be replaced with the notification title).  See the User Guide for more information.")
+                    .Add new_BPrefsControl("fancybutton2", "do_read_more", "User Guide")
 '                .Add new_BPrefsControl("fancyedit", "file_to_run")
 '                    .Add new_BPrefsControl("fancytoolbar", "toolbar_options", "Add...|Remove")
 
@@ -308,6 +307,9 @@ Dim i As Long
         If i <> 0 Then _
             ShellExecute Control.Page.Panel.hWnd, "open", mWebForward.TagAt(i).Name, vbNullString, vbNullString, 5
 
+    Case "do_read_more"
+        ShellExecute Control.Page.Panel.hWnd, "open", g_MakePath(App.Path) & "userguide\index.html", vbNullString, vbNullString, 5
+
     End Select
 
 End Sub
@@ -392,7 +394,7 @@ Dim sz As String
     Set mWebForward = new_BTagList()
 
     With New CFolderContent2
-        If .SetTo(g_MakePath(App.Path) & IIf(g_IsIDE(), "bin\", "") & "webforward") Then
+        If .SetTo(g_MakePath(style_GetSnarlStylesPath()) & "webforward") Then
             .Rewind
             Do While .GetNextFile(sz)
                 Debug.Print "webforward: " & sz
@@ -455,7 +457,11 @@ Dim sz As String
 Dim sz2 As String
 Dim i As Long
 
-    sz = g_MakePath(App.Path) & IIf(g_IsIDE(), "bin\", "") & "webforward\"
+    sz = g_MakePath(style_GetSnarlStylesPath()) & "webforward"
+    If Not g_Exists(sz) Then _
+        Exit Function
+
+    sz = sz & "\"
 
     Do
         i = i + 1
