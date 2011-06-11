@@ -13,7 +13,7 @@ Attribute VB_PredeclaredId = False
 Attribute VB_Exposed = True
 Option Explicit
 
-Private Const LIB_DATE = "27-Jul-2009"
+Private Const LIB_DATE = "8-Jun-2010"
 
 Dim mLastErr As String
 Dim mPanel As BPrefsPanel

@@ -103,6 +103,8 @@ Public Enum SNARL_STATUS_CODE
     SNARL_ERROR_DO_NOT_DISTURB              '// DnD mode is in effect was not logged as missed
     SNARL_ERROR_COULD_NOT_DISPLAY           '// not enough space on-screen to display notification
     SNARL_ERROR_AUTH_FAILURE                '// password mismatch
+    ' /* R2.4.2 */
+    SNARL_ERROR_DISCARDED                   '// discarded for some reason, e.g. foreground app match
 
     ' /* informational */
 

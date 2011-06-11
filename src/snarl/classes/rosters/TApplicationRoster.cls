@@ -34,6 +34,9 @@ Dim mAppToken As Long       ' // V41
 Dim mSnarlAppMsg As Long
 Dim mRegLock As Long        ' // R2.4.2: was global
 
+
+Dim mRemoteAppList As BTagList
+
 Implements MLibrary
 Implements MRoster
 Implements MVersionInfo
@@ -75,9 +78,9 @@ Dim pSnarlApp As TApp
     mRefs = mRefs + 1
     If mRefs = 1 Then
         ' /* run startup code */
-
         mSnarlAppMsg = RegisterWindowMessage("SnarlAppMessage")     ' // V40.25
         mAppToken = &H2C0
+        Set mRemoteAppList = new_BTagList()
 
         ' /* register ourselves with, er, ourself! */
 
@@ -85,7 +88,6 @@ Dim pSnarlApp As TApp
         g_Debug "TApplicationRoster.Open(): registering ourself..."
 
         ' /* V42: password protect Snarl */
-
 '        gSnarlPassword = uGenerateSnarlPassword()
 
         With pAppInfo
@@ -249,6 +251,15 @@ Dim i As Long
 
     End If
 
+    ' /* 2.4.2 "only_allow_secure_apps" setting */
+
+    If (g_ConfigGet("only_allow_secure_apps") = "1") And (Data.ValueOf("password") = "") Then
+        g_Debug "user settings require app must provide a password", LEMON_LEVEL_CRITICAL Or LEMON_LEVEL_PROC_EXIT
+        gSetLastError SNARL_ERROR_AUTH_FAILURE
+        Exit Function
+
+    End If
+
     ' /* check for duplicate and return existing token */
 
     If mCount Then
@@ -281,13 +292,21 @@ Dim pInfo As T_SNARL_APP
     With pInfo
         .Name = Data.ValueOf("title")
         .Icon = Data.ValueOf("icon")
+        .Signature = sz
 
         ' /* R2.4 Beta 4 - support for Base64-encoded icons */
 
-        If (.Icon = "") And (Data.Exists("icon-base64")) Then _
+        If (.Icon = "") And (Data.Exists("icon-base64")) Then
             .Icon = g_GetBase64Icon(Data.ValueOf("icon-base64"))
 
-        .Signature = sz
+        ElseIf g_IsURL(.Icon) Then
+            ' /* R2.4.2: initiate an async download (user will get either previously cached, or "no icon" icon in the meanwhile */
+            sz = g_MakePath(App.Path) & "etc\icons\app-cache\" & g_MakeFilename(.Signature) '& g_GetExtension(.Icon)
+            uStartRemoteIconDownload .Icon, sz
+            .Icon = sz
+
+        End If
+
         .LargeIcon = .Icon                       ' // no need for two icons: V41 spec recommends 128x128px icon
 
         ' / R2.4.1 Beta 3 - if (still) no icon, try to use the sender exe's one */
@@ -1146,5 +1165,21 @@ End Sub
 Public Sub UnlockRegister()
 
     mRegLock = mRegLock - 1
+
+End Sub
+
+Private Sub uStartRemoteIconDownload(ByVal URL As String, ByVal Path As String)
+Dim Pid As TIconDownloader
+
+    Set Pid = New TIconDownloader
+    Pid.Go URL, Path
+    mRemoteAppList.Add Pid
+
+End Sub
+
+Public Sub RemoveIconDownloader(ByVal Guid As String)
+
+    g_Debug "TApplicationRoster.RemoveIconDownloader(): guid=" & Guid & " index=" & mRemoteAppList.IndexOf(Guid)
+    mRemoteAppList.Remove mRemoteAppList.IndexOf(Guid)
 
 End Sub

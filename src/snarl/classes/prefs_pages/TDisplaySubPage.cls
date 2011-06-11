@@ -64,16 +64,16 @@ Dim i As Long
         pm.Add "suffix", "%"
         mPage.Add new_BPrefsControl("fancyslider", "global_opacity", "", "Opacity:", g_ConfigGet("global_opacity"), pm)
 
-        ' /* icon theme */
+        ' /* icons */
 
         mPage.Add new_BPrefsControl("fancytoggle2", "use_style_icons", "Use style-provided icons (where possible) over Snarl icons?", "Icons:", g_ConfigGet("use_style_icons"))
-
-        ' /* timestamp */
-
-        mPage.Add new_BPrefsControl("fancytoggle2", "show_timestamp", "Show timestamp while pointer is over notification?", "", g_ConfigGet("show_timestamp"))
-
-        mPage.Add new_BPrefsControl("label", "", "Icon theme:")
+        mPage.Add new_BPrefsControl("label", "", "Notification overlay theme:")
         mPage.Add new_BPrefsControl("fancycycle", "icon_theme", uGetIconThemeList(), , CStr(uIconThemeIndex()), , (mThemes.CountItems > 1))
+
+        ' /* others */
+
+        mPage.Add new_BPrefsControl("fancytoggle2", "show_timestamp", "Show timestamp while pointer is over notification?", "Other:", g_ConfigGet("show_timestamp"))
+        mPage.Add new_BPrefsControl("fancytoggle2", "auto_detect_url", "Automatically detect URLs in a notification?", "", g_ConfigGet("auto_detect_url"))
 
 
     Case "lay"
@@ -276,7 +276,7 @@ Dim i As Long
 
     Case "default_position", "melontype_contrast", "global_opacity", "margin_spacing", "dropshadow_strength", "dropshadow_size", _
          "default_notification_sound", "default_priority_sound", "enable_sounds", "use_style_sounds", "prefer_style_sounds", _
-         "use_style_icons", "show_timestamp"
+         "use_style_icons", "show_timestamp", "auto_detect_url"
 
         g_ConfigSet Control.GetName, Value
 

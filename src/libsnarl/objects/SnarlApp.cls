@@ -143,6 +143,7 @@ Public Function SetTo(ByVal RemoteHost As String, ByVal Signature As String, ByV
             .Title = Title
             Set .Classes = Classes
             .Password = Password
+            .Icon = Icon
 
         End With
 

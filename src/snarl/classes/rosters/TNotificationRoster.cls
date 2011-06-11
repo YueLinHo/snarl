@@ -207,6 +207,14 @@ Dim lQuantum As Long
 
     End If
 
+    ' /* R2.4.2: erase callback if url detection enabled */
+
+    If g_ConfigGet("no_callback_urls") = "1" Then
+        If g_IsURL(Info.DefaultAck) Then _
+            Info.DefaultAck = ""
+
+    End If
+
     ' /* only record the tick of the last _generated_ notification */
 
     Info.ClassObj.LastNotificationGeneratedTick = GetTickCount()
@@ -657,7 +665,6 @@ Dim i As Long
 
         If Info.Priority >= 0 Then
             ' /* normal and high priority notifications are added to missed list */
-
             uAddToMissedList Info
             Add = Info.Token
 
@@ -666,6 +673,10 @@ Dim i As Long
 
         End If
 
+        ' /* zap the notification window */
+
+        psw.Remove
+        Set psw = Nothing
         Exit Function
 
     End If

@@ -50,7 +50,7 @@ Option Explicit
     '
     ' */
 
-Private Const LIB_DATE = "4-Jun-2011"
+Private Const LIB_DATE = "10-Jun-2011"
 Private Const LIB_RELEASE = "3.05"
 Private Const EXT_NAME = "SysInfo"
 Private Const EXT_COMMENT = "Tracks events specific to this computer"
@@ -71,6 +71,7 @@ Private Const CLASS_POWER_LOW = "pwrl"
 Private Const CLASS_LOCK_KEY = "keyb"
 Private Const CLASS_IP_CHANGE = "ipch"
 Private Const CLASS_IE_DOWNLOAD = "iedl"
+Private Const CLASS_CLIPBOARD = "clip"
 
 Dim mLastErr As String
 Dim mhWndOwner As Long              ' // handle of the window which launched our config (typically Snarl's Prefs panel)
@@ -276,8 +277,9 @@ Dim pm As CTempMsg
                 .Add new_BPrefsControl("fancytoggle2", "keyb.watch_numl", "Watch Num Lock?", , mConfig.ValueOf("keyb.watch_numl"))
                 .Add new_BPrefsControl("fancytoggle2", "keyb.watch_scrl", "Watch Scroll Lock?", , mConfig.ValueOf("keyb.watch_scrl"))
 
-                .Add new_BPrefsControl("banner", "", "Internet Explorer")
+                .Add new_BPrefsControl("banner", "", "Miscellaneous")
                 .Add new_BPrefsControl("fancytoggle2", "other.ie", "Notify when an Internet Explorer download completes?", , mConfig.ValueOf("other.ie"))
+                .Add new_BPrefsControl("fancytoggle2", "other.watch_clipboard", "Notify when clipboard content changes?", , mConfig.ValueOf("other.watch_clipboard"))
 
 '                .Add new_BPrefsSeparator
 '                .Add new_BPrefsControl("fancybutton2", "nic.test", "Test Settings (Network)")
@@ -310,7 +312,7 @@ Dim pm As CTempMsg
 
     End If
 
-    ISnarlExtension_GetConfigWindow = mPanel.hWnd
+    ISnarlExtension_GetConfigWindow = mPanel.hwnd
 
 End Function
 
@@ -368,7 +370,7 @@ Private Function ISnarlExtension_Initialize() As Long
     If Not theHandler.IsValid Then
         ' /* no window */
         Set theHandler = Nothing
-        mLastErr = "Couldn't create message loop"
+        mLastErr = "Couldn't create message looper"
         ISnarlExtension_Initialize = -1
         Exit Function
 
@@ -426,6 +428,7 @@ Dim i As Integer
     uCfgCheck "keyb.watch_scrl", "0"
 
     uCfgCheck "other.ie", "0"
+    uCfgCheck "other.watch_clipboard", "0"
 
     mConfig.Save
 
@@ -448,6 +451,9 @@ Dim i As Integer
     sn41AddClass mToken, CLASS_POWER_LOW, "Low power warning"
     sn41AddClass mToken, CLASS_LOCK_KEY, "Caps, Num or Scroll lock activated"
     sn41AddClass mToken, CLASS_IP_CHANGE, "IP address change"
+    ' /* R3.05 */
+    sn41AddClass mToken, CLASS_IE_DOWNLOAD, "Internet Explorer download completed"
+    sn41AddClass mToken, CLASS_CLIPBOARD, "Clipboard content changed"
 
     Set mAdapterList = new_BTagList()
     Set theVolRoster = New TSimpleVolRoster
@@ -479,6 +485,7 @@ Dim i As Integer
         .ConfigChanged "disk.watch_removable", mConfig.ValueOf("disk.watch_removable")
         .ConfigChanged "disk.enabled", mConfig.ValueOf("disk.enabled")            ' // set last
 
+        .ConfigChanged "other.watch_clipboard", mConfig.ValueOf("other.watch_clipboard")
 
         .SetEnabled True
 
@@ -569,6 +576,111 @@ Dim i As Long
     i = sn41EZNotify(mToken, CLASS_DUN_DISC, _
                      szTitle, _
                      szText, , "!dun-disconnected")
+
+End Sub
+
+Private Sub theHandler_ClipboardChanged()
+Dim pContent As BTagList
+Dim bShow As Boolean
+Dim szcb As String
+Dim sz As String
+Dim szic As String
+Dim hr As Long
+Dim szText As String
+
+    On Error Resume Next
+
+    g_Debug "Extension/theHandler_ClipboardChanged()", LEMON_LEVEL_PROC_ENTER
+
+    Set pContent = new_BTagList()
+
+    If OpenClipboard(0) Then
+        Err.Clear
+        hr = EnumClipboardFormats(0)
+
+        Do While hr
+            ' /* add the content */
+            g_Debug g_HexStr(hr, 4) & ": " & clipboard_GetFormatName(hr)
+
+            Select Case hr
+            Case CF_TEXT
+                pContent.Add new_BTagItem(CStr(hr), clipboard_GetAsString())
+
+            Case Else
+                pContent.Add new_BTagItem(CStr(hr), "")
+
+            End Select
+
+            sz = sz & clipboard_GetFormatName(hr) & " (" & g_HexStr(hr) & ")" & vbCrLf
+            hr = EnumClipboardFormats(hr)
+
+        Loop
+
+        CloseClipboard
+
+        If Err.LastDllError = 0 Then
+            g_Debug "count=" & pContent.CountItems
+            If pContent.CountItems > 0 Then
+                ' /* apply some intelligence to what's been copied */
+
+                If pContent.IndexOf(CStr(CF_TEXT)) Then
+                    ' /* standard text - set notification text to it */
+                    sz = pContent.ValueOf(CStr(CF_TEXT))
+
+                    If InStr(sz, "://") <> 0 Then
+                        ' /* url: set it as the default callback */
+                        szcb = sz
+
+                    ElseIf g_IsWebColour(sz, hr) Then
+                        ' /* icon is a block of the colour */
+                        szic = g_MakePath(App.Path) & "colourblock.png"
+                        sz = "Colour " & sz & " (" & g_ToRGBNotation(hr) & ")"
+
+                        With New mfxView
+                            .SetHighColour (hr Or &HFF000000)
+                            .EnableSmoothing False
+                            .SizeTo 96, 96
+                            .FillRect .Bounds
+                            .WriteToFile szic, "image/png"
+
+                        End With
+
+                    End If
+
+                ElseIf pContent.IndexOf(CStr(CF_BITMAP)) Then
+                    ' /* bitmap */
+                    If OpenClipboard(0) <> 0 Then
+                        hr = GetClipboardData(CF_BITMAP)
+                        uSaveBitmap hr, szic
+
+                    End If
+
+                End If
+
+                bShow = True
+
+            Else
+                g_Debug "nothing in the clipboard", LEMON_LEVEL_CRITICAL
+
+            End If
+
+        Else
+            g_Debug "error enumerating clipboard content: " & Err.LastDllError, LEMON_LEVEL_CRITICAL
+
+        End If
+
+    Else
+        g_Debug "error opening clipboard", LEMON_LEVEL_CRITICAL
+
+    End If
+
+    If bShow Then _
+        sn41EZNotify mToken, CLASS_CLIPBOARD, "Clipboard changed", sz, , IIf(szic <> "", szic, g_MakePath(App.Path) & "clipboard.png"), , szcb
+
+    If szic <> "" Then _
+        DeleteFile szic
+
+    g_Debug "", LEMON_LEVEL_PROC_EXIT
 
 End Sub
 
@@ -717,7 +829,7 @@ Private Sub theHandler_OnLowPowerWarning(ByVal CurrentChargePercent As Integer)
 
     ' /* show even if charging? */
 
-    If (get_power_status() = B_POWER_STATE_CONNECTED) And (mConfig.ValueOf("power.WarnWhenCharging") = "0") Then _
+    If (get_power_status() = B_POWER_STATE_CONNECTED) And (mConfig.ValueOf("power.warn_when_charging") = "0") Then _
         Exit Sub
 
 Dim sz As String
@@ -1140,7 +1252,7 @@ Private Sub KPrefsPage_ControlInvoked(Control As BControl)
         theHandler_OnDiskThresholdReached mConfig.ValueOf("disk.low_mark"), g_SafeLeftStr(App.Path, 3)
 
     Case "go_website"
-        ShellExecute Control.Page.Panel.hWnd, "open", "http://www.fullphat.net", vbNullString, vbNullString, 5
+        ShellExecute Control.Page.Panel.hwnd, "open", "http://www.fullphat.net", vbNullString, vbNullString, 5
 
     End Select
 
@@ -1429,3 +1541,29 @@ Private Sub uEnableVolScanning(ByVal Enabled As Boolean)
 
 End Sub
 
+Private Sub uSaveBitmap(ByVal hBitmap As Long, ByRef Path As String)
+
+    If hBitmap = 0 Then _
+        Exit Sub
+
+Dim pbm As Long
+Dim pbx As mfxBitmap
+Dim cx As Long
+Dim cy As Long
+Dim sz As String
+
+    If GdipCreateBitmapFromHBITMAP(hBitmap, 0, pbm) = Ok Then
+        GdipGetImageWidth pbm, cx
+        GdipGetImageHeight pbm, cy
+
+        With New mfxView
+            .SizeTo cx, cy
+            GdipDrawImagePointRectI .Handle, pbm, 0, 0, 0, 0, cx, cy, UnitPixel
+            Path = "c:\" & g_CreateGUID(True) & ".bmp"
+            .WriteToFile Path, "image/bmp"
+
+        End With
+
+    End If
+
+End Sub

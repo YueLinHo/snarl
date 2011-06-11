@@ -85,6 +85,10 @@ Public Event LocalIPAddressChanged(ByVal Details As String)
 Private Const TIMER_DISK_CAPACITY = 95
 Private Const TIMER_SYS_LOAD = 98
 
+Public Event IEDownloadCompleted()
+Public Event ClipboardChanged()
+Dim mBlockClipboardChange As Boolean
+
 Implements MWndProcSink
 
 Private Sub Class_Initialize()
@@ -96,6 +100,7 @@ Private Sub Class_Initialize()
     mCapState = uGetKeyLockState(vbKeyCapital)
     mNumState = uGetKeyLockState(vbKeyNumlock)
     mSclState = uGetKeyLockState(vbKeyScrollLock)
+    mBlockClipboardChange = True
 
     uScanIPTable
 
@@ -109,6 +114,26 @@ Private Sub Class_Terminate()
 End Sub
 
 Private Function MWndProcSink_WndProc(ByVal hWnd As Long, ByVal uMsg As Long, ByVal wParam As Long, ByVal lParam As Long, ByVal PrevWndProc As Long, ReturnValue As Long) As Boolean
+Dim fClipboard As Boolean
+
+    ' /* from the clipboard? */
+
+    If g_ClipboardHandle(hWnd, uMsg, wParam, lParam, fClipboard) Then
+        If fClipboard Then
+            If mBlockClipboardChange Then
+                mBlockClipboardChange = False
+
+            Else
+                RaiseEvent ClipboardChanged
+
+            End If
+        End If
+
+        MWndProcSink_WndProc = True
+        Exit Function
+
+    End If
+
 Static dMemPercent As Double
 Static n As B_POWER_STATUS
 Static m As Long
@@ -139,6 +164,7 @@ Static m As Long
 '        mLowPowerThreshold = wParam
 '        mDoneLowPowerWarning = False
 '        SetTimer hWnd, 1, 100, 0
+
 
 
     Case WM_TIMER
@@ -200,6 +226,9 @@ Static m As Long
             uCheckNoRAM
 
         End Select
+
+    Case Else
+
 
     End Select
 
@@ -272,6 +301,19 @@ Dim n As Long
     Case "disk.watch_removable"
         mWatchRem = (Value = "1")
 
+    Case "other.watch_clipboard"
+        If Value = "1" Then
+            ' /* enabled */
+            g_Debug "TWindow.ConfigChanged(): clipboard snooping enabled"
+            mBlockClipboardChange = True
+            g_ClipboardInit mhWnd
+
+        Else
+            ' /* disabled */
+            g_ClipboardUninit
+            g_Debug "TWindow.ConfigChanged(): clipboard snooping disabled"
+
+        End If
 
     End Select
 

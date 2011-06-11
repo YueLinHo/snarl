@@ -74,16 +74,22 @@ Private Function IStyleEngine_CountStyles() As Long
 End Function
 
 Private Function IStyleEngine_CreateInstance(ByVal StyleName As String) As libSnarlStyles.IStyleInstance
-Dim pStyle As TGenericPhoneInstance
 Dim pWF As TWebForwardInstance
+Dim px As TGenericInstance
 
     Select Case StyleName
     Case STYLE_NAME_TOASTY
-        Set pStyle = New TGenericPhoneInstance
+        Set px = New TGenericInstance
+        px.SetStyle mStyle(uIndexOf(StyleName))
+        Set IStyleEngine_CreateInstance = px
+        Exit Function
 
     Case STYLE_NAME_NMA
-        Set pStyle = New TGenericPhoneInstance
-        pStyle.IsNotifyMyAndroid = True
+        Set px = New TGenericInstance
+        px.IsNotifyMyAndroid = True
+        px.SetStyle mStyle(uIndexOf(StyleName))
+        Set IStyleEngine_CreateInstance = px
+        Exit Function
 
     Case STYLE_NAME_WEB_FORWARD
         Set pWF = New TWebForwardInstance
@@ -93,11 +99,11 @@ Dim pWF As TWebForwardInstance
 
     End Select
 
-    If Not (pStyle Is Nothing) Then
-        pStyle.SetStyle mStyle(uIndexOf(StyleName))
-        Set IStyleEngine_CreateInstance = pStyle
-
-    End If
+'    If Not (pStyle Is Nothing) Then
+'        pStyle.SetStyle mStyle(uIndexOf(StyleName))
+'        Set IStyleEngine_CreateInstance = pStyle
+'
+'    End If
 
 End Function
 
@@ -140,9 +146,12 @@ Dim pc As BControl
             With pp
                 Select Case mCurrent.Name
                 Case STYLE_NAME_NMA
-                    .Add new_BPrefsControl("fancyedit", "api_key", mCurrent.ReadSetting("api_key"), "API Key:")
+                    .SetMargin 80
+                    .Add new_BPrefsControl("fancyedit", "api_key", mCurrent.ReadSetting("api_key"), "API keys:")
+                    .Add new_BPrefsControl("label", "", "Multiple keys can be provided, seperate each key with a comma.")
 
                 Case STYLE_NAME_TOASTY
+                    .SetMargin 80
                     .Add new_BPrefsControl("fancyedit", "device_id", mCurrent.ReadSetting("device_id"), "Device ID:")
             
                 Case STYLE_NAME_WEB_FORWARD
@@ -188,18 +197,18 @@ Private Function IStyleEngine_Initialize() As melon.M_RESULT
 
     uAdd STYLE_NAME_TOASTY, _
          "Forwards the notification content to a Windows Phone 7 device via Toasty.  See http://supertoasty.com/ for more information.", _
-         S_STYLE_IS_CONFIGURABLE Or S_STYLE_MULTI_INSTANCE Or S_STYLE_IS_WINDOWLESS Or S_STYLE_WANT_APP_NAME, _
+         S_STYLE_IS_CONFIGURABLE Or S_STYLE_MULTI_INSTANCE Or S_STYLE_IS_WINDOWLESS Or S_STYLE_WANT_APP_NAME Or S_STYLE_V42_CONTENT, _
          "", _
-         1, 0
+         1, 1
 
     uAdd STYLE_NAME_NMA, _
          "Forwards the notification content to an Android device via Notify My Android.  You will need to register an API key at http://nma.usk.bz first.", _
          S_STYLE_IS_CONFIGURABLE Or S_STYLE_MULTI_INSTANCE Or S_STYLE_IS_WINDOWLESS Or S_STYLE_WANT_APP_NAME, _
          "", _
-         1, 0
+         1, 1
 
     uAdd STYLE_NAME_WEB_FORWARD, _
-         "Forwards the notification content to a specific URL using a customizable template.", _
+         "Forwards the notification content to a specific URL using a customizable template.  Please note that this style is an alpha release and, as such, is not suitable for general use.", _
          S_STYLE_IS_CONFIGURABLE Or S_STYLE_MULTI_INSTANCE Or S_STYLE_IS_WINDOWLESS Or S_STYLE_V42_CONTENT, _
          uGetWebForwardSchemes(), _
          0, 1

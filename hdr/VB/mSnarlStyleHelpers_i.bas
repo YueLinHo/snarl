@@ -67,6 +67,8 @@ Dim i As Long
 
 End Function
 
+#If NO_MESSAGE = 0 Then
+
 Public Function styles_SchemesToMessage(ByVal Schemes As String) As MMessage
 Dim pm As CTempMsg
 Dim sz() As String
@@ -88,6 +90,8 @@ Dim i As Long
     Set styles_SchemesToMessage = pm
 
 End Function
+
+#End If
 
 Public Function style_GetSnarlConfigPath(ByVal StyleName As String) As String
 Dim sz As String
@@ -145,3 +149,17 @@ Dim c As Long
 End Function
 
 #End If
+
+Public Function style_GetSnarlStylesPath(Optional ByVal AllUsers As Boolean) As String
+Dim sz As String
+
+    sz = String$(4096, 0)
+    If SHGetSpecialFolderPath(0, sz, IIf(AllUsers, CSIDL_COMMONAPPDATA, CSIDL_APPDATA), False) Then
+        sz = g_MakePath(uTrimStr(sz)) & "full phat\snarl\styles"
+        If g_Exists(sz) Then _
+            style_GetSnarlStylesPath = sz
+
+    End If
+
+End Function
+

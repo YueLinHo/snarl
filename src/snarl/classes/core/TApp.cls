@@ -33,6 +33,11 @@ Dim mSettings As ConfigFile     ' // persistent settings
 Dim mAppConfig As ConfigSection ' // persistent app settings
 Dim mIsUnknown As Boolean       ' // new app (or, one without persistent settings anyway)
 
+    ' /* R2.4.2 */
+Dim mIsBanned As Boolean        ' // app has attempted a DOS
+Dim mLastNotificationTick As Long
+Dim mDOSCount As Long
+
 Implements mObject
 
 Private Sub Class_Initialize()
@@ -336,6 +341,11 @@ Public Function Show41(ByVal ClassId As String, ByRef pData As BPackedData, Opti
     ' /* this is where we transition from a BPackedData into a T_NOTIFICATION_INFO struct */
 
     If (pData Is Nothing) Then _
+        Exit Function
+
+    ' /* R2.4.2: check app is not banned */
+
+    If uCheckDOS() Then _
         Exit Function
 
 Dim pClass As TAlert
@@ -707,8 +717,8 @@ Public Sub DoAbout()
                         mInfo.Name, _
                         "Registered: " & CStr(mInfo.Timestamp) & _
                         IIf(mInfo.Password <> "", "\nPassword protected", "") & _
-                        IIf(mInfo.IsRemote, "\nSource is remote", ""), _
-                        , _
+                        IIf(mInfo.IsRemote, "\nSource is remote", "") & _
+                        IIf(mIsBanned, "\n\nIs banned", ""), , _
                         mInfo.Icon
 
     End If
@@ -804,5 +814,45 @@ Dim p As Long
 
     If GetWindowThreadProcessId(h, p) <> 0 Then _
         uGetForegroundPID = p
+
+End Function
+
+Public Function IsBanned() As Boolean
+
+    IsBanned = mIsBanned
+
+End Function
+
+Private Function uCheckDOS() As Boolean
+
+    If mIsBanned Then
+        g_Debug "TApp.uCheckDOS(): '" & mInfo.Signature & "' is banned", LEMON_LEVEL_CRITICAL
+        gSetLastError SNARL_ERROR_ACCESS_DENIED
+
+    Else
+        ' /* if we get 5 notifications within 500ms, that's a DOS */
+
+        If (GetTickCount() - mLastNotificationTick) < 500 Then
+            mDOSCount = mDOSCount + 1
+            g_Debug "TApp.uCheckDOS(): notification within quantum (" & GetTickCount() - mLastNotificationTick & ") count=" & mDOSCount
+
+            If mDOSCount > 4 Then
+                g_Debug "TApp.uCheckDOS(): DOS attack by '" & mInfo.Signature & "' detected", LEMON_LEVEL_CRITICAL
+                If gDebugMode Then _
+                    g_PrivateNotify SNARL_CLASS_GENERAL, "Possible DOS attack detected", mInfo.Name & " (" & mInfo.Signature & ") has been banned"
+
+                mIsBanned = True
+
+            End If
+
+        Else
+            ' /* reset */
+            mDOSCount = 0
+            mLastNotificationTick = GetTickCount()
+
+        End If
+    End If
+
+    uCheckDOS = mIsBanned
 
 End Function

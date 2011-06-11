@@ -370,27 +370,51 @@ Dim pss As SNARLSTRUCTI
 
         Case &H534E4C03
             ' /* V42 API request */
-            uCopyData = uDoV42Request(pcds.cbData, pcds.lpData, hwndFrom)
+            If hwndFrom = 0 Then
+                g_Debug "TMainWindow.uCopyData(): source PID not provided", LEMON_LEVEL_CRITICAL
+                If gDebugMode Then _
+                    g_PrivateNotify SNARL_CLASS_GENERAL, "V42 Request Blocked", "No PID"
+
+            Else
+                uCopyData = uDoV42Request(pcds.cbData, pcds.lpData, hwndFrom)
+
+            End If
+
 
         Case &H534E4C02
             ' /* V41 API request */
-            uCopyData = uDoV41Request(pcds.lpData, hwndFrom)
-
-        Case 2
-
-            ' /* retrieve the SNARLSTRUCT so we can get the command */
-
-            CopyMemory pss, ByVal pcds.lpData, Len(pss)
-            g_Debug "TMainWindow.uCopyData(): cmd=" & g_XCommandStr(pss.Cmd) & " id=" & pss.Id & " lngdata2=" & g_HexStr(pss.LngData2), LEMON_LEVEL_PROC
-
-            If pss.Cmd >= SNARL_EX_SHOW Then
-                ' /* extended command */
-                uCopyData = uDoCmdEx(pcds.lpData, hwndFrom)
+            If hwndFrom = 0 Then
+                g_Debug "TMainWindow.uCopyData(): source PID not provided", LEMON_LEVEL_CRITICAL
+                If gDebugMode Then _
+                    g_PrivateNotify SNARL_CLASS_GENERAL, "V41 Request Blocked", "No PID"
 
             Else
-                ' /* standard command */
-                uCopyData = uDoCmd(pss, hwndFrom)
+                uCopyData = uDoV41Request(pcds.lpData, hwndFrom)
 
+            End If
+
+
+        Case 2
+            ' /* V40 (or earlier) */
+            If hwndFrom = 0 Then
+                g_Debug "TMainWindow.uCopyData(): source PID not provided", LEMON_LEVEL_CRITICAL
+                If gDebugMode Then _
+                    g_PrivateNotify SNARL_CLASS_GENERAL, "V40 Request Blocked", "No PID"
+            
+            Else
+                ' /* retrieve the SNARLSTRUCT so we can get the command */
+                CopyMemory pss, ByVal pcds.lpData, Len(pss)
+                g_Debug "TMainWindow.uCopyData(): cmd=" & g_XCommandStr(pss.Cmd) & " id=" & pss.Id & " lngdata2=" & g_HexStr(pss.LngData2), LEMON_LEVEL_PROC
+
+                If pss.Cmd >= SNARL_EX_SHOW Then
+                    ' /* extended command */
+                    uCopyData = uDoCmdEx(pcds.lpData, hwndFrom)
+
+                Else
+                    ' /* standard command */
+                    uCopyData = uDoCmd(pss, hwndFrom)
+
+                End If
             End If
 
         Case Else

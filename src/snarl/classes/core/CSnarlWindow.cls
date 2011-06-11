@@ -1503,9 +1503,9 @@ Const EMBLEM_SIZE = 14
     End If
 
     ' /* if notification isn't click-through and the mouse pointer isn't
-    '    over it, and it has actions, draw the actions indicator emblem */
+    '    over it, and it has actions or a default callback, draw the actions indicator emblem */
                     '//And (Not mCloseButtonVisible)
-    If (Not mClickThru) And (mInfo.Actions.CountItems > 0) Then
+    If (Not mClickThru) And ((mInfo.Actions.CountItems > 0) Or (mInfo.DefaultAck <> "")) Then
         pv.DrawScaledImage bm_HasActions, pt, new_BPoint(EMBLEM_SIZE, EMBLEM_SIZE), 230
         pt.OffsetBy -(EMBLEM_SIZE + 1), 0
 

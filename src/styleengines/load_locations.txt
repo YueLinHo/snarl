@@ -18,6 +18,8 @@
 
 	banner.styleengine
 
+	- Revamped Music Video style.  (39.87)
+
 	- Minor cosmetic changes to Tiny style look and default
 	  colours.  (39.84)
 
@@ -75,6 +77,15 @@
 
 	mobile.styleengine
 
+	- Toasty style now correctly sends icon data.  (41.13)
+
+	- Toasty style moved to Brian's new API POST format.  (41.12)
+
+	- Minor UI enhancements to the NMA and Toasty panels.  (41.12)
+
+	- Added revised Notify My Android style which uses the preferred POST
+	  method.  (41.12)
+
 	- Schemes are now stored in %app_data%\full phat\snarl\styles\webforward
 	  (41.11)
 
@@ -96,6 +107,10 @@
 
 
 	prowl.styleengine
+
+	- We now URL-encode the sending app name as well, just to be sure.  (39.44)
+
+	- Changed library date.  (39.44)
 
 	- Bumped to Prowl 2.0.  (39.43)
 

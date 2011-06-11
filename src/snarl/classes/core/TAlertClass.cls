@@ -463,6 +463,17 @@ Dim lDur As E_NOTIFICATION_DURATION
     ' /* R2.4 DR7: now store originating class object */
     Set Info.ClassObj = Me
 
+    ' /* R2.4.2: if text begins with http(s):// and no default callback specified
+    '    and auto-detect URLs is enabled, set the callback now */
+
+    If (Info.DefaultAck = "") And (g_ConfigGet("auto_detect_url") = "1") Then
+        If (g_SafeLeftStr(LCase$(Info.Text), 7) = "http://") Or (g_SafeLeftStr(LCase$(Info.Text), 8) = "https://") Then
+            g_Debug "TAlert.ShowNotification(): auto-detected URL '" & Info.Text & "'"
+            Info.DefaultAck = Info.Text
+
+        End If
+    End If
+
     ' /* send it to the notification roster */
 
     ShowNotification = g_NotificationRoster.Add(Info, Args)

@@ -14,7 +14,7 @@ Attribute VB_Exposed = False
 Option Explicit
 
 Private Declare Function GetModuleHandle Lib "kernel32" Alias "GetModuleHandleA" (ByVal lpModuleName As String) As Long
-Private Declare Sub CoFreeLibrary Lib "ole32.dll" (ByVal hInst As Long)
+Private Declare Sub CoFreeLibrary Lib "OLE32.DLL" (ByVal hInst As Long)
 
 Public Enum E_EXTENSION_STATE
     E_ES_FAILED = -1                '// mError should contain reason
@@ -345,6 +345,7 @@ Private Function uDisable(ByVal UnloadNow As Boolean) As Boolean
         ' /* V41 */
         If mState = E_ES_LOADED Then
             ' /* only stop it if it's loaded */
+            g_Debug "TExtension.uDisable(): stopping '" & mClass & "'..."
             mObj41.Stop
             mObj41.TidyUp
 

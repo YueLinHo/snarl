@@ -204,17 +204,17 @@ Attribute VB_PredeclaredId = True
 Attribute VB_Exposed = False
 Option Explicit
 
-'/*********************************************************************************************
-'/
-'/  File:           frmAbout.frm
-'/
-'/  Description:    Displays the product info and handles various other tasks
-'/
-'/  © 2009 full phat products
-'/
-'/  This file may be used under the terms of the Simplified BSD Licence
-'/
-'*********************************************************************************************/
+    '/*********************************************************************************************
+    '/
+    '/  File:           frmAbout.frm
+    '/
+    '/  Description:    Displays the product info and handles various other tasks
+    '/
+    '/  © 2009 full phat products
+    '/
+    '/  This file may be used under the terms of the Simplified BSD Licence
+    '/
+    '*********************************************************************************************/
 
 Private Const HKEY_LOCAL_MACHINE = &H80000002
 Private Const REG_SZ = 1
@@ -952,8 +952,9 @@ Dim pm As CTempMsg
                 ' /* security */
 
                 .Add new_BPrefsControl("banner", "", "Security")
-                .Add new_BPrefsControl("fancytoggle2", "only_allow_secure_apps", "Only allow password-protected applications?", "", g_ConfigGet("only_allow_secure_apps"), , False)
+                .Add new_BPrefsControl("fancytoggle2", "only_allow_secure_apps", "Only allow password-protected applications?", "", g_ConfigGet("only_allow_secure_apps"))
                 .Add new_BPrefsControl("fancytoggle2", "apps_must_register", "Applications must register before creating notifications?", "", g_ConfigGet("apps_must_register"))
+                .Add new_BPrefsControl("fancytoggle2", "no_callback_urls", "Block URLs as default callback?", "", g_ConfigGet("no_callback_urls"))
 
                 ' /* legacy support */
 

@@ -30,12 +30,8 @@ Option Explicit
     ' /* our constants */
 
 Const EXT_NAME = "WiFi Monitor"
-Const EXT_DATE = "26-Mar-2010"
-Const EXT_REL = "1.0 Alpha 3"
-
-'Const CLASS_HOUR_CHIME = "hrch"
-'Const CLASS_COUNTDOWN_COMPLETE = "ccom"
-'Const CLASS_REMINDERS = "outr"
+Const EXT_DATE = "6-June-2011"
+Const EXT_REL = "1.1"
 
     ' /*
     '
@@ -153,13 +149,13 @@ Dim pc As BControl
             ' /* create it */
 
             .Go
-            g_SetWindowIconToAppResourceIcon .hWnd
+            g_SetWindowIconToAppResourceIcon .hwnd
 
         End With
 
     End If
 
-    ISnarlExtension_GetConfigWindow = mPanel.hWnd
+    ISnarlExtension_GetConfigWindow = mPanel.hwnd
 
 End Function
 
@@ -170,7 +166,7 @@ Private Sub ISnarlExtension_GetInfo(Info As libSnarlExtn.extension_info)
         .Copyright = App.LegalCopyright
         .Date = EXT_DATE
         .Description = App.FileDescription
-        .flags = SNARL_EXTN_IS_CONFIGURABLE
+        .Flags = SNARL_EXTN_IS_CONFIGURABLE
         .IconPath = g_MakePath(App.Path) & "icon.png"
         .Name = EXT_NAME
         .Path = App.Path
@@ -197,7 +193,7 @@ Private Function ISnarlExtension_Initialize() As Long
 
 Dim szPath As String
 
-    If Not snext_getuserpath(szPath) Then
+    If Not snExt_GetUserPath(szPath) Then
         mLastErr = "Couldn't get Snarl user path"
         ISnarlExtension_Initialize = 201
         Exit Function
@@ -277,8 +273,8 @@ Private Sub ISnarlExtension_Start()
 
 Dim szPath As String
 Dim bSave As Boolean
-
-    snext_getuserpath szPath
+    
+    snExt_GetUserPath szPath
 
     Set gConfig = New CConfFile
     With gConfig
@@ -312,7 +308,10 @@ End Sub
 Private Sub ISnarlExtension_Stop()
 
     g_Debug "ISnarlExtension_Stop"
-    theTimer.SetEnabled False
+
+    If Not (theTimer Is Nothing) Then _
+        theTimer.SetEnabled False
+
     sn41UnregisterApp gAppToken
 
 End Sub

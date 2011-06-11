@@ -1,6 +1,39 @@
 
 	Snarl Change Log
 
+	- Added option to prevent the default callback of a notification being set
+	  to a URL.  (42.123)
+
+	- Added basic DoS protection.  (42.123)
+
+	- Resolved memory leak caused by notifications which would end up off-screen
+	  not being properly disposed of.  (42.123)
+
+	- API requests which do not specify a PID in wParam are now blocked.  (42.123)
+
+	- Debug mode is now always enabled for beta releases.  (42.122)
+
+	- The 'Actions' indicator icon is now displayed if a notification has a
+	  default callback.  (42.122)
+
+	- Applications can now specify a URL-based application icon when registering.
+	  The icon will be initiated as an asynchronous download and will be cached
+	  in the new /etc/icons/app-cache folder.  The icon is not deleted, thus
+	  subsequent registrations will pick it up.  (42.122)
+
+	- Added an option to automatically detect if the notification text is a
+	  URL (specifically - begins with "http(s)://") and set the default call-
+	  back to it if it does (and no default callback already specified).  (42.122)
+
+	- Added option to only allow password-protected applications to register.
+	  (42.122)
+
+	- Fixed bug in [Display|Appearance] subpage which cause Snarl to crash when
+	  opening its preferences under certain conditions.  (42.121)
+
+	- Fixed a bug which meant Notifications would be shadowed twice if a remote
+	  icon was used.  (42.110)
+
 	- Extension exclude list wasn't being updated.  Now fixed.  (42.108)
 
 	- Fixed bug in notification roster which meant shadowed notifications would

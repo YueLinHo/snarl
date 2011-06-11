@@ -424,8 +424,9 @@ Dim n As E_SHOW_PREFS
 
     ' /* V38.133 - enable debug mode if switch present */
     ' /* V40.18 - or if either CTRL key is held down */
+    ' /* V42.122 - if beta release */
 
-    gDebugMode = gDebugMode Or (g_IsPressed(VK_LCONTROL)) Or (g_IsPressed(VK_RCONTROL))
+    gDebugMode = gDebugMode Or (g_IsPressed(VK_LCONTROL)) Or (g_IsPressed(VK_RCONTROL)) Or (InStr(App.Comments, "b") <> 0)
 
     If gDebugMode Then
         ' /* start logging */
@@ -911,6 +912,8 @@ Public Function g_ConfigInit() As Boolean
 
         .Add "only_allow_secure_apps", "0"
         .Add "apps_must_register", "0"
+        .Add "auto_detect_url", "0"
+        .Add "no_callback_urls", "0"
 
     End With
 
