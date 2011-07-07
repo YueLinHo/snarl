@@ -45,6 +45,9 @@
 /// </summary>
 ///----------------------------------------------------------------------------
 /// <VersionHistory>
+///  2011-07-07 : Some changes to compile under VS2008
+///                 - Changed vector iterators to begin/end instead of cbegin/cend
+///                 - Removed const in PairType
 ///  2011-02-09 : Fix for wrong parameters in AddClass
 ///  2011-02-06 : Updated to rev. 3 of the wiki documentation
 ///  2011-02-02 : First release of V42 Snarl API implementation
@@ -596,8 +599,8 @@ LONG32 SnarlInterface::DoRequest(LPCSTR request, SnarlParameterList<char>& spl, 
 		std::string requestStr = request;
 		requestStr.append("?");
 
-		std::vector<SnarlParameterList<char>::PairType>::const_iterator listEnd = list.cend();
-		for (std::vector<SnarlParameterList<char>::PairType>::const_iterator iter = list.cbegin();
+		std::vector<SnarlParameterList<char>::PairType>::const_iterator listEnd = list.end(); // cend();
+		for (std::vector<SnarlParameterList<char>::PairType>::const_iterator iter = list.begin(); // cbegin();
 			iter != listEnd; ++iter)
 		{
 			SnarlParameterList<char>::PairType pair = *iter;
@@ -628,8 +631,8 @@ LONG32 SnarlInterface::DoRequest(LPCWSTR request, SnarlParameterList<wchar_t>& s
 		std::basic_string<wchar_t> requestStr = request;
 		requestStr.append(L"?");
 
-		std::vector<SnarlParameterList<wchar_t>::PairType>::const_iterator listEnd = list.cend();
-		for (std::vector<SnarlParameterList<wchar_t>::PairType>::const_iterator iter = list.cbegin();
+		std::vector<SnarlParameterList<wchar_t>::PairType>::const_iterator listEnd = list.end(); // cend();
+		for (std::vector<SnarlParameterList<wchar_t>::PairType>::const_iterator iter = list.begin(); // cbegin();
 			iter != listEnd; ++iter)
 		{
 			if (iter->second.length() > 0)

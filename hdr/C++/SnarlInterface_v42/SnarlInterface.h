@@ -126,7 +126,7 @@ namespace Snarl {
 	class SnarlParameterList
 	{
 	public:
-		typedef std::pair<const std::basic_string<T>, std::basic_string<T>> PairType;
+		typedef std::pair<std::basic_string<T>, std::basic_string<T>> PairType;
 
 		SnarlParameterList()
 		{
