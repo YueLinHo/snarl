@@ -41,12 +41,27 @@ Option Explicit
     '   label-tagline:      a short piece of text typically displayed in a prominent way.
     '
     '   colour-background:  requested background colour.
+    '   colour-title:       requested title colour.
     '   colour-text:        requested text colour.
-    '   colour-subtext:     requested subtext colour.
+    '   colour-nnn:         requested colour for component "label-nnn".
+    '
+    '                               V42     Val-%   Label-*
+    '                               ---     -----   -------
+    '    STYLE_NAME_JUST_BLACK
+    '    STYLE_NAME_IPHONEY          X
+    '    STYLE_NAME_MINIMAL
+    '    STYLE_NAME_SONY
+    '    STYLE_NAME_SMOOTH
+    '    STYLE_NAME_METRO
+    '    STYLE_NAME_CLOCK           n/a      n/a      n/a
+    '    STYLE_NAME_MUSIC
+    '    STYLE_NAME_DROID            X        X        X
+    '    STYLE_NAME_CORP             X        X        X
+    '    STYLE_NAME_OSX              X        X       n/a
     '
     ' */
 
-Private Const LIB_DATE = "19-Jan-2011"
+Private Const LIB_DATE = "13-Jun-2011"
 
 Private Const STYLE_NAME_JUST_BLACK = "Just Black"
 Private Const STYLE_NAME_IPHONEY = "iPhoney"
@@ -195,7 +210,7 @@ Private Function IStyleEngine_Initialize() As melon.M_RESULT
 
     uAdd STYLE_NAME_IPHONEY, _
          "Mimics the Apple iPhone alert.  Inspired by 'iPhonesque' for Growl by mattrobs", _
-         S_STYLE_IS_CONFIGURABLE Or S_STYLE_MULTI_INSTANCE Or S_STYLE_PULSE_NEEDED, _
+         S_STYLE_IS_CONFIGURABLE Or S_STYLE_MULTI_INSTANCE Or S_STYLE_PULSE_NEEDED Or S_STYLE_V42_CONTENT, _
          "Custom|Black|Original|PSP", _
          1, 1, _
          uCreatePackedStr("title_font::Arial#?title_size::10#?text_font::Arial#?text_size::9#?fg_alpha::70#?background::" & CStr(rgba(56, 89, 131)) & "#?foreground::" & CStr(rgba(255, 255, 255)) & "#?show_graphically::1#?show_icon::1#?icon_align::1#?show_percent::0"), _
@@ -282,7 +297,7 @@ Private Function IStyleEngine_Initialize() As melon.M_RESULT
 
     uAdd STYLE_NAME_OSX, _
          "A single-instance style inspired by the OS X On-Screen Display notification", _
-         S_STYLE_IS_CONFIGURABLE Or S_STYLE_SINGLE_INSTANCE Or S_STYLE_V42_CONTENT Or S_STYLE_CUSTOM_SHOW Or S_STYLE_CUSTOM_HIDE Or S_STYLE_DONT_QUEUE Or S_STYLE_NO_DROPSHADOW Or S_STYLE_CLICK_THROUGH, _
+         S_STYLE_SINGLE_INSTANCE Or S_STYLE_V42_CONTENT Or S_STYLE_CUSTOM_SHOW Or S_STYLE_CUSTOM_HIDE Or S_STYLE_DONT_QUEUE Or S_STYLE_NO_DROPSHADOW Or S_STYLE_CLICK_THROUGH, _
          "Standard", _
          0, 1, _
          uCreatePackedStr("background::" & CStr(rgba(127, 127, 127)) & "#?bg_alpha::30"), _

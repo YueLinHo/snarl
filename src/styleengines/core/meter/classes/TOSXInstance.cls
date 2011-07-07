@@ -105,47 +105,33 @@ Dim n As Long
 
     ' /* percent */
 
+    n = -1#                             ' // means we don't need a meter...
+
     If ppd.Exists("value-percent") Then
         n = g_SafeLong(ppd.ValueOf("value-percent"))
-        If n < 0 Then
-            n = 0
-
-        ElseIf n > 100 Then
-            n = 100
-
-        End If
+        If (n < 0) Or (n > 100) Then _
+            n = -1#
 
     ElseIf g_IsNumeric(sz) Then
         n = Val(sz)
-        If n < 0 Then
-            n = 0
-
-        ElseIf n > 100 Then
-            n = 100
-
-        End If
-
-    Else
-        n = -1#                             ' // means we don't need a meter...
+        If (n < 0) Or (n > 100) Then _
+            n = -1#
 
     End If
 
     ' /* calculate notifcation size and internal measurements */
 
-Dim pbTemp As mfxBitmap
-
-Dim nCol As Long
-Dim nAlp As Long
-
-    nCol = g_RGBAFromString(mStyle.ReadSetting("background"))
-    nAlp = g_SafeLong(mStyle.ReadSetting("bg_alpha"))
-    nCol = g_SetRGB32Alpha(nCol, ((nAlp / 100) * 255))
+'Dim nCol As Long
+'
+'    nCol = g_RGBAFromString(mStyle.ReadSetting("background"))
+'    nAlp = g_SafeLong(mStyle.ReadSetting("bg_alpha"))
+'    nCol = g_SetRGB32Alpha(nCol, ((nAlp / 100) * 255))
 
     With mView
         .SizeTo 200, 200
         .Clear
         .EnableSmoothing True
-        .SetHighColour nCol
+        .SetHighColour rgba(24, 24, 24)
         .FillRoundRect .Bounds
         If mIconSize > 0 Then _
             .DrawScaledImage mIcon, new_BPoint(Fix((.Width - mIconSize) / 2), Fix((.Height - mIconSize) / 2)), new_BPoint(mIconSize, mIconSize)
@@ -154,7 +140,7 @@ Dim nAlp As Long
 '        .DrawString CStr(n), .Bounds.InsetByCopy(10, 10), MFX_ALIGN_H_CENTER Or MFX_ALIGN_BOTTOM
 
         .SetHighColour rgba(0, 0, 0, 64)
-        .StrokeRoundRect .Bounds
+'        .StrokeRoundRect .Bounds
 
         ' /* meter */
 
@@ -188,15 +174,13 @@ Dim i As Integer
 
         End If
 
-'        Set pbTemp = .ConvertToBitmap()
-'
-'        .SizeTo 200 + 6, 200 + 6
-'        .Clear
-'        .EnableSmoothing True
-'
-'        .SetHighColour rgba(15, 15, 15, 128)
-'        .FillRoundRect new_BRect(3, 3, .Bounds.Right, .Bounds.Bottom)
-'        .DrawScaledImage pbTemp, new_BPoint(3, 3)
+Dim pbTemp As mfxBitmap
+Dim nAlp As Long
+
+        Set pbTemp = .ConvertToBitmap()
+        .Clear
+        .EnableSmoothing True
+        .DrawScaledImage pbTemp, , , 172
 
     End With
 

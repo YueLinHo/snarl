@@ -13,13 +13,33 @@ Attribute VB_PredeclaredId = False
 Attribute VB_Exposed = False
 Option Explicit
 
+    ' /*
+    '
+    '   TiPhoneyInstance.cls -- Represents a single instance of an iPhoney Style notification
+    '
+    '   © 2010 full phat products.  Some Rights Reserved.
+    '   Licenced as per the Simplified BSD (http://www.opensource.org/licenses/bsd-license.php)
+    '
+    '   Notes
+    '   -----
+    '
+    '   This style utilises the new (introduced with Snarl R2.4) S_STYLE_V42_CONTENT flag
+    '   to allow for more advanced notification content.  Enabling this flag causes Snarl
+    '   to send the entire unabridged packed data created by sn41[EZ]Notify() and
+    '   sn41[EZ]Update() in notification_info.Text.
+    '
+    ' */
+
 Const EM_TITLE_TEXT = 0
 Const EM_MARGIN = 8
 Const EM_METER = EM_MARGIN / 2
 
 Dim mStyle As TStyle
+Dim mScheme As String
+Dim mFlags As S_NOTIFICATION_FLAGS
 
-Dim mInfo As notification_info
+'Dim mInfo As notification_info
+Dim mData As BPackedData
 Dim mIcon As MImage
 Dim mIconSize As Long
 Dim mTitleRect As BRect
@@ -65,7 +85,7 @@ Private Function IStyleInstance_Pulse() As Boolean
 Static nStep As Integer
 Const STEP_SIZE = 8
 
-    If (mInfo.Flags And S_NOTIFICATION_IS_PRIORITY) Then
+    If (mFlags And S_NOTIFICATION_IS_PRIORITY) Then
 
         If nStep = 0 Then _
             nStep = STEP_SIZE
@@ -91,32 +111,37 @@ End Sub
 
 Private Sub IStyleInstance_UpdateContent(NotificationInfo As libSnarlStyles.notification_info)
 
+    ' /* note: notificationinfo->scheme is translated to lowercase by Snarl */
+
     If (mView Is Nothing) Then
         Set mView = New mfxView
         mView.TextMode = MFX_TEXT_ANTIALIAS
 
     End If
 
-    ' /* notificationinfo->scheme is translated to lowercase by Snarl */
-
-    LSet mInfo = NotificationInfo
+    Set mData = New BPackedData
+    mData.SetTo NotificationInfo.Text
+    mScheme = NotificationInfo.Scheme
+    mFlags = NotificationInfo.Flags
 
     ' /* cache icon */
 
     mIconSize = 0
-    Set mIcon = style_MakeSquareImage(load_image_obj(NotificationInfo.Icon))
-    If is_valid_image(mIcon) Then _
-        mIconSize = MIN(mIcon.Height, 48)
+    If mData.Exists("icon") Then
+        Set mIcon = style_MakeSquareImage(load_image_obj(mData.ValueOf("icon")))
+        If is_valid_image(mIcon) Then _
+            mIconSize = MIN(mIcon.Height, 48)
+
+    End If
 
     ' /* pre-configuration */
 
-    mIconOnly = ((mInfo.Title = "") And (mInfo.Text = ""))
-    mIsNumeric = ((g_IsPercent(mInfo.Text)) And (Val(mStyle.ReadSetting("show_graphically")) <> 0))
+    mIconOnly = ((mData.ValueOf("title") = "") And (mData.ValueOf("text") = ""))
+    mIsNumeric = ((g_IsPercent(mData.ValueOf("text"))) And (Val(mStyle.ReadSetting("show_graphically")) <> 0))
 
     ' /* calculate notifcation size and internal measurements */
 
     uCalcSize
-
     uDraw
 
 End Sub
@@ -160,22 +185,22 @@ Dim cy As Long
 
         ' /* measure title */
 
-        If mInfo.Title <> "" Then
+        If mData.Exists("title") Then
             .SetFont mStyle.ReadSetting("title_font"), mStyle.ReadSetting("title_size"), True
             Set prTemp = pr.Duplicate
             prTemp.Bottom = 16384
-            .MeasureString mInfo.Title, prTemp, prTemp
+            .MeasureString mData.ValueOf("title"), prTemp, prTemp
             Set mTitleRect = new_BRect(0, 0, prTemp.Width, prTemp.Height)
 
         End If
 
         ' /* measure text */
 
-        If (mInfo.Text <> "") And (Not mIsNumeric) Then
+        If (mData.Exists("text")) And (Not mIsNumeric) Then
             .SetFont mStyle.ReadSetting("text_font"), mStyle.ReadSetting("text_size")
             Set prTemp = pr.Duplicate
             prTemp.Bottom = 16384
-            .MeasureString mInfo.Text, prTemp, prTemp
+            .MeasureString mData.ValueOf("text"), prTemp, prTemp
             Set mTextRect = new_BRect(0, 0, prTemp.Width, prTemp.Height)
 
         ElseIf mIsNumeric Then
@@ -201,13 +226,13 @@ Const RX = 20
 
         ' /* background */
 
-        If (mInfo.Flags And S_NOTIFICATION_IS_PRIORITY) Then
+        If (mFlags And S_NOTIFICATION_IS_PRIORITY) Then
             .SetHighColour rgba(mRed, 0, 0)
             .FillRoundRect .Bounds, RX, RX
 
         Else
 
-            Select Case mInfo.Scheme
+            Select Case mScheme
             Case "black"
                 .SetHighColour rgba(24, 24, 24)
 
@@ -320,7 +345,7 @@ Dim dw As Long
             dw = Val(mStyle.ReadSetting("fg_alpha"))
             .SetHighColour rgba(255, 255, 255, Fix((dw / 100) * 255))
             
-            .DrawString mInfo.Title, pr ', MFX_SIMPLE_OUTLINE
+            .DrawString mData.ValueOf("title"), pr ', MFX_SIMPLE_OUTLINE
 
         End If
 
@@ -352,7 +377,7 @@ Dim prLabel As BRect
 
             ' /* value part */
 
-            dw = g_SafeLong(mInfo.Text)
+            dw = g_SafeLong(mData.ValueOf("text"))
             If dw > 0 Then
                 Set prLabel = pr.Duplicate
                 dw = Fix((dw / 100) * pr.Width)
@@ -374,7 +399,7 @@ Dim prLabel As BRect
 
                 prLabel.OffsetBy 0, prLabel.Height
                 prLabel.Bottom = prLabel.Top + .StringHeight("A")
-                .DrawString CStr(CInt(g_SafeLong(mInfo.Text))) & "%", prLabel, MFX_ALIGN_RIGHT Or MFX_ALIGN_V_CENTER
+                .DrawString CStr(CInt(g_SafeLong(mData.ValueOf("text")))) & "%", prLabel, MFX_ALIGN_RIGHT Or MFX_ALIGN_V_CENTER
 
             End If
 
@@ -394,7 +419,7 @@ Dim prLabel As BRect
             .SetFont mStyle.ReadSetting("text_font"), mStyle.ReadSetting("text_size")
             dw = Val(mStyle.ReadSetting("fg_alpha"))
             .SetHighColour rgba(255, 255, 255, Fix((dw / 100) * 255))
-            .DrawString mInfo.Text, pr
+            .DrawString mData.ValueOf("text"), pr
 
         End If
 

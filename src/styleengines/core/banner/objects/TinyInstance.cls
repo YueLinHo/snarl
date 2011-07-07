@@ -236,7 +236,7 @@ Dim cyContent As Long               ' // the sum total height of title, text, su
         If sz <> "" Then
             Set ppd = New BPackedData
             If ppd.SetTo(sz) Then _
-                .SetFont ppd.ValueOf("name"), Val(ppd.ValueOf("size")) + 1 ', (ppd.ValueOf("bold") = "1")
+                .SetFont ppd.ValueOf("name"), Val(ppd.ValueOf("size")), True
 
         End If
 
@@ -312,7 +312,7 @@ Dim cyContent As Long               ' // the sum total height of title, text, su
         ' /* border */
 
         .SetHighColour gSettings.GetValueWithDefault("tiny.border", CStr(rgba(252, 243, 0)))
-        .StrokeRoundRect .Bounds, rx, rx, 2
+        .StrokeRoundRect .Bounds, rx, rx, 1
 
         ' /* shading */
 
@@ -368,7 +368,7 @@ Dim dCol As Long
         If sz <> "" Then
             Set ppd = New BPackedData
             If ppd.SetTo(sz) Then _
-                .SetFont ppd.ValueOf("name"), Val(ppd.ValueOf("size")) + 1 ', (ppd.ValueOf("bold") = "1")
+                .SetFont ppd.ValueOf("name"), Val(ppd.ValueOf("size")), True
 
         End If
 

@@ -63,6 +63,9 @@ Dim mNoWriteConfig As Boolean
 Dim mCurrent As TStyle
 Dim mWebForward As BTagList
 
+Dim WithEvents theAddEditPanel As TWebForwardAddEdit
+Attribute theAddEditPanel.VB_VarHelpID = -1
+
 Implements KPrefsPage
 Implements KPrefsPanel
 Implements IStyleEngine
@@ -138,8 +141,8 @@ Dim pc As BControl
         With mPanel
             .SetHandler Me
             .SetTitle StyleName & " Preferences"
-            .SetWidth 300
             .SetWindow 1
+            .SetWidth IIf(mCurrent.Name = STYLE_NAME_WEB_FORWARD, 480, 300)
 
             Set pp = new_BPrefsPage("", , Me)
 
@@ -157,6 +160,8 @@ Dim pc As BControl
                 Case STYLE_NAME_WEB_FORWARD
                     .SetMargin 0
 
+                    .Add new_BPrefsControl("label", "", "Currently defined forwarders.  Double-click an entry to edit it:")
+
                     Set pm = New CTempMsg
                     pm.Add "item-height", 36&
                     Set pc = new_BPrefsControl("listbox", "wf_list", uSchemesList(), , , pm)
@@ -164,13 +169,14 @@ Dim pc As BControl
                     .Add pc
 
                     .Add new_BPrefsControl("fancyplusminus", "wf_add_remove")
-                    .Add new_BPrefsControl("label", "", "Each scheme must consist of a base URL and a template which are combined to form an HTTP GET request.")
-                    .Add new_BPrefsControl("label", "", "Any elements enclosed with '%' in the template will be replaced with the correspondingly named notification component (e.g. %title% will be replaced with the notification title).  See the User Guide for more information.")
-                    .Add new_BPrefsControl("fancybutton2", "do_read_more", "User Guide")
-'                .Add new_BPrefsControl("fancyedit", "file_to_run")
-'                    .Add new_BPrefsControl("fancytoolbar", "toolbar_options", "Add...|Remove")
 
-'                    .Add new_BPrefsControl("label", "", "Each scheme represents an individual file to run")
+'                    .Add new_BPrefsControl("label", "", "Each scheme must consist of a base URL and a template which are combined to form an HTTP GET request.")
+'                    .Add new_BPrefsControl("label", "", "Any elements enclosed with '#' in the template will be replaced with the correspondingly named notification component (e.g. %title% will be replaced with the notification title).  See the User Guide for more information.")
+'                    .Add new_BPrefsControl("fancybutton2", "do_read_more", "User Guide")
+''                .Add new_BPrefsControl("fancyedit", "file_to_run")
+''                    .Add new_BPrefsControl("fancytoolbar", "toolbar_options", "Add...|Remove")
+'
+''                    .Add new_BPrefsControl("label", "", "Each scheme represents an individual file to run")
 
                 End Select
 
@@ -211,7 +217,7 @@ Private Function IStyleEngine_Initialize() As melon.M_RESULT
          "Forwards the notification content to a specific URL using a customizable template.  Please note that this style is an alpha release and, as such, is not suitable for general use.", _
          S_STYLE_IS_CONFIGURABLE Or S_STYLE_MULTI_INSTANCE Or S_STYLE_IS_WINDOWLESS Or S_STYLE_V42_CONTENT, _
          uGetWebForwardSchemes(), _
-         0, 1
+         1, 0
 
     IStyleEngine_Initialize = M_OK
 
@@ -290,10 +296,8 @@ Dim i As Long
 
         Case "+"
             ' /* open add panel */
-            sz = uCreateNewScheme()
-            ShellExecute Control.Page.Panel.hWnd, "open", sz, vbNullString, vbNullString, 5
-            uGetWebForwardSchemes                                                   ' // reload schemes
-            prefskit_SafeSetText Control.Page.Panel, "wf_list", uSchemesList()      ' // update the listbox
+            Set theAddEditPanel = New TWebForwardAddEdit
+            theAddEditPanel.Go mPanel.hWnd, Nothing
 
         End Select
 
@@ -308,13 +312,21 @@ Dim i As Long
 End Sub
 
 Private Sub KPrefsPage_ControlInvoked(Control As prefs_kit_d2.BControl)
+Dim pf As CConfFile2
 Dim i As Long
 
     Select Case Control.GetName
     Case "wf_list"
         i = Val(Control.GetValue)
-        If i <> 0 Then _
-            ShellExecute Control.Page.Panel.hWnd, "open", mWebForward.TagAt(i).Name, vbNullString, vbNullString, 5
+        If i <> 0 Then
+            Set pf = New CConfFile2
+            pf.SetTo mWebForward.TagAt(i).Name
+            Set theAddEditPanel = New TWebForwardAddEdit
+            theAddEditPanel.Go mPanel.hWnd, pf
+
+        End If
+
+'            ShellExecute Control.Page.Panel.hWnd, "open", , vbNullString, vbNullString, 5
 
     Case "do_read_more"
         ShellExecute Control.Page.Panel.hWnd, "open", g_MakePath(App.Path) & "userguide\index.html", vbNullString, vbNullString, 5
@@ -329,7 +341,7 @@ End Sub
 Private Sub KPrefsPage_Create(Page As BPrefsPage)
 
     Set mPage = Page
-    mPage.SetMargin 140
+'    mPage.SetMargin 140
 
 End Sub
 
@@ -451,7 +463,8 @@ Dim pf As CConfFile2
     With mWebForward
         .Rewind
         Do While .GetNextTag(pf) = B_OK
-            uSchemesList = uSchemesList & pf.GetValueWithDefault("name") & "#?0#?" & g_SafeLeftStr(pf.GetValueWithDefault("url") & Replace$(pf.GetValueWithDefault("template"), "|", "¦"), 60, True) & "|"
+            uSchemesList = uSchemesList & pf.GetValueWithDefault("name") & "#?0#?" & g_SafeLeftStr(pf.GetValueWithDefault("url") & _
+                           Replace$(pf.GetValueWithDefault("template"), "|", "¦"), 70, True) & "|"
 
         Loop
 
@@ -461,41 +474,44 @@ Dim pf As CConfFile2
 
 End Function
 
-Private Function uCreateNewScheme() As String
-Dim sz As String
-Dim sz2 As String
-Dim i As Long
+'Private Function uCreateNewScheme() As String
+'Dim sz As String
+'Dim sz2 As String
+'Dim i As Long
+'
+'    sz = g_MakePath(style_GetSnarlStylesPath()) & "webforward"
+'    If Not g_Exists(sz) Then _
+'        Exit Function
+'
+'    sz = sz & "\"
+'
+'    Do
+'        i = i + 1
+'        sz2 = sz & "NewForwarder" & CStr(i) & ".webforward"
+'
+'    Loop While g_Exists(sz2)
+'
+'    On Error Resume Next
+'
+'Dim n As Integer
+'
+'    n = FreeFile()
+'    Open sz2 For Output As #n
+'
+'    Print #n, "name=New Forwarder " & CStr(i)
+'    Print #n, "url=<server_url_here>"
+'    Print #n, "template=<forwarder_template_here>"
+'
+'    Close #n
+'
+'    uCreateNewScheme = sz2
+'
+'End Function
 
-    sz = g_MakePath(style_GetSnarlStylesPath()) & "webforward"
-    If Not g_Exists(sz) Then _
-        Exit Function
+Private Sub theAddEditPanel_Quit()
 
-    sz = sz & "\"
+    Set theAddEditPanel = Nothing
+    uGetWebForwardSchemes                                       ' // reload schemes
+    prefskit_SafeSetText mPanel, "wf_list", uSchemesList()      ' // update the listbox
 
-    Do
-        i = i + 1
-        sz2 = sz & "NewForwarder" & CStr(i) & ".webforward"
-
-    Loop While g_Exists(sz2)
-
-    On Error Resume Next
-
-Dim n As Integer
-
-    n = FreeFile()
-    Open sz2 For Output As #n
-
-    Print #n, "name=New Forwarder " & CStr(i)
-    Print #n, "url=<server_url_here>"
-    Print #n, "template=<forwarder_template_here>"
-
-    Close #n
-
-    uCreateNewScheme = sz2
-
-End Function
-
-
-
-
-
+End Sub
