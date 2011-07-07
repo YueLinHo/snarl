@@ -335,7 +335,7 @@ Dim n As Integer
 
     Set mTrayIcon = New BNotifyIcon
     mTrayIcon.SetTo Me.hWnd, WM_SNARL_TRAY_ICON
-    uAddTrayIcon
+    AddTrayIcon
 
     ' /* create our JSON listener */
 
@@ -448,47 +448,47 @@ End Sub
 Private Sub KPrefsPage_Attached()
 End Sub
 
-Private Sub KPrefsPage_ControlChanged(Control As prefs_kit_d2.BControl, ByVal Value As String)
+Private Sub KPrefsPage_ControlChanged(Control As prefs_kit_d2.BControl, ByVal value As String)
 Dim sz() As String
 
     Select Case Control.GetName
 
-    Case "use_hotkey"
-        ' /* R2.2: we have a separate config entry now */
-        g_ConfigSet Control.GetName, Value
-        prefskit_SafeEnable Control.Page.Panel, "hotkey_prefs", (Value = "1")
-        frmAbout.bSetHotkeys
-
-    Case "hotkey_prefs"
-        ' /* the key picker control should return a pair of values separated by a comma.  The first
-        '    value is the set of modifiers; the second value is the keycode of the key pressed */
-
-        sz() = Split(Value, ",")
-        If UBound(sz()) <> 1 Then _
-            Exit Sub
-
-        ' /* we're only interested in the keycode here */
-
-        If sz(1) <> g_ConfigGet("hotkey_prefs") Then
-            If frmAbout.bSetHotkeys(Val(sz(1))) Then
-                ' /* registered okay so store the new keycode */
-                g_ConfigSet "hotkey_prefs", sz(1)
-                g_Debug "TGeneralPage.ControlChanged(): [hotkey_prefs]: hotkey changed to #" & sz(1)
-
-            Else
-                g_Debug "TGeneralPage.ControlChanged(): [hotkey_prefs]: couldn't set hotkey to #" & sz(1), LEMON_LEVEL_WARNING
-                sz(1) = g_ConfigGet("hotkey_prefs")
-
-            End If
-
-        End If
-
-        Control.SetValue CStr(MOD_CONTROL) & "," & sz(1)
+'    Case "use_hotkey"
+'        ' /* R2.2: we have a separate config entry now */
+'        g_ConfigSet Control.GetName, Value
+'        prefskit_SafeEnable Control.Page.Panel, "hotkey_prefs", (Value = "1")
+'        frmAbout.bSetHotkeys
+'
+'    Case "hotkey_prefs"
+'        ' /* the key picker control should return a pair of values separated by a comma.  The first
+'        '    value is the set of modifiers; the second value is the keycode of the key pressed */
+'
+'        sz() = Split(Value, ",")
+'        If UBound(sz()) <> 1 Then _
+'            Exit Sub
+'
+'        ' /* we're only interested in the keycode here */
+'
+'        If sz(1) <> g_ConfigGet("hotkey_prefs") Then
+'            If frmAbout.bSetHotkeys(Val(sz(1))) Then
+'                ' /* registered okay so store the new keycode */
+'                g_ConfigSet "hotkey_prefs", sz(1)
+'                g_Debug "TGeneralPage.ControlChanged(): [hotkey_prefs]: hotkey changed to #" & sz(1)
+'
+'            Else
+'                g_Debug "TGeneralPage.ControlChanged(): [hotkey_prefs]: couldn't set hotkey to #" & sz(1), LEMON_LEVEL_WARNING
+'                sz(1) = g_ConfigGet("hotkey_prefs")
+'
+'            End If
+'
+'        End If
+'
+'        Control.SetValue CStr(MOD_CONTROL) & "," & sz(1)
 
 
     Case "idle_minutes"
 
-        Select Case Val(Value)
+        Select Case Val(value)
         Case 0
             Control.SetText "Never"
 
@@ -496,30 +496,56 @@ Dim sz() As String
             Control.SetText "1 min"
 
         Case Else
-            Control.SetText Value & " mins"
+            Control.SetText value & " mins"
 
         End Select
 
-        g_ConfigSet Control.GetName, Value
+        g_ConfigSet Control.GetName, value
 
 
     Case "away_style", "busy_style"
         ' /* away and busy forwarding style */
         g_ConfigSet Control.GetName, LCase$(Replace$(prefskit_GetItem(Control), ": ", "/"))
 
+    Case "ts>display", "advanced_tab_strip"
+        ' /* don't write this to config! */
+
+
+    ' /* [About] */
+
+    Case "ftb>web_stuff"
+
+        Select Case Val(value)
+        Case 1
+            ' /* site */
+            ShellExecute 0, "open", "http://www.fullphat.net/", vbNullString, vbNullString, SW_SHOW
+
+        Case 2
+            ' /* forum */
+            'ShellExecute 0, "open", "http://sourceforge.net/forum/?group_id=191100", vbNullString, vbNullString, SW_SHOW
+            ShellExecute 0, "open", "http://groups.google.co.uk/group/snarl-discuss?hl=en", vbNullString, vbNullString, SW_SHOW
+
+        Case 3
+            ' /* blog */
+            ShellExecute 0, "open", "http://www.snarl-development.blogspot.com/", vbNullString, vbNullString, SW_SHOW
+
+        End Select
+
+
+
 
     Case Else
         ' /* other controls */
-        g_ConfigSet Control.GetName, Value
+        g_ConfigSet Control.GetName, value
 
         If Control.GetName = "run_on_logon" Then
             g_SetAutoRun2
 
         ElseIf Control.GetName = "away_mode" Then
-            prefskit_SafeEnable Control.Page.Panel, "away_style", (Value = "6")
+            prefskit_SafeEnable Control.Page.Panel, "away_style", (value = "6")
 
         ElseIf Control.GetName = "busy_mode" Then
-            prefskit_SafeEnable Control.Page.Panel, "busy_style", (Value = "6")
+            prefskit_SafeEnable Control.Page.Panel, "busy_style", (value = "6")
                 
         End If
 
@@ -535,27 +561,16 @@ Dim hWnd As Long
     Case "update_now"
         g_DoManualUpdateCheck
 
-    Case "go_lemon"
-        ShellExecute 0, "open", "notepad.exe", l3LogPath(), vbNullString, SW_SHOW
-
-    Case "open_config"
-        ShellExecute 0, "open", g_GetPath(g_SettingsPath()), vbNullString, vbNullString, SW_SHOW
 
     Case "cycle_config"
         g_ConfigInit
 
-    Case "go_garbage"
-        If g_IsWinXPOrBetter() Then _
-            CoFreeUnusedLibrariesEx 0, 0
 
-    Case "test"
-        ' /* mimic how we would do it from an external app... */
-        hWnd = FindWindow("w>Snarl", "Snarl")
-        If IsWindow(hWnd) <> 0 Then _
-            SendMessage hWnd, WM_SNARLTEST, 0, ByVal 0&
+'    Case "go_tray_icon"
+'        AddTrayIcon
 
-    Case "go_tray_icon"
-        uAddTrayIcon
+    Case "test_display_settings"
+        g_PrivateNotify "", "Settings Test", "This is a test of the current display settings", 0, , 1, , , NF_REMOTE Or NF_SECURE, True
 
 
 '    Case "restart_style_roster"
@@ -565,6 +580,18 @@ Dim hWnd As Long
 '            melonLibOpen g_StyleRoster
 '
 '        End If
+
+
+    ' /* [About] */
+
+    Case "go_web_site"
+        ShellExecute 0, "open", "http://www.fullphat.net/", vbNullString, vbNullString, SW_SHOW
+
+    Case "go_forum"
+        ShellExecute 0, "open", "http://groups.google.co.uk/group/snarl-discuss?hl=en", vbNullString, vbNullString, SW_SHOW
+
+    Case "go_cvs"
+        ShellExecute 0, "open", "http://snarlwin.cvs.sourceforge.net/snarlwin/", vbNullString, vbNullString, SW_SHOW
 
     End Select
 
@@ -666,7 +693,7 @@ Dim dw As Long
 
     Case RegisterWindowMessage("TaskbarCreated")
         ' /* R2.4 DR8 */
-        uAddTrayIcon
+        AddTrayIcon
 
     Case WM_WTSSESSION_CHANGE
         Select Case wParam
@@ -709,6 +736,12 @@ Dim update_config   As Boolean
     SetForegroundWindow Me.hWnd
 
     With New OMMenu
+        If gDebugMode Then
+            .AddItem .CreateItem("sos", "SOS...")
+            .AddSeparator
+
+        End If
+
         .AddItem .CreateItem("hide_all", "Hide All Notifications")
         .AddItem .CreateItem("sticky", "Sticky Notifications", , , (g_ConfigGet("sticky_snarls") = "1"))
         .AddSeparator
@@ -792,6 +825,10 @@ Dim update_config   As Boolean
             If Not (g_NotificationRoster Is Nothing) Then _
                 g_NotificationRoster.CloseMultiple 0
 
+        Case "sos"
+            ' /* R2.4.2 DR3 */
+            SOS_invoke New TSOSHandler
+
         Case Else
             If g_SafeLeftStr(pi.Name, 1) = "!" Then _
                 g_AppRoster.SnarlAppDo Val(g_SafeRightStr(pi.Name, Len(pi.Name) - 1)), SNARLAPP_DO_PREFS
@@ -864,6 +901,8 @@ Dim pm As CTempMsg
 
                 .Add new_BPrefsControl("banner", "", "Applications")
                 .Add new_BPrefsControl("fancytoggle2", "notify_on_first_register", "Only notify the first time an application registers?", , g_ConfigGet("notify_on_first_register"))
+'                .Add new_BPrefsControl("fancytoggle2", "only_allow_secure_apps", "Only allow password-protected applications?", "", g_ConfigGet("only_allow_secure_apps"))
+'                .Add new_BPrefsControl("fancytoggle2", "apps_must_register", "Applications must register before creating notifications?", "", g_ConfigGet("apps_must_register"))
 
                 ' /* forwarding */
 
@@ -888,7 +927,42 @@ Dim pm As CTempMsg
             Set mAppsPage = New TAppsPage
             .AddPage new_BPrefsPage("Apps", load_image_obj(g_MakePath(App.Path) & "etc\icons\apps.png"), mAppsPage)
 
-            .AddPage new_BPrefsPage("Display", load_image_obj(g_MakePath(App.Path) & "etc\icons\display.png"), New TDisplayPage)
+            ' /* display page */
+
+Dim pdsp As TDisplaySubPage
+
+            Set pp = new_BPrefsPage("Display", load_image_obj(g_MakePath(App.Path) & "etc\icons\display.png"), Me)
+            With pp
+                .SetMargin 0
+
+                Set pm = New CTempMsg
+                pm.Add "height", 380
+                Set pc = new_BPrefsControl("tabstrip", "ts>display", , , , pm)
+
+                Set pdsp = New TDisplaySubPage
+                pdsp.Name = "def"
+                BTabStrip_AddPage pc, "Appearance", new_BPrefsPage("pg>" & pdsp.Name, , pdsp)
+
+                Set pdsp = New TDisplaySubPage
+                pdsp.Name = "lay"
+                BTabStrip_AddPage pc, "Layout", new_BPrefsPage("pg>" & pdsp.Name, , pdsp)
+
+                Set pdsp = New TDisplaySubPage
+                pdsp.Name = "vis"
+                BTabStrip_AddPage pc, "Behaviour", new_BPrefsPage("pg>" & pdsp.Name, , pdsp)
+
+                Set pdsp = New TDisplaySubPage
+                pdsp.Name = "adv"
+                BTabStrip_AddPage pc, "Sounds", new_BPrefsPage("pg>" & pdsp.Name, , pdsp)
+
+                .Add pc
+                .Add new_BPrefsControl("fancybutton2", "test_display_settings", "Test Settings")
+
+            End With
+
+            .AddPage pp
+
+            
             .AddPage new_BPrefsPage("Styles", load_image_obj(g_MakePath(App.Path) & "etc\icons\styles.png"), New TStylesPage)
             .AddPage new_BPrefsPage("Extensions", load_image_obj(g_MakePath(App.Path) & "etc\icons\extensions.png"), New TExtPage)
             .AddPage new_BPrefsPage("Network", load_image_obj(g_MakePath(App.Path) & "etc\icons\network.png"), New TNetworkPage)
@@ -934,52 +1008,59 @@ Dim pm As CTempMsg
 
             ' /* advanced page */
 
+Dim pasp As TAdvSubPage
+
             g_Debug "frmAbout.NewDoPrefs(): advanced page..."
+
             Set pp = new_BPrefsPage("Advanced", load_image_obj(g_MakePath(App.Path) & "etc\icons\advanced.png"), Me)
-
             With pp
-                .SetMargin 96
+                .SetMargin 0
 
-                ' /* hotkeys */
+                Set pm = New CTempMsg
+                pm.Add "height", 380
+                Set pc = new_BPrefsControl("tabstrip", "advanced_tab_strip", , , , pm)
 
-                .Add new_BPrefsControl("banner", "", "Hotkeys")
-                .Add new_BPrefsControl("fancytoggle2", "use_hotkey", "Use a hotkey to activate Snarl's Preferences?", "", g_ConfigGet("use_hotkey"))
-                .Add new_BPrefsControl("key_picker", "hotkey_prefs", , , CStr(MOD_CONTROL) & "," & g_ConfigGet("hotkey_prefs"), , (g_ConfigGet("use_hotkey") = "1"))
-                .Add new_BPrefsControl("fancytoggle2", "", "Use a hotkey to activate Snarl's menu?", "", "0", , False)
-                .Add new_BPrefsControl("key_picker", "", , , CStr(MOD_WIN) & "," & g_ConfigGet("hotkey_prefs"), , False)
-                .Add new_BPrefsControl("label", "", "Press the key you want to use in the boxes above.  Note that the modifiers (the combination of SHIFT and CTRL keys) used are automatically set.")
+                Set pasp = New TAdvSubPage
+                pasp.Name = "gen"
+                BTabStrip_AddPage pc, "General", new_BPrefsPage("advpage_" & pasp.Name, , pasp)
 
-                ' /* security */
+                Set pasp = New TAdvSubPage
+                pasp.Name = "sec"
+                BTabStrip_AddPage pc, "Security", new_BPrefsPage("advpage_" & pasp.Name, , pasp)
 
-                .Add new_BPrefsControl("banner", "", "Security")
-                .Add new_BPrefsControl("fancytoggle2", "only_allow_secure_apps", "Only allow password-protected applications?", "", g_ConfigGet("only_allow_secure_apps"))
-                .Add new_BPrefsControl("fancytoggle2", "apps_must_register", "Applications must register before creating notifications?", "", g_ConfigGet("apps_must_register"))
-                .Add new_BPrefsControl("fancytoggle2", "no_callback_urls", "Block URLs as default callback?", "", g_ConfigGet("no_callback_urls"))
+                If gDebugMode Then
+                    Set pasp = New TAdvSubPage
+                    pasp.Name = "dbg"
+                    BTabStrip_AddPage pc, "Debug", new_BPrefsPage("advpage_" & pasp.Name, , pasp)
 
-                ' /* legacy support */
+                End If
 
-                .Add new_BPrefsControl("banner", "", "Legacy Support")
-                .Add new_BPrefsControl("fancytoggle2", "allow_right_clicks", "Allow notification right and middle clicks?", "", g_ConfigGet("allow_right_clicks"))
-                .Add new_BPrefsControl("label", "", "This only applies to notifications created using the V42 API; notifications created using a previous version of the API always receive these events.")
-
-                ' /* other */
-
-                .Add new_BPrefsControl("banner", "", "Other")
-                .Add new_BPrefsControl("fancybutton2", "go_tray_icon", "Recreate Tray Icon")
-
-'                .Add new_BPrefsControl("banner", "", "Presence Management")
-'                .Add new_BPrefsControl("fancycycle", "away_mode", "Log as Missed|Make Sticky|Discard|Display", "When Away:", g_ConfigGet("away_mode"))
-'                .Add new_BPrefsControl("fancycycle", "busy_mode", "Log as Missed|Make Sticky|Discard|Display", "When Busy:", g_ConfigGet("busy_mode"))
-
-        ' /* other stuff */
-
-'        .Add new_BPrefsControl("banner", "", "System Functions")
-'        .Add new_BPrefsControl("fancybutton2", "restart_style_roster", "Reload Styles")
-'        .Add new_BPrefsControl("label", "", "Forces Snarl to reload all installed styles.  Under normal circumstances you shouldn't need to do this; it's provided for users who are developing their own styles and want to test them without restarting Snarl.")
+                .Add pc
 
             End With
 
             .AddPage pp
+
+
+
+'            Set pp = new_BPrefsPage("Advanced", load_image_obj(g_MakePath(App.Path) & "etc\icons\advanced.png"), Me)
+'
+'            With pp
+'                .SetMargin 96
+'
+''                .Add new_BPrefsControl("banner", "", "Presence Management")
+''                .Add new_BPrefsControl("fancycycle", "away_mode", "Log as Missed|Make Sticky|Discard|Display", "When Away:", g_ConfigGet("away_mode"))
+''                .Add new_BPrefsControl("fancycycle", "busy_mode", "Log as Missed|Make Sticky|Discard|Display", "When Busy:", g_ConfigGet("busy_mode"))
+'
+'        ' /* other stuff */
+'
+''        .Add new_BPrefsControl("banner", "", "System Functions")
+''        .Add new_BPrefsControl("fancybutton2", "restart_style_roster", "Reload Styles")
+''        .Add new_BPrefsControl("label", "", "Forces Snarl to reload all installed styles.  Under normal circumstances you shouldn't need to do this; it's provided for users who are developing their own styles and want to test them without restarting Snarl.")
+'
+'            End With
+'
+'            .AddPage pp
 
 
 
@@ -988,45 +1069,72 @@ Dim pm As CTempMsg
             ' /* About page */
 
             g_Debug "frmAbout.NewDoPrefs(): about page..."
-            .AddPage new_BPrefsPage("About", load_image_obj(g_MakePath(App.Path) & "etc\icons\about.png"), New TAboutPage)
+            Set pp = new_BPrefsPage("About", load_image_obj(g_MakePath(App.Path) & "etc\icons\about.png"), Me)
 
+            With pp
+                .SetMargin 0
+
+                Set pm = New CTempMsg
+                pm.Add "image-file", g_MakePath(App.Path) & "etc\icons\snarl.png"
+                pm.Add "image-height", 32
+                pm.Add "valign", "centre"
+                .Add new_BPrefsControl("labelex", "", "Snarl " & App.Comments & " (V" & CStr(App.Major) & "." & CStr(App.Revision) & ")", , , pm)
+
+                Set pm = New CTempMsg
+                pm.Add "file", g_MakePath(App.Path) & "read-me.rtf"
+                Set pc = new_BPrefsControl("rtf", "rtf")
+                pc.DoExCmd "load", pm
+                pc.SizeTo 0, 260
+                .Add pc
+
+                .Add new_BPrefsControl("fancytoolbar", "ftb>web_stuff", "Snarl Website|Discussion Group|Blog")
+
+                Set pm = New CTempMsg
+                pm.Add "image-file", g_MakePath(App.Path) & "etc\icons\open_source.jpg"
+                pm.Add "image-height", 48
+                pm.Add "valign", "centre"
+                .Add new_BPrefsControl("labelex", "", " Released under the Simplified BSD Licence.", , , pm)
+
+            End With
+
+            .AddPage pp
 
             ' /* Debug page */
 
-            If gDebugMode Then
-
-                g_Debug "frmAbout.NewDoPrefs(): debug page..."
-                Set pp = new_BPrefsPage("Debug", load_image_obj(g_MakePath(App.Path) & "etc\icons\debug.png"), Me)
-
-                With pp
-                    .SetMargin 96
-                    .Add new_BPrefsControl("banner", "", "Debugging")
-                    .Add new_BPrefsControl("fancybutton2", "go_lemon", "Open debug log")
-            '        .Add new_BPrefsControl("label", "", "The log file can be useful for debugging purposes.")
-            
-                    .Add new_BPrefsControl("fancybutton2", "go_garbage", "Garbage collection", , , , g_IsWinXPOrBetter())
-            
-            '        .Add new_BPrefsControl("separator", "")
-                    .Add new_BPrefsControl("banner", "", "Configuration")
-                    .Add new_BPrefsControl("fancybutton2", "open_config", "Open config folder")
-                    .Add new_BPrefsControl("label", "", "Opens the current config folder in Explorer so the various configuration files can be edited manually.")
-            
-            '        .Add new_BPrefsControl("fancybutton2", "cycle_config", "Reload Config File")
-            '        .Add new_BPrefsControl("label", "", "Reloads the current configuration file.")
-            
-            '        .Add new_BPrefsControl("separator", "")
-                    .Add new_BPrefsControl("banner", "", "Diagnostics")
-                    .Add new_BPrefsControl("fancybutton2", "test", "Test notification")
-                    .Add new_BPrefsControl("label", "", "Sends a special test message to the Snarl engine which should result in a notification appearing.  This message is sent using the same mechanism a 3rd party application would use and therefore should prove (or otherwise) that the Snarl notification engine is running correctly.")
-            
-            '        .Add new_BPrefsControl("separator", "")
-            '        .Add new_BPrefsControl("fancybutton2", "restart_style_roster", "Restart Style Roster")
-            
-                End With
-
-                .AddPage pp
-
-            End If
+'            If gDebugMode Then
+'
+'                g_Debug "frmAbout.NewDoPrefs(): debug page..."
+'                Set pp = new_BPrefsPage("Debug", load_image_obj(g_MakePath(App.Path) & "etc\icons\debug.png"), Me)
+'
+'                With pp
+'                    .SetMargin 96
+'                    .Add new_BPrefsControl("banner", "", "Debugging")
+'                    .Add new_BPrefsControl("fancybutton2", "go_lemon", "Open debug log")
+'            '        .Add new_BPrefsControl("label", "", "The log file can be useful for debugging purposes.")
+'
+'                    .Add new_BPrefsControl("fancybutton2", "go_garbage", "Garbage collection", , , , g_IsWinXPOrBetter())
+'
+'            '        .Add new_BPrefsControl("separator", "")
+'                    .Add new_BPrefsControl("banner", "", "Configuration")
+'                    .Add new_BPrefsControl("fancybutton2", "open_config", "Open config folder")
+'                    .Add new_BPrefsControl("label", "", "Opens the current config folder in Explorer so the various configuration files can be edited manually.")
+'
+'            '        .Add new_BPrefsControl("fancybutton2", "cycle_config", "Reload Config File")
+'            '        .Add new_BPrefsControl("label", "", "Reloads the current configuration file.")
+'
+'            '        .Add new_BPrefsControl("separator", "")
+'                    .Add new_BPrefsControl("banner", "", "Diagnostics")
+'                    .Add new_BPrefsControl("fancybutton2", "test", "Test notification")
+'                    .Add new_BPrefsControl("label", "", "Sends a special test message to the Snarl engine which should result in a notification appearing.  This message is sent using the same mechanism a 3rd party application would use and therefore should prove (or otherwise) that the Snarl notification engine is running correctly.")
+'
+'            '        .Add new_BPrefsControl("separator", "")
+'            '        .Add new_BPrefsControl("fancybutton2", "restart_style_roster", "Restart Style Roster")
+'
+'                End With
+'
+'                .AddPage pp
+'
+'            End If
 
             g_Debug "frmAbout.NewDoPrefs(): displaying..."
             .Go
@@ -1156,7 +1264,7 @@ Dim pc As BControl
 
 End Sub
 
-Private Sub uAddTrayIcon()
+Public Sub AddTrayIcon()
 Dim hIcon As Long
 
     If (mTrayIcon Is Nothing) Or (g_ConfigGet("show_tray_icon") = "0") Or (gSysAdmin.HideIcon) Then _
@@ -1804,13 +1912,13 @@ Static Style As Long
 End Function
 
 Private Function uFindForward(ByVal StyleAndScheme As String, ByVal List As String) As Long
-Dim s() As String
+Dim S() As String
 
     On Error Resume Next
 
     err.Clear
-    s = Split(Replace$(LCase$(List), ": ", "/"), "|")
-    If UBound(s) < 1 Then _
+    S = Split(Replace$(LCase$(List), ": ", "/"), "|")
+    If UBound(S) < 1 Then _
         Exit Function
 
     If err.Number Then _
@@ -1818,8 +1926,8 @@ Dim s() As String
 
 Dim i As Long
 
-    For i = 0 To UBound(s)
-        If s(i) = StyleAndScheme Then
+    For i = 0 To UBound(S)
+        If S(i) = StyleAndScheme Then
             uFindForward = i + 1
             Exit Function
 
@@ -1861,3 +1969,13 @@ Private Sub uSetNotificationHotkey(ByVal Register As Boolean)
 
 End Sub
 
+Public Sub SubscribersChanged()
+Dim pc As BControl
+
+    If Not (mPanel Is Nothing) Then
+        If mPanel.Find("subscriber_list", pc) Then _
+            pc.Notify "refresh", Nothing
+
+    End If
+
+End Sub

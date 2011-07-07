@@ -19,6 +19,8 @@ Implements KPrefsPage
 
 Private Sub KPrefsPage_AllAttached()
 
+    uRefreshSubscribers
+
 End Sub
 
 Private Sub KPrefsPage_Attached()
@@ -29,7 +31,7 @@ Dim pm As CTempMsg
 
     With mPage
 
-        .SetMargin 96
+        .SetMargin 24
         .Add new_BPrefsControl("banner", "", "Receiving")
 
         Set pm = New CTempMsg
@@ -42,53 +44,56 @@ Dim pm As CTempMsg
 
         .Add new_BPrefsControl("label", "", "Snarl will listen on ports 9887 and 23053 for incoming notifications, and port 9889 for incoming JSON notifications.  You may need to adjust your firewall settings in order to receive these.")
 
-'        .Add new_BPrefsControl("fancytoggle2", "haycart", "Enable HAYBARN monitoring?", "", "0", , False)
-'        .Add new_BPrefsControl("fancytoggle2", "haycart", "Enable CORNFLOWER monitoring?", "", "0", , False)
-
-
 '        .Add new_BPrefsControl("separator", "")
 ''        pm.Replace "text", "Forward notifications?"
 ''        .Add new_BPrefsControl("fancytoggle", "ft>forward", , "Sending:", "0", pm, False)
 
-        .Add new_BPrefsControl("banner", "", "Sending")
-        .Add new_BPrefsControl("label", "", "Snarl will forward notifications to the following IP addresses:")
-        Set pm = New CTempMsg
-        pm.Add "plus_minus", 1
-        Set pc = new_BPrefsControl("listbox", "lb>forward", g_GetRemoteComputers(), , , pm)
-        .Add pc
+        If gDebugMode Then
+            .Add new_BPrefsControl("fancytoggle2", "allow_snp3_subs", "Allow SNP3 subscriptions?", "", g_ConfigGet("allow_snp3_subs"))
+            .Add new_BPrefsControl("fancytoggle2", "allow_gntp_subs", "Allow GNTP subscriptions?", "", g_ConfigGet("allow_gntp_subs"))
+            
+            .Add new_BPrefsControl("banner", "", "Sending")
+            .Add new_BPrefsControl("label", "", "Snarl will forward notifications to the following computers:")
+            Set pm = New CTempMsg
+            pm.Add "plus_minus", 1
+            pm.Add "item-height", 36&
+            Set pc = new_BPrefsControl("listbox", "subscriber_list", , , , pm)
+            .Add pc
 
-        .Add new_BPrefsControl("fancyplusminus", "fpm>forward")
+            .Add new_BPrefsControl("fancyplusminus", "fpm>forward")
+
+        End If
 
     End With
 
 End Sub
 
-Private Sub KPrefsPage_ControlChanged(Control As BControl, ByVal Value As String)
+Private Sub KPrefsPage_ControlChanged(Control As BControl, ByVal value As String)
 Dim pc As BControl
 Dim i As Long
 
-    Debug.Print "[" & mPage.GetName() & "]: ControlChanged '" & Control.GetName() & "' >> '" & Value & "'"
+    Debug.Print "[" & mPage.GetName() & "]: ControlChanged '" & Control.GetName() & "' >> '" & value & "'"
 
     Select Case Control.GetName()
     Case "ft>forward"
-        If Control.Page.Find("lb>forward", pc) Then _
-            pc.SetEnabled (Value = "1")
+        If Control.Page.Find("subscriber_list", pc) Then _
+            pc.SetEnabled (value = "1")
 
         If Control.Page.Find("fpm>forward", pc) Then _
-            pc.SetEnabled (Value = "1")
+            pc.SetEnabled (value = "1")
 
     Case "listen_for_json", "listen_for_snarl"
-        g_ConfigSet Control.GetName, Value
+        g_ConfigSet Control.GetName, value
         If Control.GetName = "listen_for_json" Then
-            frmAbout.EnableJSON (Value = "1")
+            frmAbout.EnableJSON (value = "1")
 
         Else
-            frmAbout.EnableSNP (Value = "1")
+            frmAbout.EnableSNP (value = "1")
 
         End If
 
     Case "fpm>forward"
-        If Value = "+" Then
+        If value = "+" Then
             ' /* display 'Add New Computer' dialog */
             With New TAddRemoteComputerPanel
                 .Go Control.Page.Panel.hWnd
@@ -97,7 +102,7 @@ Dim i As Long
 
         Else
             ' /* remove selected entry */
-            If mPage.Find("lb>forward", pc) Then
+            If mPage.Find("subscriber_list", pc) Then
                 i = Val(pc.GetValue())
                 If i > 0 Then
                     gRemoteComputers.Remove i
@@ -124,10 +129,15 @@ Private Sub KPrefsPage_ControlNotify(Control As BControl, ByVal Notification As 
     Debug.Print "[" & mPage.GetName() & "]: ControlNotify '" & Control.GetName() & "' >> '" & Notification & "'"
 
     Select Case Control.GetName()
-    Case "lb>forward"
+    Case "subscriber_list"
         If Notification = "update_list" Then
-            Control.SetText g_GetRemoteComputers
+'            Control.SetText g_GetRemoteComputers
 
+            MsgBox "!! subscriber list !!"
+
+        ElseIf Notification = "refresh" Then
+            ' /* refresh subscriber list */
+            uRefreshSubscribers
 
         End If
 
@@ -149,25 +159,75 @@ Private Sub KPrefsPage_Destroy()
 End Sub
 
 Private Sub KPrefsPage_Detached()
-
 End Sub
 
 Private Sub KPrefsPage_GetPreferredSize(Width As Long, Height As Long)
-
 End Sub
 
 Private Function KPrefsPage_hWnd() As Long
-
 End Function
 
 Private Sub KPrefsPage_PanelResized(ByVal Width As Long, ByVal Height As Long)
-
 End Sub
 
+Private Sub uRefreshSubscribers()
 
+    If Not gDebugMode Then _
+        Exit Sub
 
+Dim pc As BControl
 
+    If Not mPage.Find("subscriber_list", pc) Then _
+        Exit Sub
 
+Dim ps As TSubscriber
+Dim sz As String
 
+    With g_SubsRoster.List
+        .Rewind
 
+        Do While .GetNextTag(ps) = B_OK
+            sz = sz & ps.Destination & "#?0#?" & ps.SubscribedTo & "|"
+
+        Loop
+
+    End With
+
+    sz = g_SafeLeftStr(sz, Len(sz) - 1)
+    pc.SetText sz
+
+    If sz = "" Then _
+        Exit Sub
+
+    ' /* set the icons */
+
+Dim pm As CTempMsg
+Dim i As Long
+
+    Set pm = New CTempMsg
+
+    With g_SubsRoster.List
+        .Rewind
+        Do While .GetNextTag(ps) = B_OK
+            i = i + 1
+            If ps.SubscriptionType = E_ST_SNP3 Then
+                sz = g_MakePath(App.Path) & "etc\icons\snarl.png"
+
+            ElseIf ps.SubscriptionType = E_ST_GNTP Then
+                sz = g_MakePath(App.Path) & "etc\icons\growl_app.png"
+
+            Else
+                sz = g_MakePath(App.Path) & "etc\icons\no_icon.png"
+
+            End If
+
+            pm.Replace "index", i
+            pm.Replace "image-file", sz
+            pc.DoExCmd B_SET_ITEM, pm
+
+        Loop
+
+    End With
+
+End Sub
 

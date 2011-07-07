@@ -720,5 +720,9 @@ End Sub
 '
 'End Function
 
+Public Function CountItems() As Long
 
+    CountItems = mCount
+
+End Function
 

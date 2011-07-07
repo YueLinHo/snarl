@@ -548,6 +548,10 @@ Dim sz As String
             ' /* R2.4b4 */
             .IconPath = g_GetBase64Icon(Args.ValueOf("icon-base64"))
 
+        ElseIf Args.Exists("icon-phat64") Then
+            ' /* R2.4.2 DR3 */
+            .IconPath = g_GetPhat64Icon(Args.ValueOf("icon-phat64"))
+
         End If
 
         If Args.Exists("timeout") Then _

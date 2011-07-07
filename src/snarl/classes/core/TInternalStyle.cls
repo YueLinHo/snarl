@@ -66,7 +66,7 @@ End Sub
 
 Private Function IStyleEngine_CountStyles() As Long
 
-    IStyleEngine_CountStyles = 3
+    IStyleEngine_CountStyles = 2
 
 End Function
 
@@ -74,9 +74,9 @@ Private Function IStyleEngine_CreateInstance(ByVal StyleName As String) As libSn
 Dim pStyle As TInternalStyle
 
     If StyleName = IP_STYLE_NAME Then
-        Set pStyle = New TInternalStyle
-        pStyle.IsIPForwarder = True
-        Set IStyleEngine_CreateInstance = pStyle
+'        Set pStyle = New TInternalStyle
+'        pStyle.IsIPForwarder = True
+'        Set IStyleEngine_CreateInstance = pStyle
 
     ElseIf StyleName = RUN_STYLE_NAME Then
         Set pStyle = New TInternalStyle
@@ -172,17 +172,17 @@ Private Sub IStyleEngine_StyleAt(ByVal Index As Long, Style As libSnarlStyles.st
             .Name = STYLE_NAME
 
 
-        Case 2
-            .Copyright = IP_STYLE_COPY
-            .Date = IP_STYLE_DATE
-            .Description = "Forwards notifications to the computers selected in the 'Network' tab"
-            .Flags = S_STYLE_IS_WINDOWLESS Or S_STYLE_WANT_APP_NAME
-            .IconPath = g_MakePath(App.Path) & "etc\icons\network.png"
-            .Major = 0
-            .Minor = 8
-            .Name = IP_STYLE_NAME
+'        Case 2
+'            .Copyright = IP_STYLE_COPY
+'            .Date = IP_STYLE_DATE
+'            .Description = "Forwards notifications to the computers selected in the 'Network' tab"
+'            .Flags = S_STYLE_IS_WINDOWLESS Or S_STYLE_WANT_APP_NAME
+'            .IconPath = g_MakePath(App.Path) & "etc\icons\network.png"
+'            .Major = 0
+'            .Minor = 8
+'            .Name = IP_STYLE_NAME
 
-        Case 3
+        Case 2
             .Copyright = RUN_STYLE_COPY
             .Date = RUN_STYLE_DATE
             .Description = "Executes a file, passing the notification content as arguments"
@@ -193,7 +193,7 @@ Private Sub IStyleEngine_StyleAt(ByVal Index As Long, Style As libSnarlStyles.st
             .Name = RUN_STYLE_NAME
             .Schemes = uGetFileSchemes("runfile")
 
-        Case 4
+        Case 3
             .Copyright = IMAGE_STYLE_COPY
             .Date = IMAGE_STYLE_DATE
             .Description = "Runs a user-defined file"
@@ -220,7 +220,7 @@ Private Function IStyleEngine_Version() As Long
 
 End Function
 
-Private Sub IStyleInstance_AdjustPosition(x As Long, y As Long, Alpha As Integer, done As Boolean)
+Private Sub IStyleInstance_AdjustPosition(x As Long, y As Long, Alpha As Integer, Done As Boolean)
 End Sub
 
 Private Function IStyleInstance_GetContent() As melon.MImage

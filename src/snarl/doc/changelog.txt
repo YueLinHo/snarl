@@ -1,6 +1,51 @@
 
 	Snarl Change Log
 
+	- Revised SNP3.0 response specification and added callback support.  (42.137)
+
+	- Support for phat64 icons added to apps, classes and notifications (create
+	  and update).  (42.135)
+
+	- SNP3.0 FORWARD response reworked and icon sending added.  If the icon is
+	  a URL or !icon then it's simply added to the response as "icon: <url|!>";
+	  if the icon is a path to an image then it's encoded in a slightly modified
+	  version of Base64 (CRLF's are replaced with #'s) and added to the response
+	  as "icon-phat64: <data>".  We use "icon-phat64:" as the encoding used is
+	  *different* to that used in SNP2.  (42.134)
+
+	- Applications can now be registered without providing a signature so long
+	  as a title is specified.  For reference the signature will be created with
+	  the title converted to lowercase, any spaces replaced with underscores and
+	  prefixed with "application/x-".  (42.132)
+
+	- Apps which are remotely registered now get "remote_app.png" as their icon
+	  if no other icon is specified.  (42.131)
+
+	- Added further SNP3 request parsing.  (42.131)
+
+	- Added placeholder SNP3 request parsing.  (42.130)
+
+	- API version is now correctly stored in notification info for V42 and V41
+	  requests (it remains zero for pre-V41).  It's also displayed in the
+	  notification's "Details" sub-menu.  (42.130)
+
+	- [Shadowing] content moved into [Behaviour].  (42.130)
+
+	- [Federation] renamed to [Sounds] and sound controls moved into it.  (42.130)
+
+	- Can now manually block apps via the [Apps] page.  (42.130)
+
+	- Released as 2.4.2 DR2  (42.128)
+
+	- Line overflow trimming wasn't working for V42 styles, now fixed.  (42.126)
+
+	- Split [Advanced] page into [General], [Security] and [Debug] tabs.  [Debug]
+	  tab is only shown if debug mode is enabled.  (42.126)
+
+	- Debug mode is now always enabled for alpha and DR releases.  (42.126)
+
+	- Added "Revoke Block" button to apps page.  (42.125)
+
 	- Added option to prevent the default callback of a notification being set
 	  to a URL.  (42.123)
 

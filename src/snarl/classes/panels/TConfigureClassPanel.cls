@@ -35,7 +35,7 @@ Dim mCurrentForward As Long
 Dim mCurrentForwardName As String
 Dim mCurrentCondition As Long
 
-Public Event done()
+Public Event Done()
 
 Implements KPrefsPanel
 Implements KPrefsPage
@@ -221,7 +221,7 @@ End Sub
 Private Sub KPrefsPanel_Quit()
 Dim rc As RECT
 
-    RaiseEvent done
+    RaiseEvent Done
     g_ShowWindow mhWndPanel, True, True
 
     GetWindowRect mhWndPanel, rc
@@ -399,13 +399,13 @@ Dim pc As BControl
 
         Set pp = new_BPrefsPage("Advanced", load_image_obj(g_MakePath(App.Path) & "etc\icons\class-ext.png"), Me)
         With pp
-            .SetMargin 90
+            .SetMargin 32
             .SetWidth 300
 
             ' /* duplicates */
 '            .Add new_BPrefsControl("fancycycle", "duplicates", "Allow|Block|Delay", "Flooding:")
 
-            .Add new_BPrefsControl("fancytoggle2", "block_if_foreground", "Block if foreground application?", , gSelectedClass.GetValue("block_if_foreground"))
+            .Add new_BPrefsControl("fancytoggle2", "block_if_foreground", "Ignore if application is in the foreground?", , gSelectedClass.GetValue("block_if_foreground"))
 
 
             .Add new_BPrefsControl("label", "", " ")

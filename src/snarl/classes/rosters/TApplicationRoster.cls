@@ -79,7 +79,7 @@ Dim pSnarlApp As TApp
     If mRefs = 1 Then
         ' /* run startup code */
         mSnarlAppMsg = RegisterWindowMessage("SnarlAppMessage")     ' // V40.25
-        mAppToken = &H2C0
+        mAppToken = (&H1E0 + (Rnd * 80)) And &HFFFFFFFC
         Set mRemoteAppList = new_BTagList()
 
         ' /* register ourselves with, er, ourself! */
@@ -227,7 +227,6 @@ End Property
 
 Public Function Add41(ByRef Data As BPackedData, Optional ByVal IsRemote As Boolean, Optional ByVal SenderPID As Long) As Long
 Dim sz As String
-Dim i As Long
 
     g_Debug "TApplicationRoster.Add41()", LEMON_LEVEL_PROC_ENTER
 
@@ -236,6 +235,16 @@ Dim i As Long
     sz = Data.ValueOf("app-sig")
     If sz = "" Then _
         sz = Data.ValueOf("id")
+
+    ' /* R2.4.2 DR3: if no signature, craft it from the title */
+
+    If (sz = "") And (Data.ValueOf("title") <> "") Then
+        sz = "application/x-" & LCase$(Replace$(Data.ValueOf("title"), " ", "_"))
+        g_Debug "created app-sig '" & sz & "'", LEMON_LEVEL_INFO
+
+    End If
+
+    ' /* error checking */
 
     If (Data.ValueOf("title") = "") Or (sz = "") Then
         g_Debug "required arg missing", LEMON_LEVEL_CRITICAL Or LEMON_LEVEL_PROC_EXIT
@@ -259,6 +268,8 @@ Dim i As Long
         Exit Function
 
     End If
+
+Dim i As Long
 
     ' /* check for duplicate and return existing token */
 
@@ -294,10 +305,13 @@ Dim pInfo As T_SNARL_APP
         .Icon = Data.ValueOf("icon")
         .Signature = sz
 
-        ' /* R2.4 Beta 4 - support for Base64-encoded icons */
-
         If (.Icon = "") And (Data.Exists("icon-base64")) Then
+            ' /* R2.4 Beta 4 - support for Base64-encoded icons */
             .Icon = g_GetBase64Icon(Data.ValueOf("icon-base64"))
+
+        ElseIf (.Icon = "") And (Data.Exists("icon-phat64")) Then
+            ' /* R2.4.2 DR3: phat64 encoding */
+            .Icon = g_GetPhat64Icon(Data.ValueOf("icon-phat64"))
 
         ElseIf g_IsURL(.Icon) Then
             ' /* R2.4.2: initiate an async download (user will get either previously cached, or "no icon" icon in the meanwhile */
@@ -315,7 +329,10 @@ Dim pi As BIcon
 
         .Pid = SenderPID            ' // R2.4.2: added
 
-        If (.Icon = "") And (SenderPID <> 0) Then
+        If (.Icon = "") And (IsRemote) Then
+            .Icon = g_MakePath(App.Path) & "etc\icons\remote_app.png"
+
+        ElseIf (.Icon = "") And (SenderPID <> 0) Then
             sz = g_GetExeFullPath(SenderPID)
             If sz <> "" Then
                 With new_BIconContent(sz)
@@ -415,7 +432,7 @@ Dim i As Long
 
         i = g_PrivateNotify(SNARL_CLASS_APP_REG, _
                             "Application registered", _
-                            pa.Name & " registered successfully with Snarl", _
+                            pa.Name & " registered successfully with Snarl" & IIf(pa.IsBanned, vbCrLf & vbCrLf & "NOTE: Application has been blocked by Snarl", ""), _
                             -1, _
                             IIf(pa.Icon = "", g_MakePath(App.Path) & "etc\icons\no_icon.png", pa.Icon), _
                             , , , _

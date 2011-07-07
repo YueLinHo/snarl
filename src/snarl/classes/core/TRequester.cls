@@ -60,7 +60,7 @@ Dim mAlphaStep As Integer
 
 Dim mActualView As mfxView
 
-Implements MWndProcSink
+Implements BWndProcSink
 
 Public Function Go(ByVal Token As Long, ByRef Data As BPackedData) As Long
 
@@ -100,7 +100,7 @@ Dim i As Integer
     End If
 
     EZRegisterClass "w>requester"
-    mhWnd = EZAddWindow("w>requester", Me, , WS_POPUPWINDOW, WS_EX_TOOLWINDOW Or WS_EX_TOPMOST)
+    mhWnd = EZ4AddWindow("w>requester", Me, , WS_POPUPWINDOW, WS_EX_TOOLWINDOW Or WS_EX_TOPMOST)
     If IsWindow(mhWnd) = 0 Then
         Debug.Print "TRequester.Go(): bad window"
         Exit Function
@@ -378,13 +378,13 @@ End Sub
 
 Public Sub Quit()
 
-    EZRemoveWindow mhWnd
+    EZ4RemoveWindow mhWnd
     EZUnregisterClass "w>requester"
     g_PopRequest2
 
 End Sub
 
-Private Function MWndProcSink_WndProc(ByVal hWnd As Long, ByVal uMsg As Long, ByVal wParam As Long, ByVal lParam As Long, ByVal PrevWndProc As Long, ReturnValue As Long) As Boolean
+Private Function BWndProcSink_WndProc(ByVal hWnd As Long, ByVal uMsg As Long, ByVal wParam As Long, ByVal lParam As Long, ByVal PrevWndProc As Long, ReturnValue As Long) As Boolean
 Static fPaused As Boolean
 Static iPressed As Long
 Dim i As Long

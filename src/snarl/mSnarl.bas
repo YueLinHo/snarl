@@ -56,7 +56,8 @@ Public Const SNARL_CLASS_ANON = "_ANL"
 Public Enum E_NOTIFICATION_FLAGS
     NF_REMOTE = &H80000000
     NF_SECURE = &H40000000
-    NF_IS_GNTP = &H20000000           ' // R2.4.2: GNTP-based notification
+    NF_IS_GNTP = &H20000000         ' // R2.4.2: GNTP-based notification
+    NF_IS_SNP3 = &H10000000         '// R2.4.2 DR3: SNP3
 
     NF_MERGE = &H1000
 
@@ -84,7 +85,7 @@ Public Type T_NOTIFICATION_INFO
     Token As Long
     ' /* V41 */
     Priority As Long                    ' // V41: <0 = low, 0 = normal, >0 = high
-    Value As String                     ' // V41: freeform value which will negate the need to use the Text field
+    value As String                     ' // V41: freeform value which will negate the need to use the Text field
                                         '         thoughts are the value can encapsulate the format it's sent in
                                         '         e.g. 45%, 2.3466, $5.00, etc. it's up to the style to determine
                                         '         how/if it's displayed
@@ -226,6 +227,7 @@ Public g_ExtnRoster As TExtensionRoster
 Public g_StyleRoster As TStyleRoster
 Public g_AppRoster As TApplicationRoster
 Public g_NotificationRoster As TNotificationRoster
+Public g_SubsRoster As TSubscriberRoster                ' // R2.4.2 DR3
 
 'Public Enum E_FONTSMOOTHING
 '    E_MELONTYPE
@@ -426,7 +428,7 @@ Dim n As E_SHOW_PREFS
     ' /* V40.18 - or if either CTRL key is held down */
     ' /* V42.122 - if beta release */
 
-    gDebugMode = gDebugMode Or (g_IsPressed(VK_LCONTROL)) Or (g_IsPressed(VK_RCONTROL)) Or (InStr(App.Comments, "b") <> 0)
+    gDebugMode = gDebugMode Or (g_IsPressed(VK_LCONTROL)) Or (g_IsPressed(VK_RCONTROL)) Or (uIsDebugBuild())
 
     If gDebugMode Then
         ' /* start logging */
@@ -516,7 +518,7 @@ Dim pName As String
 
     End If
 
-    ghWndMain = EZAddWindow(WINDOW_CLASS, New TMainWindow, "Snarl", 0, 0)
+    ghWndMain = EZ4AddWindow(WINDOW_CLASS, New TMainWindow, "Snarl", 0, 0)
     If ghWndMain = 0 Then
         g_Debug "main(): couldn't create window", LEMON_LEVEL_CRITICAL
         EZUnregisterClass WINDOW_CLASS
@@ -651,6 +653,13 @@ Dim szData As String
     SendMessage ghWndMain, WM_SNARL_INIT, 0, ByVal 0&
 
     Load frmAbout           ' // keeps us open...
+
+    ' /* R2.4.2 DR3: start subscriber roster */
+
+    g_Debug "Main(): Starting subscribers roster..."
+    Set g_SubsRoster = New TSubscriberRoster
+    melonLibInit g_SubsRoster
+    melonLibOpen g_SubsRoster
 
     ' /* start notification roster */
 
@@ -796,8 +805,14 @@ Dim t As Long
     melonLibClose g_NotificationRoster
     melonLibUninit g_NotificationRoster
 
-    EZRemoveWindow ghWndMain
+    g_Debug "main(): stopping subscriptions roster..."
+    melonLibClose g_SubsRoster
+    melonLibUninit g_SubsRoster
+
+    EZ4RemoveWindow ghWndMain
     EZUnregisterClass WINDOW_CLASS
+
+    SOS_quit
 
     ' /* done */
 
@@ -914,6 +929,14 @@ Public Function g_ConfigInit() As Boolean
         .Add "apps_must_register", "0"
         .Add "auto_detect_url", "0"
         .Add "no_callback_urls", "0"
+        .Add "block_null_pid", "1"
+        .Add "block_dos_attempt", "1"
+        .Add "ignore_style_requests", "0"
+        .Add "global_shadow_list", ""
+'        .Add "auth_type", "md5"
+'        .Add "auth_salt", ""
+'        .Add "auth_key", ""
+        .Add "auth_password", ""
 
     End With
 
@@ -973,12 +996,12 @@ Dim sz As String
 
 End Function
 
-Public Sub g_ConfigSet(ByVal Name As String, ByVal Value As String)
+Public Sub g_ConfigSet(ByVal Name As String, ByVal value As String)
 
     If (mConfig Is Nothing) Then _
         Exit Sub
 
-    mConfig.Update Name, Value
+    mConfig.Update Name, value
     g_WriteConfig
 
 End Sub
@@ -1246,11 +1269,11 @@ End Function
 '
 'End Function
 
-Public Function gfSetAlertDefault(ByVal Pid As Long, ByVal Class As String, ByVal Element As Long, ByVal Value As String) As M_RESULT
+Public Function gfSetAlertDefault(ByVal Pid As Long, ByVal Class As String, ByVal Element As Long, ByVal value As String) As M_RESULT
 Dim pa As TApp
 Dim pc As TAlert
 
-    g_Debug "gfSetAlertDefault('" & Pid & "' '" & Class & "' #" & CStr(Element) & " '" & Value & "')", LEMON_LEVEL_PROC
+    g_Debug "gfSetAlertDefault('" & Pid & "' '" & Class & "' #" & CStr(Element) & " '" & value & "')", LEMON_LEVEL_PROC
 
     If (g_AppRoster Is Nothing) Then
         g_Debug "gfSetAlertDefault(): App not registered with Snarl", LEMON_LEVEL_CRITICAL
@@ -1284,22 +1307,22 @@ Dim pc As TAlert
     Select Case Element
 
     Case SNARL_ATTRIBUTE_TITLE
-        pc.DefaultTitle = Value
+        pc.DefaultTitle = value
 
     Case SNARL_ATTRIBUTE_TEXT
-        pc.DefaultText = Value
+        pc.DefaultText = value
 
     Case SNARL_ATTRIBUTE_TIMEOUT
-        pc.DefaultTimeout = Val(Value)
+        pc.DefaultTimeout = Val(value)
 
     Case SNARL_ATTRIBUTE_SOUND
-        pc.DefaultSound = Value
+        pc.DefaultSound = value
 
     Case SNARL_ATTRIBUTE_ICON
-        pc.DefaultIcon = Value
+        pc.DefaultIcon = value
 
     Case SNARL_ATTRIBUTE_ACK
-        pc.DefaultAck = Value
+        pc.DefaultAck = value
 
     Case Else
         g_Debug "gfSetAlertDefault(): unknown element '" & Element & "'", LEMON_LEVEL_CRITICAL
@@ -1374,7 +1397,7 @@ Dim sz As String
     With gRemoteComputers
         .Rewind
         Do While .GetNextEntry(pe)
-            sz = sz & pe.Value & "|"
+            sz = sz & pe.value & "|"
 
         Loop
 
@@ -1397,7 +1420,7 @@ Dim pe As ConfigEntry
     With gRemoteComputers
         .Rewind
         Do While .GetNextEntry(pe)
-            pMenu.AddItem pMenu.CreateItem("ip>" & pe.Value, pe.Value)
+            pMenu.AddItem pMenu.CreateItem("ip>" & pe.value, pe.value)
 
         Loop
 
@@ -1460,7 +1483,7 @@ Dim pn As storage_kit.Node
     gIconThemes = gIconThemes + 1
     ReDim Preserve gIconTheme(gIconThemes)
     With gIconTheme(gIconThemes)
-        .Name = Folder.Filename
+        .Name = Folder.FileName
         .Path = pn.File
         .IconFile = g_MakePath(Folder.File) & "theme.png"
 
@@ -1956,7 +1979,6 @@ Dim i As Long
 
 End Function
 
-
 Public Function g_CreateBadge(ByVal Content As String) As mfxBitmap
 Const rx = 6
 Dim pr As BRect
@@ -2018,7 +2040,7 @@ Dim ppd As BPackedData
         ppd.Add "icon", .IconPath
         ppd.Add "priority", CStr(.Priority)
         ppd.Add "callback", .DefaultAck
-        ppd.Add "value", .Value
+        ppd.Add "value", .value
 
 '        If (Info.Flags And SNARL41_NOTIFICATION_ALLOWS_MERGE) Then _
             .Add "merge", "1"
@@ -2312,7 +2334,7 @@ End Function
 '
 'End Function
 
-Public Function g_PrivateNotify(ByVal ClassId As String, Optional ByVal Title As String, Optional ByVal Text As String, Optional ByVal Timeout As Long = -1, Optional ByVal Icon As String, Optional ByVal Priority As Long = 0, Optional ByVal Ack As String, Optional ByVal Flags As SNARL41_NOTIFICATION_FLAGS, Optional ByVal IntFlags As E_NOTIFICATION_FLAGS, Optional ByVal AddTestAction As Boolean) As Long
+Public Function g_PrivateNotify(Optional ByVal ClassId As String = SNARL_CLASS_GENERAL, Optional ByVal Title As String, Optional ByVal Text As String, Optional ByVal Timeout As Long = -1, Optional ByVal Icon As String, Optional ByVal Priority As Long = 0, Optional ByVal Ack As String, Optional ByVal Flags As SNARL41_NOTIFICATION_FLAGS, Optional ByVal IntFlags As E_NOTIFICATION_FLAGS, Optional ByVal AddTestAction As Boolean) As Long
 
     ' /* internal notification generator
     '
@@ -2590,10 +2612,6 @@ Dim pApp As TApp
     ' /* V42 only (no corresponding V41 command ID) */
 
 
-    Case "request"
-        ' /* PRIVATE: for internal use only under V42 */
-        g_DoAction = g_ShowRequest(Token, Args)
-
     Case "wasmissed"
         g_DoAction = g_NotificationRoster.WasMissed(Token, Args.ValueOf("uid"), Args.ValueOf("app-sig"), Args.ValueOf("password"))
 
@@ -2606,6 +2624,55 @@ Dim pApp As TApp
     Case "setmode"
         If Args.Exists("busy") Then _
             g_DoAction = uSetBusy(Token, Args)
+
+
+
+    ' /* undocumented/unsupported - either private or due for public release in a future revision */
+
+
+
+    Case "request"
+        ' /* PRIVATE: for internal use only under V42 */
+        g_DoAction = g_ShowRequest(Token, Args)
+
+
+    Case "subscribe"
+        ' /* undocumented/unsupported in 2.4.2 - due for documenting in 2.5 / V43 */
+
+        If (ReplySocket Is Nothing) Then
+            ' /* can be sent via SNP3 only as ReplySocket is required */
+            gSetLastError SNARL_ERROR_BAD_SOCKET
+            g_DoAction = 0
+
+        Else
+            g_Debug "g_DoAction(): <subscribe> from " & ReplySocket.RemoteHostIP & ":" & ReplySocket.RemotePort
+            If g_SubsRoster.Add(ReplySocket, E_ST_SNP3, Args) Then
+                frmAbout.SubscribersChanged
+                g_DoAction = -1
+
+            End If
+
+        End If
+
+
+    Case "unsubscribe"
+        ' /* undocumented/unsupported in 2.4.2 - due for documenting in 2.5 / V43 */
+
+        If (ReplySocket Is Nothing) Then
+            ' /* can be sent via SNP3 only as ReplySocket is required */
+            gSetLastError SNARL_ERROR_BAD_SOCKET
+            g_DoAction = 0
+
+        Else
+            g_Debug "g_DoAction(): <unsubscribe> from " & ReplySocket.RemoteHostIP & ":" & ReplySocket.RemotePort
+            If g_SubsRoster.Remove(ReplySocket, E_ST_SNP3, Args) Then
+                frmAbout.SubscribersChanged
+                g_DoAction = -1
+
+            End If
+
+        End If
+
 
     Case Else
         gSetLastError SNARL_ERROR_UNKNOWN_COMMAND
@@ -2875,7 +2942,7 @@ Dim sz As String
     With aList
         .Rewind
         Do While .GetNextTag(pt) = B_OK
-            sz = sz & pt.Name & "::" & pt.Value & "#?"
+            sz = sz & pt.Name & "::" & pt.value & "#?"
 
         Loop
 
@@ -2941,21 +3008,27 @@ Public Function g_GetPresence() As Long
 End Function
 
 Public Function g_GetBase64Icon(ByVal Data As String) As String
-Dim sz As String
+
+    g_GetBase64Icon = uGetEncodedIcon(Replace$(Data, "%", "="))
+
+End Function
+
+Public Function uGetEncodedIcon(ByVal Base64 As String) As String
 Dim bErr As Boolean
+Dim sz As String
 
     On Error Resume Next
 
-    sz = Decode64(Replace$(Data, "%", "="), bErr)
+    sz = Decode64(Base64, bErr)
     If (sz = "") Or (bErr) Then
-        g_Debug "TNotificationRoster.g_GetBase64Icon(): failed to decode Base64", LEMON_LEVEL_CRITICAL
+        g_Debug "uGetEncodedIcon(): failed to decode Base64", LEMON_LEVEL_CRITICAL
         Exit Function
 
     End If
 
     ' /* get a suitably unique path */
 
-    g_GetBase64Icon = g_GetSafeTempIconPath()
+    uGetEncodedIcon = g_GetSafeTempIconPath()
 
 Dim i As Integer
 
@@ -2964,14 +3037,14 @@ Dim i As Integer
     i = FreeFile()
 
     err.Clear
-    Open g_GetBase64Icon For Binary Access Write As #i
+    Open uGetEncodedIcon For Binary Access Write As #i
     If err.Number = 0 Then
         Put #i, , sz
         Close #i
 
     End If
 
-    g_Debug "TNotificationRoster.g_GetBase64Icon(): writing icon to '" & g_GetBase64Icon & "'"
+    g_Debug "uGetEncodedIcon(): writing icon to '" & uGetEncodedIcon & "'"
 
 End Function
 
@@ -3217,3 +3290,194 @@ Dim pf As CConfFile
     End With
 
 End Sub
+
+Private Function uIsDebugBuild() As Boolean
+Dim sz As String
+
+    sz = LCase$(App.Comments)
+    uIsDebugBuild = (InStr(sz, "b") <> 0) Or (InStr(sz, "dr") <> 0) Or (InStr(sz, "alpha") <> 0)
+
+End Function
+
+Public Function g_DoV42Request(ByVal Request As String, ByVal SenderPID As Long, Optional ByRef ReplySocket As CSocket, Optional ByVal Flags As E_NOTIFICATION_FLAGS) As Long
+'Dim lFlags As E_NOTIFICATION_FLAGS
+
+    Debug.Print "TMainWindow.g_DoV42Request(): data is '" & Request & "'"
+
+    ' /* must at least have an action */
+
+    If Request = "" Then
+        gSetLastError SNARL_ERROR_BAD_PACKET
+        Exit Function
+
+    End If
+
+    ' /* R2.4.2 DR3: if a reply socket is provided, set NF_REMOTE accordingly */
+
+    If Not (ReplySocket Is Nothing) Then
+        g_Debug "g_DoV42Request(): sender is " & ReplySocket.RemoteHostIP & ":" & ReplySocket.RemotePort
+        If ReplySocket.RemoteHostIP <> "127.0.0.1" Then _
+             Flags = Flags Or NF_REMOTE
+
+    End If
+
+    ' /* tokenise special character pairs */
+
+    Request = Replace$(Request, "&&", "%26")
+    Request = Replace$(Request, "==", "%3d")
+
+    ' /* convert to internal format (note that 'real' equals and ampersands
+    '    will still be url-encoded so they're safe */
+
+    Request = Replace$(Request, "=", "::")
+    Request = Replace$(Request, "&", "#?")
+
+Dim szAction As String
+Dim i As Long
+
+    ' /* find the action/arg marker */
+
+    i = InStr(Request, "?")
+    If i Then
+        ' /* action and args */
+        szAction = g_SafeLeftStr(Request, i - 1)
+        Request = g_SafeRightStr(Request, Len(Request) - i)
+
+    Else
+        ' /* just an action */
+        szAction = Request
+        Request = ""
+
+    End If
+
+    ' /* set the packed data and URL-decode the arguments at the same time */
+
+Dim pData As BPackedData
+Dim lToken As Long
+
+    Set pData = New BPackedData
+    pData.SetTo g_URLDecode(Request)
+    lToken = g_SafeLong(pData.ValueOf("token"))
+
+    ' /* pass to master function */
+
+    g_DoV42Request = g_DoAction(szAction, lToken, pData, App.Major Or Flags, ReplySocket, SenderPID)  ' // R2.4.1: include major API version in this
+
+    If g_DoV42Request = 0 Then
+        g_DoV42Request = -g_QuickLastError()
+
+    ElseIf g_DoV42Request = -1 Then
+        g_DoV42Request = 0
+
+    End If
+
+End Function
+
+Public Function g_GetPhat64Icon(ByVal Data As String) As String
+
+    g_GetPhat64Icon = uGetEncodedIcon(Replace$(Replace$(Data, "#", vbCrLf), "%", "="))
+
+End Function
+
+'Public Function g_SetPassword(ByVal Password As String, ByVal AuthType As String) As Boolean
+'
+'    If (Password <> "") And (AuthType <> "") Then
+'
+'        ' /* create the salt */
+'
+'Dim szSalt As String
+'Dim b As Integer
+'Dim i As Integer
+'
+'        For i = 1 To 16
+'            Randomize Timer
+'            b = (Rnd * 254) + 1
+'            szSalt = szSalt & g_HexStr(b, 2)
+'
+'        Next i
+'
+'        Password = Password & szSalt
+'
+'Dim szKey As String
+'
+'        Select Case AuthType
+'        Case "sha1"
+'            With New sha1
+'                szKey = .sha1(Password)
+'
+'            End With
+'
+'        Case "sha256"
+'            With New SHA256
+'                szKey = .SHA256(Password)
+'
+'            End With
+'
+'        Case "md5"
+'            With New MD5
+'                szKey = .DigestStrToHexStr(Password)
+'
+'            End With
+'
+'        Case Else
+'            g_Debug "g_SetPassword(): invalid algorithm", LEMON_LEVEL_CRITICAL
+'            Exit Function
+'
+'        End Select
+'
+'        g_Debug "g_SetPassword(): " & AuthType & " " & szKey & " " & szSalt
+'
+'
+'    ElseIf (Password = "") And (AuthType = "") Then
+'        ' /* special case: clear password */
+'        g_Debug "g_SetPassword(): clearing password", LEMON_LEVEL_INFO
+'
+'
+'    Else
+'        g_Debug "g_SetPassword(): missing arg", LEMON_LEVEL_CRITICAL
+'        Exit Function
+'
+'    End If
+'
+'    g_ConfigSet "auth_type", AuthType
+'    g_ConfigSet "auth_salt", szSalt
+'    g_ConfigSet "auth_key", szKey
+'    g_WriteConfig
+'
+'    g_SetPassword = True
+'
+'End Function
+
+Public Function g_SetPassword(ByVal Password As String) As Boolean
+Dim sz As String
+
+    If Password <> "" Then
+        If Not EncodePlus(Password, sz) Then _
+            Exit Function
+
+    End If
+
+    g_ConfigSet "auth_password", sz
+    g_WriteConfig
+    g_SetPassword = True
+
+End Function
+
+Public Function g_GetPassword() As String
+Dim szPwd As String
+Dim sz As String
+
+    sz = g_ConfigGet("auth_password")
+    If sz <> "" Then
+        If DecodePlus(sz, szPwd) Then
+            g_GetPassword = szPwd
+
+        Else
+            SOS_invoke New TSOSHandler
+
+        End If
+
+    End If
+
+End Function
+

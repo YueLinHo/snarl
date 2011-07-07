@@ -122,7 +122,7 @@ Private Function MLibrary_Open() As melon.M_RESULT
     mRefs = mRefs + 1
     If mRefs = 1 Then
         ' /* run startup code */
-        mToken = &H278
+        mToken = (&HC0 + (Rnd * 80)) And &HFFFFFFFC
 
     End If
 
@@ -225,6 +225,10 @@ Dim lQuantum As Long
 
     Info.DateStamp = Now()
     
+    ' /* R2.4: overflow trimming */
+
+    Info.Title = g_TrimLines(Info.Title)
+    Info.Text = g_TrimLines(Info.Text)
 
     ' /* R2.4: generate the "OriginalContent" content */
 
@@ -272,15 +276,14 @@ Dim pn As TNotification
 
             ' /* allocate a token now */
 
-            mToken = mToken + 1
             Info.Token = mToken
             pn.SetTo NS_WAITING, Info
 
             ' /* add to the queue */
 
             mWait.Add pn
-
             Add = mToken                                '// return the token that was allocated
+            mToken = mToken + 1
             Exit Function
 
         Else
@@ -337,7 +340,9 @@ Dim fc As Long              ' // needs to be an enum before we forget what the f
 
 
 
+    ' /* R2.4.2 DR3 - send to subscribers */
 
+    g_SubsRoster.Broadcast Info
 
 
     If (Info.Priority < 0) And (Info.Timeout = 0) Then
@@ -484,11 +489,6 @@ Dim nPMode As E_PRESENCE_ACTIONS
 
     End If
 
-    ' /* R2.4: overflow trimming */
-
-    Info.Title = g_TrimLines(Info.Title)
-    Info.Text = g_TrimLines(Info.Text)
-
     ' /* no style name?  that's okay, use the default */
 
     If Info.StyleName = "" Then
@@ -564,8 +564,8 @@ Dim pStyle As TStyle
     ' /* if the token hasn't been pre-allocated set it here */
 
     If Info.Token = 0 Then
-        mToken = mToken + 1
         Info.Token = mToken
+        mToken = mToken + 1
 
     End If
 
@@ -1707,3 +1707,15 @@ Dim pn As TNotification
     End If
 
 End Sub
+
+Public Function ActiveList() As BTagList
+
+    Set ActiveList = mActive
+
+End Function
+
+Public Function WaitList() As BTagList
+
+    Set WaitList = mWait
+
+End Function

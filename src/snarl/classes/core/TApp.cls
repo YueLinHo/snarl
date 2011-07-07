@@ -76,10 +76,12 @@ Dim f As Boolean
         i = .FindSection("_cfg")
         If i = 0 Then
             Set mAppConfig = .AddSectionObj("_cfg")
+            mAppConfig.Add "banned", "0"
             uWriteSettings
 
         Else
             Set mAppConfig = .SectionAt(i)
+            mIsBanned = (mAppConfig.GetValueWithDefault("banned", "0"))
 
         End If
 
@@ -461,15 +463,17 @@ Dim i As Long
             .uReplyMsg = mInfo.uMsg                 ' // if still no reply message, use app-defined value (which may still be 0)
 
 
+        ' /* R2.4.2: caller can now request a particular style - if security option allows it */
 
-        ' /* R2.4.2: caller can now request a particular style */
-
-        If pData.Exists("style") Then
+        If (pData.Exists("style")) And (g_ConfigGet("ignore_style_requests") = "0") Then
             .StyleName = style_GetStyleName(pData.ValueOf("style"))
             .SchemeName = style_GetSchemeName(pData.ValueOf("style"))
 
         End If
 
+        ' /* 2.4.2 DR3 - store API version */
+
+        .APIVersion = (IntFlags And NF_API_MASK)
 
         ' /* V42 styles need the unabridged content */
 
@@ -599,10 +603,15 @@ Dim lFlags As E_CLASS_FLAGS
 
         .DefaultIcon = Data.ValueOf("icon")
 
-        ' /* R2.4 Beta 4: check for MIME encoded icon */
-
-        If (.DefaultIcon = "") And (Data.Exists("icon-base64")) Then _
+        If (.DefaultIcon = "") And (Data.Exists("icon-base64")) Then
+            ' /* R2.4 Beta 4: check for MIME encoded icon */
             .DefaultIcon = g_GetBase64Icon(Data.ValueOf("icon-base64"))
+
+        ElseIf (.DefaultIcon = "") And (Data.Exists("icon-phat64")) Then
+            ' /* R2.4.2 DR3: phat64 encoding? */
+            .DefaultIcon = g_GetPhat64Icon(Data.ValueOf("icon-phat64"))
+
+        End If
 
         .DefaultSound = Data.ValueOf("sound")
         .DefaultText = Data.ValueOf("text")
@@ -715,7 +724,7 @@ Public Sub DoAbout()
         ' /* just show what we can */
         g_PrivateNotify "", _
                         mInfo.Name, _
-                        "Registered: " & CStr(mInfo.Timestamp) & _
+                        "Registered: " & Format$(mInfo.Timestamp, "d mmm yyyy hh:mm:ss") & _
                         IIf(mInfo.Password <> "", "\nPassword protected", "") & _
                         IIf(mInfo.IsRemote, "\nSource is remote", "") & _
                         IIf(mIsBanned, "\n\nIs banned", ""), , _
@@ -825,34 +834,49 @@ End Function
 
 Private Function uCheckDOS() As Boolean
 
+    If g_ConfigGet("block_dos_attempt") = "0" Then _
+        Exit Function
+
     If mIsBanned Then
         g_Debug "TApp.uCheckDOS(): '" & mInfo.Signature & "' is banned", LEMON_LEVEL_CRITICAL
         gSetLastError SNARL_ERROR_ACCESS_DENIED
 
     Else
-        ' /* if we get 5 notifications within 500ms, that's a DOS */
+        ' /* if we get 5 notifications, each within 100ms, that's a DOS */
 
-        If (GetTickCount() - mLastNotificationTick) < 500 Then
+        If (GetTickCount() - mLastNotificationTick) < 100 Then
             mDOSCount = mDOSCount + 1
             g_Debug "TApp.uCheckDOS(): notification within quantum (" & GetTickCount() - mLastNotificationTick & ") count=" & mDOSCount
 
             If mDOSCount > 4 Then
                 g_Debug "TApp.uCheckDOS(): DOS attack by '" & mInfo.Signature & "' detected", LEMON_LEVEL_CRITICAL
                 If gDebugMode Then _
-                    g_PrivateNotify SNARL_CLASS_GENERAL, "Possible DOS attack detected", mInfo.Name & " (" & mInfo.Signature & ") has been banned"
+                    g_PrivateNotify SNARL_CLASS_GENERAL, "Application blocked", mInfo.Name & " (" & mInfo.Signature & ") generated a large number of notifications within a short period of time and has been blocked"
 
                 mIsBanned = True
+                mAppConfig.Update "banned", "1"
+                uWriteSettings
 
             End If
 
         Else
             ' /* reset */
             mDOSCount = 0
-            mLastNotificationTick = GetTickCount()
 
         End If
+    
+        mLastNotificationTick = GetTickCount()
+    
     End If
 
     uCheckDOS = mIsBanned
 
 End Function
+
+Public Sub SetBlocked(ByVal IsBlocked As Boolean)
+
+    mIsBanned = IsBlocked
+    mAppConfig.Update "banned", IIf(IsBlocked, "1", "0")
+    uWriteSettings
+
+End Sub

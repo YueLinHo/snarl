@@ -59,9 +59,9 @@ End Type
 Dim mhWnd As Long
 Dim mhWndPath As Long               ' // a static control which contains our app path...
 
-Implements MWndProcSink
+Implements BWndProcSink
 
-Private Function MWndProcSink_WndProc(ByVal hWnd As Long, ByVal uMsg As Long, ByVal wParam As Long, ByVal lParam As Long, ByVal PrevWndProc As Long, ReturnValue As Long) As Boolean
+Private Function BWndProcSink_WndProc(ByVal hWnd As Long, ByVal uMsg As Long, ByVal wParam As Long, ByVal lParam As Long, ByVal PrevWndProc As Long, ReturnValue As Long) As Boolean
 'Static pSOS As SOSSTRUCT
 '
 '    ' /* check for incoming Lemon console input */
@@ -69,7 +69,7 @@ Private Function MWndProcSink_WndProc(ByVal hWnd As Long, ByVal uMsg As Long, By
 '    If lemonTranslate(uMsg, lParam, pSOS) Then
 '        lemon_handle pSOS
 '        ReturnValue = -1
-'        MWndProcSink_WndProc = True
+'        BWndProcSink_WndProc = True
 '        Exit Function
 '
 '    End If
@@ -88,7 +88,7 @@ Private Function MWndProcSink_WndProc(ByVal hWnd As Long, ByVal uMsg As Long, By
 '    Case WM_SOS
 '        ' /* required to confirm we support a Lemon console */
 '        ReturnValue = WM_SOS
-'        MWndProcSink_WndProc = True
+'        BWndProcSink_WndProc = True
 
 
     Case WM_SNARL_INIT
@@ -108,13 +108,13 @@ Private Function MWndProcSink_WndProc(ByVal hWnd As Long, ByVal uMsg As Long, By
     Case WM_COPYDATA
         ' /* Snarl commands are routed here */
         ReturnValue = uCopyData(lParam, wParam)
-        MWndProcSink_WndProc = True
+        BWndProcSink_WndProc = True
 
 
     Case WM_MANAGE_SNARL
         ' /* Snarl control messages */
         uManageSnarl wParam, lParam
-        MWndProcSink_WndProc = True
+        BWndProcSink_WndProc = True
 
 
     Case WM_SNARLTEST
@@ -128,7 +128,7 @@ Private Function MWndProcSink_WndProc(ByVal hWnd As Long, ByVal uMsg As Long, By
                           g_MakePath(App.Path) & "styles\default\default_icon.png"
 
             ReturnValue = -1
-            MWndProcSink_WndProc = True
+            BWndProcSink_WndProc = True
 
         Case 1
             szShowMessage "Test Message", _
@@ -137,7 +137,7 @@ Private Function MWndProcSink_WndProc(ByVal hWnd As Long, ByVal uMsg As Long, By
                           g_MakePath(App.Path) & "styles\default\default_icon.png"
 
             ReturnValue = -1
-            MWndProcSink_WndProc = True
+            BWndProcSink_WndProc = True
 
         Case 64
             szShowMessage g_HexStr((Rnd * 65535) Or &HC0000000), _
@@ -146,11 +146,11 @@ Private Function MWndProcSink_WndProc(ByVal hWnd As Long, ByVal uMsg As Long, By
                           g_MakePath(App.Path) & "styles\default\default_icon.png"
 
             ReturnValue = -1
-            MWndProcSink_WndProc = True
+            BWndProcSink_WndProc = True
 
         Case Else
             ReturnValue = M_NOT_IMPLEMENTED
-            MWndProcSink_WndProc = True
+            BWndProcSink_WndProc = True
 
         End Select
 
@@ -370,22 +370,22 @@ Dim pss As SNARLSTRUCTI
 
         Case &H534E4C03
             ' /* V42 API request */
-            If hwndFrom = 0 Then
+            If (hwndFrom = 0) And (g_ConfigGet("block_null_pid") = "1") Then
                 g_Debug "TMainWindow.uCopyData(): source PID not provided", LEMON_LEVEL_CRITICAL
-                If gDebugMode Then _
+'                If gDebugMode Then _
                     g_PrivateNotify SNARL_CLASS_GENERAL, "V42 Request Blocked", "No PID"
 
             Else
-                uCopyData = uDoV42Request(pcds.cbData, pcds.lpData, hwndFrom)
+                uCopyData = g_DoV42Request(uV42Translate(pcds.cbData, pcds.lpData), hwndFrom)
 
             End If
 
 
         Case &H534E4C02
             ' /* V41 API request */
-            If hwndFrom = 0 Then
+            If (hwndFrom = 0) And (g_ConfigGet("block_null_pid") = "1") Then
                 g_Debug "TMainWindow.uCopyData(): source PID not provided", LEMON_LEVEL_CRITICAL
-                If gDebugMode Then _
+'                If gDebugMode Then _
                     g_PrivateNotify SNARL_CLASS_GENERAL, "V41 Request Blocked", "No PID"
 
             Else
@@ -396,9 +396,9 @@ Dim pss As SNARLSTRUCTI
 
         Case 2
             ' /* V40 (or earlier) */
-            If hwndFrom = 0 Then
+            If (hwndFrom = 0) And (g_ConfigGet("block_null_pid") = "1") Then
                 g_Debug "TMainWindow.uCopyData(): source PID not provided", LEMON_LEVEL_CRITICAL
-                If gDebugMode Then _
+'                If gDebugMode Then _
                     g_PrivateNotify SNARL_CLASS_GENERAL, "V40 Request Blocked", "No PID"
             
             Else
@@ -430,6 +430,23 @@ Dim pss As SNARLSTRUCTI
         ' /* TO-DO: we might want to log the notification somewhere? */
 
     End If
+
+End Function
+
+Private Function uV42Translate(ByVal cbRequest As Long, ByVal lpRequest As Long) As String
+
+    ' /* easy: get the request, do some pre-processing on it and send it over to g_DoAction()
+    '    which handles everything for us, including setting/clearing LastError */
+
+    Debug.Print "TMainWindow.uV42Translate(): data is " & cbRequest & " byte(s)"
+
+    ' /* V42 requests are variable length */
+
+Dim sz As String
+
+    sz = String(cbRequest, 0)
+    CopyMemory ByVal StrPtr(sz), ByVal lpRequest, cbRequest
+    uV42Translate = g_UTF8(sz)
 
 End Function
 
@@ -709,84 +726,6 @@ Dim pa As TApp
 
 End Function
 
-Private Function uDoV42Request(ByVal cbRequest As Long, ByVal lpRequest As Long, ByVal SenderPID As Long) As Long
-Dim sz As String
-
-    ' /* easy: get the request, do some pre-processing on it and send it over to g_DoAction()
-    '    which handles everything for us, including setting/clearing LastError */
-
-    Debug.Print "TMainWindow.uDoV42Request(): data is " & cbRequest & " byte(s)"
-
-
-
-    ' /* V42 requests are variable length */
-
-    sz = String(cbRequest, 0)
-    CopyMemory ByVal StrPtr(sz), ByVal lpRequest, cbRequest
-    sz = g_UTF8(sz)
-
-    Debug.Print "TMainWindow.uDoV42Request(): data is '" & sz & "'"
-
-    ' /* must at least have an action */
-
-    If sz = "" Then
-        gSetLastError SNARL_ERROR_BAD_PACKET
-        Exit Function
-
-    End If
-
-    ' /* tokenise special character pairs */
-
-    sz = Replace$(sz, "&&", "%26")
-    sz = Replace$(sz, "==", "%3d")
-
-    ' /* convert to internal format (note that 'real' equals and ampersands
-    '    will still be url-encoded so they're safe */
-
-    sz = Replace$(sz, "=", "::")
-    sz = Replace$(sz, "&", "#?")
-
-Dim szAction As String
-Dim i As Long
-
-    ' /* find the action/arg marker */
-
-    i = InStr(sz, "?")
-    If i Then
-        ' /* action and args */
-        szAction = g_SafeLeftStr(sz, i - 1)
-        sz = g_SafeRightStr(sz, Len(sz) - i)
-
-    Else
-        ' /* just an action */
-        szAction = sz
-        sz = ""
-
-    End If
-
-    ' /* set the packed data and URL-decode the arguments at the same time */
-
-Dim pData As BPackedData
-Dim lToken As Long
-
-    Set pData = New BPackedData
-    pData.SetTo g_URLDecode(sz)
-    lToken = g_SafeLong(pData.ValueOf("token"))
-
-    ' /* pass to master function */
-
-    uDoV42Request = g_DoAction(szAction, lToken, pData, App.Major, , SenderPID)    ' // R2.4.1 include major API version in this
-
-    If uDoV42Request = 0 Then
-        uDoV42Request = -g_QuickLastError()
-
-    ElseIf uDoV42Request = -1 Then
-        uDoV42Request = 0
-
-    End If
-
-End Function
-
 Private Function uDoV41Request(ByVal lpRequest As Long, ByVal SenderPID As Long) As Long
 Dim pReq As SNARLREQI
 
@@ -851,7 +790,7 @@ Dim pData As BPackedData
 
     End Select
 
-    uDoV41Request = g_DoAction(szAction, pReq.Token, pData)
+    uDoV41Request = g_DoAction(szAction, pReq.Token, pData, 41)
 
 End Function
 

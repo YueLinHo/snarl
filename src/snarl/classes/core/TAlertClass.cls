@@ -68,6 +68,7 @@ Private Sub Class_Initialize()
         .Class = "_internal"
         .Desc = ""
         Set .App = New TApp
+'        .App.SetAsSnarl
 
     End With
 
@@ -399,11 +400,16 @@ Dim lDur As E_NOTIFICATION_DURATION
 
     End If
 
-    ' /* R2.4 Beta 4: use Base64 encoded icon data, if there is any */
-
     If Not (Args Is Nothing) Then
-        If (Info.IconPath = "") And (Args.Exists("icon-base64")) Then _
+        If (Info.IconPath = "") And (Args.Exists("icon-base64")) Then
+            ' /* R2.4 Beta 4: use Base64 encoded icon data, if there is any */
             Info.IconPath = g_GetBase64Icon(Args.ValueOf("icon-base64"))
+
+        ElseIf (Info.IconPath = "") And (Args.Exists("icon-phat64")) Then
+            ' /* R2.4.2 DR3: phat64 encoding? */
+            Info.IconPath = g_GetPhat64Icon(Args.ValueOf("icon-phat64"))
+
+        End If
 
     End If
 

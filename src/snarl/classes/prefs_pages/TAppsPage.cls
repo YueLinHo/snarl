@@ -51,10 +51,10 @@ Dim pm As CTempMsg
         Set pm = New CTempMsg
         pm.Add "item-height", 30&
         Set pc = new_BPrefsControl("listbox", "cb>apps", "", "", "0", pm)
-        pc.SizeTo 0, 140
+        pc.SizeTo 0, 120
         .Add pc
 
-        .Add new_BPrefsControl("fancytoolbar", "ftb>app", "Details|Settings...|Unregister")
+        .Add new_BPrefsControl("fancytoolbar", "ftb>app", "Details|Settings...|Unregister|Revoke Block")
 
         Set pm = New CTempMsg
         pm.Add "text", "Use the same settings for all notification classes?"
@@ -172,6 +172,9 @@ Dim pa As TApp
 
                 ' /* V42.21: "Unregister" button */
                 prefskit_SetItem pc, 3, "enabled", (mCurrent.Token <> gSnarlToken)
+                ' /* "revoke ban" */
+                prefskit_SetItem pc, 4, "enabled", (mCurrent.Token <> gSnarlToken)
+                prefskit_SetItem pc, 4, "text", IIf(mCurrent.IsBanned(), "Revoke Block", "Block")
 
             Else
                 Debug.Print "TAppsPage.ControlChanged(): 'ftb>app' control not found"
@@ -222,6 +225,11 @@ Dim pa As TApp
             Case 3
                 ' /* unregister */
                 g_AppRoster.Unregister mCurrent.Token, mCurrent.Password
+
+            Case 4
+                ' /* block/unblock */
+                mCurrent.SetBlocked Not mCurrent.IsBanned
+                bUpdateAppList
 
             End Select
 
@@ -420,13 +428,16 @@ Dim pc As BControl
     If Not mPage.Find("cb>apps", pc) Then _
         Exit Sub
 
+Dim sv As String
 Dim sz As String
 Dim i As Long
+
+    sv = pc.GetValue()
 
     With g_AppRoster
         If .CountApps() Then
             For i = 1 To .CountApps()
-                sz = sz & .AppAt(i).Name & "#?" & CStr(i) & "#?" & "" & IIf(i < .CountApps(), "|", "")
+                sz = sz & .AppAt(i).Name & IIf(.AppAt(i).IsBanned, " (Blocked)", "") & "#?" & CStr(i) & "#?" & "" & IIf(i < .CountApps(), "|", "")
             
             Next i
         End If
@@ -463,8 +474,13 @@ Dim pm As CTempMsg
         End If
     End With
 
-    If AndSelectFirstItem Then _
+    If AndSelectFirstItem Then
         pc.SetValue "1"
+
+    Else
+        pc.SetValue sv
+
+    End If
 
 '        If g_AppRoster.CountApps() Then
 '            For i = 1 To g_AppRoster.CountApps()

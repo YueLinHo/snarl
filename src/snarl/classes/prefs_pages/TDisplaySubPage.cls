@@ -39,9 +39,37 @@ Dim pc As BControl
     If mPage.Find("default_duration", pc) Then _
         pc.SetValue g_ConfigGet("default_duration")
 
+
+    ' /* 2.4.2: global shadowing */
+
+Dim ppd As BPackedData
+
+    Set ppd = New BPackedData
+    ppd.SetTo g_ConfigGet("global_shadow_list")
+
+Dim sz As String
+Dim i As Long
+Dim j As Long
+
+    If mPage.Find("global_shadow_list", pc) Then
+        j = prefskit_GetItemCount(pc)
+        If j Then
+            For i = 1 To j
+                sz = Replace$(prefskit_GetItem(pc, "text", i), ": ", "/")
+                If ppd.ValueOf(sz) = "1" Then _
+                    prefskit_SetItem pc, i, "checked", 1&
+    
+            Next i
+        End If
+    
+        g_StyleRoster.SetNonWindowStyleIcons pc
+    
+    End If
+
 End Sub
 
 Private Sub KPrefsPage_Attached()
+Dim pc As BControl
 Dim pm As CTempMsg
 Dim i As Long
 
@@ -53,28 +81,34 @@ Dim i As Long
 
         uGetIconThemes
 
-        mPage.Add new_BPrefsControl("banner", "", "General")
+        With mPage
+            .Add new_BPrefsControl("banner", "", "General")
 
-        ' /* opacity */
+            ' /* opacity */
 
-        Set pm = New CTempMsg
-        pm.Add "min", 1&
-        pm.Add "max", 100&
-        pm.Add "freq", 10&
-        pm.Add "suffix", "%"
-        mPage.Add new_BPrefsControl("fancyslider", "global_opacity", "", "Opacity:", g_ConfigGet("global_opacity"), pm)
+            Set pm = New CTempMsg
+            pm.Add "min", 1&
+            pm.Add "max", 100&
+            pm.Add "freq", 10&
+            pm.Add "suffix", "%"
+            .Add new_BPrefsControl("fancyslider", "global_opacity", "", "Opacity:", g_ConfigGet("global_opacity"), pm)
 
-        ' /* icons */
+            ' /* icons */
 
-        mPage.Add new_BPrefsControl("fancytoggle2", "use_style_icons", "Use style-provided icons (where possible) over Snarl icons?", "Icons:", g_ConfigGet("use_style_icons"))
-        mPage.Add new_BPrefsControl("label", "", "Notification overlay theme:")
-        mPage.Add new_BPrefsControl("fancycycle", "icon_theme", uGetIconThemeList(), , CStr(uIconThemeIndex()), , (mThemes.CountItems > 1))
+            .Add new_BPrefsControl("fancytoggle2", "use_style_icons", "Use style-provided icons (where possible) over Snarl icons?", "Icons:", g_ConfigGet("use_style_icons"))
+            .Add new_BPrefsControl("label", "", "Notification overlay theme:")
+            .Add new_BPrefsControl("fancycycle", "icon_theme", uGetIconThemeList(), , CStr(uIconThemeIndex()), , (mThemes.CountItems > 1))
 
-        ' /* others */
+            ' /* others */
 
-        mPage.Add new_BPrefsControl("fancytoggle2", "show_timestamp", "Show timestamp while pointer is over notification?", "Other:", g_ConfigGet("show_timestamp"))
-        mPage.Add new_BPrefsControl("fancytoggle2", "auto_detect_url", "Automatically detect URLs in a notification?", "", g_ConfigGet("auto_detect_url"))
+            .Add new_BPrefsControl("fancytoggle2", "show_timestamp", "Show timestamp while pointer is over notification?", "Other:", g_ConfigGet("show_timestamp"))
+            .Add new_BPrefsControl("fancytoggle2", "auto_detect_url", "Automatically detect URLs in a notification?", "", g_ConfigGet("auto_detect_url"))
+'            .Add new_BPrefsControl("fancytoggle2", "no_callback_urls", "Block URLs as default callback?", "", g_ConfigGet("no_callback_urls"))
 
+'            .Add new_BPrefsControl("label", "", "Limit notification content to:")
+            .Add new_BPrefsControl("fancycycle", "style.overflow_limit", "5 lines|7 lines|15 lines", "Limit text to:", uOverflowLimit())
+
+        End With
 
     Case "lay"
 
@@ -119,49 +153,69 @@ Dim i As Long
 
     Case "vis"
 
-        mPage.Add new_BPrefsControl("banner", "", "General")
+        With mPage
 
-        i = Val(g_ConfigGet("default_duration"))
-        i = i \ 5
-        i = i * 5
+            .Add new_BPrefsControl("banner", "", "General")
 
-        Select Case i
-            Case 0:     i = 1
-            Case 5:     i = 2
-            Case 10:    i = 3
-            Case 30:    i = 4
-            Case 60:    i = 5
-            Case Else:  i = 3
+            i = Val(g_ConfigGet("default_duration"))
+            i = i \ 5
+            i = i * 5
 
-        End Select
+            Select Case i
+                Case 0:     i = 1
+                Case 5:     i = 2
+                Case 10:    i = 3
+                Case 30:    i = 4
+                Case 60:    i = 5
+                Case Else:  i = 3
 
-'        mPage.Add new_BPrefsControl("fancycycle", "default_duration", "None (sticky)|5 seconds|10 seconds|30 seconds|1 minute", "Duration:", CStr(i))
+            End Select
 
-        Set pm = New CTempMsg
-        pm.Add "min", 0&
-        pm.Add "max", 60&
-        pm.Add "freq", 5&
-        pm.Add "label_size", 50&
-        mPage.Add new_BPrefsControl("fancyslider", "default_duration", "", "Duration:", CStr(-1), pm)
-'        mPage.Add new_BPrefsControl("label", "", "The above settings can be overridden on a per-class basis by configuring the class in the 'Apps' tab.")
+'        .Add new_BPrefsControl("fancycycle", "default_duration", "None (sticky)|5 seconds|10 seconds|30 seconds|1 minute", "Duration:", CStr(i))
 
-        ' /* text overflow */
+            Set pm = New CTempMsg
+            pm.Add "min", 0&
+            pm.Add "max", 60&
+            pm.Add "freq", 5&
+            pm.Add "label_size", 50&
+            .Add new_BPrefsControl("fancyslider", "default_duration", "", "Duration:", CStr(-1), pm)
+'        .Add new_BPrefsControl("label", "", "The above settings can be overridden on a per-class basis by configuring the class in the 'Apps' tab.")
 
-'        mPage.Add new_BPrefsControl("label", "", "", "Text Limiting:")
-'        mPage.Add new_BPrefsControl("fancycycle", "text_overflow", "Any|3 Lines|5 Lines|7 Lines|9 Lines", "", "1")
+            ' /* shadowing */
+            .Add new_BPrefsControl("banner", "", "Shadowing")
+            .Add new_BPrefsControl("label", "", "In addition to the on-screen display, notification content will also be directed to the following styles:")
 
-        ' /* sounds */
+            Set pm = New CTempMsg
+            pm.Add "checkboxes", 1
+            pm.Add "item-height", 26&
+            Set pc = new_BPrefsControl("listbox", "global_shadow_list", g_StyleRoster.GetNonWindowStyleList(), "", "", pm)
+            pc.SizeTo 0, (6 * 26) + 2
+            .Add pc
 
-        mPage.Add new_BPrefsControl("banner", "", "Sounds")
-        mPage.Add new_BPrefsControl("fancytoggle2", "enable_sounds", "Enable sounds?", "", g_ConfigGet("enable_sounds"))
-        mPage.Add new_BPrefsControl("fancytoggle2", "use_style_sounds", "Use style-provided sounds (if available)?", , g_ConfigGet("use_style_sounds"))
-        mPage.Add new_BPrefsControl("fancytoggle2", "prefer_style_sounds", "Style-provided sounds take priority over app-provided sounds?", , g_ConfigGet("prefer_style_sounds"))
-'        mPage.Add new_BPrefsControl("label", "", "If enabled Snarl will use the Style sounds even if an application specifies its own.")
+        End With
 
-        mPage.Add new_BPrefsControl("label", "", "Default sounds:", "")
-        mPage.Add new_BPrefsControl("fancyfilepicker", "default_notification_sound", g_ConfigGet("default_notification_sound"), "Normal:")
-        mPage.Add new_BPrefsControl("fancyfilepicker", "default_priority_sound", g_ConfigGet("default_priority_sound"), "Priority:")
-        mPage.Add new_BPrefsControl("label", "", "Leave blank for no default sound or specify a Windows sound by prefixing with '!'.  Sounds are stored HKEY_CURRENT_USER\AppEvents\EventLabels.")
+    Case "adv"
+
+        With mPage
+'            .SetMargin 24
+
+            ' /* sounds */
+
+            .Add new_BPrefsControl("banner", "", "Sounds")
+            .Add new_BPrefsControl("fancytoggle2", "enable_sounds", "Enable sounds?", "", g_ConfigGet("enable_sounds"))
+            .Add new_BPrefsControl("fancytoggle2", "use_style_sounds", "Use style-provided sounds (if available)?", , g_ConfigGet("use_style_sounds"))
+            .Add new_BPrefsControl("fancytoggle2", "prefer_style_sounds", "Style-provided sounds take priority over app-provided sounds?", , g_ConfigGet("prefer_style_sounds"))
+'        .Add new_BPrefsControl("label", "", "If enabled Snarl will use the Style sounds even if an application specifies its own.")
+            
+            .Add new_BPrefsControl("banner", "", "Default Sounds")
+            .Add new_BPrefsControl("fancyfilepicker", "default_notification_sound", g_ConfigGet("default_notification_sound"), "Normal:")
+            .Add new_BPrefsControl("fancyfilepicker", "default_priority_sound", g_ConfigGet("default_priority_sound"), "Priority:")
+            .Add new_BPrefsControl("label", "", "Leave blank for no default sound or specify a system sound by prefixing with '!'.  System sounds are stored HKEY_CURRENT_USER\AppEvents\EventLabels.")
+
+        End With
+
+    End Select
+
 
 
         ' /* spacing */
@@ -183,52 +237,6 @@ Dim i As Long
 '        pm.Add "suffix", "%"
 '        mPage.Add new_BPrefsControl("fancyslider", "melontype_contrast", "", "Contrast:", CStr(gPrefs.melontype_contrast), pm)
 
-
-
-    Case "cd"
-
-'        ' /* class defaults */
-'
-'        i = gPrefs.default_duration
-'        i = i \ 5
-'        i = i * 5
-'
-'        Select Case i
-'        Case 0
-'            i = 1
-'
-'        Case 5
-'            i = 2
-'
-'        Case 10
-'            i = 3
-'
-'        Case 30
-'            i = 4
-'
-'        Case 60
-'            i = 5
-'
-'        Case Else
-'            i = 3
-'
-'        End Select
-'
-''        mPage.Add new_BPrefsControl("fancycycle", "default_duration", "None (sticky)|5 seconds|10 seconds|30 seconds|1 minute", "Duration:", CStr(i))
-'
-'        mPage.Add new_BPrefsControl("banner", "", "General Settings")
-'
-'        Set pm = New CTempMsg
-'        pm.Add "min", 0&
-'        pm.Add "max", 60&
-'        pm.Add "freq", 5&
-'        pm.Add "label_size", 50&
-'        mPage.Add new_BPrefsControl("fancyslider", "default_duration", "", "Duration:", CStr(-1), pm)
-'
-'        mPage.Add new_BPrefsControl("fancycycle", "default_position", "Top Left#?0|Top Right#?1|Bottom Left#?2|Bottom Right#?3", "Position:", CStr(gPrefs.default_position + 1))
-
-
-    End Select
 
 End Sub
 
@@ -321,6 +329,19 @@ Dim i As Long
         g_LoadIconTheme
 
 
+    Case "style.overflow_limit"
+        Select Case Value
+        Case "1"
+            g_ConfigSet Control.GetName, "5"
+
+        Case "2"
+            g_ConfigSet Control.GetName, "7"
+
+        Case "3"
+            g_ConfigSet Control.GetName, "15"
+
+        End Select
+
     End Select
 
 
@@ -333,6 +354,32 @@ Private Sub KPrefsPage_ControlInvoked(Control As prefs_kit_d2.BControl)
 End Sub
 
 Private Sub KPrefsPage_ControlNotify(Control As prefs_kit_d2.BControl, ByVal Notification As String, Data As melon.MMessage)
+Dim ppd As BPackedData
+Dim i As Long
+Dim j As Long
+
+    Select Case Control.GetName
+
+    Case "global_shadow_list"
+        If Notification = "checked" Then
+            ' /* get item name */
+            Set ppd = New BPackedData
+            j = prefskit_GetItemCount(Control)
+            If j Then
+                For i = 1 To j
+                    If prefskit_GetItem(Control, "checked", i) = "1" Then _
+                        ppd.Add Replace$(prefskit_GetItem(Control, "text", i), ": ", "/"), "1"
+
+                Next i
+
+            End If
+
+            g_ConfigSet "global_shadow_list", ppd.AsString
+
+        End If
+
+    End Select
+
 End Sub
 
 Private Sub KPrefsPage_Create(Page As prefs_kit_d2.BPrefsPage)
@@ -553,3 +600,24 @@ Dim sz As String
     g_Debug "", LEMON_LEVEL_PROC_EXIT
 
 End Sub
+
+Private Function uOverflowLimit() As String
+Dim n As Long
+
+    ' /* translate the number of lines into a cyclebutton value */
+
+    n = g_SafeLong(g_ConfigGet("style.overflow_limit"))
+
+    Select Case n
+    Case 5
+        uOverflowLimit = "1"
+
+    Case 15
+        uOverflowLimit = "3"
+
+    Case Else
+        uOverflowLimit = "2"
+
+    End Select
+
+End Function

@@ -47,40 +47,21 @@ Dim i As Long
                                             "untick it's entry in the list below:")
 
         Set pm = New CTempMsg
-'        pm.Add "checkboxes", 1
         pm.Add "item-height", 36&
         Set pc = new_BPrefsControl("listbox", "lb>extensions", , , "1", pm)
-        pc.SizeTo 0, 160
+        pc.SizeTo 0, 200
         .Add pc
 
         .Add new_BPrefsControl("fancytoolbar", "extension_toolbar", "Start|Stop|Details|Configure...||Show in Explorer")
-
-
-'        .Add new_BPrefsControl("fancybutton2", "fb2>ext.cfg", "Configure", , , , False)
-
-'        Set pc = new_BPrefsControl("label", "ext_desc", " ", "Description:")
-'        pc.SizeTo 0, 26
-'        mPage.Add pc
-
-'        .Add new_BPrefsControl("label", "ext_desc", String$(92, " "), "Description:")
-'        .Add new_BPrefsControl("label", "ext_info", String$(92, " "), "Version:")
-        .Add new_BPrefsControl("label", "ext_stat", String$(92, " "), "")
-'        .Add new_BPrefsControl("separator", "")
-        
+        .Add new_BPrefsSeparator
         .Add new_BPrefsControl("fancytoolbar", "toolbar-general", "Reload Extensions|Install Extension...")
-
-'        .Add new_BPrefsControl("fancybutton2", "fb2>ext.reload", "Reload Extensions")
-        .Add new_BPrefsControl("separator", "")
+        .Add new_BPrefsSeparator
 
         Set pm = New CTempMsg
         pm.Add "image-file", g_MakePath(App.Path) & "etc\icons\info_emblem.png"
-'        pm.Add "valign", "centre"
         Set pc = new_BPrefsControl("labelex", "", "To prevent extensions from being loaded, hold down either Control (Ctrl) key while Snarl loads.", , , pm)
-        pc.SizeTo 0, 56
+        pc.SizeTo 0, 24
         .Add pc
-
-
-        .Add new_BPrefsControl("label", "", "")
 
     End With
 
@@ -330,7 +311,7 @@ Private Sub KPrefsPage_GetPreferredSize(Width As Long, Height As Long)
 
 End Sub
 
-Private Function KPrefsPage_hWnd() As Long
+Private Function KPrefsPage_hwnd() As Long
 
 End Function
 
