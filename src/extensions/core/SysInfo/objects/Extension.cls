@@ -587,95 +587,80 @@ Dim sz As String
 Dim szic As String
 Dim hr As Long
 Dim szText As String
+Static lPrev As Long
+Dim pt As BTagItem
 
     On Error Resume Next
 
     g_Debug "Extension/theHandler_ClipboardChanged()", LEMON_LEVEL_PROC_ENTER
 
-    Set pContent = new_BTagList()
+    Set pContent = clipboard_GetContent()
 
-    If OpenClipboard(0) Then
-        Err.Clear
-        hr = EnumClipboardFormats(0)
+    If pContent.CountItems > 0 Then
+        ' /* apply some intelligence to what's been copied */
 
-        Do While hr
-            ' /* add the content */
-            g_Debug g_HexStr(hr, 4) & ": " & clipboard_GetFormatName(hr)
+        If pContent.IndexOf(CStr(CF_TEXT)) Then
+            ' /* standard text - set notification text to it */
+            sz = clipboard_GetAsString()
+            If InStr(sz, "://") <> 0 Then
+                ' /* url: set it as the default callback */
+                szcb = sz
 
-            Select Case hr
-            Case CF_TEXT
-                pContent.Add new_BTagItem(CStr(hr), clipboard_GetAsString())
+            ElseIf g_IsWebColour(sz, hr) Then
+                ' /* icon is a block of the colour */
+                szic = g_MakePath(App.Path) & "colourblock.png"
+                sz = "Colour " & sz & " (" & g_ToRGBNotation(hr) & ")"
 
-            Case Else
-                pContent.Add new_BTagItem(CStr(hr), "")
+                With New mfxView
+                    .SetHighColour (hr Or &HFF000000)
+                    .EnableSmoothing False
+                    .SizeTo 96, 96
+                    .FillRect .Bounds
+                    .WriteToFile szic, "image/png"
 
-            End Select
-
-            sz = sz & clipboard_GetFormatName(hr) & " (" & g_HexStr(hr) & ")" & vbCrLf
-            hr = EnumClipboardFormats(hr)
-
-        Loop
-
-        CloseClipboard
-
-        If Err.LastDllError = 0 Then
-            g_Debug "count=" & pContent.CountItems
-            If pContent.CountItems > 0 Then
-                ' /* apply some intelligence to what's been copied */
-
-                If pContent.IndexOf(CStr(CF_TEXT)) Then
-                    ' /* standard text - set notification text to it */
-                    sz = pContent.ValueOf(CStr(CF_TEXT))
-
-                    If InStr(sz, "://") <> 0 Then
-                        ' /* url: set it as the default callback */
-                        szcb = sz
-
-                    ElseIf g_IsWebColour(sz, hr) Then
-                        ' /* icon is a block of the colour */
-                        szic = g_MakePath(App.Path) & "colourblock.png"
-                        sz = "Colour " & sz & " (" & g_ToRGBNotation(hr) & ")"
-
-                        With New mfxView
-                            .SetHighColour (hr Or &HFF000000)
-                            .EnableSmoothing False
-                            .SizeTo 96, 96
-                            .FillRect .Bounds
-                            .WriteToFile szic, "image/png"
-
-                        End With
-
-                    End If
-
-                ElseIf pContent.IndexOf(CStr(CF_BITMAP)) Then
-                    ' /* bitmap */
-                    If OpenClipboard(0) <> 0 Then
-                        hr = GetClipboardData(CF_BITMAP)
-                        uSaveBitmap hr, szic
-
-                    End If
-
-                End If
-
-                bShow = True
+                End With
 
             Else
-                g_Debug "nothing in the clipboard", LEMON_LEVEL_CRITICAL
+                ' /* other text */
+                sz = g_Quote(Replace$(sz, vbCrLf, "¶"))
+
+            End If
+
+        ElseIf pContent.IndexOf(CStr(CF_BITMAP)) Then
+            ' /* bitmap */
+            If OpenClipboard(0) <> 0 Then
+                hr = GetClipboardData(CF_BITMAP)
+                uSaveBitmap hr, szic
+                CloseClipboard
 
             End If
 
         Else
-            g_Debug "error enumerating clipboard content: " & Err.LastDllError, LEMON_LEVEL_CRITICAL
+            ' /* we don't know about it so list all the types */
+            With pContent
+                .Rewind
+                Do While .GetNextTag(pt) = B_OK
+                    sz = sz & clipboard_GetFormatName(Val(pt.Name)) & " (" & g_HexStr(Val(pt.Name)) & ")" & vbCrLf
 
+                Loop
+            End With
         End If
 
+        bShow = True
+
     Else
-        g_Debug "error opening clipboard", LEMON_LEVEL_CRITICAL
+        g_Debug "nothing in the clipboard", LEMON_LEVEL_CRITICAL
 
     End If
 
-    If bShow Then _
-        sn41EZNotify mToken, CLASS_CLIPBOARD, "Clipboard changed", sz, , IIf(szic <> "", szic, g_MakePath(App.Path) & "clipboard.png"), , szcb
+    ' /* lPrev contains the tick count the last time we notified; if it's less than 500ms
+    '    we don't bother displaying the notification in an effort to reduce spam */
+
+    If (bShow) And ((GetTickCount - lPrev) > 500) Then
+        Call sn41EZNotify(mToken, CLASS_CLIPBOARD, "Clipboard changed", sz, , IIf(szic <> "", szic, g_MakePath(App.Path) & "clipboard.png"), , szcb)
+        lPrev = GetTickCount()
+
+    End If
 
     If szic <> "" Then _
         DeleteFile szic
