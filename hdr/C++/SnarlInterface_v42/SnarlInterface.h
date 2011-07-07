@@ -1,5 +1,5 @@
-﻿#ifndef SNARL_INTERFACE_V42
-#define SNARL_INTERFACE_V42
+﻿#ifndef SNARL_INTERFACE_V42_H
+#define SNARL_INTERFACE_V42_H
 
 #ifdef __MINGW32__
 	#define MINGW_HAS_SECURE_API
@@ -368,4 +368,4 @@ namespace Snarl {
 	} // namespace V42
 } // namespace Snarl
 
-#endif // SNARL_INTERFACE_V42
+#endif // SNARL_INTERFACE_V42_H
