@@ -37,6 +37,8 @@ int _tmain(int argc, _TCHAR* argv[])
 
 void Example1()
 {
+	const LPCTSTR APP_ID = _T("CppTest"); 
+
 	SnarlInterface snarl;
 
 	// Manuel test
@@ -45,7 +47,7 @@ void Example1()
 		tout << _T("Last call returned an error. Errorcode: ") << abs(ret) << std::endl;
 
 	// Simple test
-	snarl.Register(_T("CppTest"), _T("C++ test app"), NULL);
+	snarl.Register(APP_ID, _T("C++ test app"), NULL);
 	snarl.AddClass(_T("Class1"), _T("Class 1"));
 
 	tout << _T("Ready for action. Will post some messages...") << std::endl;
@@ -54,7 +56,7 @@ void Example1()
 
 	tout << _T("Hit a key to unregister") << std::endl;
 	_getch();
-	snarl.Unregister(_T("CppTest"));
+	snarl.Unregister(APP_ID);
 }
 
 // Strict example from SnarlInterface.cpp

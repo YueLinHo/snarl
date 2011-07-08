@@ -26,22 +26,8 @@
 /// are converted to UTF8 by SnarlInterface before sent to Snarl. So using the
 /// ANSI/UTF8/LPCSTR versions of the functions are faster!
 ///
-/// --------------------------------------------------------------------------
-/// Example:
-/// <code>
-/// 	const LPCTSTR APP_ID = _T("CppTest");
-/// 
-/// 	SnarlInterface snarl;
-/// 	snarl.RegisterApp(APP_ID, _T("C++ test app"), NULL);
-/// 
-/// 	snarl.AddClass(_T("Class1"), _T("Some class description"));
-/// 	snarl.EZNotify(_T("Class1"), _T("C++ example 1"), _T("Some text"), 10);
-/// 
-/// 	cout &lt;&lt; "Hit a key to unregister" &lt;&lt; std::endl;
-/// 	_getch();
-/// 	snarl.UnregisterApp(APP_ID);///
-///  Please see the sample test code for me examples.
-/// </code>
+/// See https://sourceforge.net/apps/mediawiki/snarlwin/index.php?title=Windows_API#C.2B.2B
+/// for example code etc.
 /// </summary>
 ///----------------------------------------------------------------------------
 /// <VersionHistory>
