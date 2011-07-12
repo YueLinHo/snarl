@@ -1,4 +1,4 @@
-﻿#ifndef SNARL_INTERFACE_V42_H
+#ifndef SNARL_INTERFACE_V42_H
 #define SNARL_INTERFACE_V42_H
 
 #ifdef __MINGW32__
@@ -126,7 +126,7 @@ namespace Snarl {
 	class SnarlParameterList
 	{
 	public:
-		typedef std::pair<std::basic_string<T>, std::basic_string<T>> PairType;
+		typedef std::pair<std::basic_string<T>, std::basic_string<T> > PairType;
 
 		SnarlParameterList()
 		{

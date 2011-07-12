@@ -1,4 +1,4 @@
-﻿/// <summary>
+/// <summary>
 /// Snarl C++ interface implementation
 /// API version 42
 ///
@@ -31,6 +31,7 @@
 /// </summary>
 ///----------------------------------------------------------------------------
 /// <VersionHistory>
+///  2011-07-12 : MingW64 fixes by Patrick von Reth
 ///  2011-07-07 : Some changes to compile under VS2008
 ///                 - Changed vector iterators to begin/end instead of cbegin/cend
 ///                 - Removed const in PairType
@@ -55,6 +56,8 @@ namespace V42 {
 // workaround for mingw-w64 bug
 #ifdef __MINGW64_VERSION_MAJOR
 	extern "C" {
+		__declspec(dllimport) errno_t __cdecl strcpy_s(char * _Dst, size_t _SizeInBytes, const char *_Src);
+		__declspec(dllimport) errno_t __cdecl wcscpy_s(wchar_t * _Dst, size_t _SizeInBytes, const wchar_t *_Src);
 		__declspec(dllimport) errno_t __cdecl strncat_s(char *_Dst, size_t _DstSizeInChars, const char *_Src, size_t _MaxCount);
 	}
 #endif //__MINGW64_VERSION_MAJOR
