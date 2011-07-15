@@ -376,7 +376,7 @@ Dim dw As Long
         pcds.dwData = 2                 '// SNARLSTRUCT
         pcds.cbData = LenB(pss)
         pcds.lpData = VarPtr(pss)
-        If SendMessageTimeout(hWnd, WM_COPYDATA, m_hwndFrom, pcds, SMTO_ABORTIFHUNG, Timeout, dw) > 0 Then
+        If SendMessageTimeout(hWnd, WM_COPYDATA, IIf(m_hwndFrom = 0, GetCurrentProcessId(), m_hwndFrom), pcds, SMTO_ABORTIFHUNG, Timeout, dw) > 0 Then
             ' /* worked! */
             uSend = dw
 

@@ -210,6 +210,8 @@ Dim i As Long
 
     ' /* pre-processing */
 
+    Debug.Print ">>> '" & sCommand; "'"
+
 Dim sz As String
 
     Select Case sCommand
@@ -565,7 +567,7 @@ Dim sz As String
 
     End Select
 
-    uSNPCreateReply = "SNP/1.1/" & CStr(ReturnCode) & "/" & sz & IIf(Data <> "", "/" & Data, "") & vbCrLf
+    uSNPCreateReply = "SNP/" & SNP_VERSION & "/" & CStr(ReturnCode) & "/" & sz & IIf(Data <> "", "/" & Data, "") & vbCrLf
 
 End Function
 
@@ -634,7 +636,7 @@ Dim sz As String
 
     End Select
 
-    sz = "SNP/2.0/" & CStr(StatusCode) & "/" & sz & IIf(Data <> "", "/" & Data, "") & vbCrLf
+    sz = "SNP/" & SNP_VERSION & "/" & CStr(StatusCode) & "/" & sz & IIf(Data <> "", "/" & Data, "") & vbCrLf
     Debug.Print "uSNPReply(): replying with '" & sz & "'"
     theSocket.SendData sz
 
@@ -752,7 +754,10 @@ Dim sz As String
     g_Debug "TRemoteConnection.uDoSNP(): SNP packet received from " & theSocket.RemoteHostIP & ":" & theSocket.RemotePort & "..."
     theSocket.GetData sz
 
-    sz = g_SafeLeftStr(sz, Len(sz) - 1)        ' // strip the trailing CR
+    ' /* remove CRs and LFs */
+
+    sz = Replace$(sz, vbCr, "")
+    sz = Replace$(sz, vbLf, "")
 
     If LCase$(g_SafeLeftStr(sz, 6)) = "snp://" Then
         g_Debug "TRemoteConnection.uDoSNP(): is SNP2 request"
@@ -1086,7 +1091,7 @@ End Function
 Private Function uSNP3BuildResponse(ByVal StatusCode As SNARL_STATUS_CODE, Optional ByVal Hint As String, Optional ByVal Actions As String) As String
 Dim sz As String
 
-    sz = "SNP/3.0 " & IIf(StatusCode = SNARL_SUCCESS, "OK", "FAILED") & vbCrLf
+    sz = "SNP/" & SNP_VERSION & " " & IIf(StatusCode = SNARL_SUCCESS, "OK", "FAILED") & vbCrLf
 
     ' /* only if StatusCode indicates error */
 
@@ -1103,7 +1108,7 @@ Dim sz As String
     ' /* standard headers */
 
     sz = sz & "x-timestamp: " & Format$(Now(), "d mmm yyyy hh:mm:ss") & vbCrLf
-    sz = sz & "x-daemon: " & "Snarl " & CStr(APP_VER) & "." & CStr(APP_SUB_VER) & vbCrLf
+    sz = sz & "x-daemon: " & "Snarl " & CStr(APP_VER) & "." & CStr(APP_SUB_VER) & IIf(APP_SUB_SUB_VER <> 0, "." & CStr(APP_SUB_SUB_VER), "") & vbCrLf
     sz = sz & "x-host: " & LCase$(g_GetComputerName()) & vbCrLf
     sz = sz & "END" & vbCrLf
 

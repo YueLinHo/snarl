@@ -113,7 +113,8 @@ Dim bEnabled As Boolean
                         "log_during_dnd::1#?block_spam::0#?" & _
                         "normal_mode::1#?away_mode::1#?busy_mode::1#?" & _
                         "override-normal::1#?override-away::1#?override-busy::1#?" & _
-                        "block_if_foreground::0"
+                        "block_if_foreground::0#?" & _
+                        "use_custom_ations::0#?custom_actions::"
 
         Set .Forward = new_BTagList()
 
@@ -478,6 +479,40 @@ Dim lDur As E_NOTIFICATION_DURATION
             Info.DefaultAck = Info.Text
 
         End If
+
+    End If
+
+Dim sn As String
+Dim sv As String
+
+    If (Info.Actions Is Nothing) Then _
+        Set Info.Actions = new_BTagList()                   ' // create list even if there are no actions defined
+
+    ' /* R2.4.2 DR3: add any custom actions */
+
+    If Me.GetValue("use_custom_actions") = "1" Then
+        With New TPackedData
+            If .SetTo(Me.GetValue("custom_actions"), ";", "=") Then
+                .Rewind
+                Do While .GetNextItem(sn, sv)
+                    Info.Actions.Add new_BTagItem(sn, sv)
+
+                Loop
+            End If
+        End With
+    End If
+
+    ' /* R2.4 DR7 - append any existing actions */
+
+    If Not (Args Is Nothing) Then
+        With Args
+            .Rewind
+            Do While .GetNextItem(sn, sv)
+                If sn = "action" Then _
+                    uGetAction Info.Actions, sv
+
+            Loop
+        End With
     End If
 
     ' /* send it to the notification roster */
@@ -560,3 +595,29 @@ Dim i As Long
     End With
 
 End Sub
+
+Private Sub uGetAction(ByRef ListToAddTo As BTagList, ByVal PackedAction As String)
+Dim i As Long
+
+    ' /* only interested in _first_ comma */
+
+    i = InStr(PackedAction, ",")
+    If i = 0 Then _
+        Exit Sub
+
+Dim szLbl As String
+Dim szCmd As String
+
+    szLbl = g_SafeLeftStr(PackedAction, i - 1)
+    szCmd = g_SafeRightStr(PackedAction, Len(PackedAction) - i)
+
+    ' /* must have a label and command */
+
+    If (szLbl = "") Or (szCmd = "") Then _
+        Exit Sub
+
+    ListToAddTo.Add new_BTagItem(szLbl, szCmd)
+
+End Sub
+
+

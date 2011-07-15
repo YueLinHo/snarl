@@ -1,6 +1,34 @@
 
 	Snarl Change Log
 
+	- Can now have assign custom actions on a class-by-class basis.  (42.149)
+
+	- Bug in misc.resource (and misc2.resource) BPackedData causing problems
+	  with notification fixed temporariliy (will need fixing in both melon).
+	  This showed itself in a number of GNTP applications so credit to Skip
+	  and Pieter for raising it.  (42.147)
+
+	- <addclass> now returns ARG_MISSING if neither a token or app-sig is
+	  provided and NOT_REGISTERED if no applications have been registered.
+	  Credit to Shawn McTeer.  (42.146)
+
+	- SNP3 response now includes Snarl sub-version number in "x-daemon"
+	  header whenever appropriate.  (42.146)
+
+	- SNP2 and SNP1 responses now include current supported SNP version.
+	  (42.146)
+
+	- Bugs in SNP2 handling code fixed.  Credit to Shawn McTeer.  (42.146)
+
+	- GNTP handling code now removes whitespace as per clarification from GNTP
+	  authors.  (42.145)
+
+	- Renamed "Shadowing" to "Pass-Thru" in preferences panel.  (42.144)
+
+	- Restored sound settings into [Behaviour] sub page.  (42.144)
+
+	- Created new [Pass-Thru] display sub page.  (42.144)
+
 	- Revised SNP3.0 response specification and added callback support.  (42.137)
 
 	- Support for phat64 icons added to apps, classes and notifications (create

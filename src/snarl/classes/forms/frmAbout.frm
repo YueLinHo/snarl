@@ -45,8 +45,8 @@ Begin VB.Form frmAbout
       Height          =   435
       Index           =   5
       Left            =   1980
-      TabIndex        =   6
-      Top             =   1500
+      TabIndex        =   5
+      Top             =   1200
       Width           =   3555
    End
    Begin VB.Label Label3 
@@ -64,8 +64,8 @@ Begin VB.Form frmAbout
       Height          =   915
       Index           =   4
       Left            =   1980
-      TabIndex        =   5
-      Top             =   1980
+      TabIndex        =   4
+      Top             =   1680
       Width           =   4395
    End
    Begin VB.Label Label1 
@@ -84,7 +84,7 @@ Begin VB.Form frmAbout
       ForeColor       =   &H008A504A&
       Height          =   255
       Left            =   2370
-      TabIndex        =   4
+      TabIndex        =   3
       Top             =   3180
       Width           =   1710
    End
@@ -126,7 +126,7 @@ Begin VB.Form frmAbout
       Height          =   375
       Index           =   0
       Left            =   1980
-      TabIndex        =   3
+      TabIndex        =   2
       Top             =   180
       Width           =   2955
    End
@@ -145,13 +145,13 @@ Begin VB.Form frmAbout
       Height          =   315
       Index           =   1
       Left            =   1980
-      TabIndex        =   2
+      TabIndex        =   1
       Top             =   600
       Width           =   3255
    End
    Begin VB.Label Label3 
       BackStyle       =   0  'Transparent
-      Caption         =   "© 2005-2010 full phat products"
+      Caption         =   "© 2005-2011 full phat products"
       BeginProperty Font 
          Name            =   "Calibri"
          Size            =   9
@@ -164,28 +164,9 @@ Begin VB.Form frmAbout
       Height          =   255
       Index           =   2
       Left            =   1980
-      TabIndex        =   1
-      Top             =   1200
-      Width           =   4155
-   End
-   Begin VB.Label Label3 
-      BackStyle       =   0  'Transparent
-      Caption         =   "Inspired by Growl for Macintosh"
-      BeginProperty Font 
-         Name            =   "Calibri"
-         Size            =   9
-         Charset         =   0
-         Weight          =   400
-         Underline       =   0   'False
-         Italic          =   0   'False
-         Strikethrough   =   0   'False
-      EndProperty
-      Height          =   255
-      Index           =   3
-      Left            =   1980
       TabIndex        =   0
-      Top             =   840
-      Width           =   3435
+      Top             =   900
+      Width           =   4155
    End
    Begin VB.Shape Shape1 
       BackColor       =   &H00FFFFFF&
@@ -952,8 +933,12 @@ Dim pdsp As TDisplaySubPage
                 BTabStrip_AddPage pc, "Behaviour", new_BPrefsPage("pg>" & pdsp.Name, , pdsp)
 
                 Set pdsp = New TDisplaySubPage
-                pdsp.Name = "adv"
-                BTabStrip_AddPage pc, "Sounds", new_BPrefsPage("pg>" & pdsp.Name, , pdsp)
+                pdsp.Name = "thu"
+                BTabStrip_AddPage pc, "Pass-Thru", new_BPrefsPage("pg>" & pdsp.Name, , pdsp)
+
+'                Set pdsp = New TDisplaySubPage
+'                pdsp.Name = "adv"
+'                BTabStrip_AddPage pc, "Sounds", new_BPrefsPage("pg>" & pdsp.Name, , pdsp)
 
                 .Add pc
                 .Add new_BPrefsControl("fancybutton2", "test_display_settings", "Test Settings")
@@ -1244,7 +1229,7 @@ Private Property Get MMessageSink_Name() As String
 
 End Property
 
-Private Function MMessageSink_Received(message As melon.MMessage) As Boolean
+Private Function MMessageSink_Received(Message As melon.MMessage) As Boolean
 End Function
 
 Friend Sub bUpdateExtList()

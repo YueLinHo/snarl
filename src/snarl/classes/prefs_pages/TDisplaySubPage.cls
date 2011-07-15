@@ -181,23 +181,6 @@ Dim i As Long
             .Add new_BPrefsControl("fancyslider", "default_duration", "", "Duration:", CStr(-1), pm)
 '        .Add new_BPrefsControl("label", "", "The above settings can be overridden on a per-class basis by configuring the class in the 'Apps' tab.")
 
-            ' /* shadowing */
-            .Add new_BPrefsControl("banner", "", "Shadowing")
-            .Add new_BPrefsControl("label", "", "In addition to the on-screen display, notification content will also be directed to the following styles:")
-
-            Set pm = New CTempMsg
-            pm.Add "checkboxes", 1
-            pm.Add "item-height", 26&
-            Set pc = new_BPrefsControl("listbox", "global_shadow_list", g_StyleRoster.GetNonWindowStyleList(), "", "", pm)
-            pc.SizeTo 0, (6 * 26) + 2
-            .Add pc
-
-        End With
-
-    Case "adv"
-
-        With mPage
-'            .SetMargin 24
 
             ' /* sounds */
 
@@ -212,7 +195,55 @@ Dim i As Long
             .Add new_BPrefsControl("fancyfilepicker", "default_priority_sound", g_ConfigGet("default_priority_sound"), "Priority:")
             .Add new_BPrefsControl("label", "", "Leave blank for no default sound or specify a system sound by prefixing with '!'.  System sounds are stored HKEY_CURRENT_USER\AppEvents\EventLabels.")
 
+
         End With
+
+
+
+
+
+    Case "thu"
+        
+        ' /* Pass-Through settings */
+
+Const ITEM_HEIGHT = 30
+Const NUM_ITEMS = 10
+
+        With mPage
+            .SetMargin 0
+            .Add new_BPrefsControl("label", "", "In addition to the on-screen display, notification content will also be directed to the following styles:")
+
+            Set pm = New CTempMsg
+            pm.Add "checkboxes", 1
+            pm.Add "item-height", CLng(ITEM_HEIGHT)
+            Set pc = new_BPrefsControl("listbox", "global_shadow_list", g_StyleRoster.GetNonWindowStyleList(), "", "", pm)
+            pc.SizeTo 0, (NUM_ITEMS * ITEM_HEIGHT) + 2
+            .Add pc
+
+        End With
+
+
+    Case "adv"
+
+        ' /* Sounds settings */
+
+'        With mPage
+''            .SetMargin 24
+'
+'            ' /* sounds */
+'
+'            .Add new_BPrefsControl("banner", "", "Sounds")
+'            .Add new_BPrefsControl("fancytoggle2", "enable_sounds", "Enable sounds?", "", g_ConfigGet("enable_sounds"))
+'            .Add new_BPrefsControl("fancytoggle2", "use_style_sounds", "Use style-provided sounds (if available)?", , g_ConfigGet("use_style_sounds"))
+'            .Add new_BPrefsControl("fancytoggle2", "prefer_style_sounds", "Style-provided sounds take priority over app-provided sounds?", , g_ConfigGet("prefer_style_sounds"))
+''        .Add new_BPrefsControl("label", "", "If enabled Snarl will use the Style sounds even if an application specifies its own.")
+'
+'            .Add new_BPrefsControl("banner", "", "Default Sounds")
+'            .Add new_BPrefsControl("fancyfilepicker", "default_notification_sound", g_ConfigGet("default_notification_sound"), "Normal:")
+'            .Add new_BPrefsControl("fancyfilepicker", "default_priority_sound", g_ConfigGet("default_priority_sound"), "Priority:")
+'            .Add new_BPrefsControl("label", "", "Leave blank for no default sound or specify a system sound by prefixing with '!'.  System sounds are stored HKEY_CURRENT_USER\AppEvents\EventLabels.")
+'
+'        End With
 
     End Select
 
@@ -240,7 +271,7 @@ Dim i As Long
 
 End Sub
 
-Private Sub KPrefsPage_ControlChanged(Control As prefs_kit_d2.BControl, ByVal Value As String)
+Private Sub KPrefsPage_ControlChanged(Control As prefs_kit_d2.BControl, ByVal value As String)
 Dim fUpdate As Boolean
 Dim pc As BControl
 Dim pm As CTempMsg
@@ -248,7 +279,7 @@ Dim sz As String
 Dim dw As Long
 Dim i As Long
 
-    Debug.Print "[" & mPage.GetName() & "]: ControlChanged '" & Control.GetName() & "' >> '" & Value & "'"
+    Debug.Print "[" & mPage.GetName() & "]: ControlChanged '" & Control.GetName() & "' >> '" & value & "'"
 
     Select Case Control.GetName()
 
@@ -263,12 +294,12 @@ Dim i As Long
 
 
     Case "ft>use_dropshadow"
-        gPrefs.use_dropshadow = (Val(Value) <> 0)
+        gPrefs.use_dropshadow = (Val(value) <> 0)
         If mPage.Find("dropshadow_strength", pc) Then _
-            pc.SetEnabled (Val(Value) <> 0)
+            pc.SetEnabled (Val(value) <> 0)
 
         If mPage.Find("dropshadow_size", pc) Then _
-            pc.SetEnabled (Val(Value) <> 0)
+            pc.SetEnabled (Val(value) <> 0)
 
         fUpdate = True
 
@@ -286,7 +317,7 @@ Dim i As Long
          "default_notification_sound", "default_priority_sound", "enable_sounds", "use_style_sounds", "prefer_style_sounds", _
          "use_style_icons", "show_timestamp", "auto_detect_url"
 
-        g_ConfigSet Control.GetName, Value
+        g_ConfigSet Control.GetName, value
 
 
     Case "default_scheme"
@@ -309,7 +340,7 @@ Dim i As Long
 
 
     Case "default_duration"
-        Select Case Val(Value)
+        Select Case Val(value)
         Case 0
             Control.SetText "Sticky"
 
@@ -317,20 +348,20 @@ Dim i As Long
             Control.SetText "1 sec"
 
         Case Else
-            Control.SetText Value & " secs"
+            Control.SetText value & " secs"
 
         End Select
 
-        g_ConfigSet Control.GetName, Value
+        g_ConfigSet Control.GetName, value
 
 
     Case "icon_theme"
-        g_ConfigSet Control.GetName, mThemes.TagAt(Val(Value)).Value
+        g_ConfigSet Control.GetName, mThemes.TagAt(Val(value)).value
         g_LoadIconTheme
 
 
     Case "style.overflow_limit"
-        Select Case Value
+        Select Case value
         Case "1"
             g_ConfigSet Control.GetName, "5"
 
@@ -539,7 +570,7 @@ Dim i As Long
         .Rewind
         Do While .GetNextTag(pt) = B_OK
             i = i + 1
-            If pt.Value = sz Then
+            If pt.value = sz Then
                 uIconThemeIndex = i
                 Exit Function
             
@@ -555,11 +586,11 @@ Private Function uTranslateIconTheme(ByVal Path As String) As String
 
     Path = g_RemoveExtension(g_FilenameFromPath(Path))
 
-Dim s() As String
+Dim S() As String
 
-    s = Split(Path, "@")
-    If UBound(s) = 1 Then
-        uTranslateIconTheme = s(1) & " by " & s(0)
+    S = Split(Path, "@")
+    If UBound(S) = 1 Then
+        uTranslateIconTheme = S(1) & " by " & S(0)
 
     Else
         uTranslateIconTheme = Path

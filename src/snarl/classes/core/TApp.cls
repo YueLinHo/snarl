@@ -34,9 +34,9 @@ Dim mAppConfig As ConfigSection ' // persistent app settings
 Dim mIsUnknown As Boolean       ' // new app (or, one without persistent settings anyway)
 
     ' /* R2.4.2 */
-Dim mIsBanned As Boolean        ' // app has attempted a DOS
+Dim mIsBanned As Boolean        ' // app has attempted a DoS (or otherwise been banned)
 Dim mLastNotificationTick As Long
-Dim mDOSCount As Long
+Dim mDoSCount As Long
 
 Implements mObject
 
@@ -413,7 +413,7 @@ Dim i As Long
 
         ' /* R2.4 DR7: new "value" arg */
 
-        .Value = pData.ValueOf("value")
+        .value = pData.ValueOf("value")
 
         ' /* R2.4 DR7: internal-only args (can only be set at g_DoNotify() level) */
 
@@ -833,6 +833,8 @@ Public Function IsBanned() As Boolean
 End Function
 
 Private Function uCheckDOS() As Boolean
+Const BAN_NUMBER = 10           ' // this many...
+Const BAN_QUANTUM = 50          ' // ...each within this many ms = ban
 
     If g_ConfigGet("block_dos_attempt") = "0" Then _
         Exit Function
@@ -842,14 +844,14 @@ Private Function uCheckDOS() As Boolean
         gSetLastError SNARL_ERROR_ACCESS_DENIED
 
     Else
-        ' /* if we get 5 notifications, each within 100ms, that's a DOS */
+        ' /* if we get 10 notifications, each within 50ms, that's a DOS */
 
-        If (GetTickCount() - mLastNotificationTick) < 100 Then
-            mDOSCount = mDOSCount + 1
-            g_Debug "TApp.uCheckDOS(): notification within quantum (" & GetTickCount() - mLastNotificationTick & ") count=" & mDOSCount
+        If (GetTickCount() - mLastNotificationTick) < BAN_QUANTUM Then
+            mDoSCount = mDoSCount + 1
+            g_Debug "TApp.uCheckDOS(): notification within quantum (" & GetTickCount() - mLastNotificationTick & ") count=" & mDoSCount
 
-            If mDOSCount > 4 Then
-                g_Debug "TApp.uCheckDOS(): DOS attack by '" & mInfo.Signature & "' detected", LEMON_LEVEL_CRITICAL
+            If mDoSCount >= BAN_NUMBER Then
+                g_Debug "TApp.uCheckDOS(): possible DoS attack by '" & mInfo.Signature & "' detected", LEMON_LEVEL_CRITICAL
                 If gDebugMode Then _
                     g_PrivateNotify SNARL_CLASS_GENERAL, "Application blocked", mInfo.Name & " (" & mInfo.Signature & ") generated a large number of notifications within a short period of time and has been blocked"
 
@@ -861,7 +863,7 @@ Private Function uCheckDOS() As Boolean
 
         Else
             ' /* reset */
-            mDOSCount = 0
+            mDoSCount = 0
 
         End If
     

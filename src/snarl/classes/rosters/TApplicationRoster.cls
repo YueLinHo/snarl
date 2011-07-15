@@ -669,8 +669,17 @@ End Function
 
 Public Function FindByToken(ByVal Token As Long, ByRef App As TApp, ByVal Password As String) As Boolean
 
-    If (Token = 0) Or (mCount = 0) Then _
+    If Token = 0 Then
+        gSetLastError SNARL_ERROR_ARG_MISSING
         Exit Function
+
+    End If
+
+    If mCount = 0 Then
+        gSetLastError SNARL_ERROR_NOT_REGISTERED
+        Exit Function
+
+    End If
 
 Static i As Long
 
@@ -700,9 +709,18 @@ End Function
 
 Public Function FindBySignature(ByVal Signature As String, ByRef App As TApp, ByVal Password As String) As Boolean
 
-    If (Signature = "") Or (mCount = 0) Then _
+    If Signature = "" Then
+        gSetLastError SNARL_ERROR_ARG_MISSING
         Exit Function
 
+    End If
+
+    If mCount = 0 Then
+        gSetLastError SNARL_ERROR_NOT_REGISTERED
+        Exit Function
+
+    End If
+    
 Static i As Long
 
     For i = 1 To mCount

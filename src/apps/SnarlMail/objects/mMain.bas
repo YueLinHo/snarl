@@ -2,7 +2,7 @@ Attribute VB_Name = "mMain"
 Option Explicit
 
 Public Const WM_TEST = &H400 + 1
-Public Const WM_CLOSE = &H10
+'Public Const WM_CLOSE = &H10
 
 Private Const CLASS_NAME = "w>snarlmail"
 
@@ -13,8 +13,17 @@ Public Declare Function SendMessage Lib "user32" Alias "SendMessageA" (ByVal hWn
 Public Sub Main()
 Dim hWndExisting As Long
 Dim bQuit As Boolean
+Dim sz As String
 
-    l3OpenLog g_MakePath(App.Path) & "snarlmail.log"
+    If g_GetSystemFolder(CSIDL_APPDATA, sz) Then
+        sz = g_MakePath(sz) & "full phat\SnarlMail\"
+
+    Else
+        sz = g_MakePath(App.Path)
+
+    End If
+
+    l3OpenLog sz & "snarlmail.log"
 
     bQuit = (InStr(Command$, "-quit") <> 0)
     hWndExisting = FindWindow(CLASS_NAME, CLASS_NAME)
@@ -22,6 +31,7 @@ Dim bQuit As Boolean
     g_Debug "main: launched: hWndExisting=0x" & g_HexStr(hWndExisting) & " -quit:" & bQuit
 
     If (hWndExisting) Or (bQuit) Then
+        g_Debug "main: existing instance detected (this one will now close)", LEMON_LEVEL_INFO
         If bQuit Then _
             PostMessage hWndExisting, WM_CLOSE, 0, ByVal 0&
 
@@ -42,9 +52,9 @@ Dim bQuit As Boolean
 Dim hWnd As Long
 
     EZRegisterClass CLASS_NAME
-    hWnd = EZAddWindow(CLASS_NAME, New TWindow, CLASS_NAME)
+    hWnd = EZ4AddWindow(CLASS_NAME, New TWindow, CLASS_NAME)
 
-    Form1.List1.AddItem "window: " & g_HexStr(hWnd)
+    Form1.Add "Handler is " & g_HexStr(hWnd)
     Form1.Tag = CStr(hWnd)
 
     g_Debug "main: started"
@@ -56,7 +66,7 @@ Dim hWnd As Long
 
     g_Debug "main: ended"
 
-    EZRemoveWindow hWnd
+    EZ4RemoveWindow hWnd
     EZUnregisterClass CLASS_NAME
 
     Unload Form1

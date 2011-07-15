@@ -207,6 +207,9 @@ Dim lQuantum As Long
 
     End If
 
+    If (Info.Actions Is Nothing) Then _
+        Set Info.Actions = new_BTagList()                   ' // create list even if there are no actions defined
+
     ' /* R2.4.2: erase callback if url detection enabled */
 
     If g_ConfigGet("no_callback_urls") = "1" Then
@@ -239,25 +242,25 @@ Dim lQuantum As Long
 
     g_KludgeNotificationInfo Info
 
-    ' /* R2.4 DR7 - can include actions in request */
-
-    If (Info.Actions Is Nothing) Then _
-        Set Info.Actions = new_BTagList()                   ' // create list even if there are no actions defined
-
-Dim sn As String
-Dim sv As String
-
-    If Not (Args Is Nothing) Then
-        With Args
-            .Rewind
-            Do While .GetNextItem(sn, sv)
-                If sn = "action" Then _
-                    uGetAction Info.Actions, sv
-
-            Loop
-
-        End With
-    End If
+'    ' /* R2.4 DR7 - can include actions in request */
+'
+'    If (Info.Actions Is Nothing) Then _
+'        Set Info.Actions = new_BTagList()                   ' // create list even if there are no actions defined
+'
+'Dim sn As String
+'Dim sv As String
+'
+'    If Not (Args Is Nothing) Then
+'        With Args
+'            .Rewind
+'            Do While .GetNextItem(sn, sv)
+'                If sn = "action" Then _
+'                    uGetAction Info.Actions, sv
+'
+'            Loop
+'
+'        End With
+'    End If
 
     ' /* 40.7 - icon can be an http:// or https:// url - if it is we initiate an
     '    async download of the icon and put the notification onto a stack while
@@ -724,30 +727,6 @@ Dim szSound As String
     End If
 
 End Function
-
-Private Sub uGetAction(ByRef ListToAddTo As BTagList, ByVal PackedAction As String)
-Dim i As Long
-
-    ' /* only interested in _first_ comma */
-
-    i = InStr(PackedAction, ",")
-    If i = 0 Then _
-        Exit Sub
-
-Dim szLbl As String
-Dim szCmd As String
-
-    szLbl = g_SafeLeftStr(PackedAction, i - 1)
-    szCmd = g_SafeRightStr(PackedAction, Len(PackedAction) - i)
-
-    ' /* must have a label and command */
-
-    If (szLbl = "") Or (szCmd = "") Then _
-        Exit Sub
-
-    ListToAddTo.Add new_BTagItem(szLbl, szCmd)
-
-End Sub
 
 Public Function Remove(ByVal Id As Long) As Boolean
 

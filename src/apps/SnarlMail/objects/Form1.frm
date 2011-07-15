@@ -2,10 +2,10 @@ VERSION 5.00
 Begin VB.Form Form1 
    BorderStyle     =   1  'Fixed Single
    Caption         =   "SnarlMail Log"
-   ClientHeight    =   3375
+   ClientHeight    =   4470
    ClientLeft      =   45
    ClientTop       =   435
-   ClientWidth     =   6480
+   ClientWidth     =   7875
    BeginProperty Font 
       Name            =   "Tahoma"
       Size            =   9
@@ -18,8 +18,8 @@ Begin VB.Form Form1
    Icon            =   "Form1.frx":0000
    LinkTopic       =   "Form1"
    MaxButton       =   0   'False
-   ScaleHeight     =   3375
-   ScaleWidth      =   6480
+   ScaleHeight     =   4470
+   ScaleWidth      =   7875
    StartUpPosition =   3  'Windows Default
    Begin VB.CommandButton Command3 
       Caption         =   "Prefs"
@@ -35,7 +35,7 @@ Begin VB.Form Form1
       Height          =   495
       Left            =   3180
       TabIndex        =   3
-      Top             =   2760
+      Top             =   3900
       Width           =   1335
    End
    Begin VB.CommandButton Command2 
@@ -52,7 +52,7 @@ Begin VB.Form Form1
       Height          =   495
       Left            =   1500
       TabIndex        =   2
-      Top             =   2760
+      Top             =   3900
       Width           =   1335
    End
    Begin VB.CommandButton Command1 
@@ -69,7 +69,7 @@ Begin VB.Form Form1
       Height          =   495
       Left            =   60
       TabIndex        =   1
-      Top             =   2760
+      Top             =   3900
       Width           =   1335
    End
    Begin VB.ListBox List1 
@@ -82,11 +82,12 @@ Begin VB.Form Form1
          Italic          =   0   'False
          Strikethrough   =   0   'False
       EndProperty
-      Height          =   2595
+      Height          =   3780
+      IntegralHeight  =   0   'False
       Left            =   60
       TabIndex        =   0
       Top             =   60
-      Width           =   6375
+      Width           =   7755
    End
 End
 Attribute VB_Name = "Form1"
@@ -110,7 +111,7 @@ End Sub
 
 Private Sub Command3_Click()
 
-'    SendMessage Val(Me.Tag), sn41AppMsg(), SNARL_APP_SHOW_PREFS, ByVal 0&
+    SendMessage Val(Me.Tag), snAppMsg(), SNARLAPP_DO_PREFS, ByVal 0&
 
 End Sub
 
@@ -126,6 +127,7 @@ Public Sub Add(ByVal Text As String)
     With Form1.List1
         .AddItem Text
         .ListIndex = .ListCount - 1
+        g_Debug "_add(): " & Text
 
     End With
 

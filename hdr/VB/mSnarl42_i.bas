@@ -89,6 +89,11 @@ Public Enum SNARL_STATUS_CODE
     SNARL_ERROR_SYSTEM                      '// internal system error
     '//120 libsnarl critical block
     SNARL_ERROR_ACCESS_DENIED = 121         '// libsnarl only
+    '//130 SNP/3.0-specific
+    SNARL_ERROR_UNSUPPORTED_VERSION = 131   '// requested SNP version is not supported
+    SNARL_ERROR_NO_ACTIONS_PROVIDED         '// empty request
+    SNARL_ERROR_UNSUPPORTED_ENCRYPTION      '// requested encryption type is not supported
+    SNARL_ERROR_UNSUPPORTED_HASHING         '// requested message hashing type is not supported
 
     ' /* warnings */
 
@@ -105,13 +110,16 @@ Public Enum SNARL_STATUS_CODE
     SNARL_ERROR_AUTH_FAILURE                '// password mismatch
     ' /* R2.4.2 */
     SNARL_ERROR_DISCARDED                   '// discarded for some reason, e.g. foreground app match
+    SNARL_ERROR_NOT_SUBSCRIBED              '// 2.4.2 DR3: subscriber not found
 
     ' /* informational */
 
+    '// code 250 reserved for future use
     SNARL_WAS_MERGED = 251                  '// notification was merged, returned token is the one we merged with
 
     ' /* callbacks */
 
+    '// code 300 reserved for future use
     SNARL_NOTIFY_GONE = 301                 '// reserved for future use
 
     ' /* the following are currently specific to SNP 2.0 and are effectively the
@@ -127,6 +135,10 @@ Public Enum SNARL_STATUS_CODE
     ' /* the following is generic to SNP and the Win32 API */
 
     SNARL_NOTIFY_ACTION = 308               '// user picked an action from the list, the data value will indicate which one
+
+    ' /* other events */
+
+'    SNARL_FORWARD = 350
 
 End Enum
 
@@ -347,10 +359,10 @@ Dim sz As String
 
     sz = "unregister?"
 
-    If varType(TokenOrSignature) = vbLong Then
+    If VarType(TokenOrSignature) = vbLong Then
         sz = sz & "token=" & CStr(TokenOrSignature)
 
-    ElseIf varType(TokenOrSignature) = vbString Then
+    ElseIf VarType(TokenOrSignature) = vbString Then
         sz = sz & "app-sig=" & CStr(TokenOrSignature)
 
     Else
@@ -363,6 +375,7 @@ Dim sz As String
         sz = sz & "&password=" & Password
 
     snarl_unregister = snDoRequest(sz)
+    Debug.Print "snarl_unregister: " & snarl_unregister
 
 End Function
 

@@ -60,7 +60,7 @@ Dim sz As String
     Select Case Control.GetName
     Case "show_on_screen", "use_style", "custom_timeout", "use_custom_icon", "custom_icon", _
          "use_custom_sound", "custom_sound", "ignore_input", "use_custom_ack", "custom_ack", "log_during_dnd", "block_spam", _
-         "override-normal", "override-away", "override-busy", "block_if_foreground"
+         "override-normal", "override-away", "override-busy", "block_if_foreground", "use_custom_actions", "custom_actions"
 
         gSelectedClass.SetValue Control.GetName, Value
 
@@ -259,7 +259,7 @@ Dim pc As BControl
 '        Set pp = new_BPrefsPage("General", , Me)
         Set pp = new_BPrefsPage("Appearance", load_image_obj(g_MakePath(App.Path) & "etc\icons\class-app.png"), Me)
         With pp
-            .SetMargin 90
+            .SetMargin 80
             .SetWidth 300
 
             ' /* display */
@@ -278,7 +278,7 @@ Dim pc As BControl
             .Add new_BPrefsControl("fancyfilepicker", "custom_icon", , , "")
 
             ' /* view-only */
-            .Add new_BPrefsControl("fancytoggle2", "ignore_input", "Ignore mouse and other input events?", "Interaction:")
+'            .Add new_BPrefsControl("fancytoggle2", "ignore_input", "Ignore mouse and other input events?", "Interaction:")
 
             ' /* test button */
             .Add new_BPrefsSeparator
@@ -291,7 +291,7 @@ Dim pc As BControl
 
         Set pp = new_BPrefsPage("Behaviour", load_image_obj(g_MakePath(App.Path) & "etc\icons\class-beh.png"), Me)
         With pp
-            .SetMargin 90
+            .SetMargin 80
             .SetWidth 300
 
 '            If Not (gSelectedClass Is Nothing) Then _
@@ -317,8 +317,8 @@ Dim pc As BControl
             .Add new_BPrefsControl("fancytoggle2", "use_custom_ack", "Custom callback?", "")
             .Add new_BPrefsControl("fancyedit", "custom_ack", , "Callback:")
 
-            ' /* R2.31: duplicates renamed to spamming */
-            .Add new_BPrefsControl("fancytoggle2", "block_spam", "Prevent notification flooding?", "Other:")
+'            ' /* R2.31: duplicates renamed to spamming */
+'            .Add new_BPrefsControl("fancytoggle2", "block_spam", "Prevent notification flooding?", "Other:")
 
             ' /* R2.31: test button here too */
             .Add new_BPrefsSeparator
@@ -333,7 +333,7 @@ Dim pc As BControl
 
 
 
-        Set pp = new_BPrefsPage("Shadowing", load_image_obj(g_MakePath(App.Path) & "etc\icons\class-fwd.png"), Me)
+        Set pp = new_BPrefsPage("Pass-Thru", load_image_obj(g_MakePath(App.Path) & "etc\icons\class-fwd.png"), Me)
         With pp
             .SetMargin 0
             .SetWidth 300
@@ -372,7 +372,7 @@ Dim pc As BControl
 
         Set pp = new_BPrefsPage("Presence", load_image_obj(g_MakePath(App.Path) & "etc\icons\presence.png"), Me)
         With pp
-            .SetMargin 90
+            .SetMargin 80
             .SetWidth 300
 
             .Add new_BPrefsControl("banner", "", "When I'm at my computer...")
@@ -399,14 +399,22 @@ Dim pc As BControl
 
         Set pp = new_BPrefsPage("Advanced", load_image_obj(g_MakePath(App.Path) & "etc\icons\class-ext.png"), Me)
         With pp
-            .SetMargin 32
+            .SetMargin 80
             .SetWidth 300
 
             ' /* duplicates */
 '            .Add new_BPrefsControl("fancycycle", "duplicates", "Allow|Block|Delay", "Flooding:")
 
-            .Add new_BPrefsControl("fancytoggle2", "block_if_foreground", "Ignore if application is in the foreground?", , gSelectedClass.GetValue("block_if_foreground"))
+            .Add new_BPrefsControl("banner", "", "Behaviour")
+            .Add new_BPrefsControl("fancytoggle2", "block_if_foreground", "Ignore if foreground application?", , gSelectedClass.GetValue("block_if_foreground"))
 
+            .Add new_BPrefsControl("fancytoggle2", "ignore_input", "Ignore mouse and other input events?", "")
+            .Add new_BPrefsControl("fancytoggle2", "block_spam", "Prevent notification flooding?", "")
+
+            ' /* R2.4.2 DR3: custom actions */
+            .Add new_BPrefsControl("fancytoggle2", "use_custom_actions", "Custom actions?", "")
+            .Add new_BPrefsControl("fancyedit", "custom_actions", , "Actions:")
+            .Add new_BPrefsControl("label", "", "<Action>=<command>.  Separate multiple actions with semi-colons.")
 
             .Add new_BPrefsControl("label", "", " ")
 
@@ -734,6 +742,12 @@ Dim j As Long
         uSafeSetValue "log_during_dnd", .GetValue("log_during_dnd")
         uSafeSetValue "block_spam", .GetValue("block_spam")
 
+        ' /* R2.4.2 DR3 */
+
+        uSafeSetValue "use_custom_actions", .GetValue("use_custom_actions")
+        uSafeSetText "custom_actions", .GetValue("custom_actions")
+
+
         ' /* forwarding */
 
 Dim pc As BControl
@@ -765,7 +779,7 @@ End Sub
 
 Private Sub uSetControls()
 Dim pc As BControl
-Dim b2 As Boolean
+Dim B2 As Boolean
 Dim b As Boolean
 
     ' /* enable/disable controls */
@@ -779,64 +793,64 @@ Dim b As Boolean
 
         ' /* only enable the combos if "show_on_screen" and "use custom style" are enabled */
 
-        b2 = b
-        If b2 Then
+        B2 = b
+        If B2 Then
             If mPanel.Find("use_style", pc) Then _
-                b2 = (pc.GetValue = "1")
+                B2 = (pc.GetValue = "1")
 
         End If
 
-        uSafeEnable "style_name", b2
-        uSafeEnable "scheme_name", b2
+        uSafeEnable "style_name", B2
+        uSafeEnable "scheme_name", B2
 
         uSafeEnable "duration", b
 
         ' /* only enable the timeout slider if E_DURATION_CUSTOM is set */
 
-        b2 = b
-        If b2 Then
+        B2 = b
+        If B2 Then
             If mPanel.Find("duration", pc) Then _
-                b2 = (pc.GetValue = CStr(E_DURATION_CUSTOM + 1))
+                B2 = (pc.GetValue = CStr(E_DURATION_CUSTOM + 1))
 
         End If
         
-        uSafeEnable "custom_timeout", b2
+        uSafeEnable "custom_timeout", B2
 
         ' /* custom icon */
 
         uSafeEnable "use_custom_icon", b
-        b2 = b
-        If b2 Then
+        B2 = b
+        If B2 Then
             If mPanel.Find("use_custom_icon", pc) Then _
-                b2 = (pc.GetValue = "1")
+                B2 = (pc.GetValue = "1")
 
         End If
 
-        uSafeEnable "custom_icon", b2
+        uSafeEnable "custom_icon", B2
 
         ' /* custom sound */
 
         uSafeEnable "use_custom_sound", b
-        b2 = b
-        If b2 Then
+        B2 = b
+        If B2 Then
             If mPanel.Find("use_custom_sound", pc) Then _
-                b2 = (pc.GetValue = "1")
+                B2 = (pc.GetValue = "1")
 
         End If
 
-        uSafeEnable "custom_sound", b2
+        uSafeEnable "custom_sound", B2
 
         ' /* custom ack */
 
         uSafeEnable "use_custom_ack", b
-        b2 = b
-        If b2 Then
+        B2 = b
+        If B2 Then
             If mPanel.Find("use_custom_ack", pc) Then _
-                b2 = (pc.GetValue = "1")
+                B2 = (pc.GetValue = "1")
 
         End If
 
-        uSafeEnable "custom_ack", b2
+        uSafeEnable "custom_ack", B2
 
     End If
 

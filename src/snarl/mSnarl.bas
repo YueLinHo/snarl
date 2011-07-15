@@ -16,6 +16,9 @@ Option Explicit
     ' /* these are used by the deprecated SNARL_GET_VERSION and for GNTP responses */
 Public Const APP_VER = 2
 Public Const APP_SUB_VER = 4
+Public Const APP_SUB_SUB_VER = 2
+
+Public Const SNP_VERSION = "3.0"
 
 Public Const GNTP_DEFAULT_PORT = 23053
 Public Const SNP_DEFAULT_PORT = 9887
@@ -2424,6 +2427,16 @@ Dim pn As TNotification
 
     End If
 
+    ' /* R2.4.2 DR3: now we've checked for updates and merges, we check to see if at least one of
+    '    title, text or icon exists and fail with 109 if not */
+
+    If (Not pData.Exists("title")) And (Not pData.Exists("text")) And (Not pData.Exists("title")) Then
+        g_Debug "g_DoNotify(): must supply at least one of 'title', 'text' or 'icon'", LEMON_LEVEL_CRITICAL
+        gSetLastError SNARL_ERROR_ARG_MISSING
+        Exit Function
+
+    End If
+
 Dim szClass As String
 Dim pApp As TApp
 
@@ -2900,7 +2913,10 @@ End Function
 Private Function uAddClass(ByVal Token As Long, ByRef Args As BPackedData) As Long
 Dim pApp As TApp
 
-    If Token Then
+    If (Token = 0) And (Not Args.Exists("app-sig")) Then
+        gSetLastError SNARL_ERROR_ARG_MISSING
+
+    ElseIf Token Then
         ' /* FindByToken() will set lasterror for us */
         If g_AppRoster.FindByToken(Token, pApp, Args.ValueOf("password")) Then _
             uAddClass = pApp.AddClass(Args)

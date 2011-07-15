@@ -154,9 +154,9 @@ Private Function uDoRegistration(ByRef Response As String) As Boolean
 
     mCustomHeaders = "Response-Action: REGISTER"
 
-Dim pp As BPackedData
+Dim pp As TPackedData
 
-    Set pp = New BPackedData
+    Set pp = New TPackedData
     If Not pp.SetTo(mSection(0), vbCrLf, ": ") Then
         uOutput "uDoRegistration(): bad data"
         Response = uCreateResponse(INVALID_REQUEST)
@@ -175,7 +175,7 @@ Dim szAppSig As String
         Exit Function
 
     Else
-        szAppName = pp.ValueOf("Application-Name")
+        szAppName = trim(pp.ValueOf("Application-Name"))
         szAppSig = "application/x-gntp-" & Replace$(szAppName, " ", "_")
 
     End If
@@ -221,7 +221,7 @@ Dim px As T_REG
         ReDim .NotificationType(.Count)
 
         If pp.Exists("Application-Icon") Then _
-            .IconPath = pp.ValueOf("Application-Icon")
+            .IconPath = trim(pp.ValueOf("Application-Icon"))
 
     End With
 
@@ -356,10 +356,10 @@ Dim pp As BPackedData
 Dim sx() As String
 
     With mRegistration.NotificationType(Index)
-        .Name = pp.ValueOf("Notification-Name")
-        .DisplayName = pp.ValueOf("Notification-Display-Name")
+        .Name = trim(pp.ValueOf("Notification-Name"))
+        .DisplayName = trim(pp.ValueOf("Notification-Display-Name"))
         .Enabled = uBool(pp.ValueOf("Notification-Enabled"))
-        .Icon = pp.ValueOf("Notification-Icon")
+        .Icon = trim(pp.ValueOf("Notification-Icon"))
 
         ' /* if the icon is actually an identifier, map it to the locally saved copy */
 
@@ -383,32 +383,32 @@ Dim sx() As String
 End Function
 
 Private Function uParse(ByVal SectionIndex As Long, ByRef Response As String) As Boolean
-Dim s() As String
+Dim S() As String
 
     ' /* parses the first line of the given section and returns
     '    the appropriate result */
 
-    s = Split(mSection(SectionIndex), vbCrLf)
-    If UBound(s) < 1 Then
+    S = Split(mSection(SectionIndex), vbCrLf)
+    If UBound(S) < 1 Then
         uOutput "uParse(): failed: invalid section"
         Response = uCreateResponse(INVALID_REQUEST)
         Exit Function
 
     End If
 
-    uOutput "uParse(): section " & CStr(SectionIndex) & " header='" & s(0) & "'"
+    uOutput "uParse(): section " & CStr(SectionIndex) & " header='" & S(0) & "'"
 
     ' /* identify section type from the first line */
 
 Dim x() As String
 
-    If g_SafeLeftStr(s(0), 4) = "GNTP" Then
+    If g_SafeLeftStr(S(0), 4) = "GNTP" Then
         ' /* information line first */
-        uParse = uParseInfoLine(s(0), Response)
+        uParse = uParseInfoLine(S(0), Response)
 
-    ElseIf g_SafeLeftStr(s(0), 12) = "Identifier: " Then
+    ElseIf g_SafeLeftStr(S(0), 12) = "Identifier: " Then
         ' /* resource identifier */
-        x = Split(s(0), ": ")
+        x = Split(S(0), ": ")
         uSaveBinary SectionIndex + 1, x(1)
         uParse = True
 
@@ -420,10 +420,10 @@ Dim x() As String
 End Function
 
 Private Function uParseInfoLine(ByVal str As String, ByRef Response As String) As Boolean
-Dim s() As String
+Dim S() As String
 
-    s = Split(str, " ")
-    If UBound(s) < 2 Then
+    S = Split(str, " ")
+    If UBound(S) < 2 Then
         uOutput "uParseInfoLine(): not enough params"
         Response = uCreateResponse(INVALID_REQUEST)
         Exit Function           ' // not enough params
@@ -432,7 +432,7 @@ Dim s() As String
 
 Dim v() As String
 
-    v = Split(s(0), "/")
+    v = Split(S(0), "/")
     If UBound(v) <> 1 Then
         uOutput "uParseInfoLine(): not GNTP"
         Response = uCreateResponse(UNKNOWN_PROTOCOL)
@@ -456,9 +456,9 @@ Dim v() As String
 
     mDirective = ""
 
-    Select Case s(1)
+    Select Case S(1)
     Case "REGISTER", "NOTIFY"
-        mDirective = s(1)
+        mDirective = S(1)
 
     Case Else
         uOutput "uParseInfoLine(): unsupported directive"
@@ -467,11 +467,11 @@ Dim v() As String
 
     End Select
 
-    Select Case s(2)
+    Select Case S(2)
     Case "NONE"
     
     Case Else
-        uOutput "uParseInfoLine(): unsupported encryption (" & s(2) & ")"
+        uOutput "uParseInfoLine(): unsupported encryption (" & S(2) & ")"
         Response = uCreateResponse(INVALID_REQUEST)
         Exit Function           ' // unsupported encryption
 
@@ -500,11 +500,11 @@ Private Function uDoNotification(ByRef Response As String, ByRef Sender As CSock
 
     mCustomHeaders = "Response-Action: NOTIFY"
 
-Dim pp As BPackedData
+Dim pp As TPackedData
 
     ' /* convert the mime-style section into packed data */
 
-    Set pp = New BPackedData
+    Set pp = New TPackedData
     If Not pp.SetTo(mSection(0), vbCrLf, ": ") Then
         uOutput "uDoNotification(): bad data"
         Response = uCreateResponse(INVALID_REQUEST)
@@ -535,16 +535,30 @@ Dim i As Long
 
     uOutput "uDoNotification(): building notification content..."
 
+Dim zz As String
+Dim vv As String
+
+    With pp
+        uOutput "--"
+        .Rewind
+        Do While .GetNextItem(zz, vv)
+            uOutput zz & "-->" & vv
+
+        Loop
+
+        uOutput "--"
+    
+    End With
 
     ' /* build the Snarl packet */
 
-Dim px As BPackedData
+Dim px As TPackedData
 
-    Set px = New BPackedData
+    Set px = New TPackedData
     With px
         'Application-Name: <string>
         'Required - The name of the application that sending the notification (must match a previously registered application)
-        .Add "app-sig", "application/x-gntp-" & Replace$(pp.ValueOf("Application-Name"), " ", "_")
+        .Add "app-sig", "application/x-gntp-" & Replace$(trim(pp.ValueOf("Application-Name")), " ", "_")
 
         'Notification-Name: <string>
         'Required - The name (type) of the notification (must match a previously registered notification name registered by the
@@ -553,11 +567,11 @@ Dim px As BPackedData
 
         'Notification-Title: <string>
         'Required - The notification's title
-        .Add "title", g_toUnicodeUTF8(Replace$(pp.ValueOf("Notification-Title"), Chr$(13), vbCrLf))
+        .Add "title", g_toUnicodeUTF8(Replace$(trim(pp.ValueOf("Notification-Title")), Chr$(13), vbCrLf))
         
         'Notification-Text: <string>
         'Optional - The notification's text. (defaults to "")
-        .Add "text", g_toUnicodeUTF8(Replace$(pp.ValueOf("Notification-Text"), Chr$(13), vbCrLf))
+        .Add "text", g_toUnicodeUTF8(Replace$(trim(pp.ValueOf("Notification-Text")), Chr$(13), vbCrLf))
 
         'Notification-Sticky: <boolean>
         'Optional - Indicates if the notification should remain displayed until dismissed by the user. (default to False)
@@ -581,7 +595,7 @@ Dim px As BPackedData
         'Optional - A unique ID for the notification. If used, this should be unique for every request, even if the notification is
         'replacing a current notification (see Notification-Coalescing-ID)
         If pp.Exists("Notification-ID") Then _
-            .Add "uid", pp.ValueOf("Notification-ID")
+            .Add "uid", trim(pp.ValueOf("Notification-ID"))
 
         'Notification-Callback-Target: <string>
         'Optional - An alternate target for callbacks from this notification. If passed, the standard behavior of performing the
@@ -589,7 +603,7 @@ Dim px As BPackedData
         'Callbacks' section for more information.
         If pp.ValueOf("Notification-Callback-Target") <> "" Then
             ' /* static callback */
-            .Add "callback", pp.ValueOf("Notification-Callback-Target")
+            .Add "callback", trim(pp.ValueOf("Notification-Callback-Target"))
 
         ElseIf (pp.ValueOf("Notification-Callback-Context") <> "") And (pp.ValueOf("Notification-Callback-Context-Type") <> "") Then
             ' /* we have a dynamic callback */
@@ -602,8 +616,8 @@ Dim px As BPackedData
             'Notification-Callback-Context (will be passed back in the callback unmodified). This does not need to be of any pre-defined
             'type, it is only a convenience to the sending application.
 
-            .Add "callback-context", pp.ValueOf("Notification-Callback-Context")
-            .Add "callback-type", pp.ValueOf("Notification-Callback-Context-Type")
+            .Add "callback-context", trim(pp.ValueOf("Notification-Callback-Context"))
+            .Add "callback-type", trim(pp.ValueOf("Notification-Callback-Context-Type"))
 
             uOutput "uDoNotification(): dynamic callback specified: context=" & pp.ValueOf("Notification-Callback-Context") & " type=" & pp.ValueOf("Notification-Callback-Context-Type")
             KeepSocketOpen = True
@@ -617,7 +631,7 @@ Dim sz As String
 
         'Notification-Icon: <url> | <uniqueid>
         'Optional - The icon to display with the notification.
-        sz = pp.ValueOf("Notification-Icon")
+        sz = trim(pp.ValueOf("Notification-Icon"))
         If g_SafeLeftStr(sz, 19) = "x-growl-resource://" Then
             sx = Split(sz, "://")
             .Add "icon", g_GetTempPath() & "gntp-res-" & sx(1) & ".png"
@@ -637,7 +651,7 @@ Dim szd As String
         .Rewind
         Do While .GetNextItem(sz, szd)
             If g_SafeLeftStr(sz, 5) = "Data-" Then _
-                px.Add sz, szd
+                px.Add sz, trim(szd)
 
         Loop
 
@@ -661,10 +675,10 @@ Dim hr As Long
 #Else
 
 Dim lFlags As E_NOTIFICATION_FLAGS
+Dim pxSnarl As BPackedData
 
     If Sender.LocalIP <> "127.0.0.1" Then _
         lFlags = lFlags Or NF_REMOTE
-
 
     ' /* new for R2.4.2 */
         lFlags = lFlags Or NF_IS_GNTP
@@ -672,7 +686,10 @@ Dim lFlags As E_NOTIFICATION_FLAGS
 '    If (px.Exists("callback-context")) And (px.Exists("callback-type")) Then _
         lFlags = lFlags Or NF_GNTP_CALLBACK
 
-    hr = g_DoAction("notify", 0, px, lFlags Or App.Major, Sender)
+    Set pxSnarl = New BPackedData
+    pxSnarl.SetTo px.AsString
+
+    hr = g_DoAction("notify", 0, pxSnarl, lFlags Or App.Major, Sender)
     If hr = 0 Then
         ' /* failed */
 

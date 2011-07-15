@@ -30,7 +30,7 @@ Dim mPage As BPrefsPage
 Dim WithEvents theClassPanel As TConfigureClassPanel
 Attribute theClassPanel.VB_VarHelpID = -1
 
-Dim mCurrent As TApp
+Dim mCurrentApp As TApp
 
 Implements KPrefsPage
 
@@ -114,13 +114,13 @@ Dim pm As CTempMsg
 
 End Sub
 
-Private Sub KPrefsPage_ControlChanged(Control As BControl, ByVal Value As String)
+Private Sub KPrefsPage_ControlChanged(Control As BControl, ByVal value As String)
 'Dim pm As CTempMsg
 Dim pc As BControl
 Dim sz As String
 Dim pa As TApp
 
-    Debug.Print "[" & mPage.GetName() & "]: ControlChanged '" & Control.GetName() & "' >> '" & Value & "'"
+    Debug.Print "[" & mPage.GetName() & "]: ControlChanged '" & Control.GetName() & "' >> '" & value & "'"
 
     Select Case Control.GetName()
 
@@ -136,12 +136,12 @@ Dim pa As TApp
             Exit Sub
 
         Debug.Print ">> app is: " & pa.Name
-        pa.SetUseSameSettingsForAllClasses (Value = "1")
+        pa.SetUseSameSettingsForAllClasses (value = "1")
 
         ' /* sort out the Classes listbox */
 
         If mPage.Find("lb>classes", pc) Then
-            If Value = "1" Then
+            If value = "1" Then
                 ' /* select the first entry (<All> or <Other>) in the class list and disable the listbox */
                 pc.SetValue "1"
                 pc.SetEnabled False
@@ -158,23 +158,23 @@ Dim pa As TApp
 
     Case "cb>apps"
 
-        Set mCurrent = g_AppRoster.AppAt(Val(Value))
-        If Not (mCurrent Is Nothing) Then
+        Set mCurrentApp = g_AppRoster.AppAt(Val(value))
+        If Not (mCurrentApp Is Nothing) Then
 
-            Debug.Print "current selected app is " & mCurrent.Name & " (" & mCurrent.Signature & ") - updating classes..."
+            Debug.Print "current selected app is " & mCurrentApp.Name & " (" & mCurrentApp.Signature & ") - updating classes..."
             uUpdateClassList
 
             If mPage.Find("ftb>app", pc) Then
-'                prefskit_SetItem pc, 1, "enabled", IIf((mCurrent.Flags And SNARL41_APP_HAS_ABOUT), 1&, 0&)
+'                prefskit_SetItem pc, 1, "enabled", IIf((mCurrentApp.Flags And SNARL41_APP_HAS_ABOUT), 1&, 0&)
 
                 prefskit_SetItem pc, 1, "enabled", 1&
-                prefskit_SetItem pc, 2, "enabled", IIf((mCurrent.Flags And SNARLAPP_HAS_PREFS), 1&, 0&)
+                prefskit_SetItem pc, 2, "enabled", IIf((mCurrentApp.Flags And SNARLAPP_HAS_PREFS), 1&, 0&)
 
                 ' /* V42.21: "Unregister" button */
-                prefskit_SetItem pc, 3, "enabled", (mCurrent.Token <> gSnarlToken)
+                prefskit_SetItem pc, 3, "enabled", (mCurrentApp.Token <> gSnarlToken)
                 ' /* "revoke ban" */
-                prefskit_SetItem pc, 4, "enabled", (mCurrent.Token <> gSnarlToken)
-                prefskit_SetItem pc, 4, "text", IIf(mCurrent.IsBanned(), "Revoke Block", "Block")
+                prefskit_SetItem pc, 4, "enabled", (mCurrentApp.Token <> gSnarlToken)
+                prefskit_SetItem pc, 4, "text", IIf(mCurrentApp.IsBanned(), "Allow", "Ban")
 
             Else
                 Debug.Print "TAppsPage.ControlChanged(): 'ftb>app' control not found"
@@ -190,19 +190,19 @@ Dim pa As TApp
     Case "lb>classes"
         ' /* set the class information */
 
-        If (mCurrent Is Nothing) Then
+        If (mCurrentApp Is Nothing) Then
             g_Debug "TAppsPage.ControlChanged(): no current selected app", LEMON_LEVEL_CRITICAL
             Exit Sub
 
         End If
 
-        Debug.Print "TAppsPage.ControlChanged(): [lb>classes] app is: " & mCurrent.Name
+        Debug.Print "TAppsPage.ControlChanged(): [lb>classes] app is: " & mCurrentApp.Name
 
         ' /* get the selected class from the listbox */
 
-        Set gSelectedClass = mCurrent.AlertAt(Val(Value))
+        Set gSelectedClass = mCurrentApp.AlertAt(Val(value))
         If (gSelectedClass Is Nothing) Then _
-            g_Debug "TAppPage.ControlChanged(): class #" & Value & " for '" & pa.Name & "' doesn't exist", LEMON_LEVEL_WARNING
+            g_Debug "TAppPage.ControlChanged(): class #" & value & " for '" & pa.Name & "' doesn't exist", LEMON_LEVEL_WARNING
 
         ' /* if the class configuration panel is open, tell it to update */
 
@@ -211,24 +211,24 @@ Dim pa As TApp
 
 
     Case "ftb>app"
-        If Not (mCurrent Is Nothing) Then
+        If Not (mCurrentApp Is Nothing) Then
 
-            Select Case Val(Value)
+            Select Case Val(value)
             Case 1
                 ' /* details (about)*/
-                mCurrent.DoAbout
+                mCurrentApp.DoAbout
 
             Case 2
                 ' /* configure */
-                mCurrent.DoSettings
+                mCurrentApp.DoSettings
 
             Case 3
                 ' /* unregister */
-                g_AppRoster.Unregister mCurrent.Token, mCurrent.Password
+                g_AppRoster.Unregister mCurrentApp.Token, mCurrentApp.Password
 
             Case 4
                 ' /* block/unblock */
-                mCurrent.SetBlocked Not mCurrent.IsBanned
+                mCurrentApp.SetBlocked Not mCurrentApp.IsBanned
                 bUpdateAppList
 
             End Select
@@ -246,8 +246,8 @@ Private Sub KPrefsPage_ControlInvoked(Control As BControl)
     Select Case Control.GetName()
 
     Case "cb>apps"
-        If Not (mCurrent Is Nothing) Then _
-            mCurrent.DoSettings
+        If Not (mCurrentApp Is Nothing) Then _
+            mCurrentApp.DoSettings
 
 
     Case "fb>cfg_class", "lb>classes"
@@ -281,8 +281,8 @@ Dim sz As String
             bUpdateAppList True
 
         ElseIf Notification = "update_classes" Then
-            If (Not (Data Is Nothing)) And (Not (mCurrent Is Nothing)) Then
-                If Data.What = mCurrent.Token Then _
+            If (Not (Data Is Nothing)) And (Not (mCurrentApp Is Nothing)) Then
+                If Data.What = mCurrentApp.Token Then _
                     uUpdateClassList
 
             End If
@@ -344,7 +344,7 @@ End Sub
 
 Private Sub uUpdateClassList()
 
-    If (mPage Is Nothing) Or (mCurrent Is Nothing) Then _
+    If (mPage Is Nothing) Or (mCurrentApp Is Nothing) Then _
         Exit Sub
 
 'Dim pa As TApp
@@ -363,7 +363,7 @@ Dim pc As BControl
     If Not mPage.Find("ft>use_same", pc) Then _
         Exit Sub
 
-    pc.SetValue IIf(mCurrent.UseSameSettingsForAllClasses, "1", "0")
+    pc.SetValue IIf(mCurrentApp.UseSameSettingsForAllClasses, "1", "0")
 
     If Not mPage.Find("lb>classes", pc) Then _
         Exit Sub
@@ -375,7 +375,7 @@ Dim i As Long
 Dim c As Long
 Dim pm As CTempMsg
 
-    With mCurrent
+    With mCurrentApp
         If .CountAlerts() = 0 Then
             ' /* corrupt! */
             g_Debug "TAppsPage.uUpdateClassList(): '" & .Name & "' has no alerts", LEMON_LEVEL_CRITICAL
@@ -437,7 +437,7 @@ Dim i As Long
     With g_AppRoster
         If .CountApps() Then
             For i = 1 To .CountApps()
-                sz = sz & .AppAt(i).Name & IIf(.AppAt(i).IsBanned, " (Blocked)", "") & "#?" & CStr(i) & "#?" & "" & IIf(i < .CountApps(), "|", "")
+                sz = sz & .AppAt(i).Name & IIf(.AppAt(i).IsBanned, " (Banned)", "") & "#?" & CStr(i) & "#?" & "" & IIf(i < .CountApps(), "|", "")
             
             Next i
         End If
