@@ -39,6 +39,7 @@ namespace Snarl.V42
 	/// </summary>
 	/// 
 	/// <VersionHistory>
+	/// 2011-07-25 : Updated register with AppFlags - General update to match SVN rev. 232.
 	/// 2011-04-30 : Added GetErrorText().
 	/// 2011-04-22 : Implementing events and RegisterWithEvents() + Various small fixes.
 	/// 2011-03-13 : Implemented Update()
@@ -106,11 +107,16 @@ namespace Snarl.V42
 			//105 gen critical #5
 			ErrorBadSocket = 106,          // invalid socket (or some other socket-related error)
 			ErrorBadPacket = 107,          // badly formed request
-			ErrorInvalidArg = 108,         // Added in v42.56
+			ErrorInvalidArg = 108,         // arg supplied was invalid (Added in v42.56)
 			ErrorArgMissing = 109,         // required argument missing
 			ErrorSystem,                   // internal system error
 			//120 libsnarl critical block
 			ErrorAccessDenied = 121,       // libsnarl only
+			//130 SNP/3.0-specific
+			ErrorUnsupportedVersion = 131, // requested SNP version is not supported
+			ErrorNoActionsProvided,        // empty request
+			ErrorUnsupportedEncryption,    // requested encryption type is not supported
+			ErrorUnsupportedHashing,       // requested message hashing type is not supported
 
 			// warnings
 			ErrorNotRunning = 201,         // Snarl handling window not found
@@ -124,11 +130,16 @@ namespace Snarl.V42
 			ErrorDoNotDisturb,             // DnD mode is in effect was not logged as missed
 			ErrorCouldNotDisplay,          // not enough space on-screen to display notification
 			ErrorAuthFailure,              // password mismatch
+			// Release 2.4.2
+			ErrorDiscarded,                // discarded for some reason, e.g. foreground app match
+			ErrorNotSubscribed,            // subscriber not found
 
 			// informational
+			// code 250 reserved for future use
 			WasMerged = 251,               // notification was merged, returned token is the one we merged with
 
 			// callbacks
+			// code 300 reserved for future use
 			NotifyGone = 301,              // reserved for future use
 
 			// The following are currently specific to SNP 2.0 and are effectively the
@@ -139,10 +150,13 @@ namespace Snarl.V42
 			NotifyInvoked = 304,           // note this was "ACK" in a previous life
 			NotifyMenu,                    // indicates an item was selected from user-defined menu (deprecated as of V42)
 			// SNARL_NOTIFY_EX_CLICK       // user clicked the middle mouse button (deprecated as of V42)
-			// SNARL_NOTIFY_CLOSED         // user clicked the notification's close gadget
+			NotifyClosed = 307,            // // user clicked the notification's close gadget (GNTP only)
 
 			// the following is generic to SNP and the Win32 API
-			NotifyAction = 308             // user picked an action from the list, the data value will indicate which one
+			NotifyAction = 308,             // user picked an action from the list, the data value will indicate which one
+
+			// other events
+			EventForward = 350
 		}
 
 		/// <summary>
@@ -155,6 +169,23 @@ namespace Snarl.V42
 			Normal = 0,
 			High = 1
 		}
+
+		/// <summary>
+		/// Application flags - features this app supports.
+		/// </summary>
+		[Flags]
+		public enum AppFlags
+		{
+			None = 0,
+			AppHasPrefs = 1,
+			AppHasAbout = 2,
+			AppIsWindowless = 0x8000
+		}
+
+		/// <summary>Application requests - these values appear in wParam.<para>Application should launch its settings UI</para></summary>
+		public static readonly IntPtr AppDoPrefs = new IntPtr(1);
+		/// <summary>Application requests - these values appear in wParam.<para>Application should show its About... dialog</para></summary>
+		public static readonly IntPtr AppDoAbout = new IntPtr(2);
 
 		public const uint WM_SNARLTEST = (uint)WindowsMessage.WM_USER + 237;
 
@@ -451,6 +482,7 @@ namespace Snarl.V42
 		/// <param name="label"></param>
 		/// <param name="command">If using dynamic callback command (@data), use numbers in the range [0, 32767]</param>
 		/// <returns></returns>
+		/// <remarks><see cref="http://sourceforge.net/apps/mediawiki/snarlwin/index.php?title=Generic_API#addaction"/></remarks>
 		public Int32 AddAction(Int32 msgToken, String label, String command)
 		{
 			// addaction?[token=<notification token>|app-sig=<signature>&uid=<uid>][&password=<password>]&label=<label>&cmd=<command>
@@ -477,9 +509,10 @@ namespace Snarl.V42
 		/// <param name="callback"></param>
 		/// <param name="enabled"></param>
 		/// <returns></returns>
+		/// <remarks><see cref="http://sourceforge.net/apps/mediawiki/snarlwin/index.php?title=Generic_API#addclass"/></remarks>
 		public Int32 AddClass(String classId, String name, String title, String text, String icon, String sound, Int32? duration, String callback, bool enabled)
 		{
-			// addclass?[token=<token>|app-sig=<signature>][&password=<password>]&id=<class identifier>&name=<class name>[&enabled=<0|1>][&callback=<callback>]
+			// addclass?[app-sig=<signature>|token=<application token>][&password=<password>]&id=<class identifier>&name=<class name>[&enabled=<0|1>][&callback=<callback>]
 			//          [&title=<title>][&text=<text>][&icon=<icon>][&sound=<sound>][&duration=<duration>]
 
 			SnarlParameterList spl = new SnarlParameterList(9);
@@ -508,6 +541,7 @@ namespace Snarl.V42
 		/// </summary>
 		/// <param name="notificationToken"></param>
 		/// <returns></returns>
+		/// <remarks><see cref="http://sourceforge.net/apps/mediawiki/snarlwin/index.php?title=Generic_API#clearactions"/></remarks>
 		public Int32 ClearActions(Int32 msgToken)
 		{
 			// clearactions?[token=<notification token>|app-sig=<app-sig>&uid=<uid>][&password=<password>]
@@ -523,9 +557,10 @@ namespace Snarl.V42
 		/// ClearClasses
 		/// </summary>
 		/// <returns></returns>
+		/// <remarks><see cref="http://sourceforge.net/apps/mediawiki/snarlwin/index.php?title=Generic_API#clearclasses"/></remarks>
 		public Int32 ClearClasses()
 		{
-			// clearclasses?token=<app token>[&password=<password>]
+			// clearclasses?[token=app-sig=<signature>|token=<application token>][&password=<password>]
 
 			SnarlParameterList spl = new SnarlParameterList(2);
 			spl.Add("token", appToken);
@@ -539,6 +574,7 @@ namespace Snarl.V42
 		/// </summary>
 		/// <param name="msgToken"></param>
 		/// <returns></returns>
+		/// <remarks><see cref="http://sourceforge.net/apps/mediawiki/snarlwin/index.php?title=Generic_API#hide"/></remarks>
 		public Int32 Hide(Int32 msgToken)
 		{
 			// hide?[token=<notification token>|app-sig=<app-sig>&uid=<uid>][&password=<password>]
@@ -555,6 +591,7 @@ namespace Snarl.V42
 		/// </summary>
 		/// <param name="msgToken"></param>
 		/// <returns></returns>
+		/// <remarks><see cref="http://sourceforge.net/apps/mediawiki/snarlwin/index.php?title=Generic_API#isvisible"/></remarks>
 		public Int32 IsVisible(Int32 msgToken)
 		{
 			// isvisible?[token=<notification token>|app-sig=<app-sig>&uid=<uid>][&password=<password>]
@@ -580,7 +617,10 @@ namespace Snarl.V42
 		/// <param name="uid">Optional</param>
 		/// <param name="value">Optional</param>
 		/// <returns></returns>
-		/// <remarks>All parameters are optional. Pass null to use class default values.</remarks>
+		/// <remarks>
+		/// All parameters are optional. Pass null to use class default values.
+		/// <para><see cref="http://sourceforge.net/apps/mediawiki/snarlwin/index.php?title=Generic_API#notify"/></para>
+		/// </remarks>
 		public Int32 Notify(String classId, String title, String text, Int32? timeout, String iconPath, String iconBase64, MessagePriority? priority, String uid, String callback, String value)
 		{
 			// notify?[app-sig=<signature>|token=<application token>][&password=<password>][&id=<class identifier>]
@@ -628,45 +668,29 @@ namespace Snarl.V42
 		}
 
 		/// <summary>
-		/// RemoveClass
-		/// </summary>
-		/// <param name="classID"></param>
-		/// <returns></returns>
-		/// <seealso cref="ClearClasses"/>
-		public Int32 RemoveClass(String classID)
-		{
-			// remclass?[app-sig=<signature>|token=<application token>][&password=<password>][&id=<class identifier>|&all=<0|1>]
-
-			SnarlParameterList spl = new SnarlParameterList(3);
-			spl.Add("token", appToken);
-			spl.Add("id", classID);
-			spl.Add("password", password);
-			// spl.Add("all", password); // Use ClearClasses
-
-			return DoRequest(Requests.RemoveClass, spl);
-		}
-
-		/// <summary>
 		/// Register application with Snarl.
 		/// </summary>
 		/// <param name="signatur"></param>
 		/// <param name="title"></param>
-		/// <param name="icon"></param>
+		/// <param name="icon">Optional (null)</param>
 		/// <param name="password">Optional (null)</param>
 		/// <param name="hWndReply">Optional (IntPtr.Zero)</param>
 		/// <param name="msgReply">Optional (0)</param>
+		/// <param name="flags">Optional (AppFlags.None)</param>
 		/// <returns></returns>
-		public Int32 Register(String signature, String title, String icon, String password, IntPtr hWndReplyTo, Int32 msgReply)
+		/// <remarks><see cref="http://sourceforge.net/apps/mediawiki/snarlwin/index.php?title=Generic_API#register"/></remarks>
+		public Int32 Register(String signature, String title, String icon, String password, IntPtr hWndReplyTo, Int32 msgReply, AppFlags flags)
 		{
 			// register?app-sig=<signature>&title=<title>[&icon=<icon>][&password=<password>][&reply-to=<reply window>][&reply=<reply message>]
 
-			SnarlParameterList spl = new SnarlParameterList(6);
+			SnarlParameterList spl = new SnarlParameterList(7);
 			spl.Add("app-sig", signature);
 			spl.Add("title", title);
 			spl.Add("icon", icon);
 			spl.Add("password", password);
 			spl.Add("reply-to", hWndReplyTo);
 			spl.Add("reply", msgReply);
+			spl.Add("flags", (int)flags);
 
 			// If password was given, save and use in all other functions requiring password
 			if (!String.IsNullOrEmpty(password))
@@ -685,12 +709,12 @@ namespace Snarl.V42
 
 		public Int32 Register(String signature, String title, String icon, String password)
 		{
-			return Register(signature, title, icon, password, IntPtr.Zero, 0);
+			return Register(signature, title, icon, password, IntPtr.Zero, 0, AppFlags.None);
 		}
 
 		public Int32 Register(String signature, String title, String icon)
 		{
-			return Register(signature, title, icon, null, IntPtr.Zero, 0);
+			return Register(signature, title, icon, null, IntPtr.Zero, 0, AppFlags.None);
 		}
 
 		/// <summary>
@@ -704,7 +728,8 @@ namespace Snarl.V42
 		/// <param name="hWndReplyTo">The HWND of the window which should be hooked. If IntPtr.Zero a new listening Window will be created.</param>
 		/// <param name="msgReply">The message Snarl should send back to the window on callbacks. If null and internal default value will be used.</param>
 		/// <returns></returns>
-		public Int32 RegisterWithEvents(String signature, String title, String icon, String password, IntPtr hWndReplyTo, Int32? msgReply)
+		/// <remarks>This is not part of the official API.</remarks>
+		public Int32 RegisterWithEvents(String signature, String title, String icon, String password, IntPtr hWndReplyTo, Int32? msgReply, AppFlags flags)
 		{
 			if (msgReply == null || msgReply.Value == 0)
 				msgReply = WM_DEFAULT_APPMSG;
@@ -715,7 +740,7 @@ namespace Snarl.V42
 				callbackWindow = new SnarlCallbackNativeWindow(this, hWndReplyTo);
 			}
 
-			return Register(signature, title, icon, password, callbackWindow.Handle, msgReply.Value);
+			return Register(signature, title, icon, password, callbackWindow.Handle, msgReply.Value, flags);
 		}
 
 		/// <summary>
@@ -724,13 +749,34 @@ namespace Snarl.V42
 		/// </summary>
 		public Int32 RegisterWithEvents(String signature, String title, String icon, String password)
 		{
-			return RegisterWithEvents(signature, title, icon, password, IntPtr.Zero, null);
+			return RegisterWithEvents(signature, title, icon, password, IntPtr.Zero, null, AppFlags.None);
+		}
+
+		/// <summary>
+		/// RemoveClass
+		/// </summary>
+		/// <param name="classID"></param>
+		/// <returns></returns>
+		/// <seealso cref="ClearClasses"/>
+		/// <remarks><see cref="http://sourceforge.net/apps/mediawiki/snarlwin/index.php?title=Generic_API#remclass"/></remarks>
+		public Int32 RemoveClass(String classID)
+		{
+			// remclass?[app-sig=<signature>|token=<application token>][&password=<password>][&id=<class identifier>|&all=<0|1>]
+
+			SnarlParameterList spl = new SnarlParameterList(3);
+			spl.Add("token", appToken);
+			spl.Add("id", classID);
+			spl.Add("password", password);
+			// spl.Add("all", password); // Use ClearClasses
+
+			return DoRequest(Requests.RemoveClass, spl);
 		}
 
 		/// <summary>
 		/// Unregister application.
 		/// </summary>
 		/// <returns></returns>
+		/// <remarks><see cref="http://sourceforge.net/apps/mediawiki/snarlwin/index.php?title=Generic_API#unregister"/></remarks>
 		public Int32 Unregister()
 		{
 			// unregister?[app-sig=<signature>|token=<application token>][&password=<password>]
@@ -750,7 +796,11 @@ namespace Snarl.V42
 			return DoRequest(Requests.Unregister, spl);
 		}
 
-
+		/// <summary>
+		/// 
+		/// </summary>
+		/// <returns></returns>
+		/// <remarks><see cref="http://sourceforge.net/apps/mediawiki/snarlwin/index.php?title=Generic_API#update"/></remarks>
 		public Int32 Update(Int32 msgToken, String classId, String title, String text, Int32? timeout, String iconPath, String iconBase64, MessagePriority? priority, String ack, String callback, String value)
 		{
 			// Made from best guess - no documentation available yet
@@ -791,7 +841,7 @@ namespace Snarl.V42
 		/// <summary>
 		/// GetLastMsgToken() returns token of the last message sent to Snarl.
 		/// </summary>
-		/// <returns></returns>
+		/// <returns>Token returned from Snarl on the last call to <see cref="Notify"/>.</returns>
 		public Int32 GetLastMsgToken()
 		{
 			return lastMsgToken;

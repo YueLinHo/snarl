@@ -22,6 +22,8 @@ namespace SnarlInterfaceExample1
 		const String SnarlClassNormal = "Normal";
 		const String SnarlClassCritical = "Critical";
 
+		private String snarlPassword = CreateSnarlPassword(8);
+
 		// Action callback values
 		enum SnarlActions
 		{
@@ -73,9 +75,10 @@ namespace SnarlInterfaceExample1
 		{
 			int result = 0;
 			String snarlIcon = SnarlInterface.GetIconsPath() + "presence.png";
-			String snarlPassword = CreateSnarlPassword(8);
-			
-			result = snarlInterface.RegisterWithEvents("application/Noer_IT.Example1", "SnarlInterface example1", snarlIcon, snarlPassword, this.Handle, null);
+
+			result = snarlInterface.RegisterWithEvents("application/Noer_IT.Example1", "SnarlInterface example1", snarlIcon, snarlPassword, this.Handle, null, SnarlInterface.AppFlags.None);
+
+			// result = snarlInterface.RegisterWithEvents("application/Noer_IT.Example1", "SnarlInterface example1", snarlIcon, snarlPassword, this.Handle, null);
 			// result = snarlInterface.RegisterWithEvents("application/Noer_IT.Example1", "SnarlInterface example1", snarlIcon, snarlPassword);
 
 			if (result < (int)SnarlInterface.SnarlStatus.Success)
@@ -132,6 +135,11 @@ namespace SnarlInterfaceExample1
 
 			snarlInterface.AddAction(msgToken, "Do something", "@" + (int)SnarlActions.DoSomething);
 			snarlInterface.AddAction(msgToken, "Do something else", "@" + (int)SnarlActions.DoSomethingElse);
+		}
+		
+		private void SendLowButton_Click(object sender, EventArgs e)
+		{
+			Int32 msgToken = snarlInterface.Notify(SnarlClassNormal, "Low priority message", "Some text", 10, null, null, SnarlInterface.MessagePriority.Low);
 		}
 
 		private void Log(String msg, params object[] args)

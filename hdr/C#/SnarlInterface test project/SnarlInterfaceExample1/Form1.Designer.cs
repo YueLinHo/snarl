@@ -33,6 +33,7 @@
 			this.SendNormalButton = new System.Windows.Forms.Button();
 			this.SendCriticalButton = new System.Windows.Forms.Button();
 			this.LogTextBox = new System.Windows.Forms.TextBox();
+			this.SendLowButton = new System.Windows.Forms.Button();
 			this.SuspendLayout();
 			// 
 			// label1
@@ -77,14 +78,25 @@
 			this.LogTextBox.Location = new System.Drawing.Point(183, 6);
 			this.LogTextBox.Multiline = true;
 			this.LogTextBox.Name = "LogTextBox";
-			this.LogTextBox.Size = new System.Drawing.Size(347, 88);
+			this.LogTextBox.Size = new System.Drawing.Size(347, 117);
 			this.LogTextBox.TabIndex = 4;
+			// 
+			// SendLowButton
+			// 
+			this.SendLowButton.Location = new System.Drawing.Point(12, 100);
+			this.SendLowButton.Name = "SendLowButton";
+			this.SendLowButton.Size = new System.Drawing.Size(165, 23);
+			this.SendLowButton.TabIndex = 5;
+			this.SendLowButton.Text = "Low priority message";
+			this.SendLowButton.UseVisualStyleBackColor = true;
+			this.SendLowButton.Click += new System.EventHandler(this.SendLowButton_Click);
 			// 
 			// Form1
 			// 
 			this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
 			this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-			this.ClientSize = new System.Drawing.Size(542, 106);
+			this.ClientSize = new System.Drawing.Size(542, 133);
+			this.Controls.Add(this.SendLowButton);
 			this.Controls.Add(this.LogTextBox);
 			this.Controls.Add(this.SendCriticalButton);
 			this.Controls.Add(this.SendNormalButton);
@@ -106,6 +118,7 @@
 		private System.Windows.Forms.Button SendNormalButton;
 		private System.Windows.Forms.Button SendCriticalButton;
 		private System.Windows.Forms.TextBox LogTextBox;
+		private System.Windows.Forms.Button SendLowButton;
 	}
 }
 
