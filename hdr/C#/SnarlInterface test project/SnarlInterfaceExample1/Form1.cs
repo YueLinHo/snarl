@@ -2,6 +2,7 @@
 using System.Windows.Forms;
 using Snarl.V42;
 using System.Text;
+using System.Security.Principal;
 
 
 namespace SnarlInterfaceExample1
@@ -51,6 +52,8 @@ namespace SnarlInterfaceExample1
 
 		private void InitializeSnarl()
 		{
+			var vers = SnarlInterface.GetVersion();
+
 			// ReRegisterSnarl() is called when first starting, and when a launch of Snarl is detected after this program is started.
 			ReRegisterSnarl();
 
@@ -61,6 +64,8 @@ namespace SnarlInterfaceExample1
 			// Using lambda expression
 			snarlInterface.GlobalSnarlEvent += (snarlInstance, args) =>
 			{
+				Log("Received global event: " + args.GlobalEvent);
+
 				if (args.GlobalEvent == SnarlInterface.GlobalEvent.SnarlLaunched)
 					ReRegisterSnarl();
 				else if (args.GlobalEvent == SnarlInterface.GlobalEvent.SnarlQuit)
@@ -105,6 +110,10 @@ namespace SnarlInterfaceExample1
 				case SnarlInterface.SnarlStatus.CallbackTimedOut:
 					Log("Message with token={0} timed out.", e.MessageToken);
 					break;
+
+				default:
+					Log("Received callback event: " + e.SnarlEvent);
+					break;
 			}
 		}
 
@@ -144,23 +153,42 @@ namespace SnarlInterfaceExample1
 
 		private void Log(String msg, params object[] args)
 		{
-			msg = msg + "\n";
+			String formattedMsg = "";
+			msg = msg + Environment.NewLine;
 			if (args.Length > 0)
-				LogTextBox.AppendText(String.Format(msg, args));
+				formattedMsg = String.Format(msg, args);
 			else
-				LogTextBox.AppendText(msg);
+				formattedMsg = msg;
+
+			if (LogTextBox.InvokeRequired)
+			{
+				LogTextBox.Invoke((Action)(() => Log(formattedMsg)));
+			}
+			else
+			{
+				LogTextBox.AppendText(formattedMsg);
+			}
 		}
 
 		private static string CreateSnarlPassword(int length)
 		{
-			Random random = new Random();
+			// It is a bad idea to create a random generated password, as this will make register fail,
+			// if the application is quit without proper unregister call. (Since passwords won't match between the two application instances.)
+
+			// Generate "static" password
+			String pass = WindowsIdentity.GetCurrent().Name.ToString() + "Snarl";
+			return pass;
+
+			// Generate random password
+			/*Random random = new Random();
 			StringBuilder sb = new StringBuilder(length);
 
 			for (int i = 0; i < length; ++i)
 			{
 				sb.Append(Convert.ToChar(random.Next(65, 65 + 25)));
 			}
-			return sb.ToString();
+			return sb.ToString();*/
+			
 		}
 	}
 }

@@ -60,36 +60,34 @@ namespace Snarl.V42
 		#region Public constants and enums
 
 		/// <summary>
-		/// Global event identifiers.
-		/// Identifiers marked with a '*' are sent by Snarl in two ways:
-		///   1. As a broadcast message (uMsg = 'SNARL_GLOBAL_MSG')
-		///   2. To the window registered in snRegisterConfig() or snRegisterConfig2()
-		///      (uMsg = reply message specified at the time of registering)
-		/// In both cases these values appear in wParam.
-		///   
-		/// Identifiers not marked are not broadcast; they are simply sent to the application's registered window.
+		/// Global event identifiers - sent as Windows broadcast messages.
+		/// These values appear in wParam of the message.
 		/// </summary>
 		public enum GlobalEvent
 		{
-			SnarlLaunched = 1,      // Snarl has just started running*
-			SnarlQuit = 2,          // Snarl is about to stop running*
-			SnarlAskAppletVer = 3,  // (R1.5) Reserved for future use
-			SnarlShowAppUi = 4,     // (R1.6) Application should show its UI
-
-			// R2.4 Beta3
-			SnarlUserAway,          // away mode was enabled
-			SnarlUserBack,          // away mode was disabled
+			SnarlLaunched = 1,   // Snarl has just started running
+			SnarlQuit = 2,       // Snarl is about to stop running
+			SnarlStopped = 3,    // Sent when stopped by user - Also sent to registered window
+			SnarlStarted = 4,    // Sent when started by user - Also sent to registered window
 		}
 
 		/// <summary>
 		/// Snarl status codes.
 		/// Containes error codes for function calls, as well as callback values sent by Snarl
-		/// to the window specified in Register() when the Snarl Notification raised times out
+		/// to the window specified in Register() when fx. a Snarl notification times out
 		/// or the user clicks on it.
 		/// </summary>
 		public enum SnarlStatus : short
 		{
 			Success = 0,
+
+			// Snarl-Stopped/Started/UserAway/UserBack is defined in the GlobalEvent struct in VB6 code,
+			// but are sent directly to a registered window, so in C# they are defined here instead.
+			// Implemented as of Snarl R2.4 Beta3
+			SnarlStopped = 3,              // Sent when stopped by user - Also sent as broadcast message
+			SnarlStarted,                  // Sent when started by user - Also sent as broadcast message
+			SnarlUserAway,                 // Away mode was enabled
+			SnarlUserBack,                 // Away mode was disabled
 
 			// Win32 callbacks (renamed under V42)
 			CallbackRightClick = 32,       // Deprecated as of V42, ex. SNARL_NOTIFICATION_CLICKED/SNARL_NOTIFICATION_CANCELLED
@@ -259,20 +257,20 @@ namespace Snarl.V42
 
 		public struct Requests
 		{
-			public static String AddAction { get { return "addaction"; } }
-			public static String AddClass { get { return "addclass"; } }
+			public static String AddAction    { get { return "addaction"; } }
+			public static String AddClass     { get { return "addclass"; } }
 			public static String ClearActions { get { return "clearactions"; } }
 			public static String ClearClasses { get { return "clearclasses"; } }
-			public static String Hello { get { return "hello"; } }
-			public static String Hide { get { return "hide"; } }
-			public static String IsVisible { get { return "isvisible"; } }
-			public static String Notify { get { return "notify"; } }
-			public static String Register { get { return "register"; } }
-			public static String RemoveClass { get { return "remclass"; } }
-			public static String Unregister { get { return "unregister"; } }
-			public static String UpdateApp { get { return "updateapp"; } }
-			public static String Update { get { return "update"; } }
-			public static String Version { get { return "version"; } }
+			public static String Hello        { get { return "hello"; } }
+			public static String Hide         { get { return "hide"; } }
+			public static String IsVisible    { get { return "isvisible"; } }
+			public static String Notify       { get { return "notify"; } }
+			public static String Register     { get { return "register"; } }
+			public static String RemoveClass  { get { return "remclass"; } }
+			public static String Unregister   { get { return "unregister"; } }
+			public static String UpdateApp    { get { return "updateapp"; } }
+			public static String Update       { get { return "update"; } }
+			public static String Version      { get { return "version"; } }
 		}
 
 		// ------------------------------------------------------------------------------------
@@ -960,6 +958,7 @@ namespace Snarl.V42
 					if (parent.CallbackEvent == null)
 						return;
 
+					// Parse out parameters
 					UInt16 loword, hiword;
 					ConvertToUInt16(m.WParam, out loword, out hiword);
 					Int32 msgToken = m.LParam.ToInt32();
