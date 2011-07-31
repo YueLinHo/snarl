@@ -31,6 +31,8 @@
 /// </summary>
 ///----------------------------------------------------------------------------
 /// <VersionHistory>
+///  2011-07-31 : General update to match VB6 SVN rev. 232
+///             : Added AppFlags and MessagePriority enums.
 ///  2011-07-12 : MingW64 fixes by Patrick von Reth
 ///  2011-07-07 : Some changes to compile under VS2008
 ///                 - Changed vector iterators to begin/end instead of cbegin/cend
@@ -119,7 +121,6 @@ LONG32 SnarlInterface::DoRequest(LPCWSTR request, UINT replyTimeout)
 	FreeString(utf8Request);
 	return nResult;
 }
-
 
 std::basic_string<char>& SnarlInterface::Escape(std::basic_string<char>& str)
 {
@@ -264,7 +265,7 @@ LONG32 SnarlInterface::AddAction(LONG32 msgToken, LPCWSTR label, LPCWSTR cmd)
 LONG32 SnarlInterface::AddClass(LPCSTR classId, LPCSTR name, LPCSTR title, LPCSTR text, LPCSTR icon, LPCSTR sound, LONG32 duration, LPCSTR callback, bool enabled)
 {
 	// addclass?[app-sig=<signature>|token=<application token>][&password=<password>]&id=<class identifier>&name=<class name>[&enabled=<0|1>][&callback=<callback>]
-    //          [&title=<title>][&text=<text>][&icon=<icon>][&sound=<sound>][&duration=<duration>]
+	//          [&title=<title>][&text=<text>][&icon=<icon>][&sound=<sound>][&duration=<duration>]
 
 	SnarlParameterList<char> spl(11);
 	spl.Add("token", appToken);
@@ -357,13 +358,11 @@ LONG32 SnarlInterface::IsVisible(LONG32 msgToken)
 }
 
 
-LONG32 SnarlInterface::Notify(LPCSTR classId, LPCSTR title, LPCSTR text, LONG32 timeout, LPCSTR iconPath, LPCSTR iconBase64, LONG32 priority, LPCSTR ack, LPCSTR callback, LPCSTR value)
+LONG32 SnarlInterface::Notify(LPCSTR classId, LPCSTR title, LPCSTR text, LONG32 timeout, LPCSTR iconPath, LPCSTR iconBase64, SnarlEnums::MessagePriority priority, LPCSTR uid, LPCSTR callback, LPCSTR value)
 {
 	// notify?[app-sig=<signature>|token=<application token>][&password=<password>][&id=<class identifier>]
 	//        [&title=<title>][&text=<text>][&timeout=<timeout>][&icon=<icon path>][&icon-base64=<MIME data>][&callback=<default callback>]
 	//        [&priority=<priority>][&uid=<notification uid>][&value=<value>]
-
-	//  LPCSTR iconData
 
 	SnarlParameterList<char> spl(12);
 	spl.Add("token", appToken);
@@ -374,11 +373,11 @@ LONG32 SnarlInterface::Notify(LPCSTR classId, LPCSTR title, LPCSTR text, LONG32 
 	spl.Add("text", text);
 	spl.Add("icon", iconPath);
 	spl.Add("icon-base64", iconBase64);
-	spl.Add("ack", ack);
+	spl.Add("uid", uid);
 	spl.Add("callback", callback);
 	spl.Add("value", value);
 	if (timeout != -1)  spl.Add("timeout", timeout);
-	if (priority != -2) spl.Add("priority", priority); // -1 is a legal priority
+	if (priority != SnarlEnums::PriorityUndefined) spl.Add("priority", priority); // -1 is a legal priority
 
 	LONG32 request = DoRequest(Requests::NotifyA(), spl);
 	lastMsgToken = (request > 0) ? request : 0;
@@ -386,7 +385,7 @@ LONG32 SnarlInterface::Notify(LPCSTR classId, LPCSTR title, LPCSTR text, LONG32 
 	return request;
 }
 
-LONG32 SnarlInterface::Notify(LPCWSTR classId, LPCWSTR title, LPCWSTR text, LONG32 timeout, LPCWSTR iconPath, LPCWSTR iconBase64, LONG32 priority, LPCWSTR ack, LPCWSTR callback, LPCWSTR value)
+LONG32 SnarlInterface::Notify(LPCWSTR classId, LPCWSTR title, LPCWSTR text, LONG32 timeout, LPCWSTR iconPath, LPCWSTR iconBase64, SnarlEnums::MessagePriority priority, LPCWSTR uid, LPCWSTR callback, LPCWSTR value)
 {
 	SnarlParameterList<wchar_t> spl(12);
 	spl.Add(L"token", appToken);
@@ -397,11 +396,11 @@ LONG32 SnarlInterface::Notify(LPCWSTR classId, LPCWSTR title, LPCWSTR text, LONG
 	spl.Add(L"text", text);
 	spl.Add(L"icon", iconPath);
 	spl.Add(L"icon-base64", iconBase64);
-	spl.Add(L"ack", ack);
+	spl.Add(L"uid", uid);
 	spl.Add(L"callback", callback);
 	spl.Add(L"value", value);
 	if (timeout != -1)  spl.Add(L"timeout", timeout);
-	if (priority != -2) spl.Add(L"priority", priority); // -1 is a legal priority	
+	if (priority != SnarlEnums::PriorityUndefined) spl.Add(L"priority", priority); // -1 is a legal priority
 
 	LONG32 request = DoRequest(Requests::NotifyW(), spl);
 	lastMsgToken = (request > 0) ? request : 0;
@@ -410,7 +409,7 @@ LONG32 SnarlInterface::Notify(LPCWSTR classId, LPCWSTR title, LPCWSTR text, LONG
 }
 
 
-LONG32 SnarlInterface::Register(LPCSTR signature, LPCSTR title, LPCSTR icon, LPCSTR password, HWND hWndReplyTo, LONG32 msgReply)
+LONG32 SnarlInterface::Register(LPCSTR signature, LPCSTR title, LPCSTR icon, LPCSTR password, HWND hWndReplyTo, LONG32 msgReply, SnarlEnums::AppFlags flags)
 {
 	// register?app-sig=<signature>&title=<title>[&icon=<icon>][&password=<password>][&reply-to=<reply window>][&reply=<reply message>]
 
@@ -421,6 +420,7 @@ LONG32 SnarlInterface::Register(LPCSTR signature, LPCSTR title, LPCSTR icon, LPC
 	spl.Add("password", password);
 	spl.Add("reply-to", hWndReplyTo);
 	spl.Add("reply", msgReply);
+	spl.Add("flags", flags);
 
 	// If password was given, save and use in all other functions requiring password
 	if (password != NULL && strlen(password) > 0)
@@ -433,7 +433,7 @@ LONG32 SnarlInterface::Register(LPCSTR signature, LPCSTR title, LPCSTR icon, LPC
 	return request;
 }
 
-LONG32 SnarlInterface::Register(LPCWSTR signature, LPCWSTR name, LPCWSTR icon, LPCWSTR password, HWND hWndReplyTo, LONG32 msgReply)
+LONG32 SnarlInterface::Register(LPCWSTR signature, LPCWSTR name, LPCWSTR icon, LPCWSTR password, HWND hWndReplyTo, LONG32 msgReply, SnarlEnums::AppFlags flags)
 {
 	SnarlParameterList<wchar_t> spl(7);
 	spl.Add(L"app-sig", signature);
@@ -442,6 +442,7 @@ LONG32 SnarlInterface::Register(LPCWSTR signature, LPCWSTR name, LPCWSTR icon, L
 	spl.Add(L"password", password);
 	spl.Add(L"reply-to", hWndReplyTo);
 	spl.Add(L"reply", msgReply);
+	spl.Add(L"flags", flags);
 
 	// If password was given, save and use in all other functions requiring password
 	if (password != NULL && wcslen(password) > 0)
@@ -509,10 +510,10 @@ LONG32 SnarlInterface::Unregister(LPCWSTR signature)
 	return DoRequest(Requests::UnregisterW(), spl);
 }
 
-LONG32 SnarlInterface::Update(LONG32 msgToken, LPCSTR classId, LPCSTR title, LPCSTR text, LONG32 timeout, LPCSTR iconPath, LPCSTR iconBase64, LONG32 priority, LPCSTR ack, LPCSTR callback, LPCSTR value)
+LONG32 SnarlInterface::Update(LONG32 msgToken, LPCSTR classId, LPCSTR title, LPCSTR text, LONG32 timeout, LPCSTR iconPath, LPCSTR iconBase64, SnarlEnums::MessagePriority priority, LPCSTR callback, LPCSTR value)
 {
 	// Made from best guess - no documentation available yet
-	SnarlParameterList<char> spl(12);
+	SnarlParameterList<char> spl(11);
 	spl.Add("token", msgToken);
 	spl.Add("password", szPasswordA);
 
@@ -521,19 +522,18 @@ LONG32 SnarlInterface::Update(LONG32 msgToken, LPCSTR classId, LPCSTR title, LPC
 	spl.Add("text", text);
 	spl.Add("icon", iconPath);
 	spl.Add("icon-base64", iconBase64);
-	spl.Add("ack", ack);
 	spl.Add("callback", callback);
 	spl.Add("value", value);
 	if (timeout != -1)  spl.Add("timeout", timeout);
-	if (priority != -2) spl.Add("priority", priority); // -1 is a legal priority
+	if (priority != SnarlEnums::PriorityUndefined) spl.Add("priority", priority); // -1 is a legal priority
 
 	return DoRequest(Requests::UpdateA(), spl);
 }
 
-LONG32 SnarlInterface::Update(LONG32 msgToken, LPCWSTR classId, LPCWSTR title, LPCWSTR text, LONG32 timeout, LPCWSTR iconPath, LPCWSTR iconBase64, LONG32 priority, LPCWSTR ack, LPCWSTR callback, LPCWSTR value)
+LONG32 SnarlInterface::Update(LONG32 msgToken, LPCWSTR classId, LPCWSTR title, LPCWSTR text, LONG32 timeout, LPCWSTR iconPath, LPCWSTR iconBase64, SnarlEnums::MessagePriority priority, LPCWSTR callback, LPCWSTR value)
 {
 	// Made from best guess - no documentation available yet
-	SnarlParameterList<wchar_t> spl(12);
+	SnarlParameterList<wchar_t> spl(11);
 	spl.Add(L"token", msgToken);
 	spl.Add(L"password", szPasswordW);
 
@@ -542,11 +542,10 @@ LONG32 SnarlInterface::Update(LONG32 msgToken, LPCWSTR classId, LPCWSTR title, L
 	spl.Add(L"text", text);
 	spl.Add(L"icon", iconPath);
 	spl.Add(L"icon-base64", iconBase64);
-	spl.Add(L"ack", ack);
 	spl.Add(L"callback", callback);
 	spl.Add(L"value", value);
 	if (timeout != -1)  spl.Add(L"timeout", timeout);
-	if (priority != -2) spl.Add(L"priority", priority); // -1 is a legal priority	
+	if (priority != SnarlEnums::PriorityUndefined) spl.Add(L"priority", priority); // -1 is a legal priority
 
 	return DoRequest(Requests::UpdateW(), spl);
 }

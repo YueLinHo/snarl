@@ -20,51 +20,54 @@
 namespace Snarl {
 	namespace V42 {
 
-	static const LPCTSTR SnarlWindowClass = _T("w>Snarl");
-	static const LPCTSTR SnarlWindowTitle = _T("Snarl");
+	static LPCTSTR SnarlWindowClass = _T("w>Snarl");
+	static LPCTSTR SnarlWindowTitle = _T("Snarl");
 
-	static const LPCTSTR SnarlGlobalMsg = _T("SnarlGlobalEvent");
-	static const LPCTSTR SnarlAppMsg = _T("SnarlAppMessage");
+	static LPCTSTR SnarlGlobalMsg = _T("SnarlGlobalEvent");
+	static LPCTSTR SnarlAppMsg    = _T("SnarlAppMessage");
 
 	static const DWORD WM_SNARLTEST = WM_USER + 237;
+
+	/// <summary>Application requests - these values appear in wParam.<para>Application should launch its settings UI</para></summary>
+	static const WPARAM AppDoPrefs = 1;
+	/// <summary>Application requests - these values appear in wParam.<para>Application should show its About... dialog</para></summary>
+	static const WPARAM AppDoAbout = 2;
+
 
 	// Enums put in own namespace, because ANSI C++ doesn't decorate enums with tagname :(
 	namespace SnarlEnums {
 
 		/// <summary>
-		/// Global event identifiers.
-		/// Identifiers marked with a '*' are sent by Snarl in two ways:
-		///   1. As a broadcast message (uMsg = 'SNARL_GLOBAL_MSG')
-		///   2. To the window registered in snRegisterConfig() or snRegisterConfig2()
-		///      (uMsg = reply message specified at the time of registering)
-		/// In both cases these values appear in wParam.
-		///   
-		/// Identifiers not marked are not broadcast; they are simply sent to the application's registered window.
+		/// Global event identifiers - sent as Windows broadcast messages.
+		/// These values appear in wParam of the message.
 		/// </summary>
 		enum GlobalEvent
 		{
-			SnarlLaunched = 1,      // Snarl has just started running*
-			SnarlQuit = 2,          // Snarl is about to stop running*
-			SnarlStopped = 3,       // sent when stopped by user
-			SnarlStarted = 4,       // sent when started by user
-
-			// R2.4 Beta3
-			SnarlUserAway,          // away mode was enabled
-			SnarlUserBack,          // away mode was disabled
+			SnarlLaunched = 1,      // Snarl has just started running
+			SnarlQuit = 2,          // Snarl is about to stop running
+			SnarlGlobalStopped = 3, // Sent when stopped by user - Also sent to registered window
+			SnarlGlobalStarted = 4, // Sent when started by user - Also sent to registered window
 		};
 
 		enum SnarlStatus
 		{
 			Success = 0,
 
+			// Snarl-Stopped/Started/UserAway/UserBack is defined in the GlobalEvent struct in VB6 code,
+			// but are sent directly to a registered window, so in C# they are defined here instead.
+			// Implemented as of Snarl R2.4 Beta3
+			SnarlStopped = 3,              // Sent when stopped by user - Also sent as broadcast message
+			SnarlStarted,                  // Sent when started by user - Also sent as broadcast message
+			SnarlUserAway,                 // Away mode was enabled
+			SnarlUserBack,                 // Away mode was disabled
+
 			// Win32 callbacks (renamed under V42)
-			CallbackRightClick = 32,           // Deprecated as of V42, ex. SNARL_NOTIFICATION_CLICKED/SNARL_NOTIFICATION_CANCELLED
+			CallbackRightClick = 32,       // Deprecated as of V42, ex. SNARL_NOTIFICATION_CLICKED/SNARL_NOTIFICATION_CANCELLED
 			CallbackTimedOut,
 			CallbackInvoked,               // left clicked and no default callback assigned
 			CallbackMenuSelected,          // HIWORD(wParam) contains 1-based menu item index
-			CallbackMiddleClick,                // Deprecated as of V42
+			CallbackMiddleClick,           // Deprecated as of V42
 			CallbackClosed,
-
 
 			// critical errors
 			ErrorFailed = 101,             // miscellaneous failure
@@ -74,11 +77,16 @@ namespace Snarl {
 			//105 gen critical #5
 			ErrorBadSocket = 106,          // invalid socket (or some other socket-related error)
 			ErrorBadPacket = 107,          // badly formed request
-			//108 net critical #3
+			ErrorInvalidArg = 108,         // arg supplied was invalid (Added in v42.56)
 			ErrorArgMissing = 109,         // required argument missing
 			ErrorSystem,                   // internal system error
 			//120 libsnarl critical block
 			ErrorAccessDenied = 121,       // libsnarl only
+			//130 SNP/3.0-specific
+			ErrorUnsupportedVersion = 131, // requested SNP version is not supported
+			ErrorNoActionsProvided,        // empty request
+			ErrorUnsupportedEncryption,    // requested encryption type is not supported
+			ErrorUnsupportedHashing,       // requested message hashing type is not supported
 
 			// warnings
 			ErrorNotRunning = 201,         // Snarl handling window not found
@@ -92,11 +100,16 @@ namespace Snarl {
 			ErrorDoNotDisturb,             // DnD mode is in effect was not logged as missed
 			ErrorCouldNotDisplay,          // not enough space on-screen to display notification
 			ErrorAuthFailure,              // password mismatch
+			// Release 2.4.2
+			ErrorDiscarded,                // discarded for some reason, e.g. foreground app match
+			ErrorNotSubscribed,            // subscriber not found
 
 			// informational
+			// code 250 reserved for future use
 			WasMerged = 251,               // notification was merged, returned token is the one we merged with
 
 			// callbacks
+			// code 300 reserved for future use
 			NotifyGone = 301,              // reserved for future use
 
 			// The following are currently specific to SNP 2.0 and are effectively the
@@ -107,14 +120,40 @@ namespace Snarl {
 			NotifyInvoked = 304,           // note this was "ACK" in a previous life
 			NotifyMenu,                    // indicates an item was selected from user-defined menu (deprecated as of V42)
 			// SNARL_NOTIFY_EX_CLICK       // user clicked the middle mouse button (deprecated as of V42)
-			// SNARL_NOTIFY_CLOSED         // user clicked the notification's close gadget
+			NotifyClosed = 307,            // // user clicked the notification's close gadget (GNTP only)
 
 			// the following is generic to SNP and the Win32 API
 			NotifyAction = 308,             // user picked an action from the list, the data value will indicate which one
 
+			// other events
+			EventForward = 350,
+
 
 			// C++ interface custom errors- not part of official API!
 			ErrorCppInterface = 1001
+		};
+
+		/// <summary>
+		/// The priority of messages.
+		/// See <cref>http://sourceforge.net/apps/mediawiki/snarlwin/index.php?title=Generic_API#notify</cref>
+		/// </summary>
+		enum MessagePriority
+		{
+			PriorityUndefined = -2,
+			PriorityLow = -1,
+			PriorityNormal = 0,
+			PriorityHigh = 1
+		};
+
+		/// <summary>
+		/// Application flags - features this app supports.
+		/// </summary>
+		enum AppFlags
+		{
+			AppFlagNone = 0,
+			AppHasPrefs = 1,
+			AppHasAbout = 2,
+			AppIsWindowless = 0x8000
 		};
 
 	} // namespace SnarlEnums
@@ -319,22 +358,22 @@ namespace Snarl {
 		/// <summary>Show a Snarl notification.</summary>
 		/// <returns>Returns the notification token or negative on failure.</returns>
 		/// <remarks>You can use <see cref="GetLastMsgToken()" /> to get the last token.</remarks>
-		LONG32 Notify(LPCSTR classId = NULL, LPCSTR title = NULL, LPCSTR text = NULL, LONG32 timeout = -1, LPCSTR iconPath = NULL, LPCSTR iconBase64 = NULL, LONG32 priority = -2, LPCSTR ack = NULL, LPCSTR callback = NULL, LPCSTR value = NULL);
-		LONG32 Notify(LPCWSTR classId = NULL, LPCWSTR title = NULL, LPCWSTR text = NULL, LONG32 timeout = -1, LPCWSTR iconPath = NULL, LPCWSTR iconBase64 = NULL, LONG32 priority = -2, LPCWSTR ack = NULL, LPCWSTR callback = NULL, LPCWSTR value = NULL);
+		LONG32 Notify(LPCSTR classId = NULL, LPCSTR title = NULL, LPCSTR text = NULL, LONG32 timeout = -1, LPCSTR iconPath = NULL, LPCSTR iconBase64 = NULL, SnarlEnums::MessagePriority priority = SnarlEnums::PriorityUndefined, LPCSTR uid = NULL, LPCSTR callback = NULL, LPCSTR value = NULL);
+		LONG32 Notify(LPCWSTR classId = NULL, LPCWSTR title = NULL, LPCWSTR text = NULL, LONG32 timeout = -1, LPCWSTR iconPath = NULL, LPCWSTR iconBase64 = NULL,  SnarlEnums::MessagePriority priority = SnarlEnums::PriorityUndefined, LPCWSTR uid = NULL, LPCWSTR callback = NULL, LPCWSTR value = NULL);
 
 		/// <summary>Register application with Snarl.</summary>
 		/// <returns>The application token or negative on failure.</returns>
 		/// <remarks>The application token is saved in SnarlInterface member variable, so just use return value to check for error.</remarks>
-		LONG32 Register(LPCSTR  signature, LPCSTR  title, LPCSTR  icon = NULL, LPCSTR  password = NULL, HWND hWndReplyTo = NULL, LONG32 msgReply = 0);
-		LONG32 Register(LPCWSTR signature, LPCWSTR title, LPCWSTR icon = NULL, LPCWSTR password = NULL, HWND hWndReplyTo = NULL, LONG32 msgReply = 0);
+		LONG32 Register(LPCSTR  signature, LPCSTR  title, LPCSTR  icon = NULL, LPCSTR  password = NULL, HWND hWndReplyTo = NULL, LONG32 msgReply = 0, SnarlEnums::AppFlags flags = SnarlEnums::AppFlagNone);
+		LONG32 Register(LPCWSTR signature, LPCWSTR title, LPCWSTR icon = NULL, LPCWSTR password = NULL, HWND hWndReplyTo = NULL, LONG32 msgReply = 0, SnarlEnums::AppFlags flags = SnarlEnums::AppFlagNone);
 
 		/// <summary>Remove a notification class added with AddClass().</summary>
 		LONG32 RemoveClass(LPCSTR classId);
 		LONG32 RemoveClass(LPCWSTR classId);
 		
 		/// <summary>Update the text or other parameters of a visible Snarl notification.</summary>
-		LONG32 Update(LONG32 msgToken, LPCSTR classId = NULL, LPCSTR title = NULL, LPCSTR text = NULL, LONG32 timeout = -1, LPCSTR iconPath = NULL, LPCSTR iconBase64 = NULL, LONG32 priority = -2, LPCSTR ack = NULL, LPCSTR callback = NULL, LPCSTR value = NULL);
-		LONG32 Update(LONG32 msgToken, LPCWSTR classId = NULL, LPCWSTR title = NULL, LPCWSTR text = NULL, LONG32 timeout = -1, LPCWSTR iconPath = NULL, LPCWSTR iconBase64 = NULL, LONG32 priority = -2, LPCWSTR ack = NULL, LPCWSTR callback = NULL, LPCWSTR value = NULL);
+		LONG32 Update(LONG32 msgToken, LPCSTR classId = NULL, LPCSTR title = NULL, LPCSTR text = NULL, LONG32 timeout = -1, LPCSTR iconPath = NULL, LPCSTR iconBase64 = NULL, SnarlEnums::MessagePriority priority = SnarlEnums::PriorityUndefined, LPCSTR callback = NULL, LPCSTR value = NULL);
+		LONG32 Update(LONG32 msgToken, LPCWSTR classId = NULL, LPCWSTR title = NULL, LPCWSTR text = NULL, LONG32 timeout = -1, LPCWSTR iconPath = NULL, LPCWSTR iconBase64 = NULL, SnarlEnums::MessagePriority priority = SnarlEnums::PriorityUndefined, LPCWSTR callback = NULL, LPCWSTR value = NULL);
 
 		/// <summary>Unregister application with Snarl when application is closing.</summary>
 		LONG32 Unregister(LPCSTR signature);

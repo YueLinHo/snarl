@@ -106,8 +106,8 @@ void CSnarlV42Test::Test1()
 	pHelper->WriteLine(_T("AddClass: %d"), snarl->AddClass(CLASS2, CLASS_DESC2));
 
 	// Test EZNotify
-	pHelper->WriteLine(_T("Notify: %d"), snarl->Notify(CLASS1, _T("Message 1"), _T("Test text"), DEFAULT_TIMEOUT, snarlIcon3, 0, NULL));
-	pHelper->WriteLine(_T("Notify: %d"), snarl->Notify(CLASS1, _T("Message 2"), TESTMSG1, DEFAULT_TIMEOUT, snarlIcon3, NULL, 0, _T("ack")));
+	pHelper->WriteLine(_T("Notify: %d"), snarl->Notify(CLASS1, _T("Message 1"), _T("Test text"), DEFAULT_TIMEOUT, snarlIcon3, NULL, SnarlEnums::PriorityNormal, NULL));
+	pHelper->WriteLine(_T("Notify: %d"), snarl->Notify(CLASS1, _T("High priority 1"), TESTMSG1, DEFAULT_TIMEOUT, snarlIcon3, NULL, SnarlEnums::PriorityHigh, _T("ack")));
 	pHelper->WriteLine(_T("Notify: %d"), snarl->Notify(CLASS1, _T("Message 3"), TESTMSG1, DEFAULT_TIMEOUT));
 	pHelper->WriteLine(_T("Notify: %d"), snarl->Notify(CLASS1, _T("Message 4"), TESTMSG2));
 
