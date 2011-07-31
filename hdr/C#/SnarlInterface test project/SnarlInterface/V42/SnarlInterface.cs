@@ -799,11 +799,11 @@ namespace Snarl.V42
 		/// </summary>
 		/// <returns></returns>
 		/// <remarks><see cref="http://sourceforge.net/apps/mediawiki/snarlwin/index.php?title=Generic_API#update"/></remarks>
-		public Int32 Update(Int32 msgToken, String classId, String title, String text, Int32? timeout, String iconPath, String iconBase64, MessagePriority? priority, String ack, String callback, String value)
+		public Int32 Update(Int32 msgToken, String classId, String title, String text, Int32? timeout, String iconPath, String iconBase64, MessagePriority? priority, String callback, String value)
 		{
 			// Made from best guess - no documentation available yet
 			// Following parameters left out: "reply-to", "reply", "uid"
-			SnarlParameterList spl = new SnarlParameterList(12);
+			SnarlParameterList spl = new SnarlParameterList(11);
 			spl.Add("token", msgToken);
 			spl.Add("password", password);
 
@@ -812,7 +812,6 @@ namespace Snarl.V42
 			spl.Add("text", text);
 			spl.Add("icon", iconPath);
 			spl.Add("icon-base64", iconBase64);
-			spl.Add("ack", ack);
 			spl.Add("callback", callback);
 			spl.Add("value", value);
 			spl.Add("timeout", timeout);
@@ -823,17 +822,17 @@ namespace Snarl.V42
 
 		public Int32 Update(Int32 msgToken, String classId, String title, String text, Int32? timeout, String iconPath, String iconBase64, MessagePriority? priority)
 		{
-			return Update(msgToken, classId, title, text, timeout, iconPath, iconBase64, priority, null, null, null);
+			return Update(msgToken, classId, title, text, timeout, iconPath, iconBase64, priority, null, null);
 		}
 
 		public Int32 Update(Int32 msgToken, String classId, String title, String text, Int32? timeout)
 		{
-			return Update(msgToken, classId, title, text, timeout, null, null, null, null, null, null);
+			return Update(msgToken, classId, title, text, timeout, null, null, null, null, null);
 		}
 
 		public Int32 Update(Int32 msgToken, String classId, String title, String text)
 		{
-			return Update(msgToken, classId, title, text, null, null, null, null, null, null, null);
+			return Update(msgToken, classId, title, text, null, null, null, null, null, null);
 		}
 
 		/// <summary>
