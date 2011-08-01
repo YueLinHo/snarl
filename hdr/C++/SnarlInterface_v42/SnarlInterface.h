@@ -125,9 +125,6 @@ namespace Snarl {
 			// the following is generic to SNP and the Win32 API
 			NotifyAction = 308,             // user picked an action from the list, the data value will indicate which one
 
-			// other events
-			EventForward = 350,
-
 
 			// C++ interface custom errors- not part of official API!
 			ErrorCppInterface = 1001

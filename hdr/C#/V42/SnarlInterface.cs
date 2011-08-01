@@ -151,10 +151,7 @@ namespace Snarl.V42
 			NotifyClosed = 307,            // // user clicked the notification's close gadget (GNTP only)
 
 			// the following is generic to SNP and the Win32 API
-			NotifyAction = 308,             // user picked an action from the list, the data value will indicate which one
-
-			// other events
-			EventForward = 350
+			NotifyAction = 308              // user picked an action from the list, the data value will indicate which one
 		}
 
 		/// <summary>
