@@ -136,15 +136,10 @@ Public Enum SNARL_STATUS_CODE
 
     SNARL_NOTIFY_ACTION = 308               '// user picked an action from the list, the data value will indicate which one
 
-    ' /* other events */
-
-'    SNARL_FORWARD = 350
-
 End Enum
 
     ' /* local variables */
 
-'Dim mLocalErr As SNARL_STATUS_CODE
 
     ' /*
     '
@@ -197,7 +192,6 @@ Private Const SNARLAPP_MSG = "SnarlAppMessage"
 
 Public Const SNARLAPP_DO_PREFS = 1              '// application should launch its settings UI
 Public Const SNARLAPP_DO_ABOUT = 2              '// application should show its About... dialog
-
 
 
 ' /****************************************************************************************
