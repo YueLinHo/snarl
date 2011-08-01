@@ -91,7 +91,7 @@ Dim n As Long
             .AddIfMissing "use_contact_icon", "1"
             .AddIfMissing "open_on_click", "1"
             .AddIfMissing "auto_mark_as_read", "1"
-            .AddIfMissing "show_tray_icon", "0"
+            .AddIfMissing "show_tray_icon", "1"
 
             If Not .Save() Then _
                 g_Debug "TWindow.WM_CREATE(): error writing config", LEMON_LEVEL_WARNING
@@ -148,35 +148,46 @@ Dim n As Long
         End Select
 
 
-'    Case snBroadcastMsg()
-'        Select Case wParam
-'        Case SNARL_BROADCAST_LAUNCHED
-'            g_Debug "[SNARL_BROADCAST_LAUNCHED]"
-'            Form1.Add "Snarl launched"
-'
+    Case snBroadcastMsg()
+        Select Case wParam
+        Case SNARL_BROADCAST_LAUNCHED
+            Form1.Add "[SNARL_BROADCAST_LAUNCHED]"
+            uRegister
+
 '        Case SNARL_BROADCAST_QUIT
 '            g_Debug "[SNARL_BROADCAST_QUIT]"
 '            Form1.Add "Snarl quit"
 '            uTidyUp
-'
-'        End Select
+
+        End Select
 
 
     Case snAppMsg()
         Select Case wParam
         Case SNARLAPP_DO_PREFS
-            g_Debug "[SNARLAPP_DO_PREFS]"
-            Form1.Add "_APP_PREFS"
+            Form1.Add "[SNARLAPP_DO_PREFS]"
             uDoPrefs
 
         Case SNARLAPP_DO_ABOUT
-            g_Debug "[SNARLAPP_DO_ABOUT]"
+            Form1.Add "[SNARLAPP_DO_ABOUT]"
             If uRegister() Then _
                 Debug.Print snDoRequest("notify?app-sig=" & App.ProductName & _
+                            "&uid=__about" & _
                             "&title=SnarlMail " & CStr(App.Major) & "." & CStr(App.Minor) & IIf(App.Comments <> "", " " & App.Comments, "") & " (Build " & CStr(App.Revision) & ")" & _
                             "&text=" & App.LegalCopyright & vbCrLf & "Visit http://www.fullphat.net for support and updates" & uOutlookVer() & _
                             "&icon=" & g_MakePath(App.Path) & "icon.png" & _
                             "&action=Visit Website,http://www.fullphat.net")
+
+        Case SNARLAPP_ACTIVATED
+            ' /* V43 */
+            Form1.Add "[SNARLAPP_ACTIVATED]"
+            uDoPrefs
+
+        Case SNARLAPP_QUIT_REQUESTED
+            ' /* V43 */
+            Form1.Add "[SNARLAPP_QUIT_REQUESTED]"
+            PostQuitMessage 0
+
 
         End Select
 
@@ -476,10 +487,8 @@ End Function
 
 Private Sub uDoPrefs()
 Dim pPage As BPrefsPage
-'Dim pC As BControl
 
     If (thePanel Is Nothing) Then
-
         Set thePanel = New BPrefsPanel
         With thePanel
             .SetHandler Me
@@ -536,11 +545,10 @@ Dim pPage As BPrefsPage
             g_SetWindowIconToAppResourceIcon .hWnd
 
         End With
-
-    Else
-        g_ShowWindow thePanel.hWnd, True, True
-
     End If
+
+    g_WindowToFront thePanel.hWnd, True
+
 
 End Sub
 
@@ -832,8 +840,18 @@ Private Function uDate(ByVal d As Date, Optional ByVal DayOnly As Boolean) As St
 End Function
 
 Private Function uRegister() As Boolean
+Dim hr As Long
 
-    If snarl_register(App.ProductName, App.Title, g_MakePath(App.Path) & "icon.png", , _
+    hr = snDoRequest("register?app-sig=" & App.ProductName & _
+                     "&app-title=" & App.Title & _
+                     "&icon=" & g_MakePath(App.Path) & "icon.png" & _
+                     "&reply-to=" & CStr(mhWnd) & _
+                     "&reply-with=" & CStr(WM_NOTIFICATION) & _
+                     "&app-daemon=1")
+
+    If hr > 0 Then
+
+'    If snarl_register(App.ProductName, App.Title, g_MakePath(App.Path) & "icon.png", , _
                       mhWnd, WM_NOTIFICATION, _
                       SNARLAPP_IS_WINDOWLESS Or SNARLAPP_HAS_ABOUT Or SNARLAPP_HAS_PREFS) > 0 Then
 
@@ -856,6 +874,9 @@ Private Function uRegister() As Boolean
                     "&name=Confidential messages"
 
         uRegister = True
+
+    Else
+        g_Debug "TWindow.uRegister(): failed (" & CStr(hr) & ")"
 
     End If
 
