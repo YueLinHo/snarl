@@ -13,16 +13,16 @@ Attribute VB_PredeclaredId = False
 Attribute VB_Exposed = False
 Option Explicit
 
-Public Enum E_STYLEENGINE_STATE
-    E_SE_FAILED = -1            ' // mError should contain reason
-    E_SE_NOT_LOADED = 0
-    E_SE_LOADED = 1
+Public Enum SN_STYLEENGINE_STATE
+    SN_SE_FAILED = -1            ' // mError should contain reason
+    SN_SE_NOT_LOADED = 0
+    SN_SE_LOADED = 1
 
 End Enum
 
 Dim mClassId As String
 Dim mObject As IStyleEngine
-Dim mState As E_STYLEENGINE_STATE
+Dim mState As SN_STYLEENGINE_STATE
 Dim mFlags As Long
 
 Dim mError As String
@@ -41,7 +41,7 @@ End Function
 Public Sub Init(ByVal ClassId As String, ByVal Flags As Long)
 
     mClassId = ClassId
-    mState = E_SE_NOT_LOADED
+    mState = SN_SE_NOT_LOADED
     mFlags = Flags
 
 End Sub
@@ -51,7 +51,7 @@ Dim pse As IStyleEngine
 
     On Error Resume Next
 
-    If mState = E_SE_LOADED Then
+    If mState = SN_SE_LOADED Then
         g_Debug "TStyleEngine.Load(): '" & mClassId & "' is already loaded", LEMON_LEVEL_WARNING
         Exit Function
 
@@ -72,7 +72,7 @@ Dim pse As IStyleEngine
         ' /* fatal error */
         g_Debug "TStyleEngine.Load(): " & err.Description & "' creating '" & mClassId & "'", LEMON_LEVEL_CRITICAL
         mError = "Not a valid style engine"
-        mState = E_SE_FAILED
+        mState = SN_SE_FAILED
         Exit Function
 
     End If
@@ -86,7 +86,7 @@ Dim hr As M_RESULT
     If hr <> M_OK Then
         g_Debug "TStyleRoster.uAddStyleEngine(): style engine didn't initialize (" & g_HexStr(hr) & ")", LEMON_LEVEL_CRITICAL
         mError = pse.LastError()
-        mState = E_SE_FAILED
+        mState = SN_SE_FAILED
         Exit Function
 
     End If
@@ -94,7 +94,7 @@ Dim hr As M_RESULT
     If pse.CountStyles < 1 Then
         g_Debug "TStyleRoster.uAddStyleEngine(): style engine has no styles", LEMON_LEVEL_WARNING
         mError = "No styles found"
-        mState = E_SE_FAILED
+        mState = SN_SE_FAILED
         Exit Function
 
     End If
@@ -102,14 +102,14 @@ Dim hr As M_RESULT
     ' /* success */
 
     Set mObject = pse
-    mState = E_SE_LOADED
+    mState = SN_SE_LOADED
     Load = True
 
 End Function
 
 Public Sub Unload()
 
-    If mState = E_SE_LOADED Then
+    If mState = SN_SE_LOADED Then
         If Not (mObject Is Nothing) Then
             mObject.TidyUp
             Set mObject = Nothing
@@ -118,7 +118,7 @@ Public Sub Unload()
 
     End If
 
-    mState = E_SE_NOT_LOADED
+    mState = SN_SE_NOT_LOADED
 
 End Sub
 
@@ -127,7 +127,7 @@ Public Sub TidyUp()
 
 End Sub
 
-Public Function State() As E_STYLEENGINE_STATE
+Public Function State() As SN_STYLEENGINE_STATE
 
     State = mState
 

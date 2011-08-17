@@ -13,17 +13,17 @@ Attribute VB_PredeclaredId = False
 Attribute VB_Exposed = False
 Option Explicit
 
-'/*********************************************************************************************
-'/
-'/  File:           TApp.cls
-'/
-'/  Description:    Represents a single registered application
-'/
-'/  © 2009 full phat products
-'/
-'/  This file may be used under the terms of the Simplified BSD Licence
-'/
-'*********************************************************************************************/
+    '/*********************************************************************************************
+    '/
+    '/  File:           TApp.cls
+    '/
+    '/  Description:    Represents a single registered application
+    '/
+    '/  © 2009 full phat products
+    '/
+    '/  This file may be used under the terms of the Simplified BSD Licence
+    '/
+    '*********************************************************************************************/
 
 Dim mInfo As T_SNARL_APP        ' // app info
 Dim mAlert() As TAlert          ' // class(es) registered against this app
@@ -38,7 +38,26 @@ Dim mIsBanned As Boolean        ' // app has attempted a DoS (or otherwise been 
 Dim mLastNotificationTick As Long
 Dim mDoSCount As Long
 
+Dim mCurrentLP As Long          ' // DR3: token of current low priority notification
+
+Public PopupFrame As BRect
+
+Dim mCachedIcon As mfxBitmap
+
 Implements mObject
+Implements BTagItem
+
+Private Function BTagItem_Name() As String
+
+    BTagItem_Name = mInfo.Signature
+
+End Function
+
+Private Function BTagItem_Value() As String
+
+    BTagItem_Value = mInfo.Name
+
+End Function
 
 Private Sub Class_Initialize()
 
@@ -62,6 +81,8 @@ Dim f As Boolean
 
     LSet mInfo = Info
     mIsUnknown = False
+    
+    Set mCachedIcon = load_image_obj(mInfo.Icon)
 
     ' /* do we have a config file for this app? */
 
@@ -95,6 +116,14 @@ Dim f As Boolean
 
         End If
 
+        ' /* R2.4.2 DR3: write the application name to the config file */
+
+        If mAppConfig.IndexOf("name") = 0 Then
+            mAppConfig.Add "name", Info.Name
+            uWriteSettings
+
+        End If
+
     End With
 
     ' /* all apps get this class */
@@ -106,7 +135,7 @@ Dim f As Boolean
 
 End Function
 
-Public Function AddAlert(ByVal Class As String, ByVal Description As String, Optional ByRef ClassObject As TAlert, Optional ByVal Flags As E_CLASS_FLAGS) As M_RESULT
+Public Function AddAlert(ByVal Class As String, ByVal Description As String, Optional ByRef ClassObject As TAlert, Optional ByVal Flags As SN_CLASS_FLAGS) As M_RESULT
 
     g_Debug "TApp.AddAlert()", LEMON_LEVEL_PROC_ENTER
 
@@ -338,7 +367,7 @@ Dim pInfo As T_NOTIFICATION_INFO
 
 End Function
 
-Public Function Show41(ByVal ClassId As String, ByRef pData As BPackedData, Optional ByRef ReplySocket As CSocket, Optional ByVal IntFlags As E_NOTIFICATION_FLAGS, Optional ByVal RemoteHost As String) As Long
+Public Function Show41(ByVal ClassId As String, ByRef pData As BPackedData, Optional ByRef ReplySocket As CSocket, Optional ByVal IntFlags As SN_NOTIFICATION_FLAGS) As Long '//, Optional ByVal RemoteHost As String) As Long
 
     ' /* this is where we transition from a BPackedData into a T_NOTIFICATION_INFO struct */
 
@@ -413,15 +442,17 @@ Dim i As Long
 
         ' /* R2.4 DR7: new "value" arg */
 
-        .value = pData.ValueOf("value")
+        .Value = pData.ValueOf("value")
 
         ' /* R2.4 DR7: internal-only args (can only be set at g_DoNotify() level) */
 
         .IntFlags = IntFlags
 
-        ' /* R2.4 DR7: static copy of sender */
+        ' /* R2.4 DR7: static copy of sender BUT only if it's not local */
 
-        .RemoteHost = RemoteHost
+'        Debug.Print "++ " & RemoteHost & " : " & get_ip_address_table()
+'        If InStr(get_ip_address_table(), RemoteHost) = 0 Then _
+'            .RemoteHostName = RemoteHost
 
         ' /* flags: deprecated */
 
@@ -471,9 +502,14 @@ Dim i As Long
 
         End If
 
+        ' /* 2.4.2 DR3 - handle "sound" */
+
+        If pData.Exists("sound") Then _
+            .SndFile = pData.ValueOf("sound")
+
         ' /* 2.4.2 DR3 - store API version */
 
-        .APIVersion = (IntFlags And NF_API_MASK)
+        .APIVersion = (IntFlags And SN_NF_API_MASK)
 
         ' /* V42 styles need the unabridged content */
 
@@ -541,7 +577,6 @@ End Function
 Public Sub SetIcon(ByVal Path As String)
 
     mInfo.Icon = Path
-    mInfo.LargeIcon = Path
 
 End Sub
 
@@ -574,11 +609,11 @@ Public Function AddClass(ByRef Data As BPackedData, Optional ByRef ClassObject A
 
     ' /* enabled/disabled (backwards compatability with pre-release editions) */
 
-Dim lFlags As E_CLASS_FLAGS
+Dim lFlags As SN_CLASS_FLAGS
 
     If Data.Exists("enabled") Then
         If Data.ValueOf("enabled") = "0" Then _
-            lFlags = lFlags Or E_CLASS_DISABLED
+            lFlags = lFlags Or SN_CF_DISABLED
 
     End If
 
@@ -697,38 +732,84 @@ Public Function Flags() As SNARLAPP_FLAGS
 
 End Function
 
-Public Function IsSnarlApp() As Boolean
+Public Function IncludeInMenu() As Boolean
 
-    If IsWindow(mInfo.hWnd) <> 0 Then _
-        IsSnarlApp = (GetProp(mInfo.hWnd, "snarl_app") = 1) Or ((mInfo.Flags And SNARLAPP_IS_WINDOWLESS) <> 0)
+    IncludeInMenu = mInfo.IncludeInMenu
 
 End Function
 
 Public Function HasConfig() As Boolean
 
-    If Not IsSnarlApp() Then _
-        Exit Function
+    HasConfig = (mInfo.Tool <> "") Or _
+                ((Not (mInfo.Socket Is Nothing)) And (mInfo.IncludeInMenu)) Or _
+                ((mInfo.Flags And SNARLAPP_HAS_PREFS) <> 0)
 
-    If IsWindow(mInfo.hWnd) <> 0 Then _
-        HasConfig = ((mInfo.Flags And SNARLAPP_HAS_PREFS) <> 0)
+End Function
+
+Public Function HasAbout() As Boolean
+
+    HasAbout = (mInfo.Token = gSnarlToken) Or (mInfo.Hint <> "") Or _
+               ((Not (mInfo.Socket Is Nothing)) And (mInfo.IncludeInMenu)) Or _
+               ((mInfo.Flags And SNARLAPP_HAS_ABOUT) <> 0)
+
+End Function
+
+Public Function IsDaemon() As Boolean
+
+    IsDaemon = ((mInfo.Flags And SNARLAPP_IS_DAEMON) <> 0)
+
+End Function
+
+Public Function IsSecure() As Boolean
+
+    IsSecure = (mInfo.Password <> "")
 
 End Function
 
 Public Sub DoAbout()
+Dim fApp As SN_NOTIFICATION_FLAGS
 
-    If (IsWindow(mInfo.hWnd) <> 0) And ((mInfo.Flags And SNARLAPP_HAS_ABOUT)) Then
-        ' /* ask the app to display its own details */
-        PostMessage mInfo.hWnd, snAppMsg(), SNARLAPP_DO_ABOUT, ByVal 0&
+    If mInfo.Token = gSnarlToken Then
+        ' /* ourselves */
+        frmAbout.Show
 
-    Else
-        ' /* just show what we can */
+    ElseIf mInfo.Hint <> "" Then
+        ' /* display the hint text */
+        g_Debug "TApp.DoAbout(): displaying static hint text..."
+
+'        If mInfo.IsRemote Then _
+'            fApp = fApp Or SN_NF_REMOTE
+
+        If mInfo.Password <> "" Then _
+            fApp = fApp Or SN_NF_SECURE
+
         g_PrivateNotify "", _
                         mInfo.Name, _
-                        "Registered: " & Format$(mInfo.Timestamp, "d mmm yyyy hh:mm:ss") & _
-                        IIf(mInfo.Password <> "", "\nPassword protected", "") & _
-                        IIf(mInfo.IsRemote, "\nSource is remote", "") & _
-                        IIf(mIsBanned, "\n\nIs banned", ""), , _
-                        mInfo.Icon
+                        mInfo.Hint, , _
+                        mInfo.Icon, , , , _
+                        fApp, , _
+                        "_about"
+
+    ElseIf (Not (mInfo.Socket Is Nothing)) Then
+        ' /* SNP-registered (V43 only) */
+        g_Debug "TApp.DoAbout(): local SNP3 (assumed) app..."
+        g_SNP3SendCallback mInfo.Socket, SNARL_NOTIFY_APP_DO_ABOUT, "DoAbout", "", ""
+
+    ElseIf (IsWindow(mInfo.hWnd) <> 0) And ((mInfo.Flags And SNARLAPP_HAS_ABOUT)) Then
+        ' /* Win32-registered */
+        g_Debug "TApp.DoAbout(): posting SNARLAPP_DO_ABOUT to reply-to window..."
+        PostMessage mInfo.hWnd, WM_NULL, 0, ByVal 0&
+        PostMessage mInfo.hWnd, snAppMsg(), SNARLAPP_DO_ABOUT, ByVal 0&
+
+        ' /* just show what we can */
+'        g_PrivateNotify "", _
+'                        mInfo.Name, _
+'                        "Registered: " & Format$(mInfo.Timestamp, "d mmm yyyy hh:mm:ss") & _
+'                        IIf(mInfo.Password <> "", "\nPassword protected", "") & _
+'                        IIf(mInfo.IsRemote, "\nSource is remote", "") & _
+'                        IIf(mIsBanned, "\n\nIs banned", ""), , _
+'                        mInfo.Icon, , , , , , _
+'                        "_about"
 
     End If
 
@@ -736,8 +817,67 @@ End Sub
 
 Public Sub DoSettings()
 
-    If (IsWindow(mInfo.hWnd) <> 0) And ((mInfo.Flags And SNARLAPP_HAS_PREFS)) Then _
+    If mInfo.Tool <> "" Then
+        ' /* run the tool */
+        g_Debug "TApp.DoSettings(): running tool '" & mInfo.Tool & "'..."
+        WinExec mInfo.Tool, SW_SHOW
+
+    ElseIf Not (mInfo.Socket Is Nothing) Then
+        ' /* SNP-registered (V43 only) */
+        g_Debug "TApp.DoSettings(): local SNP3 (assumed) app..."
+        g_SNP3SendCallback mInfo.Socket, SNARL_NOTIFY_APP_DO_PREFS, "DoPrefs", "", ""
+
+    ElseIf (IsWindow(mInfo.hWnd) <> 0) And ((mInfo.Flags And SNARLAPP_HAS_PREFS)) Then
+        ' /* Win32-registered */
+        g_Debug "TApp.DoSettings(): posting SNARLAPP_DO_PREFS to reply-to window..."
+        PostMessage mInfo.hWnd, WM_NULL, 0, ByVal 0&
         PostMessage mInfo.hWnd, snAppMsg(), SNARLAPP_DO_PREFS, ByVal 0&
+
+    End If
+
+End Sub
+
+Public Sub DoQuitPlease()
+
+    If (IsWindow(mInfo.hWnd) <> 0) And ((mInfo.Flags And SNARLAPP_IS_DAEMON)) Then
+        ' /* Win32-registered */
+        g_Debug "TApp.DoAbout(): posting SNARLAPP_QUIT_REQUESTED to reply-to window..."
+        PostMessage mInfo.hWnd, WM_NULL, 0, ByVal 0&
+        PostMessage mInfo.hWnd, snAppMsg(), SNARLAPP_QUIT_REQUESTED, ByVal 0&
+
+    End If
+
+End Sub
+
+Public Sub Activated()
+
+    If mInfo.Tool <> "" Then
+        g_Debug "TApp.Activated(): running static tool '" & mInfo.Tool & "'..."
+        If g_SafeLeftStr(mInfo.Tool, 1) = "!" Then
+            g_ProcessAck mInfo.Tool
+
+        Else
+            WinExec mInfo.Tool, SW_SHOW
+
+        End If
+
+    ElseIf Not (mInfo.Socket Is Nothing) Then
+        g_Debug "TApp.DoSettings(): local SNP3 (assumed) app..."
+        g_SNP3SendCallback mInfo.Socket, SNARL_NOTIFY_APP_ACTIVATED, "Activated", "", ""
+
+    ElseIf (mInfo.Flags And SNARLAPP_IS_DAEMON) <> 0 Then
+        ' /* V43 */
+        g_Debug "TApp.DoSettings(): posting SNARLAPP_ACTIVATED to reply-to window..."
+        PostMessage mInfo.hWnd, WM_NULL, 0, ByVal 0&
+        PostMessage mInfo.hWnd, snAppMsg(), SNARLAPP_ACTIVATED, ByVal 0&
+
+    Else
+        ' /* pre-V43 */
+        g_Debug "TApp.DoSettings(): posting SNARLAPP_DO_PREFS to reply-to window..."
+        PostMessage mInfo.hWnd, WM_NULL, 0, ByVal 0&
+        PostMessage mInfo.hWnd, snAppMsg(), SNARLAPP_DO_PREFS, ByVal 0&
+
+    End If
 
 End Sub
 
@@ -781,7 +921,8 @@ End Function
 
 Public Function IsRemote() As Boolean
 
-    IsRemote = mInfo.IsRemote
+    ' /* returns TRUE if the remote application is _truly_ remote */
+    IsRemote = (mInfo.RemoteHostName <> "")
 
 End Function
 
@@ -882,3 +1023,53 @@ Public Sub SetBlocked(ByVal IsBlocked As Boolean)
     uWriteSettings
 
 End Sub
+
+Public Sub SetCurrentLowPriority(ByVal Token As Long)
+
+    ' /* R2.4.2 DR3: each app can have only one low priority notification on screen at once */
+
+    If mCurrentLP <> 0 Then _
+        g_NotificationRoster.PrivateHide mCurrentLP
+
+    mCurrentLP = Token
+
+End Sub
+
+Public Sub RemoveSettings()
+
+    If (mSettings Is Nothing) Then _
+        Exit Sub
+
+    g_Debug "TApp.RemoveSettings(): deleting '" & mSettings.File & "'..."
+    DeleteFile mSettings.File
+
+End Sub
+
+Public Function CachedIcon() As MImage
+
+    Set CachedIcon = mCachedIcon
+
+End Function
+
+Public Function AppType() As SN_APP_TYPES
+
+    AppType = mInfo.AppType
+
+End Function
+
+Public Function NameEx() As String
+
+    NameEx = mInfo.Name
+    If mInfo.RemoteHostName <> "" Then _
+        NameEx = NameEx & " on " & mInfo.RemoteHostName
+
+End Function
+
+Public Function IsLocal() As Boolean
+
+    ' /* returns TRUE if app is network-based but registered locally */
+
+    If Not (mInfo.Socket Is Nothing) Then _
+        IsLocal = Not Me.IsRemote
+
+End Function

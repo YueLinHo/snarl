@@ -38,26 +38,20 @@ Dim mActualMissed As Long                       ' // number that appeared since 
 Dim mActive As BTagList
 Dim mWait As BTagList
 Dim mMissedX As BTagList
+Dim mIconCache As BTagList          ' // R2.4.2 DR3
+Dim mHistory As BTagList            ' // R2.4.2 DR3
 
-Dim mCurrentLowPriority As TNotification
-
-Enum E_STYLE_FORWARD_FLAGS
-    SFF_WHEN_BUSY = 1
-    SFF_WHEN_AWAY = 2
-    SFF_WHEN_NOT_AWAY_OR_BUSY = 4
+Enum SN_STYLE_FORWARD_FLAGS
+    SN_SFF_WHEN_BUSY = 1
+    SN_SFF_WHEN_AWAY = 2
+    SN_SFF_WHEN_NOT_AWAY_OR_BUSY = 4
 
 End Enum
 
+'Dim mMonitorCount As Long
+
 Implements MLibrary
 Implements MVersionInfo
-
-Private Sub Class_Initialize()
-
-    Set mActive = new_BTagList()
-    Set mWait = new_BTagList()
-    Set mMissedX = new_BTagList()
-
-End Sub
 
 Private Function MLibrary_Close() As melon.M_RESULT
 
@@ -89,21 +83,7 @@ Dim i As Long
 
     ' /* remove temporary icons */
 
-Dim sz As String
-
-    sz = String$(MAX_PATH + 1, 0)
-    GetTempPath MAX_PATH, sz
-    sz = g_TrimStr(sz)
-    If sz <> "" Then
-        sz = g_MakePath(sz)
-        i = 1
-        Do While g_Exists(sz & "snarl-icon" & CStr(i))
-            delete_file sz & "snarl-icon" & CStr(i)
-            i = i + 1
-
-        Loop
-
-    End If
+    EmptyIconCache
 
     g_Debug "TNotificationRoster.Close(): done"
 
@@ -123,13 +103,22 @@ Private Function MLibrary_Open() As melon.M_RESULT
     If mRefs = 1 Then
         ' /* run startup code */
         mToken = (&HC0 + (Rnd * 80)) And &HFFFFFFFC
+        Set mActive = new_BTagList()
+        Set mWait = new_BTagList()
+        Set mMissedX = new_BTagList()
+        Set mIconCache = new_BTagList()
+        Set mHistory = new_BTagList()
+
+'        mMonitorCount = g_CountMonitors()
 
     End If
 
 End Function
 
 Private Function MLibrary_OpenCount() As Long
+
     MLibrary_OpenCount = mRefs
+
 End Function
 
 Private Sub MLibrary_Uninitialize()
@@ -267,32 +256,45 @@ Dim lQuantum As Long
     '    we wait for the download to complete */
 
 Dim pn As TNotification
+Dim pt As BTagItem
 
-    If (LCase$(g_SafeLeftStr(Info.IconPath, 7)) = "http://") Or (LCase$(g_SafeLeftStr(Info.IconPath, 8)) = "https://") Then
-        g_Debug "TNotificationRoster.Add(): remote icon specified, starting async download..."
+    If g_IsURL(Info.IconPath) Then
+        g_Debug "TNotificationRoster.Add(): remote icon '" & Info.IconPath & "'"
 
         ' /* to-do: allow user to suppress this by specifying a maximum download wait
         '    of zero seconds - in which case use the class default icon */
 
-        Set pn = New TNotification
-        If pn.Init(Info.IconPath, Args) Then
-
-            ' /* allocate a token now */
-
-            Info.Token = mToken
-            pn.SetTo NS_WAITING, Info
-
-            ' /* add to the queue */
-
-            mWait.Add pn
-            Add = mToken                                '// return the token that was allocated
-            mToken = mToken + 1
-            Exit Function
+        If mIconCache.Find(Info.IconPath, pt) Then
+            ' /* icon is already cached */
+            g_Debug "TNotificationRoster.Add(): icon found in cache (" & pt.Value & ")", LEMON_LEVEL_INFO
+            Info.IconPath = pt.Value
 
         Else
-            g_Debug "TNotificationRoster.Add(): remote icon specified but couldn't start icon download", LEMON_LEVEL_WARNING
+            ' /* icon isn't already cached */
+            Set pt = new_BTagItem(Info.IconPath, g_GetTempPath(True) & LCase$(g_CreateGUID(True)) & ".png")
+            g_Debug "TNotificationRoster.Add(): starting async download to '" & pt.Value & "'..."
+            mIconCache.Add pt
 
+            Set pn = New TNotification
+            If pn.Init(pt, Args) Then
+                ' /* allocate a token now */
+                Info.Token = mToken
+                pn.SetTo SN_NS_WAITING, Info
+                ' /* add to the queue */
+                mWait.Add pn
+                Add = mToken                                '// return the token that was allocated
+                mToken = mToken + 1
+                Exit Function
+
+            Else
+                g_Debug "TNotificationRoster.Add(): remote icon specified but couldn't start icon download", LEMON_LEVEL_WARNING
+
+            End If
         End If
+
+    ElseIf g_IsFileURI(Info.IconPath) Then
+        ' /* R2.4.2 DR3: support for "file://" protocol */
+        Info.IconPath = g_PathFromURI(Info.IconPath)
 
     End If
 
@@ -300,7 +302,6 @@ Dim pn As TNotification
     ' /* R2.3: send to any selected non-window styles */
 
 Dim pCopyInfo As T_NOTIFICATION_INFO
-Dim pt As BTagItem
 Dim fc As Long              ' // needs to be an enum before we forget what the flags mean!
 
     If Not (Info.ClassObj.ForwardList Is Nothing) Then
@@ -311,15 +312,15 @@ Dim fc As Long              ' // needs to be an enum before we forget what the f
 
                 Debug.Print "TNotificationRoster.Add(): is_dnd=" & g_IsDND() & " is_away=" & g_IsAway() & "cond=" & g_HexStr(fc)
 
-                If (g_IsDND()) And ((fc And SFF_WHEN_BUSY) <> 0) Then
+                If (g_IsDND()) And ((fc And SN_SFF_WHEN_BUSY) <> 0) Then
                     ' /* shadow only when busy */
                     fc = -1
 
-                ElseIf (g_IsAway()) And ((fc And SFF_WHEN_AWAY) <> 0) Then
+                ElseIf (g_IsAway()) And ((fc And SN_SFF_WHEN_AWAY) <> 0) Then
                     ' /* shadow only when away */
                     fc = -1
 
-                ElseIf (fc And SFF_WHEN_NOT_AWAY_OR_BUSY) <> 0 Then
+                ElseIf (fc And SN_SFF_WHEN_NOT_AWAY_OR_BUSY) <> 0 Then
                     ' /* shadow when present and not busy */
                     fc = -1
 
@@ -379,7 +380,7 @@ Dim fc As Long              ' // needs to be an enum before we forget what the f
 
     ' /* sticky snarls take precendence, then DND mode setting, then Away mode setting */
 
-Dim nPMode As E_PRESENCE_ACTIONS
+Dim nPMode As SN_PRESENCE_ACTIONS
 
     If g_ConfigGet("sticky_snarls") = "1" Then
         g_Debug "TNotificationRoster.Add(): Sticky mode enabled"
@@ -397,7 +398,7 @@ Dim nPMode As E_PRESENCE_ACTIONS
         ElseIf Info.Priority = 0 Then
             ' /* determine what to do with normal priority notifications */
             nPMode = Val(Info.ClassObj.GetValue("override-busy")) - 1
-            If nPMode = PA_DO_DEFAULT Then _
+            If nPMode = SN_PA_DO_DEFAULT Then _
                 nPMode = Val(g_ConfigGet("busy_mode"))
 
         End If
@@ -414,7 +415,7 @@ Dim nPMode As E_PRESENCE_ACTIONS
             ' /* determine what to do with normal priority notifications */
             nPMode = Val(Info.ClassObj.GetValue("override-away")) - 1
             Debug.Print "### away class setting is: " & nPMode
-            If nPMode = PA_DO_DEFAULT Then _
+            If nPMode = SN_PA_DO_DEFAULT Then _
                 nPMode = Val(g_ConfigGet("away_mode"))
 
             Debug.Print "### away setting is: " & nPMode
@@ -433,12 +434,12 @@ Dim nPMode As E_PRESENCE_ACTIONS
 
     g_Debug "TNotificationRoster.Add(): Presence action=" & CStr(nPMode)
 
-    If nPMode <> PA_DO_DEFAULT Then
+    If nPMode <> SN_PA_DO_DEFAULT Then
         ' /* we have something specific to do with the notification */
 
         Select Case nPMode
 
-        Case PA_LOG_AS_MISSED
+        Case SN_PA_LOG_AS_MISSED
             ' /* put in missed list (unless class setting says otherwise) and return the token */
 '            If Info.ClassObj.GetValue("log_during_dnd") = "1" Then
                 uAddToMissedList Info
@@ -447,21 +448,21 @@ Dim nPMode As E_PRESENCE_ACTIONS
 
 '            End If
 
-        Case PA_MAKE_STICKY
+        Case SN_PA_MAKE_STICKY
             Info.Timeout = 0
 
-        Case PA_DO_NOTHING
+        Case SN_PA_DO_NOTHING
             ' /* bin it */
             gSetLastError SNARL_ERROR_CLASS_BLOCKED
             Exit Function
 
-        Case PA_DISPLAY_URGENT
+        Case SN_PA_DISPLAY_URGENT
             Info.Priority = 1
 
-        Case PA_DISPLAY_NORMAL
+        Case SN_PA_DISPLAY_NORMAL
             ' /* allow it through */
 
-        Case PA_FORWARD
+        Case SN_PA_FORWARD
             Info.StyleName = style_GetStyleName(g_ConfigGet(IIf(g_IsDND, "busy_style", "away_style")))
             Info.SchemeName = style_GetSchemeName(g_ConfigGet(IIf(g_IsDND, "busy_style", "away_style")))
 
@@ -479,7 +480,7 @@ Dim nPMode As E_PRESENCE_ACTIONS
 
     ' /* R2.4: merging */
 
-    If (Info.IntFlags And NF_MERGE) Then
+    If (Info.IntFlags And SN_NF_MERGE) Then
         ' /* is there an existing notification we can merge with? */
         If uFindMergeCandidate(Info.ClassObj, Info.Title, pn) Then
             ' /* update content */
@@ -615,17 +616,16 @@ Dim pStyle As TStyle
 
     End If
 
-    ' /* only one low priority notification can be on screen at once... */
 
-    If (Info.Priority < 0) And (Not (mCurrentLowPriority Is Nothing)) Then
-        With mCurrentLowPriority
-            Me.Hide .Info.Token, .Info.CustomUID, .Info.ClassObj.App.Signature, .Info.ClassObj.App.Password
+    ' /* R2.4.2 DR3: if this was a low priority notification, remember it */
 
-        End With
+    If Info.Priority < 0 Then _
+        Info.ClassObj.App.SetCurrentLowPriority Info.Token
 
-        Set mCurrentLowPriority = Nothing
-
-    End If
+'    Else
+'        Info.ClassObj.App.SetCurrentLowPriority 0
+'
+'    End If
 
 
 
@@ -690,17 +690,17 @@ Dim i As Long
     ' /* add it to our list */
 
     Set pn = New TNotification
-    pn.SetTo NS_ACTIVE, Info, psw, i, ar
+    pn.SetTo SN_NS_ACTIVE, Info, psw, i, ar
     mActive.Add pn
+    frmAbout.bRefreshHistory
 
     ' /* return value */
 
     Add = Info.Token
 
-    ' /* R2.4: if this was a low priority notification, remember it */
-
-    If Info.Priority < 0 Then _
-        Set mCurrentLowPriority = pn
+    ' /* add to history */
+    
+    mHistory.Add pn
 
 
     ' /* R2.4 DR8: last thing to do - play the sound */
@@ -728,9 +728,9 @@ Dim szSound As String
 
 End Function
 
-Public Function Remove(ByVal Id As Long) As Boolean
+Public Function Remove(ByVal Token As Long) As Boolean
 
-    Remove = uRemove(mActive.IndexOf(Id))
+    Remove = uRemove(mActive.IndexOf(CStr(Token)))
 
 End Function
 
@@ -745,6 +745,15 @@ Private Function uRemove(ByVal Index As Long) As Boolean
     uAsNotification(mActive.TagAt(Index)).Unset
     mActive.Remove Index
     uRemove = True
+
+End Function
+
+Public Function PrivateHide(ByVal Token As Long) As Boolean
+Dim pn As TNotification
+
+    PrivateHide = mActive.Find(CStr(Token), pn)
+    If PrivateHide Then _
+        pn.Remove
 
 End Function
 
@@ -892,6 +901,10 @@ Static i As Long
 
         gSetLastError SNARL_ERROR_NOTIFICATION_NOT_FOUND
 
+    Else
+        ' /* no token or UID */
+        gSetLastError SNARL_ERROR_ARG_MISSING
+
     End If
 
 End Function
@@ -904,17 +917,17 @@ Dim pn As TNotification
     If Find(Token, UID, AppSig, Password, pn) Then
 
         Select Case pn.State
-        Case NS_ACTIVE
+        Case SN_NS_ACTIVE
 '            MsgBox "removing"
             pn.Remove
             Hide = True
 
-        Case NS_MISSED
+        Case SN_NS_MISSED
             ' /* remove from missed list */
             mMissedX.Remove mMissedX.IndexOf(CStr(pn.Info.Token))
             UpdateMissedPanel
 
-        Case NS_WAITING
+        Case SN_NS_WAITING
             ' /* remove from wait list */
 
         End Select
@@ -934,7 +947,7 @@ Public Function WasMissed(ByVal Token As Long, ByVal UID As String, ByVal AppSig
 Dim pn As TNotification
 
     If Find(Token, UID, AppSig, Password, pn) Then _
-        WasMissed = CLng(pn.State = NS_MISSED)
+        WasMissed = CLng(pn.State = SN_NS_MISSED)
 
 End Function
 
@@ -1151,7 +1164,7 @@ Dim pItem As TNotification
 
     ' /* tell the tray icon */
 
-    frmAbout.bMissedNotificationsChanged
+    frmAbout.bSetTrayIcon
 
 End Sub
 
@@ -1231,7 +1244,7 @@ Dim pn As TNotification
 
 End Function
 
-Private Function uGetNotificationPosition(ByRef Window As CSnarlWindow, ByVal Position As E_START_POSITIONS, ByRef Frame As BRect, ByRef Column As Long) As Boolean
+Private Function uGetNotificationPosition(ByRef Window As CSnarlWindow, ByVal Position As SN_START_POSITIONS, ByRef Frame As BRect, ByRef Column As Long) As Boolean
 
     If (Window Is Nothing) Then _
         Exit Function
@@ -1258,27 +1271,40 @@ Dim ps As SIZEL
     ps.cy = ps.cy + (2 * Val(g_ConfigGet("margin_spacing")))
 
 Dim rcwa As RECT
+Dim pmi As T_MONITOR_INFO
 Const MARGIN = 4
 
-    g_GetWorkArea rcwa
+    ' /* R2.4.2 DR3: get the workarea of the specified monitor */
+
+    g_CountMonitors
+
+    If g_GetMonitorInfo(Val(g_ConfigGet("default_screen")), pmi) Then
+        LSet rcwa = pmi.rcWorkArea
+
+    Else
+        ' /* if it's not available use the primary monitor */
+        g_GetWorkArea rcwa
+
+    End If
+
     g_RectInset rcwa, MARGIN, MARGIN
 
     ' /* determine starting position */
 
     Set Frame = new_BRect(0, 0, ps.cx - 1, ps.cy - 1)
 
-    If Position = E_START_DEFAULT_POS Then _
+    If Position = SN_SP_DEFAULT_POS Then _
         Position = Val(g_ConfigGet("default_position"))
 
     Select Case Position
 
-    Case E_START_TOP_LEFT
+    Case SN_SP_TOP_LEFT
         Frame.OffsetBy rcwa.Left, rcwa.Top
 
-    Case E_START_TOP_RIGHT
+    Case SN_SP_TOP_RIGHT
         Frame.OffsetBy rcwa.Right - ps.cx, rcwa.Top
 
-    Case E_START_BOTTOM_LEFT
+    Case SN_SP_BOTTOM_LEFT
         Frame.OffsetBy rcwa.Left, rcwa.Bottom - ps.cy
 
     Case Else
@@ -1294,7 +1320,7 @@ Const STEP_SIZE = 8
 
     Do While Not uIsFreeSpace(Frame)
 
-        If (Position = E_START_TOP_LEFT) Or (Position = E_START_TOP_RIGHT) Then
+        If (Position = SN_SP_TOP_LEFT) Or (Position = SN_SP_TOP_RIGHT) Then
             ' /* notifications run from top to bottom */
 
             Frame.OffsetBy 0, STEP_SIZE
@@ -1304,7 +1330,7 @@ Const STEP_SIZE = 8
                 Frame.Top = rcwa.Top
                 Frame.Bottom = Frame.Top + ps.cy
 
-                If Position = E_START_TOP_RIGHT Then
+                If Position = SN_SP_TOP_RIGHT Then
                     ' /* ...which is to the left */
                     p = uFindExtent(Column, True) - STEP_SIZE
                     Frame.Right = p
@@ -1346,7 +1372,7 @@ Const STEP_SIZE = 8
                 Frame.Top = rcwa.Bottom - ps.cy
                 Frame.Bottom = Frame.Top + ps.cy
 
-                If Position = E_START_BOTTOM_RIGHT Then
+                If Position = SN_SP_BOTTOM_RIGHT Then
                     ' /* ...which is to the left */
                     p = uFindExtent(Column, True) - STEP_SIZE
                     Frame.Right = p
@@ -1556,8 +1582,7 @@ Dim pn As TNotification
 
     End If
 
-    pn.AddAction Data.ValueOf("label"), Data.ValueOf("cmd")
-    AddAction = -1
+    AddAction = CLng(pn.AddAction(Data.ValueOf("label"), Data.ValueOf("cmd")))
 
 End Function
 
@@ -1594,7 +1619,7 @@ Dim pNewList As BTagList
 Dim pn As TNotification
 
     Set pn = New TNotification
-    pn.SetTo NS_MISSED, Info
+    pn.SetTo SN_NS_MISSED, Info
     pNewList.Add pn
 
     With mMissedX
@@ -1618,7 +1643,7 @@ Dim pn As TNotification
 
     ' /* tell the tray icon */
 
-    frmAbout.bMissedNotificationsChanged
+    frmAbout.bSetTrayIcon
 
 End Sub
 
@@ -1698,3 +1723,26 @@ Public Function WaitList() As BTagList
     Set WaitList = mWait
 
 End Function
+
+Public Sub EmptyIconCache()
+Dim pt As BTagItem
+
+    With mIconCache
+        .Rewind
+        Do While .GetNextTag(pt) = B_OK
+            DeleteFile pt.Value
+
+        Loop
+
+        .MakeEmpty
+
+    End With
+
+End Sub
+
+Public Function History() As BTagList
+
+    Set History = mHistory
+
+End Function
+

@@ -15,8 +15,6 @@ Option Explicit
 
     ' /* TExtensionRoster.cls - Manages our loaded extensions */
 
-Private Declare Function WinExec Lib "kernel32" (ByVal lpCmdLine As String, ByVal nCmdShow As Long) As Long
-
 Dim mExt() As TExtension
 Dim mCount As Long
 Dim mIndex As Long
@@ -296,7 +294,7 @@ Dim t As Long
 
     ElseIf LCase$(Node.Extension) = "extension" Then
         ' /* new style extension - installed elsewhere */
-        szClassId = g_RemoveExtension(Node.Filename)
+        szClassId = g_RemoveExtension(Node.FileName)
         fLinked = True
 
     Else
@@ -430,7 +428,7 @@ Dim i As Long
         If mCount Then
             For i = 1 To mCount
                 ' /* bit of weird logic here: if the extension is *not* loaded, then it's ClassId should be added */
-                If mExt(i).State <> E_ES_LOADED Then _
+                If mExt(i).State <> SN_ES_LOADED Then _
                     .Add mExt(i).Class
 
             Next i

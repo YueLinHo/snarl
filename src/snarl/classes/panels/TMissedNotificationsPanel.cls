@@ -220,9 +220,9 @@ Dim pm As CTempMsg
         With mPanel
             .SetHandler Me
             .SetTitle "Missed Notifications"
-            .SetWidth 400
+            .SetWidth 500
 
-            Set pPage = new_BPrefsPage("", , Me)
+            Set pPage = new_BPrefsPage("", , Me, 500)
 
             With pPage
                 .SetMargin 0
@@ -314,6 +314,7 @@ Dim pMissed As BTagList
 
 Dim pItem As TNotification
 Dim iCurrent As Long
+Dim szt As String
 Dim sz As String
 
     ' /* store the current selected item */
@@ -328,9 +329,11 @@ Dim sz As String
 
         .Rewind
         Do While .GetNextTag(pItem) = B_OK
+            szt = g_FormattedMidStr(Replace$(pItem.Info.Title, "|", ":") & " (" & g_When(pItem.Info.DateStamp) & ")", 70)
+
             sz = sz & Replace$( _
-                                g_FormattedMidStr(Replace$(pItem.Info.Title, "|", ":"), 54) & " (" & g_When(pItem.Info.DateStamp) & ")" & "#?0#?" & _
-                                g_FormattedMidStr(Replace$(pItem.Info.Text, "|", ":"), 54) & "|", vbCrLf, "¶")
+                                szt & "#?0#?" & _
+                                g_FormattedMidStr(Replace$(pItem.Info.Text, "|", ":"), 80) & "|", vbCrLf, "¶")
 
 '                sz = sz & g_FormattedMidStr(Replace$(pInfo.Title, "|", ":"), 54) & "#?0#?" & "From " & pInfo.Sender & " (" & pInfo.Class & ") at " & Format$(pInfo.DateStamp, "hh:mm:ss") & "|"
 

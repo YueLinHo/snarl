@@ -121,7 +121,7 @@ Dim i As Long
                     pFolder.ReadContents
                     For i = 1 To pFolder.CountNodes
                         If LCase$(pFolder.NodeAt(i).Extension = "styleengine") Then _
-                            uGetStyleEngine pFolder.NodeAt(i).Filename
+                            uGetStyleEngine pFolder.NodeAt(i).FileName
 
                     Next i
 
@@ -215,7 +215,7 @@ Dim pse As TStyleEngine
 
     If mStartup.GetValueWithDefault(ClassId) <> "ignore" Then
         ' /* if it loads okay, update our version tracking record */
-        If (pse.Load) And (pse.State = E_SE_LOADED) Then _
+        If (pse.Load) And (pse.State = SN_SE_LOADED) Then _
             uCheckVersion pse.Engine, False
 
     End If
@@ -226,7 +226,7 @@ Dim pse As TStyleEngine
 
     ' /* if it was loaded ok, add the styles it provides */
 
-    If pse.State = E_SE_LOADED Then _
+    If pse.State = SN_SE_LOADED Then _
         uAddStyles pse.Engine
 
     uGetStyleEngine = True
@@ -488,13 +488,13 @@ Dim pse As TStyleEngine
 
     End If
 
-    If pse.State = E_SE_LOADED Then
+    If pse.State = SN_SE_LOADED Then
         g_Debug "TStyleRoster.Load(): style engine '" & ClassId & "' is already running", LEMON_LEVEL_WARNING
         Exit Function
 
     End If
 
-    If (pse.Load()) And (pse.State = E_SE_LOADED) Then
+    If (pse.Load()) And (pse.State = SN_SE_LOADED) Then
         ' /* if it was loaded ok, add the styles it provides */
         uCheckVersion pse.Engine, NotifyVersionChange
         uAddStyles pse.Engine
@@ -528,7 +528,7 @@ Dim pse As TStyleEngine
 
     End If
 
-    If pse.State = E_SE_NOT_LOADED Then
+    If pse.State = SN_SE_NOT_LOADED Then
         g_Debug "TStyleRoster.Unload(): '" & Engine & "' is not running", LEMON_LEVEL_WARNING
         Exit Function
 
@@ -704,12 +704,12 @@ Dim szPath As String
 
         mList.Rewind
         Do While mList.GetNextTag(pse) = B_OK
-            .Add pse.Name, IIf(pse.State = E_SE_NOT_LOADED, "ignore", "load")
+            .Add pse.Name, IIf(pse.State = SN_SE_NOT_LOADED, "ignore", "load")
 
         Loop
 
         .Save
-        g_Debug "TStyleRoster.uWriteStartupList(): startup list written to '" & .Filename & "'"
+        g_Debug "TStyleRoster.uWriteStartupList(): startup list written to '" & .FileName & "'"
 
     End With
 

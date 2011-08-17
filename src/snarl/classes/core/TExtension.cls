@@ -16,16 +16,16 @@ Option Explicit
 Private Declare Function GetModuleHandle Lib "kernel32" Alias "GetModuleHandleA" (ByVal lpModuleName As String) As Long
 Private Declare Sub CoFreeLibrary Lib "OLE32.DLL" (ByVal hInst As Long)
 
-Public Enum E_EXTENSION_STATE
-    E_ES_FAILED = -1                '// mError should contain reason
-    E_ES_NOT_LOADED = 0
-    E_ES_LOADED = 1
+Public Enum SN_EXTENSION_STATES
+    SN_ES_FAILED = -1                '// mError should contain reason
+    SN_ES_NOT_LOADED = 0
+    SN_ES_LOADED = 1
 
 End Enum
 
 Dim mClass As String
 Dim mPath As String
-Dim mState As E_EXTENSION_STATE
+Dim mState As SN_EXTENSION_STATES
 Dim mInfo As extension_info
 
 Dim mObj As MWndProcSink
@@ -78,7 +78,7 @@ Dim iVer As MVersionInfo
     g_Debug "TExtension.uInit('" & mClass & "')", LEMON_LEVEL_PROC_ENTER
 
     mLastErr = ""
-    mState = E_ES_NOT_LOADED
+    mState = SN_ES_NOT_LOADED
 
     err.Clear
     Set iExt = CreateObject(mClass & ".extension")
@@ -96,7 +96,7 @@ Dim iVer As MVersionInfo
         If err.Number <> 0 Then
             g_Debug "doesn't support MVersionInfo (" & err.Description & ")", LEMON_LEVEL_CRITICAL Or LEMON_LEVEL_PROC_EXIT
             mLastErr = "Not a valid extension"
-            mState = E_ES_FAILED
+            mState = SN_ES_FAILED
             Exit Function
 
         End If
@@ -108,7 +108,7 @@ Dim iVer As MVersionInfo
         If err.Number <> 0 Then
             g_Debug "doesn't support MWndProcSink (" & err.Description & ")", LEMON_LEVEL_CRITICAL Or LEMON_LEVEL_PROC_EXIT
             mLastErr = "Not a valid extension"
-            mState = E_ES_FAILED
+            mState = SN_ES_FAILED
             Exit Function
 
         End If
@@ -125,7 +125,7 @@ Dim dw As Long
             If err.Number <> 0 Then
                 g_Debug "doesn't support MSimpleEnum", LEMON_LEVEL_CRITICAL Or LEMON_LEVEL_PROC_EXIT
                 mLastErr = "Not a valid extension"
-                mState = E_ES_FAILED
+                mState = SN_ES_FAILED
                 Exit Function
 
             End If
@@ -213,20 +213,20 @@ Public Function Description() As String
 '    MsgBox mClass & " > " & mState
 
     Select Case mState
-    Case E_ES_FAILED
+    Case SN_ES_FAILED
         Description = "Failed: " & mLastErr
 
-    Case E_ES_NOT_LOADED
+    Case SN_ES_NOT_LOADED
         Description = "Not loaded" ' IIf(mInfo.Description = "", "Failed: " & mLastErr, mInfo.Description)
 
-    Case E_ES_LOADED
+    Case SN_ES_LOADED
         Description = mInfo.Description
 
     End Select
 
 End Function
 
-Public Function State() As E_EXTENSION_STATE
+Public Function State() As SN_EXTENSION_STATES
 
     State = mState
 
@@ -234,7 +234,7 @@ End Function
 
 Public Function IsConfigurable() As Boolean
 
-    If mState = E_ES_LOADED Then _
+    If mState = SN_ES_LOADED Then _
         IsConfigurable = (mInfo.Flags And SNARL_EXTN_IS_CONFIGURABLE)
 
 End Function
@@ -279,7 +279,7 @@ Private Function uEnable() As Boolean
 
     On Error Resume Next
 
-    If mState = E_ES_LOADED Then
+    If mState = SN_ES_LOADED Then
         g_Debug "TExtension.uEnable(): '" & mClass & "' is already loaded", LEMON_LEVEL_WARNING
         Exit Function
 
@@ -302,12 +302,12 @@ Dim dw As Long
             ' /* failed */
             uGetLastError
             g_Debug "TExtension.uEnable(): '" & mInfo.Name & "' failed to initialize (" & mLastErr & ")", LEMON_LEVEL_WARNING
-            mState = E_ES_FAILED
+            mState = SN_ES_FAILED
 
         Else
             ' /* success */
             mObj41.Start
-            mState = E_ES_LOADED
+            mState = SN_ES_LOADED
 
         End If
 
@@ -318,13 +318,13 @@ Dim dw As Long
         If dw = M_OK Then
             ' /* no return value for SNARL_EXT_START */
             uCallProc SNARL_EXT_START, 0, 0, 0
-            mState = E_ES_LOADED
+            mState = SN_ES_LOADED
 
         Else
             ' /* extension returned error *//
             uGetLastError
             g_Debug "TExtension.uEnable(): '" & mInfo.Name & "' failed SNARL_EXT_INIT (0x" & g_HexStr(dw) & "): " & mLastErr
-            mState = E_ES_FAILED
+            mState = SN_ES_FAILED
 
         End If
 
@@ -338,12 +338,12 @@ Private Function uDisable(ByVal UnloadNow As Boolean) As Boolean
 
     ' /* can't disable a failed extension */
 
-    If mState = E_ES_FAILED Then _
+    If mState = SN_ES_FAILED Then _
         Exit Function
 
     If Not (mObj41 Is Nothing) Then
         ' /* V41 */
-        If mState = E_ES_LOADED Then
+        If mState = SN_ES_LOADED Then
             ' /* only stop it if it's loaded */
             g_Debug "TExtension.uDisable(): stopping '" & mClass & "'..."
             mObj41.Stop
@@ -359,7 +359,7 @@ Private Function uDisable(ByVal UnloadNow As Boolean) As Boolean
 
     Else
         ' /* pre-V41 */
-        If mState = E_ES_LOADED Then
+        If mState = SN_ES_LOADED Then
             ' /* no return value for SNARL_EXT_STOP */
             uCallProc SNARL_EXT_STOP, 0, 0, 0
 
@@ -390,7 +390,7 @@ Private Function uDisable(ByVal UnloadNow As Boolean) As Boolean
         End If
     End If
 
-    mState = E_ES_NOT_LOADED
+    mState = SN_ES_NOT_LOADED
     uDisable = True
 
 End Function
@@ -576,7 +576,7 @@ End Function
 
 Public Sub Pulse()
 
-    If (mObj41 Is Nothing) Or ((mInfo.Flags And SNARL_EXTN_WANTS_PULSE) = 0) Or (mState <> E_ES_LOADED) Then _
+    If (mObj41 Is Nothing) Or ((mInfo.Flags And SNARL_EXTN_WANTS_PULSE) = 0) Or (mState <> SN_ES_LOADED) Then _
         Exit Sub
 
     mObj41.Pulse

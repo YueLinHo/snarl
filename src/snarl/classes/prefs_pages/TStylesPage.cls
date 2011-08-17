@@ -513,7 +513,7 @@ Dim pInfo As T_NOTIFICATION_INFO
 
     With pInfo
         .Title = "Scheme Preview"
-        .Text = mScheme
+        .Text = "Lorem ipsum dolor sit amet, consectetur adipisicing elit, sed do..." ' mScheme
         .Timeout = 10
         .IconPath = mStyle.IconPath
         .StyleName = mStyle.Name

@@ -398,7 +398,7 @@ Static t As Long
                         End If
 
                     Else
-                        If (g_ConfigGet("allow_right_clicks") = "1") Or ((mInfo.IntFlags And NF_API_MASK) < 42) Then
+                        If (g_ConfigGet("allow_right_clicks") = "1") Or ((mInfo.IntFlags And SN_NF_API_MASK) < 42) Then
                             ' /* this is deprecated as of R2.4 DR7 */
                             uNotify SNARL_CALLBACK_R_CLICK
 
@@ -437,7 +437,7 @@ Static t As Long
     
                 Case "client"
 
-                    If (g_ConfigGet("allow_right_clicks") = "1") Or ((mInfo.IntFlags And NF_API_MASK) < 42) Then
+                    If (g_ConfigGet("allow_right_clicks") = "1") Or ((mInfo.IntFlags And SN_NF_API_MASK) < 42) Then
                         ' /* this is deprecated as of R2.4 DR7 */
 
                         bPaused = True
@@ -714,20 +714,20 @@ Public Sub uSetTargetAlpha(ByVal Alpha As Long)
 
     ' /* figure out granularity */
 
-Dim s As Single
+Dim S As Single
 
-    s = Abs(mCurrent - Alpha)
+    S = Abs(mCurrent - Alpha)
 
 '    Debug.Print "alpha delta = " & s
 
-    s = (s / 300) * (10 + 6)
+    S = (S / 300) * (10 + 6)
 
     If Alpha < mCurrent Then _
-        s = -s
+        S = -S
 
 '    Debug.Print "step size = " & s
 
-    mAlphaStep = CLng(s)
+    mAlphaStep = CLng(S)
 
     ' /* kick off the fade process */
 
@@ -761,13 +761,15 @@ Public Function SetTimeout(ByVal Timeout As Long) As M_RESULT
 
     SetTimeout = M_OK
     theWindow.RemoveTimer TIMER_MAIN_TICK
+    mOriginalTimeout = Timeout
 
-    If Timeout = 0 Then _
+    If Timeout = 0 Then
+        uQuickUpdate
         Exit Function
 
-    mOriginalTimeout = Timeout
-    mTick = Timeout * 10                    ' // timer frequency is 100ms...
+    End If
 
+    mTick = Timeout * 10                    ' // timer frequency is 100ms...
     theWindow.AddTimer TIMER_MAIN_TICK, 100
 
 End Function
@@ -825,7 +827,12 @@ Dim cy As Long
             If mInfo.Actions.CountItems > 0 Then _
                 .DrawScaledImage bm_Actions, mActionsRect.TopLeft, new_BPoint(mActionsRect.Width, mActionsRect.Height)
 
+            ' /* R2.4.2 DR3: draw emblems on mouseover only */
+
+            uDrawEmblems
+
         End If
+
 
 Dim szHUD As String
 
@@ -852,13 +859,20 @@ Dim szHUD As String
                 .DrawString szHUD, pr, MFX_ALIGN_H_CENTER Or MFX_ALIGN_V_CENTER
 
                 ' /* R2.4b4: app name overlay */
-                Set pr = new_BRect(0, 0, .StringWidth(mInfo.ClassObj.App.Name) + 3, .StringHeight("A"))
+                szHUD = mInfo.ClassObj.App.NameEx()
+                Set pr = new_BRect(0, 0, .StringWidth(szHUD) + 3, .StringHeight("A"))
                 pr.OffsetBy .Width - pr.Width, .Height - pr.Height - cy
                 If uDrawDropshadow() Then _
                     pr.OffsetBy -Val(g_ConfigGet("dropshadow_size")), -Val(g_ConfigGet("dropshadow_size"))
 
                 .FillRoundRect pr, 6, 6, MFX_SOLID_LOW
-                .DrawString mInfo.ClassObj.App.Name, pr, MFX_ALIGN_H_CENTER Or MFX_ALIGN_V_CENTER
+
+                ' /* R2.4.2 DR3: if secure app (or secure notification), draw app name in different colour */
+
+                If (mInfo.ClassObj.App.IsSecure) Or (mInfo.IntFlags And SN_NF_SECURE) Then _
+                    .SetHighColour rgba(240, 150, 255)
+
+                .DrawString szHUD, pr, MFX_ALIGN_H_CENTER Or MFX_ALIGN_V_CENTER
 
 '                ' /* timestamp overlay */
 '                .FillRoundRect new_BRect(pr.Right - , pr.Bottom - , pr.Right + 2, pr.Bottom + 2), 6, 6, MFX_SOLID_LOW
@@ -871,7 +885,7 @@ Dim szHUD As String
             End If
         End If
 
-Const rx = 6
+Const RX = 6
 
 Dim n As Long
 
@@ -901,7 +915,7 @@ Dim n As Long
 
             .SetHighColour rgba(0, 0, 64, 190)
             .SetLowColour rgba(0, 0, 64, 100)
-            .FillRoundRect pr, rx, rx, MFX_VERT_GRADIENT
+            .FillRoundRect pr, RX, RX, MFX_VERT_GRADIENT
 
             ' /* label */
 
@@ -911,13 +925,13 @@ Dim n As Long
             ' /* border */
 
             .SetHighColour rgba(255, 255, 255)
-            .StrokeRoundRect pr.InsetByCopy(1, 1), rx, rx, 2
+            .StrokeRoundRect pr.InsetByCopy(1, 1), RX, RX, 2
 
             ' /* edge and inset */
 
             .SetHighColour rgba(0, 0, 0, 150)
-            .StrokeRoundRect pr, rx, rx, 1
-            .StrokeRoundRect pr.InsetByCopy(3, 3), rx, rx, 1
+            .StrokeRoundRect pr, RX, RX, 1
+            .StrokeRoundRect pr.InsetByCopy(3, 3), RX, RX, 1
 
         End If
 
@@ -1082,10 +1096,10 @@ Dim c As Long
 
 End Sub
 
-Public Function CaptureToFile(ByVal Filename As String)
+Public Function CaptureToFile(ByVal FileName As String)
 
     If Not (theView Is Nothing) Then _
-        theView.WriteToFile Filename, "image/png"
+        theView.WriteToFile FileName, "image/png"
 
 End Function
 
@@ -1247,7 +1261,7 @@ Dim n As Integer
         If Code <> SNARL_NOTIFY_ACTION Then _
             Code = Code + 270               ' // convert into "proper" V42 notification
 
-        If (mInfo.IntFlags And NF_IS_SNP3) Then
+        If (mInfo.IntFlags And SN_NF_IS_SNP3) Then
             ' /* R2.4.2 DR3: SNP3 handling */
 
             Select Case Code
@@ -1270,15 +1284,10 @@ Dim n As Integer
 
             End Select
 
-            mInfo.Socket.SendData "SNP/3.0 CALLBACK" & vbCrLf & _
-                                  "event-code: " & CStr(Code) & vbCrLf & _
-                                  "event-name: " & szData & vbCrLf & _
-                                  IIf(szResponse <> "", szResponse, "") & _
-                                  uGetSNP3Info() & _
-                                  "END" & vbCrLf
+            g_SNP3SendCallback mInfo.Socket, Code, szData, szResponse, uGetSNP3Info()
 
 
-        ElseIf (mInfo.IntFlags And NF_IS_GNTP) Then
+        ElseIf (mInfo.IntFlags And SN_NF_IS_GNTP) Then
             ' /* R2.4.2: GNTP handling */
 
             Select Case Code
@@ -1332,9 +1341,9 @@ Dim n As Integer
 
             g_Debug "CSnarlWindow.uNotify(): dest=" & mInfo.Socket.RemoteHostIP & ":" & CStr(mInfo.Socket.RemotePort)
 
-            mInfo.Socket.SendData "SNP/2.0/" & CStr(Code) & _
+            mInfo.Socket.SendData "SNP/" & SNP_VERSION & "/" & CStr(Code) & _
                                   "/" & uSNP2CallbackResponse(Code) & _
-                                  "/" & CStr(mInfo.Token) & szData & _
+                                  "/" & IIf(mInfo.CustomUID = "", CStr(mInfo.Token), mInfo.CustomUID) & szData & _
                                   vbCrLf
 
         End If
@@ -1498,70 +1507,70 @@ Dim pbm As mfxBitmap
     ' /* R2.4: apply scaling */
 
 Dim pv As mfxView
-Dim s As Single
+Dim S As Single
 Dim n As Long
 
-    s = Val(g_ConfigGet("scaling"))
-    If s <= 0 Then _
-        s = 1               ' // must NOT be zero!
+    S = Val(g_ConfigGet("scaling"))
+    If S <= 0 Then _
+        S = 1               ' // must NOT be zero!
 
     ' /* button rectangles, scaled as well */
 
-    Set mCloseRect = new_BRect(0, 0, 19 * s, 19 * s)
+    Set mCloseRect = new_BRect(0, 0, 19 * S, 19 * S)
 
     ' /* create a temporary view */
 
     Set pv = New mfxView
-    pv.SizeTo pbm.Width * s, pbm.Height * s
+    pv.SizeTo pbm.Width * S, pbm.Height * S
     pv.DrawScaledImage pbm, , new_BPoint(pv.Width, pv.Height)
 
-    ' /* emblems */
-
-Dim pt As BPoint
-Const EMBLEM_SIZE = 14
-
-    Set pt = new_BPoint(pv.Width - EMBLEM_SIZE - 3, pv.Height - EMBLEM_SIZE - 3)
-
-    ' /* if the notification is high priority */
-
-    If mInfo.Priority > 0 Then
-        pv.DrawScaledImage bm_Priority, pt, new_BPoint(EMBLEM_SIZE, EMBLEM_SIZE), 230
-        pt.OffsetBy -(EMBLEM_SIZE + 1), 0
-
-    End If
-
-    ' /* if the notification is sticky */
-
-    If mOriginalTimeout = 0 Then
-        pv.DrawScaledImage bm_IsSticky, pt, new_BPoint(EMBLEM_SIZE, EMBLEM_SIZE), 230
-        pt.OffsetBy -(EMBLEM_SIZE + 1), 0
-
-    End If
-
-    ' /* if notification isn't click-through and the mouse pointer isn't
-    '    over it, and it has actions or a default callback, draw the actions indicator emblem */
-                    '//And (Not mCloseButtonVisible)
-    If (Not mClickThru) And ((mInfo.Actions.CountItems > 0) Or (mInfo.DefaultAck <> "")) Then
-        pv.DrawScaledImage bm_HasActions, pt, new_BPoint(EMBLEM_SIZE, EMBLEM_SIZE), 230
-        pt.OffsetBy -(EMBLEM_SIZE + 1), 0
-
-    End If
-
-    ' /* if the notification was generated by a remote app */
-
-    If (mInfo.IntFlags And NF_REMOTE) Then
-        pv.DrawScaledImage bm_Remote, pt, new_BPoint(EMBLEM_SIZE, EMBLEM_SIZE), 230
-        pt.OffsetBy -(EMBLEM_SIZE + 1), 0
-
-    End If
-
-    ' /* if the notification was generated by a secure app */
-
-    If (mInfo.IntFlags And NF_SECURE) Then
-        pv.DrawScaledImage bm_Secure, pt, new_BPoint(EMBLEM_SIZE, EMBLEM_SIZE), 230
-        pt.OffsetBy -(EMBLEM_SIZE + 1), 0
-
-    End If
+'    ' /* emblems */
+'
+'Dim pt As BPoint
+'Const EMBLEM_SIZE = 14
+'
+'    Set pt = new_BPoint(pv.Width - EMBLEM_SIZE - 3, pv.Height - EMBLEM_SIZE - 3)
+'
+'    ' /* if the notification is high priority */
+'
+'    If mInfo.Priority > 0 Then
+'        pv.DrawScaledImage bm_Priority, pt, new_BPoint(EMBLEM_SIZE, EMBLEM_SIZE), 230
+'        pt.OffsetBy -(EMBLEM_SIZE + 1), 0
+'
+'    End If
+'
+'    ' /* if the notification is sticky */
+'
+'    If mOriginalTimeout = 0 Then
+'        pv.DrawScaledImage bm_IsSticky, pt, new_BPoint(EMBLEM_SIZE, EMBLEM_SIZE), 230
+'        pt.OffsetBy -(EMBLEM_SIZE + 1), 0
+'
+'    End If
+'
+'    ' /* if notification isn't click-through and the mouse pointer isn't
+'    '    over it, and it has actions or a default callback, draw the actions indicator emblem */
+'                    '//And (Not mCloseButtonVisible)
+'    If (Not mClickThru) And ((mInfo.Actions.CountItems > 0) Or (mInfo.DefaultAck <> "")) Then
+'        pv.DrawScaledImage bm_HasActions, pt, new_BPoint(EMBLEM_SIZE, EMBLEM_SIZE), 230
+'        pt.OffsetBy -(EMBLEM_SIZE + 1), 0
+'
+'    End If
+'
+'    ' /* if the notification was generated by a remote app */
+'
+'    If (mInfo.IntFlags And SN_NF_REMOTE) Then
+'        pv.DrawScaledImage bm_Remote, pt, new_BPoint(EMBLEM_SIZE, EMBLEM_SIZE), 230
+'        pt.OffsetBy -(EMBLEM_SIZE + 1), 0
+'
+'    End If
+'
+'    ' /* if the notification was generated by a secure app */
+'
+'    If (mInfo.IntFlags And SN_NF_SECURE) Then
+'        pv.DrawScaledImage bm_Secure, pt, new_BPoint(EMBLEM_SIZE, EMBLEM_SIZE), 230
+'        pt.OffsetBy -(EMBLEM_SIZE + 1), 0
+'
+'    End If
 
 
     ' /* draw with or without dropshadow */
@@ -1607,7 +1616,7 @@ Private Sub uUpdateStyleContent(ByRef Info As T_NOTIFICATION_INFO)
 '        .Title = Replace$(.Title, "\n", vbCrLf)
 '        .Text = Replace$(.Text, "\n", vbCrLf)
 
-        ' /* take into consideration and "do not change" markers */
+        ' /* take into consideration any "do not change" markers */
 
         If .Title = Chr$(255) Then _
             .Title = mInfo.Title
@@ -1633,8 +1642,11 @@ Private Sub uUpdateStyleContent(ByRef Info As T_NOTIFICATION_INFO)
         .IconPath = Info.IconPath
         .SchemeName = Info.SchemeName
         .LastUpdated = Now()            ' // update this as well
+        .OriginalContent = Info.OriginalContent
 
     End With
+
+    Debug.Print "updatestylecontent: " & mInfo.Text
 
     uUpdateInstance
     Exit Sub
@@ -1741,7 +1753,7 @@ Private Function uDetailsMenu() As OMMenu
         .AddItem .CreateItem("", "Received: " & Format$(mInfo.DateStamp, "d mmm yyyy") & " at " & Format$(mInfo.DateStamp, "ttttt"))
         .AddItem .CreateItem("", "API Version: " & CStr(mInfo.APIVersion))
 
-        If ((mInfo.IntFlags And NF_REMOTE)) And (Not (mInfo.Socket Is Nothing)) Then _
+        If ((mInfo.IntFlags And SN_NF_REMOTE)) And (Not (mInfo.Socket Is Nothing)) Then _
             .AddItem .CreateItem("", "Sender: " & mInfo.Socket.RemoteHostIP)
 
     End With
@@ -1768,7 +1780,7 @@ End Sub
 
 Public Function IsMergeCandidate(ByRef ComparisonClass As TAlert, ByVal ComparisonTitle As String) As Boolean
 
-    If (ComparisonClass Is Nothing) Or ((mInfo.IntFlags And NF_MERGE) = 0) Then _
+    If (ComparisonClass Is Nothing) Or ((mInfo.IntFlags And SN_NF_MERGE) = 0) Then _
         Exit Function
 
     If (ComparisonClass.App.Signature = mInfo.ClassObj.App.Signature) And (ComparisonClass.Name = mInfo.ClassObj.Name) Then _
@@ -1937,3 +1949,77 @@ Dim sz As String
     uGetSNP3Info = sz
 
 End Function
+
+Private Sub uDrawEmblems()
+Const EMBLEM_ALPHA = 190
+Const EMBLEM_SIZE = 14
+Dim pt As BPoint
+Dim pr As BRect
+Dim n As Integer
+
+'    Debug.Print "** draw emblems **"
+
+    ' /* pre-process to determine how many are to be drawn */
+    
+    If mOriginalTimeout = 0 Then _
+        n = n + 1                       ' // sticky
+
+    If (mInfo.IntFlags And SN_NF_REMOTE) Or (mInfo.ClassObj.App.IsRemote) Then _
+        n = n + 1                       ' // remote app
+
+    With theView
+
+        ' /* set top-right corner */
+        Set pt = new_BPoint(.Width - mCloseRect.Left - 3, mCloseRect.Top + 3)
+
+'        Set pr = new_BRect(pt.x - ((EMBLEM_SIZE + 1) * n), pt.y, pt.x, pt.y + EMBLEM_SIZE)
+'        .SetHighColour rgba(0, 0, 0, 190)
+'        .FillRoundRect pr.InsetByCopy(-2, -2), 6, 6
+
+        pt.OffsetBy -(EMBLEM_SIZE + 1), 0
+
+        ' /* if the notification is sticky */
+
+        If mOriginalTimeout = 0 Then
+            .DrawScaledImage bm_IsSticky, pt, new_BPoint(EMBLEM_SIZE, EMBLEM_SIZE), EMBLEM_ALPHA
+            pt.OffsetBy -(EMBLEM_SIZE + 1), 0
+
+        End If
+
+        ' /* if the notification is high priority */
+
+        If mInfo.Priority > 0 Then
+            .DrawScaledImage bm_Priority, pt, new_BPoint(EMBLEM_SIZE, EMBLEM_SIZE), EMBLEM_ALPHA
+            pt.OffsetBy -(EMBLEM_SIZE + 1), 0
+
+        End If
+
+        ' /* if notification isn't click-through and the mouse pointer isn't
+        '    over it, and it has actions or a default callback, draw the actions indicator emblem */
+                        '//And (Not mCloseButtonVisible)
+'        If (Not mClickThru) And ((mInfo.Actions.CountItems > 0) Or (mInfo.DefaultAck <> "")) Then
+'            .DrawScaledImage bm_HasActions, pt, new_BPoint(EMBLEM_SIZE, EMBLEM_SIZE), EMBLEM_ALPHA
+'            pt.OffsetBy -(EMBLEM_SIZE + 1), 0
+'
+'        End If
+    
+        ' /* if the notification was generated by a remote app */
+
+'        If (mInfo.IntFlags And SN_NF_REMOTE) Or (mInfo.ClassObj.App.IsRemote) Then
+'            .DrawScaledImage bm_Remote, pt, new_BPoint(EMBLEM_SIZE, EMBLEM_SIZE), EMBLEM_ALPHA
+'            pt.OffsetBy -(EMBLEM_SIZE + 1), 0
+'
+'        End If
+    
+        ' /* if the notification was generated by a secure app */
+    
+'        If (mInfo.IntFlags And SN_NF_SECURE) Then
+'            .DrawScaledImage bm_Secure, pt, new_BPoint(EMBLEM_SIZE, EMBLEM_SIZE), EMBLEM_ALPHA
+'            pt.OffsetBy -(EMBLEM_SIZE + 1), 0
+'
+'        End If
+
+    End With
+
+End Sub
+

@@ -257,13 +257,13 @@ Dim i As Long
             g_ExtnRoster.WriteExcludeList
             uUpdateStatus
 
-            pm.Add "image-file", IIf(mCurrent.State = E_ES_FAILED, _
+            pm.Add "image-file", IIf(mCurrent.State = SN_ES_FAILED, _
                                      g_MakePath(App.Path) & "etc\icons\bad.png", mCurrent.Icon)
 
-            pm.Add "subtext", IIf(mCurrent.State = E_ES_FAILED, _
+            pm.Add "subtext", IIf(mCurrent.State = SN_ES_FAILED, _
                                     "Failed to start: " & mCurrent.LastError, mCurrent.Description)
 
-            pm.Add "greyscale", IIf(mCurrent.State = E_ES_NOT_LOADED, -1&, 0&)
+            pm.Add "greyscale", IIf(mCurrent.State = SN_ES_NOT_LOADED, -1&, 0&)
 
             Control.DoExCmd B_SET_ITEM, pm
 
@@ -311,7 +311,7 @@ Private Sub KPrefsPage_GetPreferredSize(Width As Long, Height As Long)
 
 End Sub
 
-Private Function KPrefsPage_hwnd() As Long
+Private Function KPrefsPage_hWnd() As Long
 
 End Function
 
@@ -359,9 +359,9 @@ Dim i As Long
 
         Set pm = New CTempMsg
         pm.Add "index", i
-'        pm.Add "checked", IIf(px.State = E_ES_LOADED, 1&, 0&)
-        pm.Add "greyscale", IIf(px.State = E_ES_NOT_LOADED, 1&, 0&)
-        pm.Add "image-file", IIf(px.State = E_ES_FAILED, g_MakePath(App.Path) & "etc\icons\bad.png", px.Icon)
+'        pm.Add "checked", IIf(px.State = SN_ES_LOADED, 1&, 0&)
+        pm.Add "greyscale", IIf(px.State = SN_ES_NOT_LOADED, 1&, 0&)
+        pm.Add "image-file", IIf(px.State = SN_ES_FAILED, g_MakePath(App.Path) & "etc\icons\bad.png", px.Icon)
         pc.DoExCmd B_SET_ITEM, pm
 
     Loop
@@ -382,11 +382,11 @@ Dim pc As BControl
 
     If mPage.Find("extension_toolbar", pc) Then
         '//"Start|Stop|Details|Configure...||Show in Explorer"
-        prefskit_SetItem pc, 1, "enabled", IIf(mCurrent.State = E_ES_LOADED, 0&, 1&)
-        prefskit_SetItem pc, 2, "enabled", IIf(mCurrent.State = E_ES_LOADED, 1&, 0&)
-        prefskit_SetItem pc, 3, "enabled", IIf(mCurrent.State <> E_ES_FAILED, 1&, 0&)
+        prefskit_SetItem pc, 1, "enabled", IIf(mCurrent.State = SN_ES_LOADED, 0&, 1&)
+        prefskit_SetItem pc, 2, "enabled", IIf(mCurrent.State = SN_ES_LOADED, 1&, 0&)
+        prefskit_SetItem pc, 3, "enabled", IIf(mCurrent.State <> SN_ES_FAILED, 1&, 0&)
         prefskit_SetItem pc, 4, "enabled", IIf(mCurrent.IsConfigurable, 1&, 0&)
-        prefskit_SetItem pc, 6, "enabled", IIf(mCurrent.State <> E_ES_FAILED, 1&, 0&)
+        prefskit_SetItem pc, 6, "enabled", IIf(mCurrent.State <> SN_ES_FAILED, 1&, 0&)
 
     End If
 

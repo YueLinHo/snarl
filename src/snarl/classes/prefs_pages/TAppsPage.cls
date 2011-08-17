@@ -51,10 +51,10 @@ Dim pm As CTempMsg
         Set pm = New CTempMsg
         pm.Add "item-height", 30&
         Set pc = new_BPrefsControl("listbox", "cb>apps", "", "", "0", pm)
-        pc.SizeTo 0, 120
+        pc.SizeTo 0, 122
         .Add pc
 
-        .Add new_BPrefsControl("fancytoolbar", "ftb>app", "Details|Settings...|Unregister|Revoke Block")
+        .Add new_BPrefsControl("fancytoolbar", "ftb>app", "Details|Settings...|Unregister|Allow||Quit")
 
         Set pm = New CTempMsg
         pm.Add "text", "Use the same settings for all notification classes?"
@@ -114,13 +114,14 @@ Dim pm As CTempMsg
 
 End Sub
 
-Private Sub KPrefsPage_ControlChanged(Control As BControl, ByVal value As String)
+Private Sub KPrefsPage_ControlChanged(Control As BControl, ByVal Value As String)
 'Dim pm As CTempMsg
 Dim pc As BControl
 Dim sz As String
 Dim pa As TApp
+Dim lr As VbMsgBoxResult
 
-    Debug.Print "[" & mPage.GetName() & "]: ControlChanged '" & Control.GetName() & "' >> '" & value & "'"
+    Debug.Print "[" & mPage.GetName() & "]: ControlChanged '" & Control.GetName() & "' >> '" & Value & "'"
 
     Select Case Control.GetName()
 
@@ -136,12 +137,12 @@ Dim pa As TApp
             Exit Sub
 
         Debug.Print ">> app is: " & pa.Name
-        pa.SetUseSameSettingsForAllClasses (value = "1")
+        pa.SetUseSameSettingsForAllClasses (Value = "1")
 
         ' /* sort out the Classes listbox */
 
         If mPage.Find("lb>classes", pc) Then
-            If value = "1" Then
+            If Value = "1" Then
                 ' /* select the first entry (<All> or <Other>) in the class list and disable the listbox */
                 pc.SetValue "1"
                 pc.SetEnabled False
@@ -158,23 +159,28 @@ Dim pa As TApp
 
     Case "cb>apps"
 
-        Set mCurrentApp = g_AppRoster.AppAt(Val(value))
+        Set mCurrentApp = g_AppRoster.AppAt(Val(Value))
         If Not (mCurrentApp Is Nothing) Then
 
             Debug.Print "current selected app is " & mCurrentApp.Name & " (" & mCurrentApp.Signature & ") - updating classes..."
             uUpdateClassList
 
+            Debug.Print mCurrentApp.Icon
+
             If mPage.Find("ftb>app", pc) Then
 '                prefskit_SetItem pc, 1, "enabled", IIf((mCurrentApp.Flags And SNARL41_APP_HAS_ABOUT), 1&, 0&)
 
-                prefskit_SetItem pc, 1, "enabled", 1&
-                prefskit_SetItem pc, 2, "enabled", IIf((mCurrentApp.Flags And SNARLAPP_HAS_PREFS), 1&, 0&)
+                prefskit_SetItem pc, 1, "enabled", (mCurrentApp.HasAbout)
+                prefskit_SetItem pc, 2, "enabled", (mCurrentApp.HasConfig)
 
                 ' /* V42.21: "Unregister" button */
                 prefskit_SetItem pc, 3, "enabled", (mCurrentApp.Token <> gSnarlToken)
                 ' /* "revoke ban" */
                 prefskit_SetItem pc, 4, "enabled", (mCurrentApp.Token <> gSnarlToken)
                 prefskit_SetItem pc, 4, "text", IIf(mCurrentApp.IsBanned(), "Allow", "Ban")
+
+                ' /* R2.4.2 DR3: "quit" button */
+                prefskit_SetItem pc, 6, "enabled", (mCurrentApp.IsDaemon)
 
             Else
                 Debug.Print "TAppsPage.ControlChanged(): 'ftb>app' control not found"
@@ -200,9 +206,9 @@ Dim pa As TApp
 
         ' /* get the selected class from the listbox */
 
-        Set gSelectedClass = mCurrentApp.AlertAt(Val(value))
+        Set gSelectedClass = mCurrentApp.AlertAt(Val(Value))
         If (gSelectedClass Is Nothing) Then _
-            g_Debug "TAppPage.ControlChanged(): class #" & value & " for '" & pa.Name & "' doesn't exist", LEMON_LEVEL_WARNING
+            g_Debug "TAppPage.ControlChanged(): class #" & Value & " for '" & pa.Name & "' doesn't exist", LEMON_LEVEL_WARNING
 
         ' /* if the class configuration panel is open, tell it to update */
 
@@ -213,7 +219,7 @@ Dim pa As TApp
     Case "ftb>app"
         If Not (mCurrentApp Is Nothing) Then
 
-            Select Case Val(value)
+            Select Case Val(Value)
             Case 1
                 ' /* details (about)*/
                 mCurrentApp.DoAbout
@@ -224,12 +230,21 @@ Dim pa As TApp
 
             Case 3
                 ' /* unregister */
-                g_AppRoster.Unregister mCurrentApp.Token, mCurrentApp.Password
+                lr = MsgBox("Do you want to delete the settings for " & mCurrentApp.Name & "?", _
+                            vbQuestion Or vbYesNoCancel, _
+                            "Unregister Application")
+
+                If (lr = vbYes) Or (lr = vbNo) Then _
+                    g_AppRoster.Unregister mCurrentApp.Token, mCurrentApp.Password, (lr = vbYes)
 
             Case 4
                 ' /* block/unblock */
                 mCurrentApp.SetBlocked Not mCurrentApp.IsBanned
                 bUpdateAppList
+
+            Case 6
+                ' /* quit */
+                mCurrentApp.DoQuitPlease
 
             End Select
 
@@ -437,7 +452,7 @@ Dim i As Long
     With g_AppRoster
         If .CountApps() Then
             For i = 1 To .CountApps()
-                sz = sz & .AppAt(i).Name & IIf(.AppAt(i).IsBanned, " (Banned)", "") & "#?" & CStr(i) & "#?" & "" & IIf(i < .CountApps(), "|", "")
+                sz = sz & .AppAt(i).NameEx & IIf(.AppAt(i).IsBanned, " (Banned)", "") & "#?" & CStr(i) & "#?" & "" & IIf(i < .CountApps(), "|", "")
             
             Next i
         End If
@@ -462,6 +477,8 @@ Dim pm As CTempMsg
 
                 Else
                     sz = g_TranslateIconPath(.AppAt(i).Icon, "")
+                    Debug.Print .AppAt(i).Icon & " >> " & sz
+
                     If Not g_Exists(sz) Then _
                         sz = g_MakePath(App.Path) & "etc\icons\no_icon.png"
 

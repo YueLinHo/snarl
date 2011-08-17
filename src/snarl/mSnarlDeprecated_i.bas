@@ -201,7 +201,7 @@ Public Function g_XCommandStr(ByVal Command As Long) As String
 
 End Function
 
-Public Function szShowMessage(ByVal Title As String, ByVal Text As String, Optional ByVal Timeout As Long, Optional ByVal IconPath As String, Optional ByVal hWndReply As Long, Optional ByVal uReplyMsg As Long) As Long
+Public Function xzShowMessage(ByVal Title As String, ByVal Text As String, Optional ByVal Timeout As Long, Optional ByVal IconPath As String, Optional ByVal hWndReply As Long, Optional ByVal uReplyMsg As Long) As Long
 Dim pss As SNARLSTRUCT
 
     With pss
@@ -216,7 +216,7 @@ Dim pss As SNARLSTRUCT
 
     End With
 
-    szShowMessage = uSend(pss)
+    xzShowMessage = uSend(pss)
 
 End Function
 

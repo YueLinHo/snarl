@@ -31,6 +31,9 @@ Dim mPage As BPrefsPage
 Dim mStyle As TStyle
 Dim mThemes As BTagList
 
+Dim WithEvents theDefaultsPanel As TStyleDefaultsPanel
+Attribute theDefaultsPanel.VB_VarHelpID = -1
+
 Implements KPrefsPage
 
 Private Sub KPrefsPage_AllAttached()
@@ -71,6 +74,8 @@ End Sub
 Private Sub KPrefsPage_Attached()
 Dim pc As BControl
 Dim pm As CTempMsg
+Dim sz As String
+Dim b As Boolean
 Dim i As Long
 
     Select Case Name
@@ -82,9 +87,10 @@ Dim i As Long
         uGetIconThemes
 
         With mPage
-            .Add new_BPrefsControl("banner", "", "General")
 
-            ' /* opacity */
+            ' /* general */
+
+            .Add new_BPrefsControl("banner", "", "General")
 
             Set pm = New CTempMsg
             pm.Add "min", 1&
@@ -93,20 +99,22 @@ Dim i As Long
             pm.Add "suffix", "%"
             .Add new_BPrefsControl("fancyslider", "global_opacity", "", "Opacity:", g_ConfigGet("global_opacity"), pm)
 
-            ' /* icons */
+            .Add new_BPrefsControl("fancycycle", "style.overflow_limit", "5 lines|7 lines|15 lines", "Limit text to:", uOverflowLimit())
+            .Add new_BPrefsControl("fancytoggle2", "use_style_icons", "Use style-provided icons (where possible) over Snarl icons?", "Other:", g_ConfigGet("use_style_icons"))
+            .Add new_BPrefsControl("fancytoggle2", "auto_detect_url", "Automatically detect URLs in a notification?", "", g_ConfigGet("auto_detect_url"))
+            .Add new_BPrefsControl("fancybutton2", "show_style_defaults", "Style Defaults...")
 
-            .Add new_BPrefsControl("fancytoggle2", "use_style_icons", "Use style-provided icons (where possible) over Snarl icons?", "Icons:", g_ConfigGet("use_style_icons"))
-            .Add new_BPrefsControl("label", "", "Notification overlay theme:")
-            .Add new_BPrefsControl("fancycycle", "icon_theme", uGetIconThemeList(), , CStr(uIconThemeIndex()), , (mThemes.CountItems > 1))
+            ' /* heads-up display */
+
+            .Add new_BPrefsControl("banner", "", "Notification Overlay")
+            .Add new_BPrefsControl("fancytoggle2", "show_timestamp", "Show timestamp while pointer is over notification?", "", g_ConfigGet("show_timestamp"))
+            .Add new_BPrefsControl("fancycycle", "icon_theme", uGetIconThemeList(), "Emblems:", CStr(uIconThemeIndex()), , (mThemes.CountItems > 1))
 
             ' /* others */
 
-            .Add new_BPrefsControl("fancytoggle2", "show_timestamp", "Show timestamp while pointer is over notification?", "Other:", g_ConfigGet("show_timestamp"))
-            .Add new_BPrefsControl("fancytoggle2", "auto_detect_url", "Automatically detect URLs in a notification?", "", g_ConfigGet("auto_detect_url"))
 '            .Add new_BPrefsControl("fancytoggle2", "no_callback_urls", "Block URLs as default callback?", "", g_ConfigGet("no_callback_urls"))
+'            .Add new_BPrefsControl("banner", "", "Other")
 
-'            .Add new_BPrefsControl("label", "", "Limit notification content to:")
-            .Add new_BPrefsControl("fancycycle", "style.overflow_limit", "5 lines|7 lines|15 lines", "Limit text to:", uOverflowLimit())
 
         End With
 
@@ -116,6 +124,11 @@ Dim i As Long
 
         mPage.Add new_BPrefsControl("banner", "", "General")
 
+        b = uGetScreens(sz)
+        If Not b Then _
+            sz = "<Primary Screen>|"
+
+        mPage.Add new_BPrefsControl("fancycycle", "default_screen", sz, "Screen:", g_ConfigGet("default_screen"), , b)
         mPage.Add new_BPrefsControl("fancycycle", "default_position", "Top Left#?0|Top Right#?1|Bottom Left#?2|Bottom Right#?3", "Position:", g_ConfigGet("default_position"))
 
         Set pm = New CTempMsg
@@ -245,6 +258,44 @@ Const NUM_ITEMS = 10
 '
 '        End With
 
+    Case "sty"
+    
+        ' /* style defaults */
+
+        With mPage
+            .Add new_BPrefsControl("banner", "", "Notification Title")
+            .Add new_BPrefsControl("fancyfontpicker", "style:title-font", gStyleDefaults.ValueOf("title-font"), "Font:", gStyleDefaults.ValueOf("title-font"))
+            .Add new_BPrefsControl("fancycolourpicker", "style:title-colour", , "Colour:", gStyleDefaults.ValueOf("title-colour"))
+'            .Add new_BPrefsControl("fancycycle", "style:title-weight", "Normal|Bold", "Weight:", gStyleDefaults.ValueOf("title-weight"))
+            Set pm = New CTempMsg
+            With pm
+                .Add "min", 0&
+                .Add "max", 100&
+                .Add "freq", 10&
+                .Add "suffix", "%"
+
+            End With
+            .Add new_BPrefsControl("fancyslider", "style:title-opacity", "", "Opacity:", gStyleDefaults.ValueOf("title-opacity"), pm)
+
+            .Add new_BPrefsControl("banner", "", "Notification Text")
+            .Add new_BPrefsControl("fancyfontpicker", "style:text-font", gStyleDefaults.ValueOf("text-font"), "Font:", gStyleDefaults.ValueOf("text-font"))
+            .Add new_BPrefsControl("fancycolourpicker", "style:text-colour", , "Colour:", gStyleDefaults.ValueOf("text-colour"))
+'            .Add new_BPrefsControl("fancycycle", "style:text-weight", "Normal|Bold", "Weight:", gStyleDefaults.ValueOf("text-weight"))
+            Set pm = New CTempMsg
+            With pm
+                .Add "min", 0&
+                .Add "max", 100&
+                .Add "freq", 10&
+                .Add "suffix", "%"
+
+            End With
+            .Add new_BPrefsControl("fancyslider", "style:text-opacity", "", "Opacity:", gStyleDefaults.ValueOf("text-opacity"), pm)
+
+            .Add new_BPrefsSeparator
+            .Add new_BPrefsControl("label", "", "These settings only apply to the default style, however other styles may also (and are encouraged to) support these settings.")
+
+        End With
+
     End Select
 
 
@@ -271,15 +322,26 @@ Const NUM_ITEMS = 10
 
 End Sub
 
-Private Sub KPrefsPage_ControlChanged(Control As prefs_kit_d2.BControl, ByVal value As String)
+Private Sub KPrefsPage_ControlChanged(Control As prefs_kit_d2.BControl, ByVal Value As String)
+Dim sz As String
+
+    Debug.Print "[" & mPage.GetName() & "]: ControlChanged '" & Control.GetName() & "' >> '" & Value & "'"
+
+'    If g_SafeLeftStr(Control.GetName, 6) = "style:" Then
+'        ' /* style default */
+'        sz = g_SafeRightStr(Control.GetName, Len(Control.GetName) - 6)
+'        gStyleDefaults.Update sz, Value
+'        gStyleDefaults.Save
+'        Exit Sub
+'
+'    End If
+
+
 Dim fUpdate As Boolean
 Dim pc As BControl
 Dim pm As CTempMsg
-Dim sz As String
 Dim dw As Long
 Dim i As Long
-
-    Debug.Print "[" & mPage.GetName() & "]: ControlChanged '" & Control.GetName() & "' >> '" & value & "'"
 
     Select Case Control.GetName()
 
@@ -294,12 +356,12 @@ Dim i As Long
 
 
     Case "ft>use_dropshadow"
-        gPrefs.use_dropshadow = (Val(value) <> 0)
+        gPrefs.use_dropshadow = (Val(Value) <> 0)
         If mPage.Find("dropshadow_strength", pc) Then _
-            pc.SetEnabled (Val(value) <> 0)
+            pc.SetEnabled (Val(Value) <> 0)
 
         If mPage.Find("dropshadow_size", pc) Then _
-            pc.SetEnabled (Val(value) <> 0)
+            pc.SetEnabled (Val(Value) <> 0)
 
         fUpdate = True
 
@@ -315,9 +377,9 @@ Dim i As Long
 
     Case "default_position", "melontype_contrast", "global_opacity", "margin_spacing", "dropshadow_strength", "dropshadow_size", _
          "default_notification_sound", "default_priority_sound", "enable_sounds", "use_style_sounds", "prefer_style_sounds", _
-         "use_style_icons", "show_timestamp", "auto_detect_url"
+         "use_style_icons", "show_timestamp", "auto_detect_url", "default_screen"
 
-        g_ConfigSet Control.GetName, value
+        g_ConfigSet Control.GetName, Value
 
 
     Case "default_scheme"
@@ -340,7 +402,7 @@ Dim i As Long
 
 
     Case "default_duration"
-        Select Case Val(value)
+        Select Case Val(Value)
         Case 0
             Control.SetText "Sticky"
 
@@ -348,20 +410,20 @@ Dim i As Long
             Control.SetText "1 sec"
 
         Case Else
-            Control.SetText value & " secs"
+            Control.SetText Value & " secs"
 
         End Select
 
-        g_ConfigSet Control.GetName, value
+        g_ConfigSet Control.GetName, Value
 
 
     Case "icon_theme"
-        g_ConfigSet Control.GetName, mThemes.TagAt(Val(value)).value
+        g_ConfigSet Control.GetName, mThemes.TagAt(Val(Value)).Value
         g_LoadIconTheme
 
 
     Case "style.overflow_limit"
-        Select Case value
+        Select Case Value
         Case "1"
             g_ConfigSet Control.GetName, "5"
 
@@ -382,6 +444,13 @@ Dim i As Long
 End Sub
 
 Private Sub KPrefsPage_ControlInvoked(Control As prefs_kit_d2.BControl)
+
+    If Control.GetName = "show_style_defaults" Then
+        Set theDefaultsPanel = New TStyleDefaultsPanel
+        theDefaultsPanel.Go frmAbout.PanelhWnd
+
+    End If
+
 End Sub
 
 Private Sub KPrefsPage_ControlNotify(Control As prefs_kit_d2.BControl, ByVal Notification As String, Data As melon.MMessage)
@@ -570,7 +639,7 @@ Dim i As Long
         .Rewind
         Do While .GetNextTag(pt) = B_OK
             i = i + 1
-            If pt.value = sz Then
+            If pt.Value = sz Then
                 uIconThemeIndex = i
                 Exit Function
             
@@ -652,3 +721,31 @@ Dim n As Long
     End Select
 
 End Function
+
+Private Function uGetScreens(ByRef List As String) As Boolean
+Dim sz As String
+Dim pmi As T_MONITOR_INFO
+Dim c As Long
+Dim i As Long
+
+    c = g_CountMonitors()
+    If c > 0 Then
+        uGetScreens = (c > 1)
+
+        For i = 1 To c
+            g_GetMonitorInfo i, pmi
+            sz = sz & "Screen " & CStr(i) & IIf(pmi.IsPrimary, " (Primary)", "") & "|"
+
+        Next i
+
+        List = sz
+
+    End If
+
+End Function
+
+Private Sub theDefaultsPanel_Closed()
+
+    Set theDefaultsPanel = Nothing
+
+End Sub

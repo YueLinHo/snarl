@@ -42,14 +42,14 @@ Dim mInfo As T_NOTIFICATION_INFO
 Dim mTempIcon As String
 Dim mArgs As BPackedData
 
-Public Enum E_NOTIFICATION_STATUS
-    NS_ACTIVE = 1
-    NS_WAITING = 2
-    NS_MISSED = 3
+Public Enum SN_NOTIFICATION_STATUS
+    SN_NS_ACTIVE = 1
+    SN_NS_WAITING = 2
+    SN_NS_MISSED = 3
 
 End Enum
 
-Dim mState As E_NOTIFICATION_STATUS
+Dim mState As SN_NOTIFICATION_STATUS
 Dim mSeen As Boolean
 
 Dim WithEvents theIconRequest As BWebRequest
@@ -57,7 +57,7 @@ Attribute theIconRequest.VB_VarHelpID = -1
 
 Implements BTagItem
 
-Public Function Init(ByVal URL As String, ByRef Args As BPackedData) As Boolean
+Public Function Init(ByRef Cached As BTagItem, ByRef Args As BPackedData) As Boolean
 
     On Error Resume Next
 
@@ -69,21 +69,15 @@ Public Function Init(ByVal URL As String, ByRef Args As BPackedData) As Boolean
 
     End If
 
-    mTempIcon = g_GetSafeTempIconPath() & "." & g_GetExtension(URL)
-    If mTempIcon = "" Then
-        g_Debug "TNotification.Init(): couldn't create local temporary file", LEMON_LEVEL_CRITICAL
-        Exit Function
-
-    End If
-
+    mTempIcon = Cached.Value
     Set mArgs = Args
 
     g_Debug "TNotification.Init(): saving as '" & mTempIcon & "'"
-    Init = theIconRequest.GetFile(URL, mTempIcon)
+    Init = theIconRequest.GetFile(Cached.Name, mTempIcon)
 
 End Function
 
-Friend Sub SetTo(ByVal State As E_NOTIFICATION_STATUS, ByRef Info As T_NOTIFICATION_INFO, Optional ByRef Window As CSnarlWindow, Optional ByVal Column As Integer, Optional ByRef Frame As BRect)   ', Optional ByVal StyleName As String, Optional ByVal SchemeName As String)
+Friend Sub SetTo(ByVal State As SN_NOTIFICATION_STATUS, ByRef Info As T_NOTIFICATION_INFO, Optional ByRef Window As CSnarlWindow, Optional ByVal Column As Integer, Optional ByRef Frame As BRect)   ', Optional ByVal StyleName As String, Optional ByVal SchemeName As String)
 
     LSet mInfo = Info
     uFixupContent
@@ -116,6 +110,7 @@ Private Function BTagItem_Value() As String
 End Function
 
 Private Sub theIconRequest_Completed(ByVal WasSuccessful As Boolean)
+Dim pIcon As mfxBitmap
 Dim sz As String
 
     Debug.Print "TNotification.Completed(): " & WasSuccessful
@@ -132,7 +127,14 @@ Dim sz As String
 
     Else
         sz = mTempIcon
+        Set pIcon = style_MakeSquareImage(load_image_obj(sz))
+        With New mfxView
+            .SizeTo pIcon.Width, pIcon.Height
+            .Clear
+            .DrawScaledImage pIcon
+            .WriteToFile sz, "image/png"
 
+        End With
     End If
 
     mInfo.IconPath = sz
@@ -236,7 +238,7 @@ End Sub
 
 Public Sub Remove()
 
-    If mState = NS_ACTIVE Then _
+    If mState = SN_NS_ACTIVE Then _
         mWindow.Hide
 
 End Sub
@@ -254,7 +256,7 @@ Public Function AppSigAndUID() As String
 
 End Function
 
-Public Function State() As E_NOTIFICATION_STATUS
+Public Function State() As SN_NOTIFICATION_STATUS
 
     State = mState
 
@@ -349,12 +351,12 @@ Public Function SetTitle(ByVal Title As String) As Boolean
     SetTitle = True
 
     Select Case mState
-    Case NS_ACTIVE
+    Case SN_NS_ACTIVE
         mWindow.Update mInfo
 
-    Case NS_MISSED
+    Case SN_NS_MISSED
 
-    Case NS_WAITING
+    Case SN_NS_WAITING
 
     End Select
 
@@ -367,12 +369,12 @@ Public Function SetText(ByVal Text As String) As Boolean
     SetText = True
 
     Select Case mState
-    Case NS_ACTIVE
+    Case SN_NS_ACTIVE
         mWindow.Update mInfo
 
-    Case NS_MISSED
+    Case SN_NS_MISSED
 
-    Case NS_WAITING
+    Case SN_NS_WAITING
 
     End Select
 
@@ -385,12 +387,12 @@ Public Function SetIcon(ByVal Icon As String) As Boolean
     SetIcon = True
 
     Select Case mState
-    Case NS_ACTIVE
+    Case SN_NS_ACTIVE
         mWindow.Update mInfo
 
-    Case NS_MISSED
+    Case SN_NS_MISSED
 
-    Case NS_WAITING
+    Case SN_NS_WAITING
 
     End Select
 
@@ -399,13 +401,13 @@ End Function
 Public Function SetTimeout(ByVal Timeout As Long) As Boolean
 
     Select Case mState
-    Case NS_ACTIVE
+    Case SN_NS_ACTIVE
         mWindow.SetTimeout Timeout
         SetTimeout = True
 
-    Case NS_MISSED
+    Case SN_NS_MISSED
 
-    Case NS_WAITING
+    Case SN_NS_WAITING
 
     End Select
 
@@ -414,13 +416,13 @@ End Function
 Public Function SetCallback(ByVal Callback As String) As Boolean
 
     Select Case mState
-    Case NS_ACTIVE
+    Case SN_NS_ACTIVE
         mWindow.SetAck Callback
         SetCallback = True
 
-    Case NS_MISSED
+    Case SN_NS_MISSED
 
-    Case NS_WAITING
+    Case SN_NS_WAITING
         mInfo.DefaultAck = Callback
 
     End Select
@@ -430,13 +432,13 @@ End Function
 Public Function SetMenu(ByVal Content As String) As Boolean
 
     Select Case mState
-    Case NS_ACTIVE
+    Case SN_NS_ACTIVE
         mWindow.SetMenu Content
         SetMenu = True
 
-    Case NS_MISSED
+    Case SN_NS_MISSED
 
-    Case NS_WAITING
+    Case SN_NS_WAITING
 
     End Select
 
@@ -451,25 +453,42 @@ Public Function ClearActions() As Boolean
     mInfo.Actions.MakeEmpty
 
     Select Case mState
-    Case NS_ACTIVE
+    Case SN_NS_ACTIVE
         mWindow.RethinkActions
 
-    Case NS_MISSED
+    Case SN_NS_MISSED
         ' /* need to update the missed notifications panel, if it's open */
 
-    Case NS_WAITING
+    Case SN_NS_WAITING
 
     End Select
 
 End Function
 
 Public Function AddAction(ByVal Label As String, ByVal Command As String) As Boolean
+Dim bCatch As Boolean
+Dim dw As Long
+
+    ' /* error checking */
+
+    If g_SafeLeftStr(Command, 1) = "@" Then
+        ' /* callback must be a signed 16-bit value */
+        dw = g_SafeLong(g_SafeRightStr(Command, Len(Command) - 1), bCatch)
+        If (bCatch) Or (dw < -32768) Or (dw > 32767) Or (Not g_IsNumeric(g_SafeRightStr(Command, Len(Command) - 1))) Then
+            gSetLastError SNARL_ERROR_INVALID_ARG
+            Exit Function
+
+        End If
+    End If
+
 
     With mInfo.Actions
         If .IndexOf(Label) Then
+            ' /* replace */
             .Update Label, Command
 
         Else
+            ' /* add new */
             .Add new_BTagItem(Label, Command)
 
         End If
@@ -477,14 +496,14 @@ Public Function AddAction(ByVal Label As String, ByVal Command As String) As Boo
     End With
 
     Select Case mState
-    Case NS_ACTIVE
+    Case SN_NS_ACTIVE
         mWindow.RethinkActions
 
-    Case NS_MISSED
+    Case SN_NS_MISSED
         ' /* need to update the missed notifications panel, if it's open */
         g_NotificationRoster.UpdateMissedPanel
 
-    Case NS_WAITING
+    Case SN_NS_WAITING
 
     End Select
 
@@ -494,21 +513,26 @@ End Function
 
 Public Function UpdateOrMerge(ByRef Args As BPackedData, ByVal ShouldMerge As Boolean) As Boolean
 
+    Debug.Print "text was: " & mInfo.Text
     uUpdateContent Args, ShouldMerge
+    Debug.Print "text now: " & mInfo.Text
 
     Select Case mState
-    Case NS_ACTIVE
+    Case SN_NS_ACTIVE
         uFixupContent
+
+        Debug.Print "text: " & mInfo.Text
+
         UpdateOrMerge = mWindow.Update(mInfo)
 
 
-    Case NS_MISSED
+    Case SN_NS_MISSED
         ' /* refresh the missed panel if it's open */
         g_NotificationRoster.UpdateMissedPanel
         UpdateOrMerge = True
 
 
-    Case NS_WAITING
+    Case SN_NS_WAITING
         UpdateOrMerge = True
 
     End Select

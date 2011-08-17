@@ -13,17 +13,17 @@ Attribute VB_PredeclaredId = False
 Attribute VB_Exposed = False
 Option Explicit
 
-'/*********************************************************************************************
-'/
-'/  File:           TApplicationRoster.cls
-'/
-'/  Description:    Manages registered applications
-'/
-'/  © 2009 full phat products
-'/
-'/  This file may be used under the terms of the Simplified BSD Licence
-'/
-'*********************************************************************************************/
+    '/*********************************************************************************************
+    '/
+    '/  File:           TApplicationRoster.cls
+    '/
+    '/  Description:    Manages registered applications
+    '/
+    '/  © 2009 full phat products
+    '/
+    '/  This file may be used under the terms of the Simplified BSD Licence
+    '/
+    '*********************************************************************************************/
 
 Dim mApp() As TApp
 Dim mCount As Long
@@ -47,7 +47,7 @@ Private Function MLibrary_Close() As melon.M_RESULT
     If mRefs = 0 Then
         ' /* run tidyup code */
 
-        Me.Unregister gSnarlToken, gSnarlPassword
+        Me.Unregister gSnarlToken, gSnarlPassword, False
         SendToAll SNARL_BROADCAST_QUIT
 
         ReDim mApp(0)
@@ -93,7 +93,7 @@ Dim pSnarlApp As TApp
         With pAppInfo
             .hWnd = frmAbout.hWnd
             .Icon = g_MakePath(App.Path) & "etc\icons\snarl.png"
-            .LargeIcon = .Icon
+'            .LargeIcon = .Icon
             .Name = App.Title
             .Password = gSnarlPassword
             .Pid = GetCurrentProcessId()
@@ -225,12 +225,17 @@ Private Property Get MVersionInfo_Version() As Long
 
 End Property
 
-Public Function Add41(ByRef Data As BPackedData, Optional ByVal IsRemote As Boolean, Optional ByVal SenderPID As Long) As Long
+Public Function Add41(ByRef Data As BPackedData, ByRef SenderSocket As CSocket, ByVal SenderPID As Long, ByVal RemoteHostName As String) As Long '// ByVal IsRemote As Boolean,
+Dim szTitle As String
 Dim sz As String
 
     g_Debug "TApplicationRoster.Add41()", LEMON_LEVEL_PROC_ENTER
 
     ' /* validate args */
+
+    szTitle = Data.ValueOf("app-title")         ' // R2.4.2 DR3
+    If szTitle = "" Then _
+        szTitle = Data.ValueOf("title")
 
     sz = Data.ValueOf("app-sig")
     If sz = "" Then _
@@ -238,15 +243,15 @@ Dim sz As String
 
     ' /* R2.4.2 DR3: if no signature, craft it from the title */
 
-    If (sz = "") And (Data.ValueOf("title") <> "") Then
-        sz = "application/x-" & LCase$(Replace$(Data.ValueOf("title"), " ", "_"))
+    If (sz = "") And (szTitle <> "") Then
+        sz = "application/x-" & LCase$(Replace$(szTitle, " ", "_"))
         g_Debug "created app-sig '" & sz & "'", LEMON_LEVEL_INFO
 
     End If
 
     ' /* error checking */
 
-    If (Data.ValueOf("title") = "") Or (sz = "") Then
+    If (szTitle = "") Or (sz = "") Then
         g_Debug "required arg missing", LEMON_LEVEL_CRITICAL Or LEMON_LEVEL_PROC_EXIT
         gSetLastError SNARL_ERROR_ARG_MISSING
         Exit Function
@@ -301,9 +306,20 @@ Dim pInfo As T_SNARL_APP
     ' /* configure the item */
 
     With pInfo
-        .Name = Data.ValueOf("title")
+        .Name = szTitle
         .Icon = Data.ValueOf("icon")
         .Signature = sz
+        .Pid = SenderPID            ' // R2.4.2: added
+
+        ' /* R2.4.2 DR3: only if RemoteHostName is not actually one of our assigned addresses */
+
+        If RemoteHostName <> "" Then
+            If InStr(get_ip_address_table(), RemoteHostName) = 0 Then _
+                .RemoteHostName = RemoteHostName
+
+            g_Debug "RemoteHostName='" & RemoteHostName & "' FilteredRemoteHostName='" & .RemoteHostName & "'"
+
+        End If
 
         If (.Icon = "") And (Data.Exists("icon-base64")) Then
             ' /* R2.4 Beta 4 - support for Base64-encoded icons */
@@ -314,23 +330,26 @@ Dim pInfo As T_SNARL_APP
             .Icon = g_GetPhat64Icon(Data.ValueOf("icon-phat64"))
 
         ElseIf g_IsURL(.Icon) Then
-            ' /* R2.4.2: initiate an async download (user will get either previously cached, or "no icon" icon in the meanwhile */
+            ' /* R2.4.2: initiate an async download (user will get either previously cached, or "no icon" icon in the meanwhile) */
             sz = g_MakePath(App.Path) & "etc\icons\app-cache\" & g_MakeFilename(.Signature) '& g_GetExtension(.Icon)
             uStartRemoteIconDownload .Icon, sz
             .Icon = sz
 
+        ElseIf g_IsFileURI(.Icon) Then
+            ' /* R2.4.2 DR3: support for "file://" protocol */
+            .Icon = g_PathFromURI(.Icon)
+
         End If
 
-        .LargeIcon = .Icon                       ' // no need for two icons: V41 spec recommends 128x128px icon
+'        .LargeIcon = .Icon                       ' // no need for two icons: V41 spec recommends 128x128px icon
 
         ' / R2.4.1 Beta 3 - if (still) no icon, try to use the sender exe's one */
 
 Dim pi As BIcon
 
-        .Pid = SenderPID            ' // R2.4.2: added
-
-        If (.Icon = "") And (IsRemote) Then
-            .Icon = g_MakePath(App.Path) & "etc\icons\remote_app.png"
+        If (.Icon = "") And (.RemoteHostName <> "") Then
+            ' /* truly remote apps get this icon, all others get the normal one */
+            .Icon = g_MakePath(App.Path) & "etc\icons\no_icon-remote.png"
 
         ElseIf (.Icon = "") And (SenderPID <> 0) Then
             sz = g_GetExeFullPath(SenderPID)
@@ -349,27 +368,96 @@ Dim pi As BIcon
             End If
         End If
 
+        Debug.Print "--> icon = " & .Icon
+
         If Data.Exists("reply-to") Then
             ' /* V42.22: new name */
-            .hWnd = Val(Data.ValueOf("reply-to"))
+            .hWnd = g_SafeLong(Data.ValueOf("reply-to"))
 
         Else
-            .hWnd = Val(Data.ValueOf("hwnd"))
+            .hWnd = g_SafeLong(Data.ValueOf("hwnd"))
 
         End If
 
-        If Data.Exists("reply") Then
+        If Data.Exists("reply-with") Then
+            ' /* R2.4.2 DR3: new new name :( */
+            .uMsg = g_SafeLong(Data.ValueOf("reply-with"))
+
+        ElseIf Data.Exists("reply") Then
             ' /* V42.22: new name */
-            .uMsg = Val(Data.ValueOf("reply"))
+            .uMsg = g_SafeLong(Data.ValueOf("reply"))
 
         Else
-            .uMsg = Val(Data.ValueOf("umsg"))
+            .uMsg = g_SafeLong(Data.ValueOf("umsg"))
 
         End If
 
         .Flags = Val(Data.ValueOf("flags"))
         .Password = Data.ValueOf("password")
-        .IsRemote = IsRemote
+
+        ' /* R2.4.2 DR3: if "hint" is specified this will be displayed when the
+        '    "Details" button in [Apps] is clicked */
+
+        If Data.Exists("hint") Then _
+            .Hint = Data.ValueOf("hint")
+
+'        ' /* R2.4.2 DR3: if "app-flags" is specified and we have a valid reply-to
+'        '    window, this can be used in place of the unituitive "flags" parameter. */
+'
+'        If (Data.Exists("app-flags")) And ((IsWindow(.hWnd) <> 0) Or (Not (SenderSocket Is Nothing))) Then
+'            With New BPackedData
+'                If .SetTo(Data.ValueOf("app-flags"), "|", "") Then
+'                    If .Exists("prefs") Then _
+'                        pInfo.Flags = pInfo.Flags Or (SNARLAPP_HAS_PREFS Or SNARLAPP_IS_WINDOWLESS)
+'
+'                    If .Exists("about") Then _
+'                        pInfo.Flags = pInfo.Flags Or (SNARLAPP_HAS_ABOUT Or SNARLAPP_IS_WINDOWLESS)
+'
+'                End If
+'            End With
+'        End If
+
+        ' /* R2.4.2 DR3: if "config-tool" is specified then it gets included
+        '    in the tray sub-menu */
+
+        If Data.Exists("config-tool") Then
+            .Tool = Data.ValueOf("config-tool")
+            .IncludeInMenu = True
+
+        End If
+
+        ' /* R2.4.2 DR3: if "app-daemon" is "1" then it gets included in the
+        '    tray sub-menu and is marked as V43 */
+
+        If Data.ValueOf("app-daemon") = "1" Then
+            ' /* V43 windowless apps are assumed to support all features */
+            If IsWindow(.hWnd) <> 0 Then
+                .Flags = SNARLAPP_HAS_ABOUT Or SNARLAPP_HAS_PREFS Or SNARLAPP_IS_DAEMON
+                .IncludeInMenu = True
+
+            ElseIf Not (SenderSocket Is Nothing) Then
+                .IncludeInMenu = True
+            
+            End If
+
+        ElseIf IsWindow(.hWnd) <> 0 Then
+            ' /* pre-V43 support: Win32 API only */
+            .IncludeInMenu = (GetProp(.hWnd, "snarl_app") = 1) Or ((.Flags And SNARLAPP_IS_WINDOWLESS) <> 0)
+
+        End If
+
+        ' /* R2.4.2 DR3 - tweak remote settings for TCP protocols: if the app is being registered
+        '    by a remote source, it cannot have dynamic About/Prefs callbacks */
+
+'        .IsRemote = IsRemote
+        Set .Socket = SenderSocket
+'        If Not (.Socket Is Nothing) Then _
+            .IsRemote = (InStr(get_ip_address_table(), .Socket.RemoteHostIP) = 0)
+
+        ' /* R2.4.2 DR3 - remotely registered apps cannot have these */
+
+        If .RemoteHostName <> "" Then _
+            .Flags = .Flags And (Not (SNARLAPP_HAS_ABOUT Or SNARLAPP_HAS_PREFS Or SNARLAPP_IS_WINDOWLESS))
 
         g_Debug "name='" & .Name & "' signature='" & .Signature & "' flags=0x" & g_HexStr(.Flags)
 
@@ -414,7 +502,7 @@ Dim bShow As Boolean
 
     End If
 
-Dim lFlags As E_NOTIFICATION_FLAGS
+Dim lFlags As SN_NOTIFICATION_FLAGS
 Dim i As Long
 
     If bShow Then
@@ -423,10 +511,10 @@ Dim i As Long
         '    add the relevant system flags here */
 
         If pa.Password <> "" Then _
-            lFlags = lFlags Or NF_SECURE
+            lFlags = lFlags Or SN_NF_SECURE
 
         If pa.IsRemote Then _
-            lFlags = lFlags Or NF_REMOTE
+            lFlags = lFlags Or SN_NF_REMOTE
 
         ' /* display the 'app registered' notification */
 
@@ -473,8 +561,8 @@ Dim pa As TApp
         .Name = Name
         .hWnd = hWnd
         .uMsg = uMsg
-        .Icon = Icon
-        .LargeIcon = LargeIcon
+        .Icon = IIf(LargeIcon <> "", LargeIcon, Icon)
+'        .LargeIcon = LargeIcon
         .Signature = Name
         ' /* V38.119 - for V39: can unregister an app using it's name and pid */
         .Pid = Pid
@@ -966,13 +1054,13 @@ Static i As Long
         gSetLastError SNARL_ERROR_NOT_REGISTERED
 
     Else
-        UnregisterBySig = uUnregister(i, Password)
+        UnregisterBySig = uUnregister(i, Password, False)
 
     End If
 
 End Function
 
-Public Function Unregister(ByVal Token As Long, ByVal Password As String) As Long
+Public Function Unregister(ByVal Token As Long, ByVal Password As String, ByVal RemoveSettings As Boolean) As Long
 Static i As Long
 
     i = uIndexOfToken(Token)
@@ -981,13 +1069,13 @@ Static i As Long
         gSetLastError SNARL_ERROR_NOT_REGISTERED
 
     Else
-        Unregister = uUnregister(i, Password)
+        Unregister = uUnregister(i, Password, RemoveSettings)
 
     End If
 
 End Function
 
-Private Function uUnregister(ByVal Index As Long, ByVal Password As String) As Long
+Private Function uUnregister(ByVal Index As Long, ByVal Password As String, ByVal RemoveSettings As Boolean) As Long
 
     ' /* WARNING: index is _NOT_ bounds-checked */
 
@@ -999,6 +1087,9 @@ Private Function uUnregister(ByVal Index As Long, ByVal Password As String) As L
 
         End If
     End If
+
+    If RemoveSettings Then _
+        mApp(Index).RemoveSettings
 
     Remove Index
     uUnregister = -1
@@ -1089,42 +1180,27 @@ End Function
 '
 'End Function
 
-Public Function SnarlAppsMenu() As OMMenu
-Dim pm As OMMenu
-Dim i As Long
-
-    Set SnarlAppsMenu = New OMMenu
-
-    With SnarlAppsMenu
-        If mCount Then
-            For i = 1 To mCount
-                If mApp(i).IsSnarlApp Then
-'                    Set pm = New OMMenu
-'                    pm.AddItem pm.CreateItem("cfg" & CStr(i), "Settings...", , (mApp(i).Flags And E_APP_HAS_PREFS))
-'                    pm.AddItem pm.CreateItem("abt" & CStr(i), "About...", , (mApp(i).Flags And E_APP_HAS_ABOUT))
-                    .AddItem .CreateItem("!" & CStr(i), mApp(i).Name, , (mApp(i).Flags And SNARLAPP_HAS_PREFS))
-
-                End If
-            Next i
-        End If
-
-        If .CountItems = 0 Then _
-            .AddItem .CreateItem("", "None", , False)
-
-    End With
-
-End Function
-
-Public Sub SnarlAppDo(ByVal Index As Long, ByVal Cmd As Long)
-
-    If (Index < 1) Or (Index > mCount) Then _
-        Exit Sub
-
-'    Debug.Print "SNARLAPPDO: " & Cmd & " > " & mApp(Index).hWnd
-
-    PostMessage mApp(Index).hWnd, mSnarlAppMsg, Cmd, ByVal 0&
-
-End Sub
+'Public Function SnarlAppsMenu() As OMMenu
+'Dim pm As OMMenu
+'Dim i As Long
+'
+'    Set SnarlAppsMenu = New OMMenu
+'
+'    With SnarlAppsMenu
+'        If mCount Then
+'            For i = 1 To mCount
+'                If mApp(i).IncludeInMenu Then _
+'                    .AddItem .CreateItem("!" & CStr(i), mApp(i).Name)
+'
+'            Next i
+'        End If
+'
+'        If .CountItems = 0 Then _
+'            .AddItem .CreateItem("", "None", , False)
+'
+'    End With
+'
+'End Function
 
 Private Function uGenerateSnarlPassword() As String
 Dim i As Integer
@@ -1141,18 +1217,6 @@ Dim c As Integer
 
 End Function
 
-'Public Function FindBySignature(ByVal Signature As String, ByRef App As TApp) As Boolean
-'Dim i As Long
-'
-'    i = IndexOfSig(Signature)
-'    If i Then
-'        Set App = mApp(i)
-'        FindBySignature = True
-'
-'    End If
-'
-'End Function
-
 Private Sub uUpdate(ByVal Index As Long, ByRef Data As BPackedData)
 
     If (Index < 1) Or (Index > mCount) Or (Data Is Nothing) Then _
@@ -1160,28 +1224,82 @@ Private Sub uUpdate(ByVal Index As Long, ByRef Data As BPackedData)
 
     ' /* can only change certain things */
 
+Dim szPath As String
+Dim pi As BIcon
+Dim sz As String
 Dim rm As Long
 Dim rt As Long
 
     With mApp(Index)
 
-        If Data.Exists("icon") Then _
-            .SetIcon Data.ValueOf("icon")
+        If Data.Exists("icon") Then
+            sz = Data.ValueOf("icon")
 
-        If Data.Exists("reply-to") Then
-            rt = Val(Data.ValueOf("reply-to"))
+            If (sz = "") And (Data.Exists("icon-base64")) Then
+                ' /* R2.4 Beta 4 - support for Base64-encoded icons */
+                sz = g_GetBase64Icon(Data.ValueOf("icon-base64"))
+    
+            ElseIf (sz = "") And (Data.Exists("icon-phat64")) Then
+                ' /* R2.4.2 DR3: phat64 encoding */
+                sz = g_GetPhat64Icon(Data.ValueOf("icon-phat64"))
+    
+            ElseIf g_IsURL(sz) Then
+                ' /* R2.4.2: initiate an async download (user will get either previously cached, or "no icon" icon in the meanwhile) */
+                szPath = g_MakePath(App.Path) & "etc\icons\app-cache\" & g_MakeFilename(.Signature) '& g_GetExtension(sz)
+                uStartRemoteIconDownload sz, szPath
+                sz = szPath
+    
+            ElseIf g_IsFileURI(sz) Then
+                ' /* R2.4.2 DR3: support for "file://" protocol */
+                sz = g_PathFromURI(sz)
+    
+            End If
 
-        Else
-            rt = Val(Data.ValueOf("hwnd"))
+            ' / R2.4.1 Beta 3 - if (still) no icon, try to use the sender exe's one */
+
+            If (sz = "") And (.IsRemote) Then
+                sz = g_MakePath(App.Path) & "etc\icons\no_icon-remote.png"
+
+            ElseIf (sz = "") And (.Pid <> 0) Then
+                szPath = g_GetExeFullPath(.Pid)
+                If szPath <> "" Then
+                    With new_BIconContent(szPath)
+                        If .GetIcon(B_GET_ICON_BIGGEST Or B_GET_ICON_MOST_COLOURS, pi) Then
+                            With New mfxView
+                                .SizeTo pi.Width, pi.Height
+                                .DrawScaledImage pi.Render, , new_BPoint(pi.Width, pi.Height)
+                                sz = g_GetSafeTempIconPath()
+                                .WriteToFile sz, "image/png"
+    
+                            End With
+                        End If
+                    End With
+                End If
+            End If
+
+            .SetIcon sz
 
         End If
 
-        If Data.Exists("reply") Then
-            ' /* V42.22: new name */
-            rm = Val(Data.ValueOf("reply"))
+
+        If Data.Exists("reply-to") Then
+            rt = g_SafeLong(Data.ValueOf("reply-to"))
 
         Else
-            rm = Val(Data.ValueOf("umsg"))
+            rt = g_SafeLong(Data.ValueOf("hwnd"))
+
+        End If
+
+        If Data.Exists("reply-with") Then
+            ' /* R2.4.2 DR3 */
+            rm = g_SafeLong(Data.ValueOf("reply-with"))
+
+        ElseIf Data.Exists("reply") Then
+            ' /* V42.22: new name */
+            rm = g_SafeLong(Data.ValueOf("reply"))
+
+        Else
+            rm = g_SafeLong(Data.ValueOf("umsg"))
 
         End If
 
@@ -1218,3 +1336,37 @@ Public Sub RemoveIconDownloader(ByVal Guid As String)
     mRemoteAppList.Remove mRemoteAppList.IndexOf(Guid)
 
 End Sub
+
+Public Function PrivateFindBySignature(ByVal Signature As String, ByRef App As TApp) As Boolean
+
+    If (Signature = "") Or (mCount = 0) Then _
+        Exit Function
+    
+Static i As Long
+
+    For i = 1 To mCount
+        If mApp(i).Signature = Signature Then
+            Set App = mApp(i)
+            PrivateFindBySignature = True
+            Exit Function
+
+        End If
+    Next i
+
+    g_Debug "TApplicationRoster.PrivateFindBySignature(): " & Signature & " not found", LEMON_LEVEL_CRITICAL
+
+End Function
+
+Public Function CountSnarlApps() As Long
+Dim i As Long
+
+    If mCount Then
+        For i = 1 To mCount
+            If mApp(i).IncludeInMenu Then _
+                CountSnarlApps = CountSnarlApps + 1
+
+        Next i
+    End If
+
+End Function
+

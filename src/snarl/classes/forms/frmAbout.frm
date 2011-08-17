@@ -94,7 +94,7 @@ Begin VB.Form frmAbout
       Left            =   5580
       Picture         =   "frmAbout.frx":10E9
       Stretch         =   -1  'True
-      Top             =   0
+      Top             =   2520
       Width           =   825
    End
    Begin VB.Line Line1 
@@ -128,7 +128,7 @@ Begin VB.Form frmAbout
       Left            =   1980
       TabIndex        =   2
       Top             =   180
-      Width           =   2955
+      Width           =   4395
    End
    Begin VB.Label Label3 
       BackStyle       =   0  'Transparent
@@ -259,6 +259,16 @@ Attribute theIdleTimer.VB_VarHelpID = -1
     ' /* R2.4.2 */
 Dim mKeyCloseAll As Long
 Dim mKeyClose As Long
+
+Dim WithEvents theAppList As TAppsPopUpWindow
+Attribute theAppList.VB_VarHelpID = -1
+
+    ' /* icon ids */
+Private Const SN_II_NORMAL = 1&
+Private Const SN_II_BUSY = 30&
+Private Const SN_II_STOPPED = 40&
+Private Const SN_II_MISSED = 50&
+Private Const SN_II_AWAY = 60&
 
 Implements MMessageSink
 Implements KPrefsPanel
@@ -429,8 +439,10 @@ End Sub
 Private Sub KPrefsPage_Attached()
 End Sub
 
-Private Sub KPrefsPage_ControlChanged(Control As prefs_kit_d2.BControl, ByVal value As String)
+Private Sub KPrefsPage_ControlChanged(Control As prefs_kit_d2.BControl, ByVal Value As String)
 Dim sz() As String
+Dim pc As BControl
+Dim i As Long
 
     Select Case Control.GetName
 
@@ -469,7 +481,7 @@ Dim sz() As String
 
     Case "idle_minutes"
 
-        Select Case Val(value)
+        Select Case Val(Value)
         Case 0
             Control.SetText "Never"
 
@@ -477,11 +489,11 @@ Dim sz() As String
             Control.SetText "1 min"
 
         Case Else
-            Control.SetText value & " mins"
+            Control.SetText Value & " mins"
 
         End Select
 
-        g_ConfigSet Control.GetName, value
+        g_ConfigSet Control.GetName, Value
 
 
     Case "away_style", "busy_style"
@@ -496,7 +508,7 @@ Dim sz() As String
 
     Case "ftb>web_stuff"
 
-        Select Case Val(value)
+        Select Case Val(Value)
         Case 1
             ' /* site */
             ShellExecute 0, "open", "http://www.fullphat.net/", vbNullString, vbNullString, SW_SHOW
@@ -513,20 +525,79 @@ Dim sz() As String
         End Select
 
 
+    ' /* [History] */
+
+    Case "history_toolbar"
+        Select Case Val(Value)
+        Case 1
+            ' /* select all */
+            If mPanel.Find("notification_history", pc) Then
+                With pc
+                    For i = 1 To Val(.DoExCmd(B_COUNT_ITEMS))
+                        prefskit_SetItem pc, i, "checked", 1&
+
+                    Next i
+
+                End With
+
+            End If
+
+        Case 2
+            ' /* deselect all */
+            If mPanel.Find("notification_history", pc) Then
+                With pc
+                    For i = 1 To Val(.DoExCmd(B_COUNT_ITEMS))
+                        prefskit_SetItem pc, i, "checked", 0&
+
+                    Next i
+
+                End With
+
+            End If
+
+        Case 3
+            ' /* invert */
+            If mPanel.Find("notification_history", pc) Then
+                With pc
+                    For i = 1 To Val(.DoExCmd(B_COUNT_ITEMS))
+                        prefskit_SetItem pc, i, "checked", IIf(prefskit_GetItem(pc, "checked", i) = "1", 0&, 1&)
+
+                    Next i
+
+                End With
+
+            End If
+
+        Case 5
+            ' /* remove */
+            If mPanel.Find("notification_history", pc) Then
+                With pc
+                    For i = Val(.DoExCmd(B_COUNT_ITEMS)) To 1 Step -1
+                        If prefskit_GetItem(pc, "checked", i) = "1" Then _
+                            g_NotificationRoster.History.Remove i
+                        
+                    Next i
+                    
+                    bRefreshHistory
+
+                End With
+            End If
+
+        End Select
 
 
     Case Else
         ' /* other controls */
-        g_ConfigSet Control.GetName, value
+        g_ConfigSet Control.GetName, Value
 
         If Control.GetName = "run_on_logon" Then
             g_SetAutoRun2
 
         ElseIf Control.GetName = "away_mode" Then
-            prefskit_SafeEnable Control.Page.Panel, "away_style", (value = "6")
+            prefskit_SafeEnable Control.Page.Panel, "away_style", (Value = "6")
 
         ElseIf Control.GetName = "busy_mode" Then
-            prefskit_SafeEnable Control.Page.Panel, "busy_style", (value = "6")
+            prefskit_SafeEnable Control.Page.Panel, "busy_style", (Value = "6")
                 
         End If
 
@@ -551,7 +622,7 @@ Dim hWnd As Long
 '        AddTrayIcon
 
     Case "test_display_settings"
-        g_PrivateNotify "", "Settings Test", "This is a test of the current display settings", 0, , 1, , , NF_REMOTE Or NF_SECURE, True
+        g_PrivateNotify "", "Settings Test", "This is a test of the current display settings", 0, , 1, , , SN_NF_REMOTE Or SN_NF_SECURE, True
 
 
 '    Case "restart_style_roster"
@@ -681,12 +752,12 @@ Dim dw As Long
         Case WTS_SESSION_LOCK
             Debug.Print "WM_WTSSESSION_CHANGE: =locked= " & Now()
             If g_ConfigGet("away_when_locked") = "1" Then _
-                g_SetPresence SP_AWAY_COMPUTER_LOCKED
+                g_SetPresence SN_PF_AWAY_COMPUTER_LOCKED
 
         Case WTS_SESSION_UNLOCK
             Debug.Print "WM_WTSSESSION_CHANGE: =unlocked= " & Now()
             If g_ConfigGet("away_when_locked") = "1" Then _
-                g_ClearPresence SP_AWAY_COMPUTER_LOCKED
+                g_ClearPresence SN_PF_AWAY_COMPUTER_LOCKED
 
         End Select
 
@@ -704,17 +775,11 @@ Private Sub uDoMainMenu()
 
     End If
 
-Dim pi      As OMMenuItem
-Dim i       As Long
-Dim sz      As String
-Dim szData  As String
-Dim rc      As RECT
-Dim hIcon   As Long
-Dim update_config   As Boolean
-
     ' /* track the menu */
 
     SetForegroundWindow Me.hWnd
+
+Dim pi As OMMenuItem
 
     With New OMMenu
         If gDebugMode Then
@@ -727,7 +792,7 @@ Dim update_config   As Boolean
         .AddItem .CreateItem("sticky", "Sticky Notifications", , , (g_ConfigGet("sticky_snarls") = "1"))
         .AddSeparator
 
-        .AddItem .CreateItem("dnd", "Do Not Disturb", , , g_IsPresence(SP_DND_USER))
+        .AddItem .CreateItem("dnd", "Do Not Disturb", , , g_IsPresence(SN_PF_DND_USER))
         .AddItem .CreateItem("missed", IIf(g_NotificationRoster.ActualMissedCount > 0, CStr(g_NotificationRoster.ActualMissedCount) & " ", "") & "Missed Notification" & IIf(g_NotificationRoster.ActualMissedCount = 1, "", "s") & "...")
         .AddSeparator
         .AddItem .CreateItem("restart", "Restart Snarl", , g_IsRunning)
@@ -743,8 +808,8 @@ Dim update_config   As Boolean
         .AddItem .CreateItem("quit", "Quit Snarl", , Not gSysAdmin.InhibitQuit)
         .AddSeparator
         .AddItem .CreateItem("prefs", "Settings...", , Not gSysAdmin.InhibitPrefs)
-'        .AddItem .CreateItem("app_mgr", "App Manager...")
-        .AddItem .CreateItem("", "Snarl Apps", , , , , , g_AppRoster.SnarlAppsMenu())
+        .AddItem .CreateItem("app_list", "Snarl Daemons...", , (g_AppRoster.CountSnarlApps > 0))
+'        .AddItem .CreateItem("", "Snarl Apps", , , , , , g_AppRoster.SnarlAppsMenu())
         .AddSeparator
         .AddItem .CreateItem("about", "About Snarl...")
 
@@ -752,7 +817,9 @@ Dim update_config   As Boolean
 
     End With
 
-    PostMessage hWnd, WM_NULL, 0, ByVal 0&
+    PostMessage Me.hWnd, WM_NULL, 0, ByVal 0&
+
+Dim pa As TApp
 
     If Not (pi Is Nothing) Then
         Select Case pi.Name
@@ -786,13 +853,13 @@ Dim update_config   As Boolean
             g_ConfigSet "sticky_snarls", IIf(g_ConfigGet("sticky_snarls") = "1", "0", "1")
 
         Case "dnd"
-            If g_IsPresence(SP_DND_USER) Then
+            If g_IsPresence(SN_PF_DND_USER) Then
                 ' /* clear it */
-                g_ClearPresence SP_DND_USER
+                g_ClearPresence SN_PF_DND_USER
 
             Else
                 ' /* set it */
-                g_SetPresence SP_DND_USER
+                g_SetPresence SN_PF_DND_USER
 '                g_NotificationRoster.ResetMissedCount
 
             End If
@@ -810,9 +877,20 @@ Dim update_config   As Boolean
             ' /* R2.4.2 DR3 */
             SOS_invoke New TSOSHandler
 
+
+        Case "app_list"
+            If (theAppList Is Nothing) Then
+                Set theAppList = New TAppsPopUpWindow
+                theAppList.Show
+
+            End If
+
         Case Else
-            If g_SafeLeftStr(pi.Name, 1) = "!" Then _
-                g_AppRoster.SnarlAppDo Val(g_SafeRightStr(pi.Name, Len(pi.Name) - 1)), SNARLAPP_DO_PREFS
+'            If g_SafeLeftStr(pi.Name, 1) = "!" Then
+'                Set pa = g_AppRoster.AppAt(Val(g_SafeRightStr(pi.Name, Len(pi.Name) - 1)))
+'                pa.Activated
+'
+'            End If
 
 '            sz = g_SafeLeftStr(pi.Name, 3)
 '            szData = g_SafeRightStr(pi.Name, Len(pi.Name) - 3)
@@ -831,7 +909,7 @@ Dim update_config   As Boolean
         End Select
     End If
 
-    If update_config Then _
+'    If update_config Then _
         g_WriteConfig
 
 End Sub
@@ -931,6 +1009,10 @@ Dim pdsp As TDisplaySubPage
                 Set pdsp = New TDisplaySubPage
                 pdsp.Name = "vis"
                 BTabStrip_AddPage pc, "Behaviour", new_BPrefsPage("pg>" & pdsp.Name, , pdsp)
+
+'                Set pdsp = New TDisplaySubPage
+'                pdsp.Name = "sty"
+'                BTabStrip_AddPage pc, "Defaults", new_BPrefsPage("pg>" & pdsp.Name, , pdsp)
 
                 Set pdsp = New TDisplaySubPage
                 pdsp.Name = "thu"
@@ -1047,18 +1129,31 @@ Dim pasp As TAdvSubPage
 '
 '            .AddPage pp
 
+            ' /* R2.4.2 DR3: history */
 
+            g_Debug "frmAbout.NewDoPrefs(): history page..."
+            Set pp = new_BPrefsPage("History", load_image_obj(g_MakePath(App.Path) & "etc\icons\history.png"), Me)
+            With pp
+                .SetMargin 0
+                Set pm = New CTempMsg
+                pm.Add "checkboxes", 1
+                pm.Add "item-height", 36&
+                Set pc = new_BPrefsControl("listbox", "notification_history", "", "", "", pm)
+                pc.SizeTo 0, (8 * 36) + 2
+                .Add pc
 
+                .Add new_BPrefsControl("fancytoolbar", "history_toolbar", "Select All|Deselect All|Invert Selection||Remove Selected")
+
+            End With
+            .AddPage pp
 
 
             ' /* About page */
 
             g_Debug "frmAbout.NewDoPrefs(): about page..."
             Set pp = new_BPrefsPage("About", load_image_obj(g_MakePath(App.Path) & "etc\icons\about.png"), Me)
-
             With pp
                 .SetMargin 0
-
                 Set pm = New CTempMsg
                 pm.Add "image-file", g_MakePath(App.Path) & "etc\icons\snarl.png"
                 pm.Add "image-height", 32
@@ -1202,6 +1297,8 @@ Dim j As Long
     If mPanel.Find("away_style", pc) Then _
         g_StyleRoster.SetNonWindowStyleIcons pc
 
+    bRefreshHistory
+
 '    If mPanel.Find("melontype_contrast", pc) Then _
 '        pc.SetEnabled (gPrefs.font_smoothing = E_MELONTYPE)
 
@@ -1229,7 +1326,7 @@ Private Property Get MMessageSink_Name() As String
 
 End Property
 
-Private Function MMessageSink_Received(Message As melon.MMessage) As Boolean
+Private Function MMessageSink_Received(message As melon.MMessage) As Boolean
 End Function
 
 Friend Sub bUpdateExtList()
@@ -1265,33 +1362,33 @@ Dim hIcon As Long
 
 End Sub
 
-Friend Sub bMissedNotificationsChanged()
-
-    On Error Resume Next
-
-    If (mTrayIcon Is Nothing) Then _
-        Exit Sub
-
-Dim hIcon As Long
-
-    If g_NotificationRoster.ActualMissedCount > 0 Then
-
-        hIcon = LoadResPicture(50, vbResIcon).Handle
-        If hIcon = 0 Then _
-            hIcon = Me.Icon.Handle
-
-        mTrayIcon.Update "tray_icon", hIcon, "Snarl - " & CStr(g_NotificationRoster.ActualMissedCount) & " missed notification" & IIf(g_NotificationRoster.ActualMissedCount = 1, "", "s")
-
-    Else
-        hIcon = LoadImage(App.hInstance, 1&, IMAGE_ICON, 16, 16, 0)
-        If hIcon = 0 Then _
-            hIcon = Me.Icon.Handle
-        
-        mTrayIcon.Update "tray_icon", hIcon, "Snarl"
-
-    End If
-
-End Sub
+'Friend Sub bMissedNotificationsChanged()
+'
+'    On Error Resume Next
+'
+'    If (mTrayIcon Is Nothing) Then _
+'        Exit Sub
+'
+'Dim hIcon As Long
+'
+'    If g_NotificationRoster.ActualMissedCount > 0 Then
+'
+'        hIcon = LoadResPicture(50, vbResIcon).Handle
+'        If hIcon = 0 Then _
+'            hIcon = Me.Icon.Handle
+'
+'        mTrayIcon.Update "tray_icon", hIcon, "Snarl - " & CStr(g_NotificationRoster.ActualMissedCount) & " missed notification" & IIf(g_NotificationRoster.ActualMissedCount = 1, "", "s")
+'
+'    Else
+'        hIcon = LoadImage(App.hInstance, 1&, IMAGE_ICON, 16, 16, 0)
+'        If hIcon = 0 Then _
+'            hIcon = Me.Icon.Handle
+'
+'        mTrayIcon.Update "tray_icon", hIcon, "Snarl"
+'
+'    End If
+'
+'End Sub
 
 Private Function uIsAlertEnabled(ByVal ConfigString As String) As Boolean
 Dim sz() As String
@@ -1449,9 +1546,24 @@ Dim cb As Long
                         g_FileSizeToStringEx2(g_GetPhysMem(True), "GB", "", "0.0") & " (" & g_FileSizeToStringEx2(g_GetPageMem(True) + g_GetPhysMem(True), "GB", "", "0.0") & ") RAM" & vbCrLf & _
                         "Snarl " & App.Major & "." & App.Revision & " (" & App.Comments & ")" & vbCrLf & "melon " & IIf(szMelon <> "", szMelon, "??"), _
                         -1, _
-                        g_MakePath(App.Path) & "etc\icons\snarl.png"
+                        g_MakePath(App.Path) & "etc\icons\snarl.png", , , , , , _
+                        "_snarl_system_info"
 
     End With
+
+End Sub
+
+Private Sub theAppList_Closed()
+
+    Set theAppList = Nothing
+
+End Sub
+
+Private Sub theAppList_Selected(ByVal Signature As String)
+Dim pa As TApp
+
+    If g_AppRoster.PrivateFindBySignature(Signature, pa) Then _
+        pa.Activated
 
 End Sub
 
@@ -1461,17 +1573,17 @@ Static b As Boolean
     If g_ConfigGet("away_when_fullscreen") = "1" Then
         ' /* track foreground app state */
         b = uIsFullScreenMode()
-        If b <> g_IsPresence(SP_DND_FULLSCREEN_APP) Then
+        If b <> g_IsPresence(SN_PF_DND_FULLSCREEN_APP) Then
             ' /* full screen app state changed */
             If b Then
-                g_SetPresence SP_DND_FULLSCREEN_APP
+                g_SetPresence SN_PF_DND_FULLSCREEN_APP
 
             Else
-                g_ClearPresence SP_DND_FULLSCREEN_APP
+                g_ClearPresence SN_PF_DND_FULLSCREEN_APP
 
             End If
 
-            g_Debug "_theIdleTimer.Pulse(): " & Now() & " fullscreen app: " & g_IsPresence(SP_DND_FULLSCREEN_APP)
+            g_Debug "_theIdleTimer.Pulse(): " & Now() & " fullscreen app: " & g_IsPresence(SN_PF_DND_FULLSCREEN_APP)
 
         End If
     End If
@@ -1482,17 +1594,17 @@ Dim n As Long
         ' /* track screensaver state */
 
         If SystemParametersInfo(SPI_GETSCREENSAVERRUNNING, 0, n, 0) <> 0 Then
-            If b <> g_IsPresence(SP_AWAY_SCREENSAVER_ACTIVE) Then
+            If b <> g_IsPresence(SN_PF_AWAY_SCREENSAVER_ACTIVE) Then
                 ' /* screensaver state has changed */
                 If b Then
-                    g_SetPresence SP_AWAY_SCREENSAVER_ACTIVE
+                    g_SetPresence SN_PF_AWAY_SCREENSAVER_ACTIVE
         
                 Else
-                    g_ClearPresence SP_AWAY_SCREENSAVER_ACTIVE
+                    g_ClearPresence SN_PF_AWAY_SCREENSAVER_ACTIVE
         
                 End If
         
-                g_Debug "_theIdleTimer.Pulse(): " & Now() & " screensaver: " & g_IsPresence(SP_AWAY_SCREENSAVER_ACTIVE)
+                g_Debug "_theIdleTimer.Pulse(): " & Now() & " screensaver: " & g_IsPresence(SN_PF_AWAY_SCREENSAVER_ACTIVE)
 
             End If
         End If
@@ -1519,17 +1631,17 @@ Dim lii As LASTINPUTINFO
 '    Debug.Print "_theIdleTimer.Pulse(): idle time is now " & CStr(lii.dwTime) & " needs to be " & CStr(n)
 
     b = (lii.dwTime > n)
-    If b <> g_IsPresence(SP_AWAY_USER_IDLE) Then
+    If b <> g_IsPresence(SN_PF_AWAY_USER_IDLE) Then
         ' /* idle state has changed */
         If b Then
-            g_SetPresence SP_AWAY_USER_IDLE
+            g_SetPresence SN_PF_AWAY_USER_IDLE
 
         Else
-            g_ClearPresence SP_AWAY_USER_IDLE
+            g_ClearPresence SN_PF_AWAY_USER_IDLE
 
         End If
 
-        g_Debug "_theIdleTimer.Pulse(): " & Now() & " user idle: " & g_IsPresence(SP_AWAY_USER_IDLE)
+        g_Debug "_theIdleTimer.Pulse(): " & Now() & " user idle: " & g_IsPresence(SN_PF_AWAY_USER_IDLE)
 
     End If
 
@@ -1964,3 +2076,116 @@ Dim pc As BControl
     End If
 
 End Sub
+
+Friend Sub bRefreshHistory()
+
+    If (mPanel Is Nothing) Then _
+        Exit Sub
+
+Dim pc As BControl
+
+    If Not mPanel.Find("notification_history", pc) Then _
+        Exit Sub
+
+Dim pn As TNotification
+Dim pm As CTempMsg
+Dim sz As String
+Dim szText As String
+Dim i As Long
+Dim j As Long
+
+    With g_NotificationRoster.History
+        If .CountItems Then
+            For i = .CountItems To 1 Step -1
+                Set pn = .TagAt(i)
+                sz = pn.Info.ClassObj.App.Name
+                
+                ' /* prefix title (if there is one) with the app name */
+
+                If pn.Info.Title <> "" Then _
+                    sz = sz & ": " & pn.Info.Title
+
+                ' /* need to replace any bars (|) with something else to avoid confusing the prefs kit */
+
+                szText = szText & uMakeSafe(sz) & _
+                         "#?0#?" & _
+                         uMakeSafe(pn.Info.Text) & "|"
+
+            Next i
+
+            pc.SetText g_SafeLeftStr(szText, Len(szText) - 1)
+
+            Set pm = New CTempMsg
+            For i = .CountItems To 1 Step -1
+                j = j + 1
+                Set pn = .TagAt(i)
+                pm.Replace "index", j
+                pm.Replace "image-file", g_TranslateIconPath(pn.Info.IconPath, "")
+                pc.DoExCmd B_SET_ITEM, pm
+
+            Next i
+
+        Else
+            pc.SetText ""
+
+        End If
+
+    End With
+
+End Sub
+
+Friend Sub bSetTrayIcon()
+
+    On Error Resume Next
+
+    If (mTrayIcon Is Nothing) Then _
+        Exit Sub
+
+Dim hIcon As Long
+Dim sz As String
+Dim n As Long
+
+    n = SN_II_NORMAL
+    sz = "Snarl"
+
+    If Not g_IsRunning Then
+        ' /* takes precedence */
+        n = SN_II_STOPPED
+        sz = sz & " (stopped)"
+
+    ElseIf g_IsDND() Then
+        n = SN_II_BUSY
+
+    ElseIf g_IsAway() Then
+        n = SN_II_AWAY
+
+    ElseIf g_NotificationRoster.ActualMissedCount > 0 Then
+        sz = sz & " - " & CStr(g_NotificationRoster.ActualMissedCount) & " missed notification" & IIf(g_NotificationRoster.ActualMissedCount = 1, "", "s")
+        n = SN_II_MISSED
+
+    End If
+
+    g_Debug "bSetTrayIcon(): id=" & CStr(n)
+
+    hIcon = LoadImage(App.hInstance, n, IMAGE_ICON, 16, 16, 0)
+    If hIcon = 0 Then _
+        hIcon = Me.Icon.Handle
+
+    mTrayIcon.Update "tray_icon", hIcon, sz
+
+End Sub
+
+Private Function uMakeSafe(ByVal str As String) As String
+
+    str = Replace$(str, "|", "-")
+    str = Replace$(str, vbCrLf, " ")
+    uMakeSafe = g_SafeLeftStr(str, 80, True)
+
+End Function
+
+Public Function PanelhWnd() As Long
+
+    If Not (mPanel Is Nothing) Then _
+        PanelhWnd = mPanel.hWnd
+
+End Function

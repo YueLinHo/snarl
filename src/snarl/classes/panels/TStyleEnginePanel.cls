@@ -42,11 +42,11 @@ Dim i As Long
         If Not (mCurrentEngine Is Nothing) Then
             ' /* configure the toolbar */
             If Control.Page.Find("style_engine_toolbar", pc) Then
-                prefskit_SetItem pc, 1, "enabled", IIf(mCurrentEngine.State = E_SE_LOADED, 0&, 1&)     ' // "Start"
-                prefskit_SetItem pc, 2, "enabled", IIf((mCurrentEngine.State = E_SE_LOADED) And (Not mCurrentEngine.IsSystem), 1&, 0&)     ' // "Stop"
-                prefskit_SetItem pc, 3, "enabled", IIf(mCurrentEngine.State = E_SE_LOADED, 1&, 0&)     ' // "Details"
+                prefskit_SetItem pc, 1, "enabled", IIf(mCurrentEngine.State = SN_SE_LOADED, 0&, 1&)     ' // "Start"
+                prefskit_SetItem pc, 2, "enabled", IIf((mCurrentEngine.State = SN_SE_LOADED) And (Not mCurrentEngine.IsSystem), 1&, 0&)     ' // "Stop"
+                prefskit_SetItem pc, 3, "enabled", IIf(mCurrentEngine.State = SN_SE_LOADED, 1&, 0&)     ' // "Details"
                 
-                prefskit_SetItem pc, 5, "enabled", IIf((mCurrentEngine.State = E_SE_LOADED) And (Not mCurrentEngine.IsSystem), 1&, 0&)     ' // "Show in Explorer"
+                prefskit_SetItem pc, 5, "enabled", IIf((mCurrentEngine.State = SN_SE_LOADED) And (Not mCurrentEngine.IsSystem), 1&, 0&)     ' // "Show in Explorer"
 
             End If
 
@@ -341,13 +341,13 @@ Dim i As Long
                 Do While .GetNextTag(pse) = B_OK
                     sz = sz & pse.InfoString & "#?0#?"
                     Select Case pse.State
-                    Case E_SE_LOADED
+                    Case SN_SE_LOADED
                         sz = sz & "Loaded (" & pse.StyleCountString & ")"
 
-                    Case E_SE_NOT_LOADED
+                    Case SN_SE_NOT_LOADED
                         sz = sz & "Not loaded"
 
-                    Case E_SE_FAILED
+                    Case SN_SE_FAILED
                         sz = sz & "Failed: " & pse.Error
 
                     End Select
@@ -366,7 +366,7 @@ Dim i As Long
                 .Rewind
                 Do While .GetNextTag(pse) = B_OK
                     i = i + 1
-                    prefskit_SetItem pc, i, "image-file", g_MakePath(App.Path) & "etc\icons\" & IIf(pse.State = E_SE_LOADED, "good", "bad") & ".png"
+                    prefskit_SetItem pc, i, "image-file", g_MakePath(App.Path) & "etc\icons\" & IIf(pse.State = SN_SE_LOADED, "good", "bad") & ".png"
 
                 Loop
 

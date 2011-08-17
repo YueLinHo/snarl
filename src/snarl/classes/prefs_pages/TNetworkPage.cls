@@ -13,6 +13,8 @@ Attribute VB_PredeclaredId = False
 Attribute VB_Exposed = False
 Option Explicit
 
+Dim WithEvents theAddPanel As TAddRemoteComputerPanel
+Attribute theAddPanel.VB_VarHelpID = -1
 Dim mPage As BPrefsPage
 
 Implements KPrefsPage
@@ -49,9 +51,7 @@ Dim pm As CTempMsg
 ''        .Add new_BPrefsControl("fancytoggle", "ft>forward", , "Sending:", "0", pm, False)
 
         If gDebugMode Then
-            .Add new_BPrefsControl("fancytoggle2", "allow_snp3_subs", "Allow SNP3 subscriptions?", "", g_ConfigGet("allow_snp3_subs"))
-            .Add new_BPrefsControl("fancytoggle2", "allow_gntp_subs", "Allow GNTP subscriptions?", "", g_ConfigGet("allow_gntp_subs"))
-            
+            .Add new_BPrefsControl("fancytoggle2", "allow_subs", "Allow remote computers to subscribe to notifications?", "", g_ConfigGet("allow_subs"))
             .Add new_BPrefsControl("banner", "", "Sending")
             .Add new_BPrefsControl("label", "", "Snarl will forward notifications to the following computers:")
             Set pm = New CTempMsg
@@ -68,37 +68,33 @@ Dim pm As CTempMsg
 
 End Sub
 
-Private Sub KPrefsPage_ControlChanged(Control As BControl, ByVal value As String)
+Private Sub KPrefsPage_ControlChanged(Control As BControl, ByVal Value As String)
 Dim pc As BControl
 Dim i As Long
 
-    Debug.Print "[" & mPage.GetName() & "]: ControlChanged '" & Control.GetName() & "' >> '" & value & "'"
+    Debug.Print "[" & mPage.GetName() & "]: ControlChanged '" & Control.GetName() & "' >> '" & Value & "'"
 
     Select Case Control.GetName()
     Case "ft>forward"
         If Control.Page.Find("subscriber_list", pc) Then _
-            pc.SetEnabled (value = "1")
+            pc.SetEnabled (Value = "1")
 
         If Control.Page.Find("fpm>forward", pc) Then _
-            pc.SetEnabled (value = "1")
+            pc.SetEnabled (Value = "1")
 
     Case "listen_for_json", "listen_for_snarl"
-        g_ConfigSet Control.GetName, value
+        g_ConfigSet Control.GetName, Value
         If Control.GetName = "listen_for_json" Then
-            frmAbout.EnableJSON (value = "1")
+            frmAbout.EnableJSON (Value = "1")
 
         Else
-            frmAbout.EnableSNP (value = "1")
+            frmAbout.EnableSNP (Value = "1")
 
         End If
 
     Case "fpm>forward"
-        If value = "+" Then
-            ' /* display 'Add New Computer' dialog */
-            With New TAddRemoteComputerPanel
-                .Go Control.Page.Panel.hWnd
-
-            End With
+        If Value = "+" Then
+            uDoSubscriberMenu Control
 
         Else
             ' /* remove selected entry */
@@ -210,10 +206,10 @@ Dim i As Long
         .Rewind
         Do While .GetNextTag(ps) = B_OK
             i = i + 1
-            If ps.SubscriptionType = E_ST_SNP3 Then
+            If ps.SubscriptionType = SN_ST_SNP3 Then
                 sz = g_MakePath(App.Path) & "etc\icons\snarl.png"
 
-            ElseIf ps.SubscriptionType = E_ST_GNTP Then
+            ElseIf ps.SubscriptionType = SN_ST_GNTP Then
                 sz = g_MakePath(App.Path) & "etc\icons\growl_app.png"
 
             Else
@@ -231,3 +227,40 @@ Dim i As Long
 
 End Sub
 
+Private Sub uDoSubscriberMenu(ByRef Control As BControl)
+Dim pi As OMMenuItem
+Dim rc As RECT
+
+    GetWindowRect Control.hWnd, rc
+
+    With New OMMenu
+        .AddItem .CreateItem("frwd", "Forward to remote computer...")
+        .AddItem .CreateItem("subs", "Subscribe to remote SNP server...")
+        .AddItem .CreateItem("subg", "Subscribe to remote GNTP server...")
+
+        Set pi = .Track(mPage.Panel.hWnd, new_BPoint(rc.Left, rc.Bottom))
+
+    End With
+
+    If (pi Is Nothing) Then _
+        Exit Sub
+
+    Select Case pi.Name
+    Case "subs"
+
+    Case "subg"
+
+    Case "frwd"
+
+    End Select
+
+    Set theAddPanel = New TAddRemoteComputerPanel
+    theAddPanel.Go Control.Page.Panel.hWnd, pi.Name
+
+End Sub
+
+Private Sub theAddPanel_Closed()
+
+    Set theAddPanel = Nothing
+
+End Sub

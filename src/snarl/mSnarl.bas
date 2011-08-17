@@ -24,12 +24,30 @@ Public Const GNTP_DEFAULT_PORT = 23053
 Public Const SNP_DEFAULT_PORT = 9887
 Public Const JSON_DEFAULT_PORT = 9889
 
+    ' /* private V43 Snarl App flags */
+Public Const SNARLAPP_IS_DAEMON = &H4000&
+
+
+Public Enum SOS_ERRORS
+    SOS_UNSPECIFIED_FAILURE = &H40          '// reserved
+    SOS_BAD_COPYDATA
+    SOS_MISSING_ROSTER                      '// one of the rosters is unavailable
+    SOS_SPURIOUS_MANAGE                     '// reserved for unhandled WM_MANAGESNARL
+    SOS_SPURIOUS_TEST                       '// unhandled WM_SNARLTEST
+    SOS_SPURIOUS_COMMAND                    '// reserved for unhandled MSG_SHOW_PREFS
+
+    SOS_FILE_NOT_FOUND = &H50               '// critical file error
+    SOS_PATH_NOT_FOUND                      '// critical path error
+
+End Enum
+
+
 Public Declare Sub CoFreeUnusedLibrariesEx Lib "ole32" (ByVal dwUnloadDelay As Long, ByVal dwReserved As Long)
 Private Declare Function GetTempPath Lib "kernel32" Alias "GetTempPathA" (ByVal nBufferLength As Long, ByVal lpBuffer As String) As Long
 Private Declare Function LockWorkStation Lib "user32.dll" () As Long
 Private Declare Function RegisterClipboardFormat Lib "user32" Alias "RegisterClipboardFormatA" (ByVal lpString As String) As Long
 Private Declare Sub ShellAbout Lib "SHELL32.DLL" Alias "ShellAboutA" (ByVal hWndOwner As Long, ByVal lpszAppName As String, ByVal lpszMoreInfo As String, ByVal hIcon As Long)
-Private Declare Function WinExec Lib "kernel32" (ByVal lpCmdLine As String, ByVal nCmdShow As Long) As Long
+Public Declare Function WinExec Lib "kernel32" (ByVal lpCmdLine As String, ByVal nCmdShow As Long) As Long
 
 Private Const WINDOW_CLASS = "w>Snarl"
 
@@ -56,16 +74,16 @@ Public Const SNARL_CLASS_ANON = "_ANL"
 
     ' /* internal notification flags */
 
-Public Enum E_NOTIFICATION_FLAGS
-    NF_REMOTE = &H80000000
-    NF_SECURE = &H40000000
-    NF_IS_GNTP = &H20000000         ' // R2.4.2: GNTP-based notification
-    NF_IS_SNP3 = &H10000000         '// R2.4.2 DR3: SNP3
+Public Enum SN_NOTIFICATION_FLAGS
+    SN_NF_REMOTE = &H80000000
+    SN_NF_SECURE = &H40000000
+    SN_NF_IS_GNTP = &H20000000         ' // R2.4.2: GNTP-based notification
+    SN_NF_IS_SNP3 = &H10000000         '// R2.4.2 DR3: SNP3
 
-    NF_MERGE = &H1000
+    SN_NF_MERGE = &H1000
 
     ' /* bottom 8 bits used for api version (V42 onwards) */
-    NF_API_MASK = &HFF&
+    SN_NF_API_MASK = &HFF&
 
 End Enum
 
@@ -75,7 +93,7 @@ Public Type T_NOTIFICATION_INFO
     Pid As Long
     Title As String
     Text As String
-    Timeout As E_NOTIFICATION_DURATION
+    Timeout As SN_NOTIFICATION_DURATION
     IconPath As String
     hWndReply As Long
     uReplyMsg As Long
@@ -84,11 +102,11 @@ Public Type T_NOTIFICATION_INFO
     StyleName As String                 ' // Split
     SchemeName As String                ' // Split
     DefaultAck As String                ' // Known as "callback" from R2.4 DR7
-    Position As E_START_POSITIONS
+    Position As SN_START_POSITIONS
     Token As Long
     ' /* V41 */
     Priority As Long                    ' // V41: <0 = low, 0 = normal, >0 = high
-    value As String                     ' // V41: freeform value which will negate the need to use the Text field
+    Value As String                     ' // V41: freeform value which will negate the need to use the Text field
                                         '         thoughts are the value can encapsulate the format it's sent in
                                         '         e.g. 45%, 2.3466, $5.00, etc. it's up to the style to determine
                                         '         how/if it's displayed
@@ -101,8 +119,9 @@ Public Type T_NOTIFICATION_INFO
     OriginalContent As String           ' // V41 (R2.4): as passed from external source
     LastUpdated As Date                 ' // time last changed
     Socket As CSocket                   ' // reply socket (SNP2.0 native only)
-    IntFlags As E_NOTIFICATION_FLAGS    ' // internal notification flags
-    RemoteHost As String                ' // sender (as string) for remote connections that do not have reply sockets
+    IntFlags As SN_NOTIFICATION_FLAGS    ' // internal notification flags
+'    RemoteHostName As String            ' // sender (as string) for remote connections that do not have reply sockets
+'                                        ' // R2.4.2 DR3: only set if sender is truly remote (i.e. not in our IP table)
     ClassObj As TAlert                  ' // object
     CustomUID As String                 ' // R2.4 DR7: custom UID (set during <notify>)
     Actions As BTagList                 ' // R2.4 DR7: should have been here all along
@@ -123,6 +142,15 @@ Public Type T_SNARL_STYLE_ENGINE_INFO
 
 End Type
 
+Public Enum SN_APP_TYPES
+    SN_AT_UNKNOWN
+    SN_AT_WIN32
+    SN_AT_SNP
+    SN_AT_GNTP
+    SN_AT_GROWLNET
+
+End Enum
+
     ' /* internal registered application structure */
 
 Public Type T_SNARL_APP
@@ -131,13 +159,19 @@ Public Type T_SNARL_APP
     uMsg As Long
     Pid As Long                 ' // V38 (for V39)
     Icon As String              ' // R1.6 - path to application icon (if empty we use window icon)
-    LargeIcon As String         ' // V38 (private for now) - path to large icon
+'    LargeIcon As String         ' // V38 (private for now) - path to large icon
     Token As Long               ' // V41
     Signature As String         ' // V41 - MIME string
     Flags As SNARLAPP_FLAGS     ' // V41
     Password As String          ' // V42 - non-persistent (so the app can generate a new one each time)
-    IsRemote As Boolean         ' // V42 - remotely registered
+'    IsRemote As Boolean         ' // V42 - remotely registered
     Timestamp As Date           ' // V42.21: set when added
+    Tool As String              ' // R2.4.2 DR3: path to static configuration tool
+    Hint As String              ' // R2.4.2 DR3: text to display in Details...
+    Socket As CSocket           ' // R2.4.2 DR3: sender's socket
+    IncludeInMenu As Boolean    ' // R2.4.2 DR3: should be included in "Apps" submenu
+    AppType As SN_APP_TYPES     ' // R2.4.2 DR3: set during init()
+    RemoteHostName As String    ' // R2.4.2 DR3: static, used by NameEx()
 
 End Type
 
@@ -182,13 +216,13 @@ Public Const MSG_SHOW_PREFS = WM_USER + 80
     '          2        Configure style or extension                        ("")
     ' */
 
-Public Enum E_SHOW_PREFS
-    E_SP_DO_PREFS
-    E_SP_INSTALL
-    E_SP_CONFIGURE
-    E_SP_RESTART
-    E_SP_UNLOAD
-    E_SP_LOAD
+Public Enum SN_DO_PREFS
+    SN_DP_DO_PREFS
+    SN_DP_INSTALL
+    SN_DP_CONFIGURE
+    SN_DP_RESTART
+    SN_DP_UNLOAD
+    SN_DP_LOAD
 
 End Enum
 
@@ -201,23 +235,23 @@ Public bm_Secure As MImage
 Public bm_IsSticky As MImage
 Public bm_Priority As MImage
 
-Public Enum E_START_POSITIONS
+Public Enum SN_START_POSITIONS
     ' /* IMPORTANT!! These have now changed under V41 */
-    E_START_DEFAULT_POS = 0
-    E_START_TOP_LEFT
-    E_START_TOP_RIGHT
-    E_START_BOTTOM_LEFT
-    E_START_BOTTOM_RIGHT
+    SN_SP_DEFAULT_POS = 0
+    SN_SP_TOP_LEFT
+    SN_SP_TOP_RIGHT
+    SN_SP_BOTTOM_LEFT
+    SN_SP_BOTTOM_RIGHT
 
 End Enum
 
     ' /* these only apply if the new E_CLASS_CUSTOM_DURATION is not set */
 
-Public Enum E_NOTIFICATION_DURATION
+Public Enum SN_NOTIFICATION_DURATION
     ' /* IMPORTANT!! These have now changed under V41 */
-'    E_DURATION_DEFAULT = 0
-    E_DURATION_APP_DECIDES = 1
-    E_DURATION_CUSTOM           ' // "custom_timeout" contains value in seconds
+'    SN_ND_DEFAULT = 0
+    SN_ND_APP_DECIDES = 1
+    SN_ND_CUSTOM           ' // "custom_timeout" contains value in seconds
 
 End Enum
 
@@ -303,39 +337,42 @@ Public gSnarlPassword As String         ' // created on the fly
 
     ' /* R2.4 DR8 */
 
-Public Enum SP_PRESENCE_FLAGS
+Public Enum SN_PRESENCE_FLAGS
     ' /* Away flags occupy bottom 16 bits */
-    SP_AWAY_USER_IDLE = 1
-    SP_AWAY_COMPUTER_LOCKED = 2
-    SP_AWAY_SCREENSAVER_ACTIVE = 8
-    SP_AWAY_MASK = &HFFFF&
+    SN_PF_AWAY_USER_IDLE = 1
+    SN_PF_AWAY_COMPUTER_LOCKED = 2
+    SN_PF_AWAY_SCREENSAVER_ACTIVE = 8
+    SN_PF_AWAY_MASK = &HFFFF&
 
     ' /* DnD flags occupy top 16 bits */
-    SP_DND_FULLSCREEN_APP = &H10000
-    SP_DND_USER = &H20000                       ' // from the tray icon menu
-    SP_DND_EXTERNAL = &H40000                   ' // for future use
-    SP_DND_MASK = &HFFFF0000
+    SN_PF_DND_FULLSCREEN_APP = &H10000
+    SN_PF_DND_USER = &H20000                       ' // from the tray icon menu
+    SN_PF_DND_EXTERNAL = &H40000                   ' // for future use
+    SN_PF_DND_MASK = &HFFFF0000
 
 End Enum
 
-Dim mPresFlags As SP_PRESENCE_FLAGS
+Dim mPresFlags As SN_PRESENCE_FLAGS
 
-Public Enum E_PRESENCE_ACTIONS
-    PA_DO_DEFAULT = 0
-    PA_LOG_AS_MISSED = 1
-    PA_MAKE_STICKY = 2
-    PA_DO_NOTHING = 3
-    PA_DISPLAY_NORMAL = 4
-    PA_DISPLAY_URGENT = 5
-    PA_FORWARD = 6
+Public Enum SN_PRESENCE_ACTIONS
+    SN_PA_DO_DEFAULT = 0
+    SN_PA_LOG_AS_MISSED = 1
+    SN_PA_MAKE_STICKY = 2
+    SN_PA_DO_NOTHING = 3
+    SN_PA_DISPLAY_NORMAL = 4
+    SN_PA_DISPLAY_URGENT = 5
+    SN_PA_FORWARD = 6
 
 End Enum
 
-    ' /* RunFile style stuff - shoudln't be global */
+    ' /* RunFile style stuff - shouldn't be global */
 Public gRunFiles As BTagList    '// BTagItem->Name = filename, BTagItem->Value = version
                                 '// version 1 = filename only, static template
                                 '// version 2 = filename with variable template
                                 '// version 3 = unabridged content in &/= format (usable by HeySnarl for example)
+
+Public gStyleDefaults As CConfFile
+Public gStartTime As Date
 
     ' /* requesters */
 Dim mReq() As TRequester
@@ -362,7 +399,7 @@ Dim l As Long
 
     l = FindWindow(WINDOW_CLASS, "Snarl")
 
-Dim n As E_SHOW_PREFS
+Dim n As SN_DO_PREFS
 
     szArg = Split(Command$, " ")
     If UBound(szArg) > -1 Then
@@ -399,13 +436,13 @@ Dim n As E_SHOW_PREFS
             If (UBound(szArg()) = 1) And (l <> 0) Then
                 Select Case LCase$(szArg(0))
                 Case "-restart"
-                    n = E_SP_RESTART
+                    n = SN_DP_RESTART
 
                 Case "-unload"
-                    n = E_SP_UNLOAD
+                    n = SN_DP_UNLOAD
                     
                 Case "-load"
-                    n = E_SP_LOAD
+                    n = SN_DP_LOAD
                     
                 End Select
 
@@ -695,6 +732,7 @@ Dim szData As String
     ' /* set master running flag */
 
     g_SetRunning True, False
+    gStartTime = Now()
 
 Dim i As Long
 
@@ -856,7 +894,7 @@ Public Function g_ConfigInit() As Boolean
 
     Set mDefaults = New BPackedData
     With mDefaults
-        .Add "default_position", CStr(E_START_BOTTOM_RIGHT)
+        .Add "default_position", CStr(SN_SP_BOTTOM_RIGHT)
         .Add "show_msg_on_start", "1"
         .Add "run_on_logon", "1"
 
@@ -913,7 +951,7 @@ Public Function g_ConfigInit() As Boolean
         .Add "away_when_locked", "1"
         .Add "away_when_fullscreen", "1"
         .Add "away_when_screensaver", "1"
-        .Add "away_mode", "2"               ' // sticky
+        .Add "away_mode", "1"               ' // log missed
         .Add "busy_mode", "1"               ' // log missed
 
         ' /* R2.4 Beta 4 */
@@ -932,14 +970,15 @@ Public Function g_ConfigInit() As Boolean
         .Add "apps_must_register", "0"
         .Add "auto_detect_url", "0"
         .Add "no_callback_urls", "0"
-        .Add "block_null_pid", "1"
+        .Add "block_null_pid", "0"              ' // blocks WM_COPYDATA where wParam is NULL
         .Add "block_dos_attempt", "1"
-        .Add "ignore_style_requests", "0"
+        .Add "ignore_style_requests", "0"       ' // prevents notifications from requesting specific styles
         .Add "global_shadow_list", ""
 '        .Add "auth_type", "md5"
 '        .Add "auth_salt", ""
 '        .Add "auth_key", ""
         .Add "auth_password", ""
+        .Add "default_screen", "1"
 
     End With
 
@@ -978,6 +1017,40 @@ Dim i As Long
 
     End With
 
+    ' /* R2.4.2 DR3: style defaults */
+
+    Set gStyleDefaults = New CConfFile
+
+    With gStyleDefaults
+        .SetTo g_MakePath(gPrefs.SnarlConfigPath) & "etc\styledefaults.conf"
+
+        .AddIfMissing "background-colour", CStr(rgba(235, 235, 235))
+        .AddIfMissing "width", "250"
+
+        .AddIfMissing "title-font", "name::Tahoma#?size::8#?bold::1#?italic::0#?underline::0#?strikeout::0"
+        .AddIfMissing "title-colour", CStr(rgba(0, 0, 0))
+'        .AddIfMissing "title-weight", "1"
+        .AddIfMissing "title-opacity", "70"
+
+        .AddIfMissing "text-font", "name::Tahoma#?size::8#?bold::0#?italic::0#?underline::0#?strikeout::0"
+        .AddIfMissing "text-colour", CStr(rgba(0, 0, 0))
+'        .AddIfMissing "text-weight", "1"
+        .AddIfMissing "text-opacity", "60"
+
+    End With
+
+
+
+
+
+
+
+
+
+
+
+
+
     g_ConfigInit = (Val(g_ConfigGet("step_size")) > 0)
 
 End Function
@@ -999,12 +1072,12 @@ Dim sz As String
 
 End Function
 
-Public Sub g_ConfigSet(ByVal Name As String, ByVal value As String)
+Public Sub g_ConfigSet(ByVal Name As String, ByVal Value As String)
 
     If (mConfig Is Nothing) Then _
         Exit Sub
 
-    mConfig.Update Name, value
+    mConfig.Update Name, Value
     g_WriteConfig
 
 End Sub
@@ -1101,6 +1174,10 @@ Dim dw As Long
         g_IsRunning = False
 
     End If
+
+    ' /* update tray icon */
+
+    frmAbout.bSetTrayIcon
 
 End Sub
 
@@ -1272,11 +1349,11 @@ End Function
 '
 'End Function
 
-Public Function gfSetAlertDefault(ByVal Pid As Long, ByVal Class As String, ByVal Element As Long, ByVal value As String) As M_RESULT
+Public Function gfSetAlertDefault(ByVal Pid As Long, ByVal Class As String, ByVal Element As Long, ByVal Value As String) As M_RESULT
 Dim pa As TApp
 Dim pc As TAlert
 
-    g_Debug "gfSetAlertDefault('" & Pid & "' '" & Class & "' #" & CStr(Element) & " '" & value & "')", LEMON_LEVEL_PROC
+    g_Debug "gfSetAlertDefault('" & Pid & "' '" & Class & "' #" & CStr(Element) & " '" & Value & "')", LEMON_LEVEL_PROC
 
     If (g_AppRoster Is Nothing) Then
         g_Debug "gfSetAlertDefault(): App not registered with Snarl", LEMON_LEVEL_CRITICAL
@@ -1310,22 +1387,22 @@ Dim pc As TAlert
     Select Case Element
 
     Case SNARL_ATTRIBUTE_TITLE
-        pc.DefaultTitle = value
+        pc.DefaultTitle = Value
 
     Case SNARL_ATTRIBUTE_TEXT
-        pc.DefaultText = value
+        pc.DefaultText = Value
 
     Case SNARL_ATTRIBUTE_TIMEOUT
-        pc.DefaultTimeout = Val(value)
+        pc.DefaultTimeout = Val(Value)
 
     Case SNARL_ATTRIBUTE_SOUND
-        pc.DefaultSound = value
+        pc.DefaultSound = Value
 
     Case SNARL_ATTRIBUTE_ICON
-        pc.DefaultIcon = value
+        pc.DefaultIcon = Value
 
     Case SNARL_ATTRIBUTE_ACK
-        pc.DefaultAck = value
+        pc.DefaultAck = Value
 
     Case Else
         g_Debug "gfSetAlertDefault(): unknown element '" & Element & "'", LEMON_LEVEL_CRITICAL
@@ -1400,7 +1477,7 @@ Dim sz As String
     With gRemoteComputers
         .Rewind
         Do While .GetNextEntry(pe)
-            sz = sz & pe.value & "|"
+            sz = sz & pe.Value & "|"
 
         Loop
 
@@ -1423,7 +1500,7 @@ Dim pe As ConfigEntry
     With gRemoteComputers
         .Rewind
         Do While .GetNextEntry(pe)
-            pMenu.AddItem pMenu.CreateItem("ip>" & pe.value, pe.value)
+            pMenu.AddItem pMenu.CreateItem("ip>" & pe.Value, pe.Value)
 
         Loop
 
@@ -1551,24 +1628,26 @@ Dim szText As String
         szText = CStr(Percent)
 
     Else
-        
-        szText = "otification using the " & pStyle.Name
-        
-        If Scheme <> "<Default>" Then
-            szText = szText & "/" & Scheme & " style and scheme"
 
-        Else
-            szText = szText & " style"
+'        szText = "otification using the " & pStyle.Name
+'
+'        If Scheme <> "<Default>" Then
+'            szText = szText & "/" & Scheme & " style and scheme"
+'
+'        Else
+'            szText = szText & " style"
+'
+'        End If
+'
+'        If IsPriority Then
+'            szText = "Priority n" & szText
+'
+'        Else
+'            szText = "N" & szText
+'
+'        End If
 
-        End If
-
-        If IsPriority Then
-            szText = "Priority n" & szText
-
-        Else
-            szText = "N" & szText
-
-        End If
+        szText = "Lorem ipsum dolor sit amet, consectetur adipisicing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat."
 
     End If
 
@@ -1576,13 +1655,13 @@ Dim szText As String
 Dim pInfo As T_NOTIFICATION_INFO
 
     With pInfo
-        .Title = "Scheme Preview"
+        .Title = pStyle.Name & IIf(Scheme = "<Default>", "", "/" & Scheme)        '// "Scheme Preview"
         .Text = szText
         .Timeout = -1
         .IconPath = IIf(pStyle.IconPath = "", g_MakePath(App.Path) & "etc\icons\style_preview.png", pStyle.IconPath)
         .StyleName = pStyle.Name
         .SchemeName = LCase$(Scheme)
-        .Position = E_START_DEFAULT_POS
+        .Position = SN_SP_DEFAULT_POS
         .Priority = IIf(IsPriority, 1, 0)
         Set .ClassObj = New TAlert
 
@@ -1674,7 +1753,7 @@ End Function
 Public Function g_SettingsPath() As String
 
     If Not (mSettings Is Nothing) Then _
-        g_SettingsPath = mSettings.File
+        g_SettingsPath = g_GetPath(mSettings.File)
 
 End Function
 
@@ -1983,7 +2062,7 @@ Dim i As Long
 End Function
 
 Public Function g_CreateBadge(ByVal Content As String) As mfxBitmap
-Const rx = 6
+Const RX = 6
 Dim pr As BRect
 
     With New mfxView
@@ -1998,17 +2077,17 @@ Dim pr As BRect
 
         .SetHighColour rgba(0, 0, 0, 190)
         .SetLowColour rgba(0, 0, 0, 140)
-        .FillRoundRect pr, rx, rx, MFX_VERT_GRADIENT
+        .FillRoundRect pr, RX, RX, MFX_VERT_GRADIENT
 
         .SetHighColour rgba(255, 255, 255)
         .DrawString Content, pr, MFX_ALIGN_H_CENTER Or MFX_ALIGN_V_CENTER
 
         .SetHighColour rgba(255, 255, 255)
-        .StrokeRoundRect pr.InsetByCopy(1, 1), rx, rx, 2
+        .StrokeRoundRect pr.InsetByCopy(1, 1), RX, RX, 2
 
         .SetHighColour rgba(0, 0, 0, 150)
-        .StrokeRoundRect pr, rx, rx, 1
-        .StrokeRoundRect pr.InsetByCopy(3, 3), rx, rx, 1
+        .StrokeRoundRect pr, RX, RX, 1
+        .StrokeRoundRect pr.InsetByCopy(3, 3), RX, RX, 1
 
         Set g_CreateBadge = .ConvertToBitmap()
 
@@ -2043,7 +2122,7 @@ Dim ppd As BPackedData
         ppd.Add "icon", .IconPath
         ppd.Add "priority", CStr(.Priority)
         ppd.Add "callback", .DefaultAck
-        ppd.Add "value", .value
+        ppd.Add "value", .Value
 
 '        If (Info.Flags And SNARL41_NOTIFICATION_ALLOWS_MERGE) Then _
             .Add "merge", "1"
@@ -2113,7 +2192,6 @@ Dim pIcon As BIcon
 Dim sz As String
 Dim dw As Long
 Dim i As Long
-
 
     If g_SafeLeftStr(Icon, 1) = "!" Then
         ' /* convert the icon into it's corresponding file */
@@ -2269,7 +2347,7 @@ Public Sub g_PopRequest2()
 
 End Sub
 
-Private Function uCreatePacked(ByVal ClassId As String, ByVal Title As String, ByVal Text As String, Optional ByVal Timeout As Long = -1, Optional ByVal Icon As String, Optional ByVal Priority As Long = 0, Optional ByVal Ack As String, Optional ByVal Flags As SNARL41_NOTIFICATION_FLAGS, Optional ByVal Password As String, Optional ByVal AddTestAction As Boolean) As BPackedData
+Private Function uCreatePacked(ByVal ClassId As String, ByVal Title As String, ByVal Text As String, Optional ByVal Timeout As Long = -1, Optional ByVal Icon As String, Optional ByVal Priority As Long = 0, Optional ByVal Ack As String, Optional ByVal Flags As SNARL41_NOTIFICATION_FLAGS, Optional ByVal Password As String, Optional ByVal AddTestAction As Boolean, Optional ByVal UID As String) As BPackedData
 
     ' /* translate notification arguments into packed data
     '    currently this is only used by g_PrivateNotify()
@@ -2277,6 +2355,9 @@ Private Function uCreatePacked(ByVal ClassId As String, ByVal Title As String, B
 
     Set uCreatePacked = New BPackedData
     With uCreatePacked
+
+        .Add "app-sig", App.ProductName
+
         If ClassId <> "" Then _
             .Add "class", ClassId
 
@@ -2303,6 +2384,9 @@ Private Function uCreatePacked(ByVal ClassId As String, ByVal Title As String, B
 
         If AddTestAction Then _
             .Add "action", "Blank,@1"
+
+        If UID <> "" Then _
+            .Add "uid", UID
 
     End With
 
@@ -2337,21 +2421,26 @@ End Function
 '
 'End Function
 
-Public Function g_PrivateNotify(Optional ByVal ClassId As String = SNARL_CLASS_GENERAL, Optional ByVal Title As String, Optional ByVal Text As String, Optional ByVal Timeout As Long = -1, Optional ByVal Icon As String, Optional ByVal Priority As Long = 0, Optional ByVal Ack As String, Optional ByVal Flags As SNARL41_NOTIFICATION_FLAGS, Optional ByVal IntFlags As E_NOTIFICATION_FLAGS, Optional ByVal AddTestAction As Boolean) As Long
+Public Function g_PrivateNotify(Optional ByVal ClassId As String = SNARL_CLASS_GENERAL, Optional ByVal Title As String, Optional ByVal Text As String, Optional ByVal Timeout As Long = -1, Optional ByVal Icon As String, Optional ByVal Priority As Long = 0, Optional ByVal Ack As String, Optional ByVal Flags As SNARL41_NOTIFICATION_FLAGS, Optional ByVal IntFlags As SN_NOTIFICATION_FLAGS, Optional ByVal AddTestAction As Boolean, Optional ByVal UID As String) As Long
 
-    ' /* internal notification generator
+    ' /* safe internal notification generator
     '
     '    uses g_DoNotify() to display a Snarl-generated notification
-    '    without going via the Win32 messaging system */
+    '    without going via the Win32 messaging system
+    '
+    ' */
 
-    g_PrivateNotify = g_DoNotify(gSnarlToken, _
-                                 uCreatePacked(ClassId, Title, Text, Timeout, Icon, Priority, Ack, Flags, gSnarlPassword, AddTestAction), _
+    If g_SafeLeftStr(Icon, 1) = "." Then _
+        Icon = g_MakePath(App.Path) & "etc\icons\" & g_SafeRightStr(Icon, Len(Icon) - 1) & ".png"
+
+    g_PrivateNotify = g_DoNotify(0, _
+                                 uCreatePacked(ClassId, Title, Text, Timeout, Icon, Priority, Ack, Flags, gSnarlPassword, AddTestAction, UID), _
                                  , _
                                  IntFlags Or App.Major)
 
 End Function
 
-Public Function g_DoNotify(ByVal AppToken As Long, ByRef pData As BPackedData, Optional ByRef ReplySocket As CSocket, Optional ByVal IntFlags As E_NOTIFICATION_FLAGS, Optional ByVal RemoteHost As String) As Long
+Public Function g_DoNotify(ByVal AppToken As Long, ByRef pData As BPackedData, Optional ByRef ReplySocket As CSocket, Optional ByVal IntFlags As SN_NOTIFICATION_FLAGS) As Long '//, Optional ByVal RemoteHost As String) As Long
 
     ' /* master notification generator
     '
@@ -2473,7 +2562,7 @@ Dim pApp As TApp
             ElseIf g_AppRoster.FindByToken(gSnarlToken, pApp, gSnarlPassword) Then
                 ' /* if we're using the Snarl app, we need the anonymous class */
                 g_Debug "g_DoNotify(): using Snarl anonymous class"
-                szClass = IIf((IntFlags And NF_REMOTE) = 0, SNARL_CLASS_ANON, SNARL_CLASS_ANON_NET)
+                szClass = IIf((IntFlags And SN_NF_REMOTE) = 0, SNARL_CLASS_ANON, SNARL_CLASS_ANON_NET)
 
             Else
                ' /* Snarl's registration not found */
@@ -2504,45 +2593,50 @@ Dim pApp As TApp
     ' /* include the remote sender (if there is one) - small kludge here for
     '    Growl/UDP which won't have a reply socket */
 
-Dim szRemoteHost As String
-
-    If Not (ReplySocket Is Nothing) Then
-        If ReplySocket.RemoteHost <> "" Then
-            szRemoteHost = ReplySocket.RemoteHost & " (" & ReplySocket.RemoteHostIP & ")"
-
-        Else
-            szRemoteHost = ReplySocket.RemoteHostIP
-
-        End If
-
-    Else
-        szRemoteHost = RemoteHost
-
-    End If
+'Dim szRemoteHost As String
+'
+'    If Not (ReplySocket Is Nothing) Then
+'        ' /* socket-based sender */
+'        If ReplySocket.RemoteHost <> "" Then
+'            szRemoteHost = ReplySocket.RemoteHost '& " (" & ReplySocket.RemoteHostIP & ")"
+'
+'        Else
+'            szRemoteHost = ReplySocket.RemoteHostIP
+'
+'        End If
+'
+'    Else
+'        ' /* non-socket sender (e.g. Growl via UDP) */
+'        szRemoteHost = RemoteHost
+'
+'    End If
 
     ' /* R2.4 DR7 - merging is now controlled via an internal flag */
 
     If pData.ValueOf("merge") = "1" Then _
-        IntFlags = IntFlags Or NF_MERGE
+        IntFlags = IntFlags Or SN_NF_MERGE
 
     ' /* now we have the app object and we know the class, we can pass it over */
 
-    g_DoNotify = pApp.Show41(szClass, pData, ReplySocket, IntFlags, szRemoteHost)
+    g_DoNotify = pApp.Show41(szClass, pData, ReplySocket, IntFlags) '//, szRemoteHost)
 
 End Function
 
-Public Function g_DoAction(ByVal action As String, ByVal Token As Long, ByRef Args As BPackedData, Optional ByVal InternalFlags As E_NOTIFICATION_FLAGS, Optional ByRef ReplySocket As CSocket, Optional ByVal SenderPID As Long) As Long
+Public Function g_DoAction(ByVal action As String, ByVal Token As Long, ByRef Args As BPackedData, Optional ByVal InternalFlags As SN_NOTIFICATION_FLAGS, Optional ByRef ReplySocket As CSocket, Optional ByVal SenderPID As Long) As Long
+Dim sz As String
 
     ' /* this is the central hub for all incoming requests, be they from SNP, Growl/UDP
     '    or Win32.  "Token" here can be either the app token or the notification token;
     '    the action determines which one */
 
-    ' /* Return zero on error (and set lasterror), -1 or a +ve value on success */
+    ' /* Return zero on error (and set lasterror), -1 or a +ve value on success - whatever
+    '    called this will figure out what to do with the return value */
 
     If (g_AppRoster Is Nothing) Or (g_NotificationRoster Is Nothing) Or (Args Is Nothing) Then
         ' /* pretty much all of these require either or both rosters to be
         '    available, so let's bail out now if something's really wrong */
         gSetLastError SNARL_ERROR_SYSTEM
+        g_Trap SOS_MISSING_ROSTER, "AppRoster or NotificationRoster"
         Exit Function
 
     End If
@@ -2583,7 +2677,11 @@ Dim pApp As TApp
         g_DoAction = g_DoNotify(Token, Args, ReplySocket, InternalFlags)
 
     Case "reg", "register"
-        g_DoAction = g_AppRoster.Add41(Args, (InternalFlags And NF_REMOTE), SenderPID)
+        If Not (ReplySocket Is Nothing) Then _
+            sz = ReplySocket.RemoteHost
+
+'        g_DoAction = g_AppRoster.Add41(Args, ReplySocket, SenderPID, (InternalFlags And SN_NF_REMOTE), sz)
+        g_DoAction = g_AppRoster.Add41(Args, ReplySocket, SenderPID, sz)
 
     Case "remclass"
         g_DoAction = uRemClass(Token, Args)
@@ -2608,7 +2706,7 @@ Dim pApp As TApp
             g_DoAction = g_AppRoster.UnregisterBySig(Args.ValueOf("app-sig"), Args.ValueOf("password"))
 
         Else
-            g_DoAction = g_AppRoster.Unregister(Token, Args.ValueOf("password"))
+            g_DoAction = g_AppRoster.Unregister(Token, Args.ValueOf("password"), False)
 
         End If
 
@@ -2659,7 +2757,8 @@ Dim pApp As TApp
 
         Else
             g_Debug "g_DoAction(): <subscribe> from " & ReplySocket.RemoteHostIP & ":" & ReplySocket.RemotePort
-            If g_SubsRoster.Add(ReplySocket, E_ST_SNP3, Args) Then
+            If g_SubsRoster.Add(ReplySocket, SN_ST_SNP3, Args) Then
+                g_PrivateNotify "", "Subscriber added", ReplySocket.RemoteHostIP & " subscribed", , ".sub-add"
                 frmAbout.SubscribersChanged
                 g_DoAction = -1
 
@@ -2678,7 +2777,7 @@ Dim pApp As TApp
 
         Else
             g_Debug "g_DoAction(): <unsubscribe> from " & ReplySocket.RemoteHostIP & ":" & ReplySocket.RemotePort
-            If g_SubsRoster.Remove(ReplySocket, E_ST_SNP3, Args) Then
+            If g_SubsRoster.Remove(ReplySocket, SN_ST_SNP3, Args) Then
                 frmAbout.SubscribersChanged
                 g_DoAction = -1
 
@@ -2958,7 +3057,7 @@ Dim sz As String
     With aList
         .Rewind
         Do While .GetNextTag(pt) = B_OK
-            sz = sz & pt.Name & "::" & pt.value & "#?"
+            sz = sz & pt.Name & "::" & pt.Value & "#?"
 
         Loop
 
@@ -2968,7 +3067,7 @@ Dim sz As String
 
 End Function
 
-Public Sub g_SetPresence(ByVal Flags As SP_PRESENCE_FLAGS)
+Public Sub g_SetPresence(ByVal Flags As SN_PRESENCE_FLAGS)
 Dim fWasAway As Boolean
 
     fWasAway = g_IsAway()
@@ -2976,42 +3075,50 @@ Dim fWasAway As Boolean
 
     ' /* if we've transitioned to Away, notify registered apps */
 
-    If (Not fWasAway) And ((mPresFlags And SP_AWAY_MASK) <> 0) Then _
+    If (Not fWasAway) And ((mPresFlags And SN_PF_AWAY_MASK) <> 0) Then _
         g_AppRoster.SendToAll SNARL_BROADCAST_USER_AWAY
-        ' /* TO-DO: change the tray icon? */
+
+    ' /* R2.4.2 DR3: change the tray icon */
+    frmAbout.bSetTrayIcon
 
 End Sub
 
-Public Sub g_ClearPresence(ByVal Flags As SP_PRESENCE_FLAGS)
-Dim f As Boolean
+Public Sub g_ClearPresence(ByVal Flags As SN_PRESENCE_FLAGS)
+Dim fWasAwayOrBusy As Boolean
+Dim fIsAwayOrBusy As Boolean
 
-    f = (mPresFlags <> 0)
+    fWasAwayOrBusy = (mPresFlags <> 0)
     mPresFlags = mPresFlags And (Not Flags)
+    fIsAwayOrBusy = (mPresFlags <> 0)
 
-    ' /* if we've transitioned from Away, notify registered apps */
+    ' /* if we've transitioned from Away or Busy, notify registered apps */
 
-    If (f) And (mPresFlags = 0) Then
+    If (fWasAwayOrBusy) And (mPresFlags = 0) Then
         g_AppRoster.SendToAll SNARL_BROADCAST_USER_BACK
         g_NotificationRoster.CheckMissed
-        ' /* TO-DO: change the tray icon? */
 
     End If
+
+    ' /* R2.4.2 DR3: change the tray icon */
+
+    If fWasAwayOrBusy <> fIsAwayOrBusy Then _
+        frmAbout.bSetTrayIcon
 
 End Sub
 
 Public Function g_IsAway() As Boolean
 
-    g_IsAway = ((mPresFlags And SP_AWAY_MASK) <> 0)
+    g_IsAway = ((mPresFlags And SN_PF_AWAY_MASK) <> 0)
 
 End Function
 
 Public Function g_IsDND() As Boolean
 
-    g_IsDND = ((mPresFlags And SP_DND_MASK) <> 0)
+    g_IsDND = ((mPresFlags And SN_PF_DND_MASK) <> 0)
 
 End Function
 
-Public Function g_IsPresence(ByVal Flags As SP_PRESENCE_FLAGS) As Boolean
+Public Function g_IsPresence(ByVal Flags As SN_PRESENCE_FLAGS) As Boolean
 
     g_IsPresence = ((mPresFlags And Flags) <> 0)
 
@@ -3114,13 +3221,13 @@ Static nBusy As Long
         g_Debug "uSetBusyCount(): increasing..."
         nBusy = nBusy + 1
         If nBusy = 1 Then _
-            g_SetPresence SP_DND_EXTERNAL
+            g_SetPresence SN_PF_DND_EXTERNAL
 
     Else
         g_Debug "uSetBusyCount(): decreasing..."
         nBusy = nBusy - 1
         If nBusy = 0 Then _
-            g_ClearPresence SP_DND_EXTERNAL
+            g_ClearPresence SN_PF_DND_EXTERNAL
 
     End If
 
@@ -3315,8 +3422,7 @@ Dim sz As String
 
 End Function
 
-Public Function g_DoV42Request(ByVal Request As String, ByVal SenderPID As Long, Optional ByRef ReplySocket As CSocket, Optional ByVal Flags As E_NOTIFICATION_FLAGS) As Long
-'Dim lFlags As E_NOTIFICATION_FLAGS
+Public Function g_DoV42Request(ByVal Request As String, ByVal SenderPID As Long, Optional ByRef ReplySocket As CSocket, Optional ByVal Flags As SN_NOTIFICATION_FLAGS) As Long
 
     Debug.Print "TMainWindow.g_DoV42Request(): data is '" & Request & "'"
 
@@ -3328,12 +3434,12 @@ Public Function g_DoV42Request(ByVal Request As String, ByVal SenderPID As Long,
 
     End If
 
-    ' /* R2.4.2 DR3: if a reply socket is provided, set NF_REMOTE accordingly */
+    ' /* R2.4.2 DR3: if a reply socket is provided, set SN_NF_REMOTE accordingly */
 
     If Not (ReplySocket Is Nothing) Then
         g_Debug "g_DoV42Request(): sender is " & ReplySocket.RemoteHostIP & ":" & ReplySocket.RemotePort
         If ReplySocket.RemoteHostIP <> "127.0.0.1" Then _
-             Flags = Flags Or NF_REMOTE
+             Flags = Flags Or SN_NF_REMOTE
 
     End If
 
@@ -3496,4 +3602,54 @@ Dim sz As String
     End If
 
 End Function
+
+Public Sub g_SNP3SendCallback(ByRef Socket As CSocket, ByVal StatusCode As SNARL_STATUS_CODE, ByVal EventName As String, ByVal ResponseDetails As String, ByVal Content As String)
+
+    If (Socket Is Nothing) Then _
+        Exit Sub
+
+Dim sz As String
+
+    ' /* standard headers */
+
+    sz = sz & "x-timestamp: " & Format$(Now(), "d mmm yyyy hh:mm:ss") & vbCrLf
+    sz = sz & "x-daemon: " & "Snarl " & CStr(APP_VER) & "." & CStr(APP_SUB_VER) & IIf(APP_SUB_SUB_VER <> 0, "." & CStr(APP_SUB_SUB_VER), "") & vbCrLf
+    sz = sz & "x-host: " & LCase$(g_GetComputerName()) & vbCrLf
+
+    Socket.SendData "SNP/3.0 CALLBACK" & vbCrLf & _
+                    "event-code: " & CStr(StatusCode) & vbCrLf & _
+                    "event-name: " & EventName & vbCrLf & _
+                    IIf(ResponseDetails <> "", ResponseDetails, "") & _
+                    Content & _
+                    sz & _
+                    "END" & vbCrLf
+
+End Sub
+
+Public Sub g_Trap(ByVal Error As SOS_ERRORS, ByVal Data As String)
+Dim sz As String
+
+    sz = "**** Snarl System Error Nr $" & g_HexStr(Error) & "!" & vbCrLf
+
+    Select Case Error
+    Case SOS_BAD_COPYDATA
+        sz = sz & "Bad WM_COPYDATA id $" & Data
+
+    Case SOS_SPURIOUS_TEST
+        sz = sz & "Bad WM_SNARL_TEST id $" & Data
+
+    Case SOS_FILE_NOT_FOUND
+        sz = sz & "File >" & Data & "< not found"
+
+    Case SOS_PATH_NOT_FOUND
+        sz = sz & "Path >" & Data & "< not found"
+
+    Case Else
+        sz = sz & "Undefined error"
+
+    End Select
+
+    SOS_invoke New TSOSHandler, sz & vbCrLf
+
+End Sub
 

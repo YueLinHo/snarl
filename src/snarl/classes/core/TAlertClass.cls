@@ -32,15 +32,15 @@ Dim mPrevTitle As String
 Dim mPrevText As String
 Dim mPrevTick As Long
 
-Public Enum E_CLASS_DUPLICATES
-    E_CLASS_DUPLICATES_ALLOW
-    E_CLASS_DUPLICATES_BLOCK
-    E_CLASS_DUPLICATES_DELAY
+Public Enum SN_CLASS_DUPLICATES
+    SN_CD_ALLOW
+    SN_CD_BLOCK
+    SN_CD_DELAY
 
 End Enum
 
-Public Enum E_CLASS_FLAGS
-    E_CLASS_DISABLED = 1
+Public Enum SN_CLASS_FLAGS
+    SN_CF_DISABLED = 1
 
 End Enum
 
@@ -77,7 +77,7 @@ End Sub
 Private Property Get MObject_Type() As String
 End Property
 
-Friend Sub bInit(ByVal Id As String, ByVal Name As String, ByRef Owner As TApp, ByRef Settings As ConfigSection, ByVal Flags As E_CLASS_FLAGS)
+Friend Sub bInit(ByVal Id As String, ByVal Name As String, ByRef Owner As TApp, ByRef Settings As ConfigSection, ByVal Flags As SN_CLASS_FLAGS)
 Dim bEnabled As Boolean
 
     ' /* initialize */
@@ -96,19 +96,19 @@ Dim bEnabled As Boolean
         g_Debug "setting defaults..."
         bEnabled = True
 
-        If (g_ConfigGet("ignore_new_classes") = "1") Or ((Flags And E_CLASS_DISABLED)) Then _
+        If (g_ConfigGet("ignore_new_classes") = "1") Or ((Flags And SN_CF_DISABLED)) Then _
             bEnabled = False
 
         Set .Defaults = New BPackedData
         .Defaults.SetTo "enabled::" & IIf(bEnabled, "1", "0") & "#?" & _
                         "show_on_screen::1#?" & _
-                        "position::" & CStr(E_START_DEFAULT_POS) & "#?" & _
-                        "duration::" & CStr(E_DURATION_APP_DECIDES) & "#?" & _
+                        "position::" & CStr(SN_SP_DEFAULT_POS) & "#?" & _
+                        "duration::" & CStr(SN_ND_APP_DECIDES) & "#?" & _
                         "custom_timeout::10#?" & _
                         "custom_priority::0#?priority::0#?" & _
                         "use_style::0#?style::#?" & _
                         "use_custom_icon::0#?custom_icon::#?" & _
-                        "duplicates::" & CStr(E_CLASS_DUPLICATES_ALLOW) & "#?" & _
+                        "duplicates::" & CStr(SN_CD_ALLOW) & "#?" & _
                         "use_custom_sound::0#?custom_sound::#?" & _
                         "log_during_dnd::1#?block_spam::0#?" & _
                         "normal_mode::1#?away_mode::1#?busy_mode::1#?" & _
@@ -333,18 +333,18 @@ Friend Function ShowNotification(ByRef Info As T_NOTIFICATION_INFO, ByRef Args A
 
     ' /* check for duplicate content */
 
-Dim lDup As E_CLASS_DUPLICATES
+Dim lDup As SN_CLASS_DUPLICATES
 
     If (Info.Title = mPrevTitle) And (Info.Text = mPrevText) Then
 
         lDup = Me.GetValue("duplicates")
 
-        If lDup = E_CLASS_DUPLICATES_BLOCK Then
+        If lDup = SN_CD_BLOCK Then
             g_Debug "TAlert.ShowNotification(): blocked duplicate", LEMON_LEVEL_INFO
             ShowNotification = mLastToken
             Exit Function
 
-        ElseIf (lDup = E_CLASS_DUPLICATES_DELAY) And ((GetTickCount() - mPrevTick) <= Val(g_ConfigGet("suppress_delay"))) Then
+        ElseIf (lDup = SN_CD_DELAY) And ((GetTickCount() - mPrevTick) <= Val(g_ConfigGet("suppress_delay"))) Then
             g_Debug "TAlert.ShowNotification(): blocked duplicate within delay timeout", LEMON_LEVEL_INFO
             ShowNotification = mLastToken
             Exit Function
@@ -361,20 +361,20 @@ Dim lDup As E_CLASS_DUPLICATES
 
     ' /* figure out timeout */
 
-Dim lDur As E_NOTIFICATION_DURATION
+Dim lDur As SN_NOTIFICATION_DURATION
 
     lDur = Val(Me.GetValue("duration"))
 
     Select Case lDur
-    Case E_DURATION_APP_DECIDES
+    Case SN_ND_APP_DECIDES
         ' /* V39: app can modify duration via class default */
         If Me.DefaultTimeout > 0 Then _
             Info.Timeout = Me.DefaultTimeout
 
-    Case E_DURATION_CUSTOM
+    Case SN_ND_CUSTOM
         Info.Timeout = Val(Me.GetValue("custom_timeout"))
 
-'    Case E_DURATION_DEFAULT
+'    Case SN_ND_DEFAULT
 '        Info.Timeout = Val(Me.GetValue("default_duration"))
 
     Case Else

@@ -218,7 +218,7 @@ Dim sz As String
 
     Case "register", "reg"
         ' /* use default icon if none provided */
-        If Not ppd.Exists("icon") Then _
+'        If Not ppd.Exists("icon") Then _
             ppd.Add "icon", g_MakePath(App.Path) & "etc\icons\snp-no_icon.png"
 
     Case "notify"
@@ -233,9 +233,9 @@ Dim sz As String
 
 Dim hr As Long
 
-    ' /* process the command */
+    ' /* process the command (note the hard-coding to V42 of the API) */
 
-    hr = g_DoAction(sCommand, Val(ppd.ValueOf("token")), ppd, , theSocket)
+    hr = g_DoAction(sCommand, Val(ppd.ValueOf("token")), ppd, 42, theSocket)
     If hr <> 0 Then
         ' /* success */
         uSNP2Reply SNARL_SUCCESS, IIf(hr <> -1, CStr(hr), "")
@@ -436,7 +436,7 @@ Dim dw As Long
 
 'FIXFIXFIX
                 ' /* we no longer include frmAbout.hWnd and WM_REMOTENOTIFY with this */
-                g_PrivateNotify SNARL_CLASS_ANON_NET, .Title, .Text, .Timeout, .Icon, , .DefaultAck, , NF_REMOTE
+                g_PrivateNotify SNARL_CLASS_ANON_NET, .Title, .Text, .Timeout, .Icon, , .DefaultAck, , SN_NF_REMOTE
 'FIXFIXFIX
                 g_Debug "TRemoteConnection.uSNPTranslate(): snShowMessageEx() returned 0x" & g_HexStr(dw)
 
@@ -975,7 +975,7 @@ Dim szHashType As String
 
     If (szExpectedKey <> "") And (szProvidedKey = "") Then
         ' /* invalid case: password set but none provided by sender (we don't tell the sender this, however) */
-        Debug.Print "uSNP3Translate(): no system password set but request contained one"
+        Debug.Print "uSNP3Translate(): password required"
         Response = uSNP3BuildResponse(SNARL_ERROR_AUTH_FAILURE)
         Exit Function
 
@@ -1064,7 +1064,7 @@ Dim szHashType As String
             .EntryAt i, sz, ""
 
             If (g_SafeLeftStr(sz, 1) <> "#") Then
-                n = g_DoV42Request(sz, GetCurrentProcessId(), theSocket, NF_IS_SNP3)
+                n = g_DoV42Request(sz, GetCurrentProcessId(), theSocket, SN_NF_IS_SNP3)
                 If n < 0 Then
 '                        bErr = True     ' // set overall response flag
                     n = Abs(n)      ' // convert to SNP code

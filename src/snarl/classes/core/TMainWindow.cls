@@ -122,7 +122,7 @@ Private Function BWndProcSink_WndProc(ByVal hWnd As Long, ByVal uMsg As Long, By
 
         Select Case wParam
         Case 0
-            szShowMessage "Test Message", _
+            xzShowMessage "Test Message", _
                           "This is the WM_SNARLTEST test message", _
                           20, _
                           g_MakePath(App.Path) & "styles\default\default_icon.png"
@@ -131,7 +131,7 @@ Private Function BWndProcSink_WndProc(ByVal hWnd As Long, ByVal uMsg As Long, By
             BWndProcSink_WndProc = True
 
         Case 1
-            szShowMessage "Test Message", _
+            xzShowMessage "Test Message", _
                           "This is a test message (lParam was 0x" & g_HexStr(lParam) & ")", _
                           20, _
                           g_MakePath(App.Path) & "styles\default\default_icon.png"
@@ -140,7 +140,7 @@ Private Function BWndProcSink_WndProc(ByVal hWnd As Long, ByVal uMsg As Long, By
             BWndProcSink_WndProc = True
 
         Case 64
-            szShowMessage g_HexStr((Rnd * 65535) Or &HC0000000), _
+            xzShowMessage g_HexStr((Rnd * 65535) Or &HC0000000), _
                           g_HexStr(Rnd * 16777215) & "-" & g_HexStr(Rnd * 16777215), _
                           20, _
                           g_MakePath(App.Path) & "styles\default\default_icon.png"
@@ -149,6 +149,7 @@ Private Function BWndProcSink_WndProc(ByVal hWnd As Long, ByVal uMsg As Long, By
             BWndProcSink_WndProc = True
 
         Case Else
+            g_Trap SOS_SPURIOUS_TEST, g_HexStr(wParam)
             ReturnValue = M_NOT_IMPLEMENTED
             BWndProcSink_WndProc = True
 
@@ -353,83 +354,84 @@ Dim pcds As COPYDATASTRUCT
     CopyMemory pcds, ByVal lpStruct, Len(pcds)
     g_Debug "TMainWindow.uCopyData(): dwData=" & CStr(pcds.dwData) & " hWndFrom=" & g_HexStr(hwndFrom)
 
-'    If (pcds.dwData <> 2) And (pcds.dwData <> &H534E4C02) Then
-'        ' /* not from Snarl */
-'        g_Debug "TMainWindow.uCopyData(): Unknown COPYDATASTRUCT->dwData value '" & CStr(pcds.dwData) & "' from 0x" & g_HexStr(hwndFrom)
-'        Exit Function
-'
-'    End If
-
     ' /* possible Snarl request */
 
 Dim pss As SNARLSTRUCTI
 
-    If g_IsRunning Then
+    Select Case pcds.dwData
 
-        Select Case pcds.dwData
-
-        Case &H534E4C03
-            ' /* V42 API request */
+    Case &H534E4C03
+        ' /* V42 API request: return -ve value to indicate error, or +ve (including zero) to indicate success */
+        If g_IsRunning Then
             If (hwndFrom = 0) And (g_ConfigGet("block_null_pid") = "1") Then
                 g_Debug "TMainWindow.uCopyData(): source PID not provided", LEMON_LEVEL_CRITICAL
-'                If gDebugMode Then _
-                    g_PrivateNotify SNARL_CLASS_GENERAL, "V42 Request Blocked", "No PID"
 
             Else
                 uCopyData = g_DoV42Request(uV42Translate(pcds.cbData, pcds.lpData), hwndFrom)
 
             End If
 
+        Else
+            g_Debug "TMainWindow.uCopyData(): notification engine is not running", LEMON_LEVEL_WARNING
+            uCopyData = -SNARL_ERROR_NOT_RUNNING
 
-        Case &H534E4C02
-            ' /* V41 API request */
+        End If
+
+
+    Case &H534E4C02
+        ' /* V41 API request: return 0 on error and set lasterror */
+        If g_IsRunning Then
             If (hwndFrom = 0) And (g_ConfigGet("block_null_pid") = "1") Then
                 g_Debug "TMainWindow.uCopyData(): source PID not provided", LEMON_LEVEL_CRITICAL
-'                If gDebugMode Then _
+    '                If gDebugMode Then _
                     g_PrivateNotify SNARL_CLASS_GENERAL, "V41 Request Blocked", "No PID"
-
+    
             Else
                 uCopyData = uDoV41Request(pcds.lpData, hwndFrom)
-
+    
             End If
+        Else
+            g_Debug "TMainWindow.uCopyData(): notification engine is not running", LEMON_LEVEL_WARNING
+            gSetLastError SNARL_ERROR_NOT_RUNNING
+            uCopyData = 0
+
+        End If
 
 
-        Case 2
-            ' /* V40 (or earlier) */
+    Case 2
+        ' /* V40 (or earlier): return value from M_RESULT */
+        If g_IsRunning Then
             If (hwndFrom = 0) And (g_ConfigGet("block_null_pid") = "1") Then
                 g_Debug "TMainWindow.uCopyData(): source PID not provided", LEMON_LEVEL_CRITICAL
-'                If gDebugMode Then _
+    '                If gDebugMode Then _
                     g_PrivateNotify SNARL_CLASS_GENERAL, "V40 Request Blocked", "No PID"
             
             Else
                 ' /* retrieve the SNARLSTRUCT so we can get the command */
                 CopyMemory pss, ByVal pcds.lpData, Len(pss)
                 g_Debug "TMainWindow.uCopyData(): cmd=" & g_XCommandStr(pss.Cmd) & " id=" & pss.Id & " lngdata2=" & g_HexStr(pss.LngData2), LEMON_LEVEL_PROC
-
+    
                 If pss.Cmd >= SNARL_EX_SHOW Then
                     ' /* extended command */
                     uCopyData = uDoCmdEx(pcds.lpData, hwndFrom)
-
+    
                 Else
                     ' /* standard command */
                     uCopyData = uDoCmd(pss, hwndFrom)
-
+    
                 End If
             End If
+        Else
+            g_Debug "TMainWindow.uCopyData(): notification engine is not running", LEMON_LEVEL_WARNING
+            uCopyData = M_ACCESS_DENIED
 
-        Case Else
-            g_Debug "TMainWindow.uCopyData(): Unknown COPYDATASTRUCT->dwData value '" & CStr(pcds.dwData) & "' from 0x" & g_HexStr(hwndFrom)
-            gSetLastError SNARL_ERROR_BAD_PACKET
+        End If
 
-        End Select
+    Case Else
+        g_Debug "TMainWindow.uCopyData(): Unknown COPYDATASTRUCT->dwData value '" & CStr(pcds.dwData) & "' from 0x" & g_HexStr(hwndFrom)
+        g_Trap SOS_BAD_COPYDATA, g_HexStr(pcds.dwData)
 
-    Else
-        g_Debug "TMainWindow.uCopyData(): notification engine is not running", LEMON_LEVEL_WARNING
-        gSetLastError SNARL_ERROR_NOT_RUNNING
-
-        ' /* TO-DO: we might want to log the notification somewhere? */
-
-    End If
+    End Select
 
 End Function
 
@@ -503,6 +505,7 @@ Dim sz As String
 
     Case SNARL_GET_VERSION
         uDoCmd = MAKELONG(APP_SUB_VER, APP_VER)
+        Debug.Print "SNARL_GET_VERSION: returning " & g_HexStr(uDoCmd)
 
     Case SNARL_REGISTER_CONFIG_WINDOW
         uDoCmd = g_AppRoster.OldAdd(g_UTF8(pss.Title), pss.LngData2, pss.Id, "", "", 0)
@@ -867,7 +870,7 @@ Dim i As Long
 
 End Function
 
-Private Function uProcessArg(ByVal Arg As E_SHOW_PREFS, ByVal Item As String) As Boolean
+Private Function uProcessArg(ByVal Arg As SN_DO_PREFS, ByVal Item As String) As Boolean
 Dim pe As TExtension
 
     Item = Replace$(Item, "%20", " ")
@@ -885,18 +888,18 @@ Dim pe As TExtension
         Item = g_RemoveExtension(Item)
 
         Select Case Arg
-        Case E_SP_RESTART
+        Case SN_DP_RESTART
             If g_ExtnRoster.Find(Item, pe) Then
                 pe.SetEnabled False
                 pe.SetEnabled True
 
             End If
 
-        Case E_SP_UNLOAD
+        Case SN_DP_UNLOAD
             If g_ExtnRoster.Find(Item, pe) Then _
                 pe.SetEnabled False
 
-        Case E_SP_LOAD
+        Case SN_DP_LOAD
             If g_ExtnRoster.Find(Item, pe) Then _
                 pe.SetEnabled True
 
@@ -918,14 +921,14 @@ Dim pe As TExtension
         End If
 
         Select Case Arg
-        Case E_SP_RESTART
+        Case SN_DP_RESTART
             g_StyleRoster.Unload Item, True
             g_StyleRoster.Load Item, True, True
 
-        Case E_SP_UNLOAD
+        Case SN_DP_UNLOAD
             g_StyleRoster.Unload Item, True
 
-        Case E_SP_LOAD
+        Case SN_DP_LOAD
             g_StyleRoster.Load Item, True, True
 
         End Select

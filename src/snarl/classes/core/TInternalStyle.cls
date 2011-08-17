@@ -30,8 +30,8 @@ Option Explicit
 Private Const ENG_DATE = "13-Jan-2011"
 
 Private Const STYLE_NAME = "Default"
-Private Const DEF_STYLE_DATE = "6-Apr-2009"
-Private Const DEF_STYLE_COPY = "© 2009 full phat products"
+Private Const DEF_STYLE_DATE = "25-Jul-2011"
+Private Const DEF_STYLE_COPY = "© 2011 full phat products"
 
 Private Const IP_STYLE_NAME = "IP Forwarder"
 Private Const IP_STYLE_DATE = "12-Dec-2010"
@@ -168,7 +168,7 @@ Private Sub IStyleEngine_StyleAt(ByVal Index As Long, Style As libSnarlStyles.st
             .Flags = S_STYLE_MULTI_INSTANCE
             .IconPath = g_MakePath(App.Path) & "etc\icons\default_style.png"
             .Major = 1
-            .Minor = 0
+            .Minor = 1
             .Name = STYLE_NAME
 
 
@@ -274,7 +274,7 @@ End Sub
 
 Private Sub uDoFileRunner(ByRef NotificationInfo As notification_info, ByRef Scheme As TRunFileScheme)
 Dim ppd As BPackedData
-Dim s As String
+Dim S As String
 Dim t As String
 Dim u As String
 
@@ -296,12 +296,12 @@ Dim u As String
             ' /* loop through and for any item beginnning with either "data-" or
             '    "value-" add it to the args */
 
-            Do While .GetNextItem(s, t)
-                If g_SafeLeftStr(s, 5) = "data-" Then
-                    u = u & " " & g_Quote(s & "=" & t)
+            Do While .GetNextItem(S, t)
+                If g_SafeLeftStr(S, 5) = "data-" Then
+                    u = u & " " & g_Quote(S & "=" & t)
 
-                ElseIf g_SafeLeftStr(s, 6) = "value-" Then
-                    u = u & " " & g_Quote(s & "=" & t)
+                ElseIf g_SafeLeftStr(S, 6) = "value-" Then
+                    u = u & " " & g_Quote(S & "=" & t)
 
                 End If
 
@@ -328,19 +328,19 @@ Dim u As String
         g_Debug "TInternalStyle.uDoFileRunner(): template is '" & Scheme.Template & "'"
         Set ppd = New BPackedData
         ppd.SetTo NotificationInfo.Text
-        s = uReplaceMarkers(Scheme.Template, ppd)
-        g_Debug "TInternalStyle.uDoFileRunner(): fixed-up template is '" & s & "'..."
-        ShellExecute 0, "open", Scheme.Target, s, vbNullString, SW_SHOW
+        S = uReplaceMarkers(Scheme.Template, ppd)
+        g_Debug "TInternalStyle.uDoFileRunner(): fixed-up template is '" & S & "'..."
+        ShellExecute 0, "open", Scheme.Target, S, vbNullString, SW_SHOW
 
 
     Case 3
         ' /* &/= format */
-        s = g_URLEncode(NotificationInfo.Text)
-        s = Replace$(s, "#?", "&")
-        s = Replace$(s, "::", "=")
-        s = s & "&app=" & NotificationInfo.Title
+        S = g_URLEncode(NotificationInfo.Text)
+        S = Replace$(S, "#?", "&")
+        S = Replace$(S, "::", "=")
+        S = S & "&app=" & NotificationInfo.Title
         g_Debug "TInternalStyle.uDoFileRunner(): sending V3 content to '" & Scheme.Target & "'..."
-        ShellExecute 0, "open", Scheme.Target, g_Quote(Scheme.Template & s), vbNullString, SW_SHOW
+        ShellExecute 0, "open", Scheme.Target, g_Quote(Scheme.Template & S), vbNullString, SW_SHOW
 
     End Select
 
@@ -360,15 +360,20 @@ Dim bm As mfxBitmap
 
     On Error Resume Next
 
-Const rx = 20
-
-    cx = BORDER_SIZE
+Const RX = 20
 
 Dim pbm As MImage
 
 Dim cyTitle As Long
 Dim cyText As Long
 Dim prFrame As BRect
+
+Dim ppdFont As BPackedData
+Dim lCol As Long
+Dim lWidth As Long
+
+    Set ppdFont = New BPackedData
+    cx = BORDER_SIZE
 
     With theView
 
@@ -380,43 +385,65 @@ Dim prFrame As BRect
 
         ' /* calculate height */
 
-        .SizeTo 250, 110
+        lWidth = g_SafeLong(gStyleDefaults.ValueOf("width"))
+        If lWidth < 80 Then _
+            lWidth = 80
+
+        .SizeTo lWidth, 110
         .TextMode = MFX_TEXT_ANTIALIAS
 
         Set prFrame = .Bounds.Duplicate
-        prFrame.Left = cx
+        With prFrame
+            .InsetBy BORDER_SIZE, BORDER_SIZE
+            .Left = cx
+            .Bottom = 4096
 
-        .SetFont "Tahoma", 8, True
+        End With
+
+        ppdFont.SetTo gStyleDefaults.ValueOf("title-font")
+        .SetFont ppdFont.ValueOf("name"), CLng(ppdFont.ValueOf("size")), (ppdFont.ValueOf("bold") = "1")
         .MeasureString NotificationInfo.Title, prFrame, pr
         cyTitle = pr.Height
 
-        .SetFont "Tahoma", 8, False
+        ppdFont.SetTo gStyleDefaults.ValueOf("text-font")
+        .SetFont ppdFont.ValueOf("name"), CLng(ppdFont.ValueOf("size")), (ppdFont.ValueOf("bold") = "1")
         .MeasureString NotificationInfo.Text, prFrame, pr
         cyText = pr.Height
 
         cy = (BORDER_SIZE * 2) + cyTitle + cyText
+        If (NotificationInfo.Title <> "") And (NotificationInfo.Text <> "") Then _
+            cy = cy + 4
+
         cy = MAX((BORDER_SIZE * 2) + ICON_SIZE, cy)         ' // must be at least (ICON_SIZE + (2 x BORDER_SIZE)) high...
-        .SizeTo 250, cy
+        .SizeTo lWidth, cy
+        .EnableSmoothing True
 
         ' /* draw background */
 
         If (NotificationInfo.Flags And S_NOTIFICATION_IS_PRIORITY) Then
             .SetHighColour rgba(236, 59, 0)
-            .SetLowColour rgba(206, 52, 0)
-            .FillRoundRect .Bounds, rx, rx, MFX_VERT_GRADIENT
-            .SetHighColour rgba(255, 0, 0)
-            .StrokeRoundRect .Bounds, rx, rx
+
+'            .SetHighColour rgba(255, 0, 0)
+'            .StrokeRoundRect .Bounds, RX, RX
 
         Else
-            .SetHighColour rgba(235, 235, 235)
-            .SetLowColour rgba(205, 205, 205)
-            .FillRoundRect .Bounds, rx, rx, MFX_VERT_GRADIENT
-            .SetHighColour rgba(176, 176, 176)
-            .StrokeRoundRect .Bounds, rx, rx
+            
+            .SetHighColour gStyleDefaults.ValueOf("background-colour")
+            
+'            .SetHighColour rgba(235, 235, 235)
+'            .SetLowColour rgba(205, 205, 205)
 
         End If
 
+        .FillRoundRect .Bounds, RX, RX
 
+         .SetHighColour rgba(0, 0, 0, 0)
+         .SetLowColour rgba(0, 0, 0, 63)
+'            .SetLowColour rgba(206, 52, 0)
+        .FillRoundRect .Bounds, RX, RX, MFX_VERT_GRADIENT
+
+        .SetHighColour rgba(0, 0, 0, 146)
+        .StrokeRoundRect .Bounds, RX, RX
 
         ' /* icon */
 
@@ -430,23 +457,49 @@ Dim prFrame As BRect
 '        .SetHighColour rgba(255, 0, 0)
 '        .StrokeRect pr
 
+        ' /* title */
+
         If (NotificationInfo.Flags And S_NOTIFICATION_IS_PRIORITY) Then
             .SetHighColour rgba(255, 255, 255, 210)
 
         Else
-            .SetHighColour rgba(36, 36, 36, 210)
+            lCol = CLng(gStyleDefaults.ValueOf("title-colour"))
+            .SetHighColour g_SetRGB32Alpha(lCol, g_OpacityFromPercent(gStyleDefaults.ValueOf("title-opacity")))
+            '//rgba(36, 36, 36, 210)
 
         End If
 
-        ' /* title */
-
-        .SetFont "Tahoma", 8, True
+        ppdFont.SetTo gStyleDefaults.ValueOf("title-font")
+        .SetFont ppdFont.ValueOf("name"), CLng(ppdFont.ValueOf("size")), (ppdFont.ValueOf("bold") = "1")
         .DrawString NotificationInfo.Title, pr
+
+        pr.OffsetBy 0, cyTitle
+
+        ' /* etched line */
+
+        If (NotificationInfo.Title <> "") And (NotificationInfo.Text <> "") Then
+            .SetHighColour rgba(127, 127, 127, 80)
+            .StrokeLine new_BRect(pr.Left, pr.Top + 1, pr.Right, pr.Top + 1)
+            .SetHighColour rgba(255, 255, 255, 80)
+            .StrokeLine new_BRect(pr.Left, pr.Top + 2, pr.Right, pr.Top + 2)
+            pr.OffsetBy 0, 4
+
+        End If
+
 
         ' /* text */
 
-        .SetFont "Tahoma", 8
-        pr.OffsetBy 0, cyTitle
+        If (NotificationInfo.Flags And S_NOTIFICATION_IS_PRIORITY) Then
+            .SetHighColour rgba(255, 255, 255, 210)
+
+        Else
+            lCol = CLng(gStyleDefaults.ValueOf("text-colour"))
+            .SetHighColour g_SetRGB32Alpha(lCol, g_OpacityFromPercent(gStyleDefaults.ValueOf("text-opacity")))
+
+        End If
+
+        ppdFont.SetTo gStyleDefaults.ValueOf("text-font")
+        .SetFont ppdFont.ValueOf("name"), CLng(ppdFont.ValueOf("size")), (ppdFont.ValueOf("bold") = "1")
         .DrawString NotificationInfo.Text, pr
 
     End With

@@ -44,7 +44,7 @@ Dim mRegCount As Long
 
 Public Function g_ProcessGrowlUDP(ByRef Data() As Byte, ByVal cb As Long, ByVal Sender As String)
 Dim b() As Byte
-Dim w As Integer
+Dim W As Integer
 Dim l As Long
 Dim i As Long
 Dim z As Byte
@@ -95,10 +95,10 @@ Dim pgr As T_GROWL_REGISTRATION
         ' */
 
         l = VarPtr(b(2))            ' // app name length
-        w = uGetInt(l)
+        W = uGetInt(l)
         l = l + 2                   ' // skip types and enabled counts...
 
-        pgr.ApplicationName = uGetString(l, w)
+        pgr.ApplicationName = uGetString(l, W)
         pgr.RemoteHost = Sender
         Debug.Print "REGISTER: App=" & pgr.ApplicationName & " sender=" & pgr.RemoteHost
 
@@ -109,14 +109,14 @@ Dim pgr As T_GROWL_REGISTRATION
 
         ' /* read each notification type record */
 
-        l = VarPtr(b(6)) + w
+        l = VarPtr(b(6)) + W
         For i = 0 To (z - 1)
             With pgr
                 .NumTypes = .NumTypes + 1
                 ReDim Preserve .NotificationType(.NumTypes)
                 With .NotificationType(.NumTypes)
-                    w = uGetInt(l)                  ' // name length (bytes)
-                    .Name = uGetString(l, w)        ' // name (decoded from UTF8)
+                    W = uGetInt(l)                  ' // name length (bytes)
+                    .Name = uGetString(l, W)        ' // name (decoded from UTF8)
                     .Enabled = False
                     Debug.Print CStr(i + 1) & "='" & .Name & "'"
 
@@ -163,8 +163,8 @@ Dim pgn As T_GROWL_NOTIFICATION
         ' /* get flags */
 
         l = VarPtr(b(2))
-        w = uGetInt(l)
-        pgn.Sticky = (w And 1)
+        W = uGetInt(l)
+        pgn.Sticky = (W And 1)
 
 '        If (w And 1) Then
 '            Debug.Print "sticky"
@@ -176,32 +176,32 @@ Dim pgn As T_GROWL_NOTIFICATION
 
 Dim fNeg As Boolean
 
-        fNeg = ((w And 8) = 8)
-        w = (w And &HE) / 2
+        fNeg = ((W And 8) = 8)
+        W = (W And &HE) / 2
         If fNeg Then _
-            w = (-(w Xor 7)) - 1
+            W = (-(W Xor 7)) - 1
 
-        pgn.Priority = w
+        pgn.Priority = W
 
 Dim sptr As Long
 
         sptr = VarPtr(b(12))                        ' // start of string table
 
-        w = uGetInt(l)
-        Debug.Print "type name len: " & w
-        pgn.TypeName = uGetString(sptr, w)
+        W = uGetInt(l)
+        Debug.Print "type name len: " & W
+        pgn.TypeName = uGetString(sptr, W)
 
-        w = uGetInt(l)
-        Debug.Print "title len: " & w
-        pgn.Title = uGetString(sptr, w)
+        W = uGetInt(l)
+        Debug.Print "title len: " & W
+        pgn.Title = uGetString(sptr, W)
 
-        w = uGetInt(l)
-        Debug.Print "description len: " & w
-        pgn.Description = uGetString(sptr, w)
+        W = uGetInt(l)
+        Debug.Print "description len: " & W
+        pgn.Description = uGetString(sptr, W)
 
-        w = uGetInt(l)
-        Debug.Print "app name len: " & w
-        pgn.AppName = uGetString(sptr, w)
+        W = uGetInt(l)
+        Debug.Print "app name len: " & W
+        pgn.AppName = uGetString(sptr, W)
 
         Debug.Print "sticky=" & CStr(pgn.Sticky) & " priority=" & CStr(pgn.Priority)
         Debug.Print "type name=" & pgn.TypeName & " app=" & pgn.AppName
@@ -232,7 +232,7 @@ Static i As Long
     If mRegCount Then
         For i = mRegCount To 1 Step -1
             If mGrowlReg(i).SnarlToken Then _
-                g_AppRoster.Unregister mGrowlReg(i).SnarlToken, ""
+                g_AppRoster.Unregister mGrowlReg(i).SnarlToken, "", False
 
         Next i
     End If
@@ -297,7 +297,7 @@ Dim ppd As BPackedData
 
     g_Debug "mGrowlSupport.uRegister(): '" & pgr.ApplicationName & "_" & pgr.RemoteHost & "'"
 
-    pgr.SnarlToken = g_AppRoster.Add41(ppd, (pgr.RemoteHost <> "localhost"))
+    pgr.SnarlToken = g_AppRoster.Add41(ppd, Nothing, 0, pgr.RemoteHost)
     If pgr.SnarlToken = 0 Then
         g_Debug "mGrowlSupport.uRegister(): failed to register with Snarl", LEMON_LEVEL_CRITICAL
 
@@ -361,6 +361,6 @@ Dim ppd As BPackedData
 
     ' /* R2.4.1 - include major version number in this */
 
-    uNotify = g_DoNotify(AppToken, ppd, , NF_REMOTE Or App.Major, pgn.Sender)
+    uNotify = g_DoNotify(AppToken, ppd, , SN_NF_REMOTE Or App.Major) '//, pgn.Sender)
 
 End Function

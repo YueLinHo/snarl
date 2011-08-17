@@ -805,12 +805,12 @@ Dim b As Boolean
 
         uSafeEnable "duration", b
 
-        ' /* only enable the timeout slider if E_DURATION_CUSTOM is set */
+        ' /* only enable the timeout slider if SN_ND_CUSTOM is set */
 
         B2 = b
         If B2 Then
             If mPanel.Find("duration", pc) Then _
-                B2 = (pc.GetValue = CStr(E_DURATION_CUSTOM + 1))
+                B2 = (pc.GetValue = CStr(SN_ND_CUSTOM + 1))
 
         End If
         

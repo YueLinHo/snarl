@@ -674,17 +674,17 @@ Dim hr As Long
 
 #Else
 
-Dim lFlags As E_NOTIFICATION_FLAGS
+Dim lFlags As SN_NOTIFICATION_FLAGS
 Dim pxSnarl As BPackedData
 
     If Sender.LocalIP <> "127.0.0.1" Then _
-        lFlags = lFlags Or NF_REMOTE
+        lFlags = lFlags Or SN_NF_REMOTE
 
     ' /* new for R2.4.2 */
-        lFlags = lFlags Or NF_IS_GNTP
+        lFlags = lFlags Or SN_NF_IS_GNTP
 
 '    If (px.Exists("callback-context")) And (px.Exists("callback-type")) Then _
-        lFlags = lFlags Or NF_GNTP_CALLBACK
+        lFlags = lFlags Or SN_NF_GNTP_CALLBACK
 
     Set pxSnarl = New BPackedData
     pxSnarl.SetTo px.AsString
