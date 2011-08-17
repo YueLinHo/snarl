@@ -7,148 +7,161 @@ unit Snarl;
 interface
 
 uses
-  Windows, Messages;
-  
+  Windows, Messages, SysUtils;
+
 (*
  * Registered window message and event identifiers (passed in wParam when either SNARL_GLOBAL_MSG or ReplyMsg is received)
  *)
 const
-	SNARL_GLOBAL_MSG 							= 'SnarlGlobalEvent';
-	SNARL_NOTIFICATION_CANCELLED 	= 0;
-	SNARL_LAUNCHED 								= 1;
-	SNARL_QUIT 										= 2;
+  SNARL_GLOBAL_MSG              = 'SnarlGlobalEvent';
+  SNARLAPP_MSG                  = 'SnarlAppMessage';
 
-	SNARL_NOTIFICATION_CLICKED 		= 32;            // notification was right-clicked by user
-	SNARL_NOTIFICATION_TIMED_OUT 	= 33;
-	SNARL_NOTIFICATION_ACK 				= 34;            // notification was left-clicked by user
+  SNARL_NOTIFICATION_CANCELLED  = 0;
+  SNARL_LAUNCHED                = 1;
+  SNARL_QUIT                    = 2;
 
-(*
- * Snarl Data Types
- *)
-type
-  SNARL_COMMANDS = (
-    SNARL_SHOW        = 1,
-    SNARL_HIDE        = 2,
-    SNARL_UPDATE      = 3,
-    SNARL_IS_VISIBLE  = 4,
-    SNARL_GET_VERSION = 5,
-    SNARL_REGISTER_CONFIG_WINDOW = 6,
-    SNARL_REVOKE_CONFIG_WINDOW = 7
-  );
+  SNARL_NOTIFICATION_CLICKED    = 32;            // notification was right-clicked by user
+  SNARL_NOTIFICATION_TIMED_OUT  = 33;
+  SNARL_NOTIFICATION_ACK        = 34;            // notification was left-clicked by user
 
-  TSnarlCommands = SNARL_COMMANDS;
-
-  TSnarlBuffer = array[0..1023] of Byte;
-
-  SNARLSTRUCT =  record
-    Cmd:      TSnarlCommands;	// What to do...
-    Id:       Integer;					// Message ID (returned by snShowMessage())
-    Timeout:  Integer;					// Timeout in seconds (0=sticky)
-    LngData2: Integer;    				// Reserved
-    Title:    TSnarlBuffer;
-    Text:     TSnarlBuffer;
-    Icon:     TSnarlBuffer;
-  end;
-  TSnarlStruct = SNARLSTRUCT;
 
 (*
  * Snarl Helper Functions
  *)
-function snShowMessage(ATitle, AText: String; ATimeout: Integer = 0;
-  AIconPath: String = ''; AhwndReply: Integer = 0; AReplyMsg: Integer = 0): Integer;
+
+(*
+function snShowMessage(ATitle, AText: String; ATimeout: Integer = 0; AIconPath: String = ''; AhwndReply: Integer = 0; AReplyMsg: Integer = 0): Integer;
 function snUpdateMessage(AId: Integer; ATitle, AText: String): Boolean;
-function snHideMessage(AId: Integer): Boolean;
-function snIsMessageVisible(AId: Integer): Boolean;
-function snGetVersion(var Major, Minor: Word): Boolean;
-function snGetGlobalMsg: Integer;
-function snRegisterConfig(AHandle: HWND; AAppName: String; AReplyMsg: Integer): Integer;
 function snRevokeConfig(AHandle: HWND): Integer;
+*)
+
+function snDoRequest(Request: String): Integer;
+function snBroadcastMsg(): Integer;
+function snAppMsg(): Integer;
+
+function snarl_register(Signature: String; Name: String; Icon: String; Password: String = ''; ReplyTo: Integer = 0; ReplyWidth: Integer = 0): Integer;
+function snarl_unregister(Signature: String; Password: String = ''): Integer;
+function snarl_version(): Integer;
 
 implementation
 
 (*
- * Private utility functions:
- * 	_Send(TSnarlStruct) 
- *			Used by most public helper functions to send the WM_COPYDATA message.
- *		_Clear(TSnarlStruct) 
- *			Clears all data in the structure
+ * snDoRequest() -- Primary V42 access function
+ *
+ * Locates the Snarl message handling window and sends <Request> to it.
+ *
  *)
-function _Send(pss: TSnarlStruct): Integer;
+function snDoRequest(Request: String): Integer;
 var
   hwnd: THandle;
-  pcd: TCopyDataStruct;
+  pcd:  TCopyDataStruct;
+
 begin
-  { WIll get a window class when snarl is released } 
-  hwnd := FindWindow(nil, 'Snarl');
+  hwnd := FindWindow('w>Snarl', 'Snarl');
+
+  //ShowMessage(IntToStr(hwnd));
+
   if not IsWindow(hwnd) then
-    Result := 0
+    Result := -201                      // fix: should be constant
+
   else
-  begin
-    pcd.dwData := 2;
-    pcd.cbData := Sizeof(pss);
-    pcd.lpData := @pss;
-    Result := Integer(SendMessage(hwnd, WM_COPYDATA, 0, Integer(@pcd)));
+    begin
+      pcd.dwData := $534E4C03;            // "SNL",3
+      pcd.cbData := StrLen(PChar(Request));
+      pcd.lpData := PChar(Request);
+      Result := Integer(SendMessage(hwnd, WM_COPYDATA, GetCurrentProcessId(), Integer(@pcd)));
   end;
+
 end;
 
-procedure _Clear(var pss: TSnarlStruct);
+
+(*
+ * snBroadcastMsg() -- Returns global broadcast message identifier
+ *
+ *)
+function snBroadcastMsg(): Integer;
 begin
-  FillChar(pss, Sizeof(pss), 0);
+  Result := RegisterWindowMessage(SNARL_GLOBAL_MSG);
 end;
+
+
+(*
+ * snAppMsg() -- Returns app broadcast message identifier
+ *
+ *)
+function snAppMsg(): Integer;
+begin
+  Result := RegisterWindowMessage(SNARLAPP_MSG);
+end;
+
+
 
 (************************************************************
- * The Helper Functions
+ * Helper Functions
  ************************************************************)
- 
-function snShowMessage(ATitle, AText: String; ATimeout: Integer = 0;
-  AIconPath: String = ''; AhwndReply: Integer = 0; AReplyMsg: Integer = 0): Integer;
-var
-  pss: TSnarlStruct;
+
+(**
+Public Function snarl_register(ByVal Signature As String, ByVal Name As String, ByVal Icon As String, Optional ByVal Password As String, Optional ByVal ReplyTo As Long, Optional ByVal Reply As Long, Optional ByVal Flags As SNARLAPP_FLAGS) As Long
+
+    snarl_register = snDoRequest("register?app-sig=" & Signature & "&title=" & Name & "&icon=" & Icon & _
+                                 IIf(Password <> "", "&password=" & Password, "") & _
+                                 IIf(ReplyTo <> 0, "&reply-to=" & CStr(ReplyTo), "") & _
+                                 IIf(Reply <> 0, "&reply=" & CStr(Reply), "") & _
+                                 IIf(Flags <> 0, "&flags=" & CStr(Flags), ""))
+
+End Function
+**)
+
+
+(*
+ * snarl_register() -- Register an application with Snarl
+ *
+ * .
+ *
+ *)
+function snarl_register(Signature: String; Name: String; Icon: String; Password: String = ''; ReplyTo: Integer = 0; ReplyWidth: Integer = 0): Integer;
+
 begin
-  _Clear(pss);
-  pss.Cmd := SNARL_SHOW;
-  CopyMemory(@pss.Title, PChar(ATitle), 1023);
-  CopyMemory(@pss.Text, PChar(AText), 1023);
-  CopyMemory(@pss.Icon, PChar(AIconPath), 1023);
-  pss.Timeout := ATimeout;
-  { R0.3 }
-  pss.LngData2 := AhwndReply;
-  pss.Id := AReplyMsg;
-  Result := _Send(pss);
+
+  Result := Integer(snDoRequest('register?app-sig=' + Signature + '&title=' + Name + '&icon=' + Icon));
+
 end;
 
-function snUpdateMessage(AId: Integer; ATitle, AText: String): Boolean;
-var
-  pss: TSnarlStruct;
+
+
+(*
+ * snarl_unregister() -- Unregister an application with Snarl
+ *
+ * .
+ *
+ *)
+function snarl_unregister(Signature: String; Password: String = ''): Integer;
+
 begin
-  _Clear(pss);
-  pss.Id := AId;
-  pss.Cmd := SNARL_UPDATE;
-  CopyMemory(@pss.Title, PChar(ATitle), 1023);
-  CopyMemory(@pss.Text, PChar(AText), 1023);
-  Result := Boolean(_Send(pss));
+
+  Result := Integer(snDoRequest('unregister?app-sig=' + Signature + '&password=' + Password));
+
 end;
 
-function snHideMessage(AId: Integer): Boolean;
-var
-  pss: TSnarlStruct;
+
+
+(*
+ * snarl_version() -- Returns running Snarl system version number
+ *
+ * .
+ *
+ *)
+function snarl_version(): Integer;
+
 begin
-  _Clear(pss);
-  pss.Id := AId;
-  pss.Cmd := SNARL_HIDE;
-  Result := Boolean(_Send(pss));
+
+  Result := Integer(snDoRequest('version'));
+
 end;
 
-function snIsMessageVisible(AId: Integer): Boolean;
-var
-  pss: TSnarlStruct;
-begin
-  _Clear(pss);
-  pss.Id := AId;
-  pss.Cmd := SNARL_IS_VISIBLE;
-  Result := Boolean(_Send(pss));
-end;
 
+
+(*
 function snGetVersion(var Major, Minor: Word): Boolean;
 var
   pss: TSnarlStruct;
@@ -156,7 +169,7 @@ var
 begin
   _Clear(pss);
   pss.Cmd := SNARL_GET_VERSION;
-  hr := Integer(_Send(pss));
+  //hr := Integer(_Send(pss));
   Result := hr <> 0;
   if Result then
   begin
@@ -164,33 +177,7 @@ begin
     Minor := LoWord(hr);
   end;
 end;
-
-function snGetGlobalMsg(): Integer;
-begin
-	Result := RegisterWindowMessage(SNARL_GLOBAL_MSG);
-end;
-
-function snRegisterConfig(AHandle: HWND; AAppName: String; AReplyMsg: Integer): Integer;
-var
-	pss: TSnarlStruct;
-begin
-	_Clear(pss);
-	pss.Cmd := SNARL_REGISTER_CONFIG_WINDOW;
-	pss.LngData2 := AHandle;
-	pss.Id := AReplyMsg;
-	CopyMemory(@pss.Title, PChar(AAppName), 1023);
-	Result := _Send(pss);
-end;
-
-function snRevokeConfig(AHandle: HWND): Integer;
-var
-	pss: TSnarlStruct;
-begin
-	_Clear(pss);
-	pss.Cmd := SNARL_REVOKE_CONFIG_WINDOW;
-	pss.LngData2 := AHandle;
-	Result := _Send(pss);
-end;
+*)
 
 
 end.
