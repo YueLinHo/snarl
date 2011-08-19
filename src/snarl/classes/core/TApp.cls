@@ -1073,3 +1073,15 @@ Public Function IsLocal() As Boolean
         IsLocal = Not Me.IsRemote
 
 End Function
+
+Public Function RemoteHostName() As String
+
+    RemoteHostName = mInfo.RemoteHostName
+
+End Function
+
+Friend Sub PrivateGetInfo(ByRef Info As T_SNARL_APP)
+
+    LSet Info = mInfo
+
+End Sub

@@ -274,13 +274,24 @@ Dim sz As String
 
     End If
 
+    ' /* R2.4.2 DR3: check RemoteHostName is not actually one of our locally-assigned addresses */
+
+    If RemoteHostName <> "" Then
+        g_Debug "RemoteHostName='" & RemoteHostName & "'"
+        If InStr(get_ip_address_table(), RemoteHostName) <> 0 Then _
+            RemoteHostName = ""
+
+        g_Debug "FilteredRemoteHostName='" & RemoteHostName & "'"
+
+    End If
+
 Dim i As Long
 
     ' /* check for duplicate and return existing token */
 
     If mCount Then
         For i = 1 To mCount
-            If mApp(i).Signature = sz Then
+            If (mApp(i).Signature = sz) And (mApp(i).RemoteHostName = RemoteHostName) Then
                 ' /* R2.4 DR7: check same password provided */
                 If (mApp(i).Password <> "") And (mApp(i).Password <> Data.ValueOf("password")) Then
                     g_Debug "'" & sz & "' already registered: password mismatch", LEMON_LEVEL_CRITICAL Or LEMON_LEVEL_PROC_EXIT
@@ -309,17 +320,8 @@ Dim pInfo As T_SNARL_APP
         .Name = szTitle
         .Icon = Data.ValueOf("icon")
         .Signature = sz
-        .Pid = SenderPID            ' // R2.4.2: added
-
-        ' /* R2.4.2 DR3: only if RemoteHostName is not actually one of our assigned addresses */
-
-        If RemoteHostName <> "" Then
-            If InStr(get_ip_address_table(), RemoteHostName) = 0 Then _
-                .RemoteHostName = RemoteHostName
-
-            g_Debug "RemoteHostName='" & RemoteHostName & "' FilteredRemoteHostName='" & .RemoteHostName & "'"
-
-        End If
+        .Pid = SenderPID                        ' // R2.4.2: added
+        .RemoteHostName = RemoteHostName        ' // R2.4.2 DR3
 
         If (.Icon = "") And (Data.Exists("icon-base64")) Then
             ' /* R2.4 Beta 4 - support for Base64-encoded icons */
@@ -1354,6 +1356,26 @@ Static i As Long
     Next i
 
     g_Debug "TApplicationRoster.PrivateFindBySignature(): " & Signature & " not found", LEMON_LEVEL_CRITICAL
+
+End Function
+
+Public Function PrivateFindByToken(ByVal Token As Long, ByRef App As TApp) As Boolean
+
+    If (Token = 0) Or (mCount = 0) Then _
+        Exit Function
+    
+Static i As Long
+
+    For i = 1 To mCount
+        If mApp(i).Token = Token Then
+            Set App = mApp(i)
+            PrivateFindByToken = True
+            Exit Function
+
+        End If
+    Next i
+
+    g_Debug "TApplicationRoster.PrivateFindByToken(): " & CStr(Token) & " not found", LEMON_LEVEL_CRITICAL
 
 End Function
 

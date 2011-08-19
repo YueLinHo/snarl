@@ -206,7 +206,7 @@ Dim i As Long
         .Rewind
         Do While .GetNextTag(ps) = B_OK
             i = i + 1
-            If ps.SubscriptionType = SN_ST_SNP3 Then
+            If ps.SubscriptionType = SN_ST_SNP3_SUBSCRIBER Then
                 sz = g_MakePath(App.Path) & "etc\icons\snarl.png"
 
             ElseIf ps.SubscriptionType = SN_ST_GNTP Then

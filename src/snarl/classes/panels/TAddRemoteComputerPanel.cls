@@ -23,8 +23,7 @@ Dim WithEvents theSocket As CSocket
 Attribute theSocket.VB_VarHelpID = -1
 Dim WithEvents theTimer As BTimer
 Attribute theTimer.VB_VarHelpID = -1
-Dim WithEvents theAppPicker As TAppPickerPanel
-Attribute theAppPicker.VB_VarHelpID = -1
+'Dim WithEvents theAppPicker As TAppPickerPanel
 
 Implements KPrefsPanel
 Implements KPrefsPage
@@ -39,8 +38,8 @@ Private Sub KPrefsPage_ControlChanged(Control As prefs_kit_d2.BControl, ByVal Va
 
     Select Case Control.GetName()
     Case "host"
-        Debug.Print Value
         prefskit_SafeEnable mPanel, "test_button", (Value <> "")
+        prefskit_SafeEnable mPanel, "save_button", (Value <> "")
 
     End Select
 
@@ -48,6 +47,8 @@ End Sub
 
 Private Sub KPrefsPage_ControlInvoked(Control As prefs_kit_d2.BControl)
 Dim pc As BControl
+Dim sz As String
+Dim ps As TSubscriber
 
     Select Case Control.GetName()
     Case "test_button"
@@ -65,9 +66,24 @@ Dim pc As BControl
             End If
         End If
 
-    Case "pick_apps"
-        Set theAppPicker = New TAppPickerPanel
-        theAppPicker.Go mPanel.hWnd, mType, ""
+'    Case "pick_apps"
+'        Set theAppPicker = New TAppPickerPanel
+'        theAppPicker.Go mPanel.hWnd, mType, ""
+
+    Case "save_button"
+        sz = prefskit_SafeGetText(mPanel, "host")
+        If sz = "" Then _
+            Exit Sub
+
+        If (LCase$(sz) = "localhost") Or (LCase$(sz) = LCase$(g_GetComputerName)) Or (InStr(get_ip_address_table(), sz) <> 0) Then
+            MsgBox "Cannot forward notifications to local computer.", vbExclamation Or vbOKOnly, App.Title
+
+        Else
+            Set ps = New TSubscriber
+            g_SubsRoster.Add SN_ST_SNP3_FORWARDER, Nothing, Nothing
+            mPanel.Quit
+
+        End If
 
     End Select
 
@@ -163,8 +179,8 @@ Dim pp As BPrefsPage
             .Add new_BPrefsControl("label", "", "Enter the host name or IP address of the computer you wish to " & sza)
             .Add new_BPrefsControl("fancybutton2", "test_button", "Check", , , , False)
 
-            .Add new_BPrefsBanner("", "Applications", "")
-            .Add new_BPrefsControl("fancybutton2", "pick_apps", "Select Applications...")
+'            .Add new_BPrefsBanner("", "Applications", "")
+'            .Add new_BPrefsControl("fancybutton2", "pick_apps", "Select Applications...")
 
 '            .Add new_BPrefsControl("fancyedit", "apps", , "")
 '            If PanelType = "frwd" Then
@@ -176,7 +192,7 @@ Dim pp As BPrefsPage
 '            End If
 
             .Add new_BPrefsSeparator
-            .Add new_BPrefsControl("fancybutton2", "save_button", "Save")
+            .Add new_BPrefsControl("fancybutton2", "save_button", "Save", , , , False)
 
 '            .Add new_BPrefsControl("ipaddr", "ia>addr", , "IP Address:")
 
@@ -210,12 +226,12 @@ Dim pp As BPrefsPage
 
 End Sub
 
-Private Sub theAppPicker_Closed(ByVal Selection As String)
-
-    MsgBox "Selected: " & Selection
-    Set theAppPicker = Nothing
-
-End Sub
+'Private Sub theAppPicker_Closed(ByVal Selection As String)
+'
+'    MsgBox "Selected: " & Selection
+'    Set theAppPicker = Nothing
+'
+'End Sub
 
 Private Sub theSocket_OnConnect()
 

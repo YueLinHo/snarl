@@ -159,7 +159,27 @@ Private Property Get MVersionInfo_Version() As Long
 
 End Property
 
-Public Function Add(ByRef Socket As CSocket, ByVal SubscriberType As SN_SUBSCRIBER_TYPE, ByRef Data As BPackedData) As Boolean
+Public Function Add(ByVal SubscriberType As SN_SUBSCRIBER_TYPE, ByRef Socket As CSocket, ByRef Data As BPackedData) As Boolean
+
+    Select Case SubscriberType
+    Case SN_ST_SNP3_FORWARDER
+        Add = uAddNewForwarder(SubscriberType, Data)
+
+    Case SN_ST_SNP3_SUBSCRIBER
+        Add = uAddNewSubscriber(SubscriberType, Socket, Data)
+
+    End Select
+
+End Function
+
+Private Function uAddNewForwarder(ByVal SubscriberType As SN_SUBSCRIBER_TYPE, ByRef Data As BPackedData) As Boolean
+
+    If (Data Is Nothing) Then _
+        Exit Function
+
+End Function
+
+Private Function uAddNewSubscriber(ByVal SubscriberType As SN_SUBSCRIBER_TYPE, ByRef Socket As CSocket, ByRef Data As BPackedData) As Boolean
 
     If (Socket Is Nothing) Or (Data Is Nothing) Then _
         Exit Function
@@ -168,20 +188,20 @@ Dim ps As TSubscriber
 
     If mSubscribers.Find(Socket.RemoteHostIP & ":" & CStr(Socket.RemotePort), ps) Then
         ' /* already subscribed */
-        g_Debug "TSubscriberRoster.Add(): '" & Socket.RemoteHostIP & ":" & CStr(Socket.RemotePort) & "' is already subscribed", LEMON_LEVEL_INFO
+        g_Debug "TSubscriberRoster.uAddNewSubscriber(): '" & Socket.RemoteHostIP & ":" & CStr(Socket.RemotePort) & "' is already subscribed", LEMON_LEVEL_INFO
 
         ' /* check password */
         If ps.Password <> Data.ValueOf("password") Then
-            g_Debug "TSubscriberRoster.Add(): password mismatch", LEMON_LEVEL_CRITICAL
+            g_Debug "TSubscriberRoster.uAddNewSubscriber(): password mismatch", LEMON_LEVEL_CRITICAL
             gSetLastError SNARL_ERROR_AUTH_FAILURE
 
         ElseIf Data.Exists("app-sig") Then
             ' /* add specific apps */
-            Add = ps.AddApps(Data)
+            uAddNewSubscriber = ps.AddApps(Data)
 
         Else
             ' /* cannot do this if already subscribed */
-            g_Debug "TSubscriberRoster.Add(): cannot do wildcard subscribe", LEMON_LEVEL_CRITICAL
+            g_Debug "TSubscriberRoster.uAddNewSubscriber(): cannot do wildcard subscribe", LEMON_LEVEL_CRITICAL
             gSetLastError SNARL_ERROR_FAILED
 
         End If
@@ -191,7 +211,7 @@ Dim ps As TSubscriber
         Set ps = New TSubscriber
         ps.SetTo Socket, SubscriberType, Data
         mSubscribers.Add ps
-        Add = True
+        uAddNewSubscriber = True
 
     End If
 

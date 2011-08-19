@@ -2757,7 +2757,7 @@ Dim pApp As TApp
 
         Else
             g_Debug "g_DoAction(): <subscribe> from " & ReplySocket.RemoteHostIP & ":" & ReplySocket.RemotePort
-            If g_SubsRoster.Add(ReplySocket, SN_ST_SNP3, Args) Then
+            If g_SubsRoster.Add(SN_ST_SNP3_SUBSCRIBER, ReplySocket, Args) Then
                 g_PrivateNotify "", "Subscriber added", ReplySocket.RemoteHostIP & " subscribed", , ".sub-add"
                 frmAbout.SubscribersChanged
                 g_DoAction = -1
@@ -2777,7 +2777,7 @@ Dim pApp As TApp
 
         Else
             g_Debug "g_DoAction(): <unsubscribe> from " & ReplySocket.RemoteHostIP & ":" & ReplySocket.RemotePort
-            If g_SubsRoster.Remove(ReplySocket, SN_ST_SNP3, Args) Then
+            If g_SubsRoster.Remove(ReplySocket, SN_ST_SNP3_SUBSCRIBER, Args) Then
                 frmAbout.SubscribersChanged
                 g_DoAction = -1
 
