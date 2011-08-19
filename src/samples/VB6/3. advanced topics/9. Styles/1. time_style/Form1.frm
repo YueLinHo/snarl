@@ -21,37 +21,46 @@ Begin VB.Form Form1
    ScaleHeight     =   2535
    ScaleWidth      =   4680
    StartUpPosition =   3  'Windows Default
-   Begin VB.CommandButton Command2 
-      Caption         =   "Go"
-      Default         =   -1  'True
+   Begin VB.TextBox Text2 
       Height          =   315
-      Left            =   3780
-      TabIndex        =   5
-      Top             =   1500
-      Width           =   855
+      Left            =   780
+      TabIndex        =   4
+      Top             =   1980
+      Width           =   2895
    End
    Begin VB.CommandButton Command1 
       Caption         =   "Go"
-      Height          =   315
-      Left            =   2880
+      Default         =   -1  'True
+      Height          =   795
+      Left            =   3780
       TabIndex        =   3
       Top             =   1500
       Width           =   855
    End
    Begin VB.TextBox Text1 
       Height          =   315
-      Left            =   60
+      Left            =   780
       TabIndex        =   2
       Top             =   1500
-      Width           =   2775
+      Width           =   2895
    End
    Begin VB.Label Label3 
-      Caption         =   "Make sure the Meter/Clock style is selected in Snarl for this application before clicking ""Go""."
-      Height          =   435
-      Left            =   60
-      TabIndex        =   4
-      Top             =   1980
-      Width           =   4575
+      Caption         =   "Style:"
+      Height          =   255
+      Index           =   1
+      Left            =   120
+      TabIndex        =   6
+      Top             =   2040
+      Width           =   615
+   End
+   Begin VB.Label Label3 
+      Caption         =   "Text:"
+      Height          =   255
+      Index           =   0
+      Left            =   120
+      TabIndex        =   5
+      Top             =   1560
+      Width           =   615
    End
    Begin VB.Label Label2 
       Caption         =   $"Form1.frx":0000
@@ -77,36 +86,32 @@ Attribute VB_PredeclaredId = True
 Attribute VB_Exposed = False
 Option Explicit
 
-Dim mToken As Long
-
 Private Sub Command1_Click()
+Dim hr As Long
 
-    sn41EZNotify mToken, "", Me.Caption, Text1.Text
-
-End Sub
-
-Private Sub Command2_Click()
-
-    sn41EZNotify mToken, "", "", Text1.Text
-
-End Sub
-
-Private Sub Form_Load()
-
-    mToken = sn41RegisterApp(App.FileDescription, Me.Caption, "")
-    If mToken = 0 Then
-        MsgBox "Unable to register with Snarl.  Ensure Snarl is running and then re-run this application.", vbCritical Or vbOKOnly, Me.Caption
-        Unload Me
+    hr = snarl_register(App.ProductName, App.Title, App.Path & "\icon.png")
+    If hr < 0 Then
+        MsgBox "Error registering with Snarl (" & CStr(Abs(hr)) & ")", vbExclamation Or vbOKOnly, App.Title
 
     Else
-        Text1.Text = Format$(Now(), "yyyymmddhhnnss")
+        snDoRequest "notify?app-sig=" & App.ProductName & _
+                    "&title=Lorem Ipsum" & _
+                    "&text=" & Text1.Text & _
+                    "&style=" & Text2.Text
 
     End If
 
 End Sub
 
+Private Sub Form_Load()
+
+    Text1.Text = Format$(Now(), "yyyymmddhhnnss")
+    Text2.Text = "Clock/Analog"
+
+End Sub
+
 Private Sub Form_Unload(Cancel As Integer)
 
-    sn41UnregisterApp mToken
+    snarl_unregister App.ProductName
 
 End Sub

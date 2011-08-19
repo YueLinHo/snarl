@@ -23,26 +23,27 @@ Begin VB.Form Form1
    ScaleWidth      =   4530
    StartUpPosition =   3  'Windows Default
    Begin VB.CommandButton Command2 
-      Caption         =   "Icon"
-      Height          =   495
+      Caption         =   "Pick Icon"
+      Height          =   735
       Left            =   3720
       TabIndex        =   8
-      Top             =   2400
+      Top             =   2160
       Width           =   735
    End
    Begin VB.CommandButton Command1 
-      Caption         =   "Image"
-      Height          =   495
+      Caption         =   "Pick Image"
+      Height          =   735
       Left            =   2940
       TabIndex        =   7
-      Top             =   2400
+      Top             =   2160
       Width           =   735
    End
    Begin VB.TextBox Text3 
-      Height          =   315
+      Height          =   615
       Left            =   60
+      MultiLine       =   -1  'True
       TabIndex        =   5
-      Top             =   2460
+      Top             =   2280
       Width           =   2775
    End
    Begin VB.TextBox Text2 
@@ -51,7 +52,7 @@ Begin VB.Form Form1
       MultiLine       =   -1  'True
       TabIndex        =   3
       Text            =   "Form1.frx":628A
-      Top             =   1080
+      Top             =   960
       Width           =   4395
    End
    Begin VB.TextBox Text1 
@@ -59,7 +60,7 @@ Begin VB.Form Form1
       Left            =   60
       TabIndex        =   1
       Text            =   "Notification Title"
-      Top             =   360
+      Top             =   300
       Width           =   4395
    End
    Begin VB.CommandButton Command4 
@@ -72,19 +73,19 @@ Begin VB.Form Form1
       Width           =   1455
    End
    Begin VB.Label Label3 
-      Caption         =   "Icon"
+      Caption         =   "Icon (leave blank to use Form icon)"
       Height          =   195
       Left            =   60
       TabIndex        =   6
-      Top             =   2160
-      Width           =   1155
+      Top             =   2040
+      Width           =   2775
    End
    Begin VB.Label Label2 
       Caption         =   "Text"
       Height          =   195
       Left            =   60
       TabIndex        =   4
-      Top             =   780
+      Top             =   720
       Width           =   1155
    End
    Begin VB.Label Label1 
@@ -104,6 +105,8 @@ Attribute VB_Exposed = False
 Option Explicit
 
 Private Declare Function SHChangeIconDialog Lib "shell32" Alias "#62" (ByVal hOwner As Long, ByVal szFilename As String, ByVal Reserved As Long, lpIconIndex As Long) As Long
+'Private Declare Function GetSystemDirectory Lib "kernel32" Alias "GetSystemDirectoryA" (ByVal lpBuffer As String, ByVal nSize As Long) As Long
+Private Declare Function GetWindowsDirectory Lib "kernel32" Alias "GetWindowsDirectoryA" (ByVal lpBuffer As String, ByVal nSize As Long) As Long
 
 Dim mAppToken As Long
 
@@ -131,60 +134,52 @@ Dim dw As Long
     If SHChangeIconDialog(Me.hWnd, sz, 260, dw) <> 0 Then _
         Text3.Text = g_TrimStr(StrConv(sz, vbFromUnicode)) & ",-" & CStr(dw + 1)
 
+    Text3.Text = Replace$(LCase$(Text3.Text), "%systemroot%", uSysDir())
+
 End Sub
 
 Private Sub Command4_Click()
 Dim sz As String
+Dim hr As Long
 
-    If Text3.Text = "" Then
-        sz = "%" & Me.Icon.Handle
+    hr = snarl_register(App.ProductName, App.Title, App.Path & "\icon.png")
+    If hr < 0 Then
+        MsgBox "Error registering with Snarl (" & CStr(Abs(hr)) & ")", vbExclamation Or vbOKOnly, App.Title
 
     Else
-        sz = Text3.Text
+        If Text3.Text = "" Then
+            sz = "%" & Me.Icon.Handle
+
+        Else
+            sz = Text3.Text
+
+        End If
+
+        snarl_ez_notify App.ProductName, "", Text1.Text, Text2.Text, sz
 
     End If
-
-    If mAppToken Then _
-        sn41EZNotify mAppToken, "", Text1.Text, Text2.Text, , sz
 
 End Sub
 
 Private Sub Form_Load()
-Dim hr As Long
 
-    If Not sn41IsSnarlRunning() Then
-        MsgBox "Snarl isn't running - launch Snarl, then run this demo.", vbExclamation Or vbOKOnly, App.Title
-        Unload Me
-
-    Else
-        
-        Text3.Text = App.Path & "\iexpress.exe,2"
-        
-        hr = sn41RegisterApp(App.ProductName, App.Title, App.Path & "\icon.png")
-        If hr = 0 Then
-            Me.Caption = "Error registering with Snarl: " & sn41GetLastError()
-
-        Else
-            Me.Caption = "Registered with Snarl V" & CStr(sn41GetVersion()) & " (" & Hex$(hr) & ")"
-            mAppToken = hr
-
-        End If
-
-    End If
+    Me.Caption = App.Title
 
 End Sub
 
 Private Sub Form_Unload(Cancel As Integer)
-Dim hr As Long
 
-    hr = sn41UnregisterApp(mAppToken)
-    If hr = 0 Then
-        Debug.Print "FAILED: " & sn41GetLastError()
-
-    Else
-        Debug.Print "OK: " & hr
-
-    End If
+    Debug.Print snarl_unregister(App.ProductName)
 
 End Sub
 
+Private Function uSysDir() As String
+Dim sz As String
+Dim i As Long
+
+    sz = String$(1024, 0)
+    i = GetWindowsDirectory(sz, Len(sz))
+    If i > 0 Then _
+        uSysDir = Left$(sz, i)
+
+End Function
