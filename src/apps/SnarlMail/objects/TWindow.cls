@@ -224,14 +224,21 @@ Dim n As Long
     Case WM_TEST
         If Not (myOutlook Is Nothing) Then
             Form1.Add "TEST: " & wParam
+            Screen.MousePointer = vbArrowHourglass
+
             Select Case wParam
             Case 0
                 uNotify myOutlook.GetNamespace("MAPI").GetDefaultFolder(olFolderInbox).Items.GetFirst()
 
             Case 1
-                uNotify uFirstMeetingReq
+                uNotify uFirstMeetingReq()
+
+            Case 2
+                uListInbox
 
             End Select
+    
+            Screen.MousePointer = vbArrow
     
         Else
             Form1.Add "not got Outlook"
@@ -355,14 +362,19 @@ Private Sub myOutlook_Quit()
 End Sub
 
 Private Function uGetContactIcon(ByVal EmailAddress As String, ByRef Path As String, ByRef FriendlyName As String) As Boolean
+Dim szPath As String
 
-    Path = g_GetTempPath(True) & g_MakeFilename2(EmailAddress) & ".png"
-    DeleteFile Path
+    g_Debug "uGetContactIcon(): " & EmailAddress
+
+    szPath = g_GetTempPath(True) & g_MakeFilename2(EmailAddress) & ".png"
+    DeleteFile szPath
 
 Dim pOutlook As Outlook.Application
 
     If Not uGetOutlook(pOutlook) Then _
         Exit Function
+
+    g_Debug "uGetContactIcon(): accquired Outlook..."
 
 Dim pContact As ContactItem
 
@@ -388,7 +400,8 @@ Dim i As Long
     With pContact.Attachments
         For i = 1 To .Count
             If LCase$(.Item(i).DisplayName) = "contactpicture.jpg" Then
-                .Item(i).SaveAsFile Path
+                .Item(i).SaveAsFile szPath
+                Path = szPath
                 uGetContactIcon = True
                 Exit Function
 
@@ -408,27 +421,37 @@ Private Function uFindContactByEmail(ByVal Email As String, ByRef Contact As Con
         Exit Function
 
     Email = LCase$(Email)
-    g_Debug "uFindContactByEmail(): searching..."
+    g_Debug "uFindContactByEmail(): searching contacts..."
 
 Dim pContact As ContactItem
+Dim pObj As Object
 Dim i As Long
 
     With mContacts
-        Set pContact = .GetFirst()
-        Do While Not (pContact Is Nothing)
-            If (LCase$(pContact.Email1Address) = Email) Or (LCase$(pContact.Email2Address) = Email) Or (LCase$(pContact.Email3Address) = Email) Then
-                g_Debug "uFindContactByEmail(): found contact '" & pContact.FullName & "'"
-                Set Contact = pContact
-                uFindContactByEmail = True
-                Exit Function
+        Set pObj = .GetFirst()
+        Do While Not (pObj Is Nothing)
+            If TypeOf pObj Is ContactItem Then
+                Set pContact = pObj
+                If (LCase$(pContact.Email1Address) = Email) Or (LCase$(pContact.Email2Address) = Email) Or (LCase$(pContact.Email3Address) = Email) Then
+                    g_Debug "uFindContactByEmail(): found contact '" & pContact.FullName & "'"
+                    Set Contact = pContact
+                    uFindContactByEmail = True
+                    Exit Function
+    
+                End If
+    
+            Else
+                g_Debug "uFindContactByEmail(): " & TypeName(pObj)
 
             End If
 
-            Set pContact = .GetNext()
+            Set pObj = .GetNext()
 
         Loop
 
     End With
+
+    g_Debug "uFindContactByEmail(): not found"
 
 End Function
 
@@ -559,7 +582,7 @@ Private Function uGetOutlook(ByRef pOutlook As Outlook.Application) As Boolean
     err.Clear
     Set pOutlook = GetObject(, "outlook.application")
     If err.Number <> 0 Then
-        g_Debug "TWindow.uGetOutlook(): " & err.Description, LEMON_LEVEL_CRITICAL
+        Debug.Print "TWindow.uGetOutlook(): " & err.Description, LEMON_LEVEL_CRITICAL
 
     Else
         uGetOutlook = True
@@ -582,25 +605,27 @@ Private Function uNotify(ByRef Item As Object) As Boolean
     If (Item Is Nothing) Then _
         Exit Function
 
+    g_Debug "uNotify(): TypeOf()=" & TypeName(Item)
+
     ' /* register */
 
     If Not uRegister() Then _
         Exit Function
 
+    g_Debug "uNotify(): was registered ok"
+
     ' /* determine item type */
 
-    Debug.Print "item type: " & TypeName(Item)
-
     If TypeOf Item Is MailItem Then
-        Form1.Add "Mail item"
+        Form1.Add "uNotify(): Is MailItem"
         uNotifyMail Item
 
     ElseIf TypeOf Item Is MeetingItem Then
-        Form1.Add "Meeting item"
+        Form1.Add "uNotify(): Is MeetingItem"
         uNotifyMeeting Item
 
     Else
-        Form1.Add "Unhandled '" & TypeName(Item) & "'"
+        Form1.Add "uNotify(): not supported"
         g_Debug "uNotify(): item type '" & TypeName(Item) & "' not supported", LEMON_LEVEL_CRITICAL
 
     End If
@@ -608,8 +633,10 @@ Private Function uNotify(ByRef Item As Object) As Boolean
 End Function
 
 Private Function uNotifyMail(ByRef Mail As MailItem) As Boolean
-Dim szClass As String
 Dim bShowBody As Boolean
+Dim szClass As String
+
+    Form1.Add "uNotifyMail(): subject='" & Mail.Subject & "' sen=" & CStr(Mail.Sensitivity) & " pri=" & CStr(Mail.Importance)
 
     Select Case Mail.Sensitivity
     Case olPersonal
@@ -636,11 +663,9 @@ Dim szBody As String
         ' /* do some tidying up */
         szBody = Replace$(szBody, vbCrLf & vbCrLf & Chr$(&HA0) & vbCrLf & vbCrLf, " ")
         szBody = Replace$(szBody, vbCrLf & vbCrLf, " ")
- '       szBody = vbCrLf & vbCrLf & szBody
     
     End If
 
-'Dim szSMTP As String
 Dim szIcon As String
 Dim szFrom As String
 
@@ -650,12 +675,32 @@ Dim szFrom As String
 
     ' /* get the sender's contact picture */
 
-    If mConfig.ValueOf("use_contact_icon") = "1" Then
-'        szSMTP = uGetSMTPAddress(Mail)
-        If Not uGetContactIcon(uGetSMTPAddress(Mail), szIcon, szFrom) Then _
+    If mConfig.ValueOf("use_contact_icon") = "1" Then _
+        uGetContactIcon uGetSMTPAddress(Mail), szIcon, szFrom
+
+    ' /* set content based on message class */
+
+    Select Case Mail.MessageClass
+    Case "IPM.Note"
+        If szIcon = "" Then _
             szIcon = "!message-new_mail"
 
-    End If
+    Case "IPM.Note.Rules.OofTemplate.Microsoft"
+        If szIcon = "" Then _
+            szIcon = "!message-reply-ooo"
+
+    Case "IPM.Outlook.Recall"
+        If szIcon = "" Then _
+            szIcon = "!message-recall"
+
+    Case Else
+        Form1.Add "uNotifyMail(): spurious message class '" & Mail.MessageClass & "'"
+        If szIcon = "" Then _
+            szIcon = "!message-new_mail"
+
+    End Select
+
+    Form1.Add "uNotifyMail(): uuid=" & Mail.EntryID
 
 Dim hr As Long
 
@@ -696,86 +741,95 @@ Dim szClass As String
 
     End Select
 
-Dim szBody As String
-
-    ' /* get body summary */
-
-    If (bShowBody) And (mConfig.ValueOf("show_body") = "1") Then
-        szBody = g_SafeLeftStr(Meeting.GetAssociatedAppointment(False).Body, 128, True)
-        ' /* do some tidying up */
-        szBody = Replace$(szBody, vbCrLf & vbCrLf & Chr$(&HA0) & vbCrLf & vbCrLf, " ")
-        szBody = Replace$(szBody, vbCrLf & vbCrLf, " ")
-        szBody = vbCrLf & vbCrLf & szBody
-
-    End If
-
 Dim pAppt As AppointmentItem
+Dim szTitle As String
 Dim szText As String
+Dim szActions As String
 
-    Set pAppt = Meeting.GetAssociatedAppointment(False)
+    Set pAppt = Meeting.GetAssociatedAppointment(True)
 
-    ' /* location */
+    If (pAppt Is Nothing) Then
+        ' /* no associated appointment so probably an accept/decline/tentative */
+        Form1.Add "uNotifyMeeting(): no associated appointment"
+        g_Debug "uNotifyMeeting(): class is '" & Meeting.MessageClass & "'"
 
-    If pAppt.Location <> "" Then _
-        szText = szText & IIf(szText <> "", vbCrLf, "") & pAppt.Location
+        szTitle = Meeting.Subject
+        szText = uTidyup(Meeting.Body)
+        szActions = "Open,@9&action=Reply,@2&action=Reply All,@3&action=Forward,@4"
 
-Dim szTime As String
-Dim dStart As Date
-Dim dEnd As Date
-
-    ' /* time */
-
-    dStart = pAppt.Start
-    dEnd = pAppt.End
-
-    If pAppt.AllDayEvent Then
-        ' /* all day */
-        If DateDiff("h", dStart, dEnd) > 24 Then
-            szTime = vbCrLf & uDate(dStart, True) & "-" & uDate(dEnd, True) & " (all day)"
-
-        Else
-            ' /* same day */
-            szTime = vbCrLf & uDate(dStart, True) & " (all day)"
-
-        End If
+'        szTitle = szFrom & ": " & Meeting.Subject
 
     Else
-        ' /* not all day */
-        If DateDiff("d", dStart, dEnd) = 0 Then
-            ' /* same day */
-            szTime = vbCrLf & uDate(dStart) & "-" & Format$(dEnd, "hh:mm")
+        ' /* get body summary */
 
-        Else
-            szTime = vbCrLf & uDate(dStart) & "-" & Format$(dEnd, "ddd d mmm hh:mm")
+        Form1.Add "uNotifyMeeting(): has associated appointment"
 
-        End If
+        If mConfig.ValueOf("show_body") <> "1" Then _
+            bShowBody = False
+
+        uGetAppointmentInfo Meeting, pAppt, bShowBody, szTitle, szText ', szActions
+
     End If
 
-'Dim szSMTP As String
+    ' /* sender and icon */
+
 Dim szIcon As String
 Dim szFrom As String
 
     szFrom = Meeting.SenderName
 
-    ' /* get the sender's contact picture */
+    If mConfig.ValueOf("use_contact_icon") = "1" Then _
+        uGetContactIcon uGetSMTPAddress(Meeting), szIcon, szFrom        ' // get contact's picture
 
-    If mConfig.ValueOf("use_contact_icon") = "1" Then
-'        szSMTP = uGetSMTPAddress(Meeting)
-        If Not uGetContactIcon(uGetSMTPAddress(Meeting), szIcon, szFrom) Then _
-            szIcon = "!message-new_appt"
+    szTitle = szFrom
 
-    End If
+    szActions = "Open,@9&action=Reply,@2&action=Reply All,@3&action=Forward,@4"
+
+    ' /* set based on message class */
+
+    Select Case Meeting.MessageClass
+    Case "IPM.Schedule.Meeting.Resp.Neg"
+        szTitle = szTitle & " declined"
+        If szIcon = "" Then _
+            szIcon = "!message-appt-decline"
+
+    Case "IPM.Schedule.Meeting.Resp.Pos"
+        szTitle = szTitle & " accepted"
+        If szIcon = "" Then _
+            szIcon = "!message-appt-accept"
+
+    Case "IPM.Schedule.Meeting.Resp.Tent"
+        szTitle = szTitle & " is undecided"
+        If szIcon = "" Then _
+            szIcon = "!message-appt-tentative"
+
+    Case "IPM.Schedule.Meeting.Canceled"
+        If szIcon = "" Then _
+            szIcon = "!message-appt-cancelled"
+
+    Case "IPM.Schedule.Meeting.Request"
+        szActions = "Open,@9&action=Accept,@12&action=Tentative,@13&action=Decline,@14"
+        If szIcon = "" Then _
+            szIcon = "!message-appt-new"
+
+    Case Else
+        g_Debug "uNotifyMeeting(): class is '" & Meeting.MessageClass & "'"
+        szActions = "Open,@9"
+        If szIcon = "" Then _
+            szIcon = "!message-appt-new"
+
+    End Select
 
 Dim hr As Long
 
     hr = snDoRequest("notify?app-sig=" & App.ProductName & _
-                    "&id=" & szClass & _
-                    "&uid=" & Meeting.EntryID & _
-                    "&title=" & szFrom & ": " & Meeting.Subject & " " & pAppt.MeetingStatus & _
-                    "&text=" & szText & szTime & szBody & _
-                    "&icon=" & szIcon & _
-                    "&action=Open,@9&action=Accept,@2&action=Tentative,@3&action=Decline,@4" & _
-                    "&priority=" & CStr(Meeting.Importance - 1))
+                     "&id=" & szClass & _
+                     "&uid=" & Meeting.EntryID & _
+                     "&title=" & szTitle & _
+                     "&text=" & szText & _
+                     "&icon=" & szIcon & _
+                     "&action=" & szActions & _
+                     "&priority=" & CStr(Meeting.Importance - 1))
 
 Dim pm As TItem
 
@@ -791,9 +845,9 @@ Dim pItem As Object
     With myOutlook.GetNamespace("MAPI").GetDefaultFolder(olFolderInbox).Items
         Set pItem = .GetFirst()
         Do While Not (pItem Is Nothing)
-            If TypeName(pItem) = "MeetingItem" Then
-                Debug.Print "Found!"
+            If TypeOf pItem Is MeetingItem Then
                 Set uFirstMeetingReq = pItem
+                g_Debug "uFirstMeetingReq(): found '" & uFirstMeetingReq.Subject & "'"
                 Exit Function
 
             End If
@@ -803,6 +857,8 @@ Dim pItem As Object
         Loop
 
     End With
+
+    Form1.Add "uFirstMeetingReq(): no suitable item found"
 
 End Function
 
@@ -1031,4 +1087,130 @@ End Sub
 '
 'End Sub
 
+Private Sub uListInbox()
 
+    g_Debug "uListInbox()", LEMON_LEVEL_PROC_ENTER
+    
+    If (myOutlook Is Nothing) Then _
+        Exit Sub
+
+Dim pe As MeetingItem
+Dim pm As MailItem
+Dim po As Object
+
+    With myOutlook.GetNamespace("MAPI").GetDefaultFolder(olFolderInbox).Items
+        Set po = .GetFirst()
+        Do While Not (po Is Nothing)
+            If TypeOf po Is MailItem Then
+                Set pm = po
+                If pm.MessageClass <> "IPM.Note" Then _
+                    Debug.Print "Mailitem: " & pm.MessageClass
+
+                ' /* message classes */
+
+                '// "IPM.Note"
+                '// "IPM.Note.Rules.OofTemplate.Microsoft"
+                '// "IPM.Note.Microsoft.Missed.Voice"
+
+            ElseIf TypeOf po Is MeetingItem Then
+                Set pe = po
+                Debug.Print "MeetingItem: " & pe.MessageClass
+
+                ' /* message classes */
+
+                '// "IPM.Schedule.Meeting.Request"
+                '// "IPM.Schedule.Meeting.Resp.Pos"
+
+            Else
+                g_Debug TypeName(po)
+
+            End If
+
+            Set po = .GetNext()
+
+        Loop
+
+    End With
+
+    g_Debug "", LEMON_LEVEL_PROC_EXIT
+
+End Sub
+
+Private Sub uGetAppointmentInfo(ByRef pMeet As MeetingItem, ByRef pAppt As AppointmentItem, ByVal ShowBody As Boolean, ByRef Title As String, ByRef Text As String) ', ByRef Actions As String)
+Dim sz As String
+
+    sz = pAppt.Subject
+    If sz = "" Then _
+        sz = pMeet.Subject
+
+    Form1.Add "uGetAppointmenuInfo(): subject=" & sz & " start=" & pAppt.Start & " end=" & pAppt.End
+
+    ' /* subject */
+
+    If sz <> "" Then _
+        Text = Text & sz & vbCrLf
+
+    ' /* time */
+
+Dim dStart As Date
+Dim dEnd As Date
+
+    dStart = pAppt.Start
+    dEnd = pAppt.End
+
+    If pAppt.AllDayEvent Then
+        ' /* all day */
+        If DateDiff("h", dStart, dEnd) > 24 Then
+            sz = uDate(dStart, True) & "-" & uDate(dEnd, True) & " (all day)"
+
+        Else
+            ' /* same day */
+            sz = uDate(dStart, True) & " (all day)"
+
+        End If
+
+    Else
+        ' /* not all day */
+        If DateDiff("d", dStart, dEnd) = 0 Then
+            ' /* same day */
+            sz = uDate(dStart) & "-" & Format$(dEnd, "hh:mm")
+
+        Else
+            sz = uDate(dStart) & "-" & Format$(dEnd, "ddd d mmm hh:mm")
+
+        End If
+
+    End If
+
+    Text = Text & sz & vbCrLf
+
+    ' /* location */
+
+    If pAppt.Location <> "" Then _
+        Text = Text & pAppt.Location & vbCrLf
+
+    ' /* body */
+
+    If ShowBody Then
+        sz = uTidyup(pAppt.Body)
+        If sz <> "" Then _
+            Text = Text & IIf(Text <> "", "--" & vbCrLf, "") & sz & vbCrLf
+
+    End If
+
+    Text = g_SafeLeftStr(Text, Len(Text) - 2)
+
+'    Actions = "Open,@9&action=Accept,@12&action=Tentative,@13&action=Decline,@14"
+
+End Sub
+
+Private Function uTidyup(ByVal BodyText As String) As String
+
+    uTidyup = g_SafeLeftStr(BodyText, 128, True)
+    uTidyup = Replace$(uTidyup, vbCrLf & vbCrLf & Chr$(&HA0) & vbCrLf & vbCrLf, " ")
+    uTidyup = Replace$(uTidyup, vbCrLf, " ")
+    uTidyup = trim(uTidyup)
+'    uTidyup = Replace$(uTidyup, vbCrLf & vbCrLf, " ")
+'    uTidyup = vbCrLf & vbCrLf & uTidyup
+
+End Function

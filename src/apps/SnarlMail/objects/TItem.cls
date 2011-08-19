@@ -25,7 +25,6 @@ Private Function BTagItem_Name() As String
 End Function
 
 Private Function BTagItem_Value() As String
-
 End Function
 
 Public Sub SetTo(ByRef Item As Object, ByVal Token As Long)
@@ -39,55 +38,59 @@ Public Sub DoAction(ByVal Action As Integer, ByVal MarkAsRead As Boolean)
 Dim pa As AppointmentItem
 Dim pt As MeetingItem
 
-    If TypeOf mObj Is MailItem Then
+    On Error GoTo eh
 
-        Select Case Action
-        Case 1
-            ' /* mark as read */
+    ' /* if it's a MeetingItem, try to get the associated appointment */
 
-        Case 2
-            mObj.Reply.Display
-    
-        Case 3
-            mObj.ReplyAll.Display
-
-        Case 4
-            mObj.Forward.Display
-    
-        Case 9
-            mObj.Display
-
-        End Select
-
-    ElseIf TypeOf mObj Is MeetingItem Then
-
+    If TypeOf mObj Is MeetingItem Then
         Set pt = mObj
         Set pa = pt.GetAssociatedAppointment(False)
 
-        Select Case Action
-        Case 1
-            ' /* mark as read */
-    
-        Case 2
-            pa.Respond(olMeetingAccepted).Display
-
-        Case 3
-            pa.Respond(olMeetingTentative).Display
-    
-        Case 4
-            pa.Respond(olMeetingDeclined).Display
-    
-        Case 9
-            pa.Display
-
-        End Select
-
     End If
+
+    Select Case Action
+
+    Case 1
+        ' /* mark as read */
+
+    Case 2
+        mObj.Reply.Display
+
+    Case 3
+        mObj.ReplyAll.Display
+
+    Case 4
+        mObj.Forward.Display
+
+    Case 9
+        mObj.Display
+
+    Case 12
+        ' /* accept */
+        pa.Respond(olMeetingAccepted).Display
+        mObj.Delete
+
+    Case 13
+        ' /* tentative */
+        pa.Respond(olMeetingTentative).Display
+        mObj.Delete
+
+    Case 14
+        ' /* decline */
+        pa.Respond(olMeetingDeclined).Display
+        mObj.Delete
+
+    End Select
 
     If MarkAsRead Then _
         mObj.UnRead = False
 
     snDoRequest "hide?token=" & mToken
+    Exit Sub
+
+eh:
+    g_Debug "TItem.DoAction(): " & err.Description, LEMON_LEVEL_CRITICAL
+    Resume Next
 
 End Sub
 

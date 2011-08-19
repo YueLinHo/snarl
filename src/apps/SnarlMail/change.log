@@ -11,6 +11,12 @@
 	Revision History
 	----------------
 
+	- Further stability improvements.  (992)
+
+	- Support for additional item classes.  (990)
+
+	- Significantly improved support for different Mail and Meeting items.  (989)
+
 	- "About" notification now uses a UID.  (986)
 
 	- Restored quit button in prefs.  (985)

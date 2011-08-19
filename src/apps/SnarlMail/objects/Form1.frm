@@ -21,6 +21,23 @@ Begin VB.Form Form1
    ScaleHeight     =   4470
    ScaleWidth      =   7875
    StartUpPosition =   3  'Windows Default
+   Begin VB.CommandButton Command4 
+      Caption         =   "Inbox"
+      BeginProperty Font 
+         Name            =   "Tahoma"
+         Size            =   8.25
+         Charset         =   0
+         Weight          =   400
+         Underline       =   0   'False
+         Italic          =   0   'False
+         Strikethrough   =   0   'False
+      EndProperty
+      Height          =   495
+      Left            =   2940
+      TabIndex        =   4
+      Top             =   3900
+      Width           =   1335
+   End
    Begin VB.CommandButton Command3 
       Caption         =   "Prefs"
       BeginProperty Font 
@@ -33,7 +50,7 @@ Begin VB.Form Form1
          Strikethrough   =   0   'False
       EndProperty
       Height          =   495
-      Left            =   3180
+      Left            =   5160
       TabIndex        =   3
       Top             =   3900
       Width           =   1335
@@ -112,6 +129,12 @@ End Sub
 Private Sub Command3_Click()
 
     SendMessage Val(Me.Tag), snAppMsg(), SNARLAPP_DO_PREFS, ByVal 0&
+
+End Sub
+
+Private Sub Command4_Click()
+
+    SendMessage Val(Me.Tag), WM_TEST, 2, ByVal 0&
 
 End Sub
 
