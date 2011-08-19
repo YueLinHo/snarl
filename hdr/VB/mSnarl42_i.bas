@@ -379,7 +379,18 @@ Public Function snarl_version() As Long
 
 End Function
 
+Public Function snarl_ez_notify(ByVal Signature As String, ByVal Class As String, ByVal Title As String, ByVal Text As String, Optional ByVal Icon As String, Optional ByVal Priority As Long, Optional ByVal Duration As Long = -1, Optional ByVal Password As String) As Long
 
+    snarl_ez_notify = snDoRequest("notify?app-sig=" & Signature & _
+                                  "&id=" & Class & _
+                                  "&title=" & Title & "&text=" & Text & _
+                                  "&priority=" & CStr(Priority) & _
+                                  IIf(Duration > -1, "&timeout=" & CStr(Duration), "") & _
+                                  IIf(Icon <> "", "&icon=" & Icon, "") & _
+                                  IIf(Password <> "", "&password=" & Password, "") _
+                                  )
+
+End Function
 
 
 
