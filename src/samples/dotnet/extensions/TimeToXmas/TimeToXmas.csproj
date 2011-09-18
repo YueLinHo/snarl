@@ -37,7 +37,7 @@
     <AssemblyOriginatorKeyFile>StrongSignKey.snk</AssemblyOriginatorKeyFile>
   </PropertyGroup>
   <PropertyGroup>
-    <Win32Resource>D:\Toke\Dokumenter\_SyncCloud\Programmering\Projecter\Snarl\SnarlExtensions\TimeToXmas\Resources\win32res.res</Win32Resource>
+    <Win32Resource>.\Resources\win32res.res</Win32Resource>
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="System" />

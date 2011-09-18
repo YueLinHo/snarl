@@ -3,7 +3,7 @@ using System.Reflection;
 using libSnarlExtn;
 using Snarl.V42;
 
-namespace SnarlExtension
+namespace SnarlExtensions
 {
 	[System.Runtime.InteropServices.ProgId("TimeToXmas.extension")]
 	public class TimeToXmas : ISnarlExtension
