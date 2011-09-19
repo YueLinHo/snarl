@@ -1,18 +1,18 @@
-Attribute VB_Name = "mSnarl43_i"
+Attribute VB_Name = "mSnarl_i"
 Option Explicit
 
     ' /*
     '
-    '   mSnarl43_i.bas -- Snarl Visual Basic 5/6 header file
+    '   mSnarl_i.bas -- Snarl Visual Basic 5/6 header file
     '
     '   Include this module to let your VB5 or VB6 application to talk to Snarl R2.4 or later.
     '
-    '   © 2004-2010 full phat products.  All Rights Reserved.
+    '   © 2004-2011 full phat products.  All Rights Reserved.
     '
     '        Version: 43 (R2.5)
     '       Revision: 37
     '        Created: 6-Dec-2004
-    '   Last Updated: 29-Jul-2011
+    '   Last Updated: 19-Sep-2011
     '         Author: full phat products
     '        Licence: Simplified BSD License (http://www.opensource.org/licenses/bsd-license.php)
     '
@@ -146,17 +146,6 @@ Public Enum SNARL_STATUS_CODE
 
 End Enum
 
-    ' /* local variables */
-
-'Dim mLocalErr As SNARL_STATUS_CODE
-
-    ' /*
-    '
-    '   RegisterWindowMessage() constant
-    '
-    ' */
-
-Private Const SNARL_GLOBAL_MSG = "SnarlGlobalEvent"
 
     ' /*
     '
@@ -184,14 +173,6 @@ Public Enum SNARLAPP_FLAGS
     SNARLAPP_IS_WINDOWLESS = &H8000&            '// deprecated
 
 End Enum
-
-    ' /*
-    '
-    '   application registered message constant
-    '
-    ' */
-
-Private Const SNARLAPP_MSG = "SnarlAppMessage"
 
     ' /*
     '
@@ -257,17 +238,154 @@ Dim dw As Long
 
 End Function
 
-Public Function snBroadcastMsg() As Long
 
-    snBroadcastMsg = RegisterWindowMessage(SNARL_GLOBAL_MSG)
+
+            ' /****************************************************************************************
+            ' /*
+            ' /* Helper functions
+            ' /*
+            ' /****************************************************************************************/
+
+
+' /*
+'   app_msg() -- Returns Snarl application message  (V41)
+'
+'   Inputs
+'       None
+'
+'   Results
+'       Returns the Snarl application Windows registered message
+'
+' */
+Public Function app_msg() As Long
+
+    app_msg = RegisterWindowMessage("SnarlAppMessage")
 
 End Function
 
-Public Function snAppMsg() As Long
+' /*
+'   create_password() -- Create a password  (V43)
+'
+'   Inputs
+'       Length of password in characters
+'
+'   Results
+'       Returns computed password
+'
+' */
+Public Function create_password(Optional ByVal Chars As Integer = 32) As String
+Dim i As Integer
 
-    snAppMsg = RegisterWindowMessage(SNARLAPP_MSG)
+    If Chars > 1 Then
+        For i = 1 To Chars
+            Randomize Timer
+            create_password = create_password & Chr$(Rnd * (255 - 48) + 48)
+
+        Next i
+
+    End If
 
 End Function
+
+' /*
+'   is_snarl_running() -- Determines Snarl state  (V41)
+'
+'   Inputs
+'       None
+'
+'   Results
+'       Returns TRUE if Snarl is running, FALSE otherwise.
+'
+' */
+Public Function is_snarl_running() As Boolean
+
+    is_snarl_running = (IsWindow(FindWindow("w>Snarl", "Snarl")) <> 0)
+
+End Function
+
+' /*
+'   make_path() -- Path validator  (V43)
+'
+'   Inputs
+'       Filesystem path
+'
+'   Results
+'       Ensures the provided path ends with a backslash
+'
+' */
+Public Function make_path(ByVal Path As String) As String
+
+    If (Path = "") Then _
+        Exit Function
+
+    If Right$(Path, 1) <> "\" Then
+        make_path = Path & "\"
+    Else
+        make_path = Path
+    End If
+
+End Function
+
+' /*
+'   snarl_msg() -- Snarl registered message
+'
+'   Inputs
+'       None
+'
+'   Results
+'       Returns Snarl's registered Window message
+'
+' */
+Public Function snarl_msg() As Long
+
+    snarl_msg = RegisterWindowMessage("SnarlGlobalEvent")
+
+End Function
+
+
+
+Public Function snarl_register(ByVal Signature As String, ByVal Name As String, ByVal Icon As String, Optional ByVal Password As String, Optional ByVal ReplyTo As Long, Optional ByVal Reply As Long, Optional ByVal IsDaemon As Boolean = False) As Long
+
+    snarl_register = snDoRequest("register?app-sig=" & Signature & "&title=" & Name & "&icon=" & Icon & _
+                                 IIf(Password <> "", "&password=" & Password, "") & _
+                                 IIf(ReplyTo <> 0, "&reply-to=" & CStr(ReplyTo), "") & _
+                                 IIf(Reply <> 0, "&reply-with=" & CStr(Reply), "") & _
+                                 IIf(IsDaemon, "&app-daemon=1", ""))
+
+End Function
+
+Public Function snarl_unregister(ByVal TokenOrSignature As Variant, Optional ByVal Password As String) As Long
+Dim sz As String
+
+    sz = "unregister?"
+
+    If VarType(TokenOrSignature) = vbLong Then
+        sz = sz & "token=" & CStr(TokenOrSignature)
+
+    ElseIf VarType(TokenOrSignature) = vbString Then
+        sz = sz & "app-sig=" & CStr(TokenOrSignature)
+
+    Else
+        snarl_unregister = SNARL_ERROR_ARG_MISSING
+        Exit Function
+
+    End If
+
+    If Password <> "" Then _
+        sz = sz & "&password=" & Password
+
+    snarl_unregister = snDoRequest(sz)
+    Debug.Print "snarl_unregister: " & snarl_unregister
+
+End Function
+
+Public Function snarl_version() As Long
+
+    snarl_version = snDoRequest("version")
+
+End Function
+
+
 
 ' /****************************************************************************************
 ' /*
@@ -298,11 +416,9 @@ Dim pwzBuffer As Long
 ex:
 End Function
 
-Public Function snIsSnarlRunning() As Boolean
 
-    snIsSnarlRunning = (IsWindow(FindWindow("w>Snarl", "Snarl")) <> 0)
 
-End Function
+
 
 ' /*
 '   sn41GetConfigPath() -- Returns a path to Snarl's config folder  (V41)
@@ -315,7 +431,7 @@ End Function
 '
 ' */
 
-Public Function snGetConfigPath(ByRef Path As String) As Boolean
+Public Function get_config_path(ByRef Path As String) As Boolean
 Dim h As Long
 
     h = FindWindow("w>Snarl", "Snarl")
@@ -349,40 +465,7 @@ End Function
 ' /*
 ' /****************************************************************************************/
 
-Public Function snarl_register(ByVal Signature As String, ByVal Name As String, ByVal Icon As String, Optional ByVal Password As String, Optional ByVal ReplyTo As Long, Optional ByVal Reply As Long, Optional ByVal IsDaemon As Boolean = False) As Long
 
-    snarl_register = snDoRequest("register?app-sig=" & Signature & "&title=" & Name & "&icon=" & Icon & _
-                                 IIf(Password <> "", "&password=" & Password, "") & _
-                                 IIf(ReplyTo <> 0, "&reply-to=" & CStr(ReplyTo), "") & _
-                                 IIf(Reply <> 0, "&reply-with=" & CStr(Reply), "") & _
-                                 IIf(IsDaemon, "&app-daemon=1", ""))
-
-End Function
-
-Public Function snarl_unregister(ByVal TokenOrSignature As Variant, Optional ByVal Password As String) As Long
-Dim sz As String
-
-    sz = "unregister?"
-
-    If varType(TokenOrSignature) = vbLong Then
-        sz = sz & "token=" & CStr(TokenOrSignature)
-
-    ElseIf varType(TokenOrSignature) = vbString Then
-        sz = sz & "app-sig=" & CStr(TokenOrSignature)
-
-    Else
-        snarl_unregister = SNARL_ERROR_ARG_MISSING
-        Exit Function
-
-    End If
-
-    If Password <> "" Then _
-        sz = sz & "&password=" & Password
-
-    snarl_unregister = snDoRequest(sz)
-    Debug.Print "snarl_unregister: " & snarl_unregister
-
-End Function
 
 Public Function snarl_ez_notify(ByVal Signature As String, ByVal Class As String, Optional ByVal Title As String, Optional ByVal Text As String, Optional ByVal Icon As String, Optional ByVal Priority As Long, Optional ByVal Duration As Long = -1, Optional ByVal Password As String, Optional ByVal UID As String) As Long
 
@@ -398,35 +481,4 @@ Public Function snarl_ez_notify(ByVal Signature As String, ByVal Class As String
 
 End Function
 
-Public Function snarl_version() As Long
 
-    snarl_version = snDoRequest("version")
-
-End Function
-
-Public Function snCreatePassword(Optional ByVal Chars As Integer = 32) As String
-Dim i As Integer
-
-    If Chars > 1 Then
-        For i = 1 To Chars
-            Randomize Timer
-            snCreatePassword = snCreatePassword & Chr$(Rnd * (255 - 48) + 48)
-
-        Next i
-
-    End If
-
-End Function
-
-Public Function snMakePath(ByVal Path As String) As String
-
-    If (Path = "") Then _
-        Exit Function
-
-    If Right$(Path, 1) <> "\" Then
-        snMakePath = Path & "\"
-    Else
-        snMakePath = Path
-    End If
-
-End Function
