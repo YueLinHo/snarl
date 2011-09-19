@@ -451,7 +451,7 @@ Dim sz As String
     If h > 0 Then _
         Path = Left$(sz, h) & "etc\"
 
-    snGetConfigPath = (Path <> "")
+    get_config_path = (Path <> "")
 
 End Function
 
