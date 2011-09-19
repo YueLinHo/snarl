@@ -46,7 +46,7 @@ Option Explicit
     '
     ' */
 
-Private Const LIB_DATE = "31-May-2011"
+Private Const LIB_DATE = "7-Sep-2011"
 
 Private Const STYLE_NAME_TOASTY = "Toasty"
 Private Const STYLE_NAME_NMA = "Notify My Android"
@@ -441,14 +441,14 @@ Dim sz As String
 
                 End If
             Loop
-        
+
         End If
 
     End With
 
     uGetWebForwardSchemes = g_SafeLeftStr(uGetWebForwardSchemes, Len(uGetWebForwardSchemes) - 1)
 
-    If uGetWebForwardSchemes = "" Then _
+'    If uGetWebForwardSchemes = "" Then _
         uGetWebForwardSchemes = "(None defined)"
 
 End Function
