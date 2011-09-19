@@ -3,13 +3,15 @@
 	Products Supported
 	------------------
 
-	Microsoft Outlook 2007 or later.  Outlook 2003 may also work, however support
-	is not offered on this platform.
+	Microsoft Outlook 2007 or later.  Outlook 2003 is also confirmed as working,
+	however support is not offered on this platform.
 
 
 
 	Revision History
 	----------------
+
+	- Included ability to launch/kill OutlookOutsmarter.  (993)
 
 	- Further stability improvements.  (992)
 

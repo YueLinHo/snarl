@@ -49,6 +49,7 @@ Private Const CLASS_CONFIDENTIAL = "conf"
 
 Dim mMail As BTagList
 Dim mTrayIcon As BNotifyIcon
+Dim mPassword As String
 
 Implements BWndProcSink
 Implements KPrefsPanel
@@ -70,6 +71,7 @@ Dim n As Long
 
         mhWnd = hWnd
         Set mMail = new_BTagList()
+        mPassword = snCreatePassword()
 
         Set mTrayIcon = New BNotifyIcon
         mTrayIcon.SetTo mhWnd, WM_TRAY
@@ -92,11 +94,15 @@ Dim n As Long
             .AddIfMissing "open_on_click", "1"
             .AddIfMissing "auto_mark_as_read", "1"
             .AddIfMissing "show_tray_icon", "1"
+'            .AddIfMissing "use_oo", "0"
 
             If Not .Save() Then _
                 g_Debug "TWindow.WM_CREATE(): error writing config", LEMON_LEVEL_WARNING
 
         End With
+
+        If mConfig.ValueOf("use_oo") = "1" Then _
+            uEnableOO True
 
         uRegister           ' // might as well try now...
 
@@ -116,7 +122,11 @@ Dim n As Long
     Case WM_DESTROY
         ' /* we're disappearing... */
         Form1.Add "WM_DESTROY"
-        snarl_unregister App.ProductName
+        snarl_unregister App.ProductName, mPassword
+        
+        If mConfig.ValueOf("use_oo") = "1" Then _
+            uEnableOO False
+
         Set myOutlook = Nothing
         Set mContacts = Nothing
         Set mTrayIcon = Nothing
@@ -173,6 +183,7 @@ Dim n As Long
             If uRegister() Then _
                 Debug.Print snDoRequest("notify?app-sig=" & App.ProductName & _
                             "&uid=__about" & _
+                            "&password=" & mPassword & _
                             "&title=SnarlMail " & CStr(App.Major) & "." & CStr(App.Minor) & IIf(App.Comments <> "", " " & App.Comments, "") & " (Build " & CStr(App.Revision) & ")" & _
                             "&text=" & App.LegalCopyright & vbCrLf & "Visit http://www.fullphat.net for support and updates" & uOutlookVer() & _
                             "&icon=" & g_MakePath(App.Path) & "icon.png" & _
@@ -658,12 +669,14 @@ Dim szBody As String
 
     ' /* get body summary */
 
+    Debug.Print "getting mail body..."
+
     If (bShowBody) And (mConfig.ValueOf("show_body") = "1") Then
         szBody = g_SafeLeftStr(Mail.Body, 128, True)
         ' /* do some tidying up */
         szBody = Replace$(szBody, vbCrLf & vbCrLf & Chr$(&HA0) & vbCrLf & vbCrLf, " ")
         szBody = Replace$(szBody, vbCrLf & vbCrLf, " ")
-    
+
     End If
 
 Dim szIcon As String
@@ -671,7 +684,9 @@ Dim szFrom As String
 
     ' /* sender */
 
+    Debug.Print "getting sender name..."
     szFrom = Mail.SenderName
+    Debug.Print "sender name: " & szFrom
 
     ' /* get the sender's contact picture */
 
@@ -711,7 +726,8 @@ Dim hr As Long
                     "&text=" & szBody & _
                     "&icon=" & szIcon & _
                     "&action=Open,@9&action=Reply,@2&action=Reply All,@3&action=Forward,@4" & _
-                    "&priority=" & CStr(Mail.Importance - 1))
+                    "&priority=" & CStr(Mail.Importance - 1) & _
+                    "&password=" & mPassword)
 
 Dim pm As TItem
 
@@ -829,7 +845,8 @@ Dim hr As Long
                      "&text=" & szText & _
                      "&icon=" & szIcon & _
                      "&action=" & szActions & _
-                     "&priority=" & CStr(Meeting.Importance - 1))
+                     "&priority=" & CStr(Meeting.Importance - 1) & _
+                     "&password=" & mPassword)
 
 Dim pm As TItem
 
@@ -903,7 +920,8 @@ Dim hr As Long
                      "&icon=" & g_MakePath(App.Path) & "icon.png" & _
                      "&reply-to=" & CStr(mhWnd) & _
                      "&reply-with=" & CStr(WM_NOTIFICATION) & _
-                     "&app-daemon=1")
+                     "&app-daemon=1" & _
+                     "&password=" & mPassword)
 
     If hr > 0 Then
 
@@ -915,19 +933,23 @@ Dim hr As Long
 
         snDoRequest "addclass?app-sig=" & App.ProductName & _
                     "&id=" & CLASS_NORMAL & _
-                    "&name=Normal messages"
+                    "&name=Normal messages" & _
+                    "&password=" & mPassword
 
         snDoRequest "addclass?app-sig=" & App.ProductName & _
                     "&id=" & CLASS_PERSONAL & _
-                    "&name=Personal messages"
+                    "&name=Personal messages" & _
+                    "&password=" & mPassword
 
         snDoRequest "addclass?app-sig=" & App.ProductName & _
                     "&id=" & CLASS_PRIVATE & _
-                    "&name=Private messages"
+                    "&name=Private messages" & _
+                    "&password=" & mPassword
 
         snDoRequest "addclass?app-sig=" & App.ProductName & _
                     "&id=" & CLASS_CONFIDENTIAL & _
-                    "&name=Confidential messages"
+                    "&name=Confidential messages" & _
+                    "&password=" & mPassword
 
         uRegister = True
 
@@ -1214,3 +1236,17 @@ Private Function uTidyup(ByVal BodyText As String) As String
 '    uTidyup = vbCrLf & vbCrLf & uTidyup
 
 End Function
+
+Private Sub uEnableOO(ByVal Enabled As Boolean)
+
+    If Enabled Then
+        g_Debug "TWindow.uEnableOO(): launching oo..."
+        ShellExecute mhWnd, "open", g_MakePath(App.Path) & "outlookoutsmarter.exe", vbNullString, vbNullString, SW_HIDE
+
+    Else
+        g_Debug "TWindow.uEnableOO(): quitting oo..."
+        ShellExecute mhWnd, "open", g_MakePath(App.Path) & "outlookoutsmarter.exe", "-quit", vbNullString, SW_HIDE
+    
+    End If
+
+End Sub
