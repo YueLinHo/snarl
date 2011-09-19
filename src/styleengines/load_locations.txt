@@ -27,6 +27,9 @@
 
 	meter.styleengine
 
+	- Fixed bug in iPhoney style which would sometimes cause over-
+	  sized notifications to be created.  (39.89)
+
 	- Corporate and Droid styles now properly support "new" legacy
 	  meter support setting.  (39.88)
 
@@ -76,6 +79,8 @@
 
 
 	mobile.styleengine
+
+	- Minor cosmetic changes to WebForwarder.  (41.16)
 
 	- Toasty style now correctly sends icon data.  (41.13)
 
