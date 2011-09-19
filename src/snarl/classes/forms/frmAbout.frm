@@ -71,7 +71,7 @@ Begin VB.Form frmAbout
    Begin VB.Label Label1 
       Alignment       =   2  'Center
       BackStyle       =   0  'Transparent
-      Caption         =   "www.fullphat.net"
+      Caption         =   "www.getsnarl.info"
       BeginProperty Font 
          Name            =   "Calibri"
          Size            =   9.75
@@ -446,6 +446,9 @@ Dim i As Long
 
     Select Case Control.GetName
 
+    Case ""
+        Exit Sub
+
 '    Case "use_hotkey"
 '        ' /* R2.2: we have a separate config entry now */
 '        g_ConfigSet Control.GetName, Value
@@ -511,7 +514,7 @@ Dim i As Long
         Select Case Val(Value)
         Case 1
             ' /* site */
-            ShellExecute 0, "open", "http://www.fullphat.net/", vbNullString, vbNullString, SW_SHOW
+            ShellExecute 0, "open", "http://www.getsnarl.info/", vbNullString, vbNullString, SW_SHOW
 
         Case 2
             ' /* forum */
@@ -637,7 +640,7 @@ Dim hWnd As Long
     ' /* [About] */
 
     Case "go_web_site"
-        ShellExecute 0, "open", "http://www.fullphat.net/", vbNullString, vbNullString, SW_SHOW
+        ShellExecute 0, "open", "http://www.getsnarl.info/", vbNullString, vbNullString, SW_SHOW
 
     Case "go_forum"
         ShellExecute 0, "open", "http://groups.google.co.uk/group/snarl-discuss?hl=en", vbNullString, vbNullString, SW_SHOW
@@ -965,8 +968,8 @@ Dim pm As CTempMsg
 
                 ' /* forwarding */
 
-                .Add new_BPrefsControl("banner", "", "Forwarding")
-                .Add new_BPrefsControl("fancytoggle2", "include_host_name_when_forwarding", "Include computer name when forwarding notifications?", , g_ConfigGet("include_host_name_when_forwarding"))
+'                .Add new_BPrefsControl("banner", "", "Forwarding")
+'                .Add new_BPrefsControl("fancytoggle2", "include_host_name_when_forwarding", "Include computer name when forwarding notifications?", , g_ConfigGet("include_host_name_when_forwarding"))
 
                 ' /* misc */
 
@@ -1032,7 +1035,26 @@ Dim pdsp As TDisplaySubPage
             
             .AddPage new_BPrefsPage("Styles", load_image_obj(g_MakePath(App.Path) & "etc\icons\styles.png"), New TStylesPage)
             .AddPage new_BPrefsPage("Extensions", load_image_obj(g_MakePath(App.Path) & "etc\icons\extensions.png"), New TExtPage)
-            .AddPage new_BPrefsPage("Network", load_image_obj(g_MakePath(App.Path) & "etc\icons\network.png"), New TNetworkPage)
+            
+            ' /* network */
+
+            Set pp = new_BPrefsPage("Network", load_image_obj(g_MakePath(App.Path) & "etc\icons\network.png"), Me)
+
+            With pp
+                .SetMargin 0
+                Set pm = New CTempMsg
+                pm.Add "height", 412
+                Set pc = new_BPrefsControl("tabstrip", "", , , , pm)
+
+                BTabStrip_AddPage pc, "General", new_BPrefsPage("net-general", , New TNetSubPage)
+                BTabStrip_AddPage pc, "Clients", new_BPrefsPage("net-clients", , New TNetSubPage)
+                BTabStrip_AddPage pc, "Listeners", new_BPrefsPage("net-listeners", , New TNetSubPage)
+
+                .Add pc
+
+            End With
+
+            .AddPage pp
 
             ' /* presence */
 
@@ -1309,7 +1331,7 @@ End Sub
 
 Private Sub Label1_Click()
 
-    ShellExecute Me.hWnd, "open", "http://www.fullphat.net/", vbNullString, vbNullString, SW_SHOW
+    ShellExecute Me.hWnd, "open", "http://www.getsnarl.info/", vbNullString, vbNullString, SW_SHOW
 
 End Sub
 
@@ -1490,16 +1512,16 @@ Dim pc As BControl
 
 End Sub
 
-Friend Sub bUpdateRemoteComputerList()
-Dim pc As BControl
-
-    If Not (mPanel Is Nothing) Then
-        If mPanel.Find("lb>forward", pc) Then _
-            pc.Notify "update_list", Nothing
-
-    End If
-
-End Sub
+'Friend Sub bUpdateRemoteComputerList()
+'Dim pc As BControl
+'
+'    If Not (mPanel Is Nothing) Then
+'        If mPanel.Find("lb>forward", pc) Then _
+'            pc.Notify "update_list", Nothing
+'
+'    End If
+'
+'End Sub
 
 Private Sub uDoSysInfoNotification()
 Dim szMetric As String
@@ -1526,10 +1548,16 @@ Dim cb As Long
         End If
     End If
 
-    With New BCPU
-        .SetTo 1
-        dw = g_GetCPUCount()
+Dim pci As B_CPU_INFO
 
+    get_cpu_info 1, pci
+    dw = processor_count()
+
+    With pci
+'    With New BCPU
+'        .SetTo 1
+'        dw = g_GetCPUCount()
+'
         dFreq = .Speed
         If dFreq > 1000# Then
             dFreq = dFreq / 1000
@@ -1542,7 +1570,7 @@ Dim cb As Long
 
         g_PrivateNotify "", g_GetUserName() & " on " & g_GetComputerName(), _
                         g_GetOSName() & " " & g_GetServicePackName() & vbCrLf & _
-                        IIf(dw > 1, CStr(dw) & "x", "") & .FullName & " @ " & Format$(dFreq, "0.0#") & " " & szMetric & vbCrLf & _
+                        IIf(dw > 1, CStr(dw) & "x", "") & .VendorString & " @ " & Format$(dFreq, "0.0#") & " " & szMetric & vbCrLf & _
                         g_FileSizeToStringEx2(g_GetPhysMem(True), "GB", "", "0.0") & " (" & g_FileSizeToStringEx2(g_GetPageMem(True) + g_GetPhysMem(True), "GB", "", "0.0") & ") RAM" & vbCrLf & _
                         "Snarl " & App.Major & "." & App.Revision & " (" & App.Comments & ")" & vbCrLf & "melon " & IIf(szMelon <> "", szMelon, "??"), _
                         -1, _

@@ -198,6 +198,24 @@ Dim dw As Long
 
     End If
 
+    ' /* R2.5 Beta 2: support resource-based icons */
+
+Dim pi As BIcon
+
+    If InStr(mInfo.IconPath, ",") <> 0 Then
+        With new_BIconContent(mInfo.IconPath)
+            If .GetIcon(B_GET_ICON_BIGGEST Or B_GET_ICON_MOST_COLOURS, pi) Then
+                With New mfxView
+                    .SizeTo pi.Width, pi.Height
+                    .DrawScaledImage pi.Render, , new_BPoint(pi.Width, pi.Height)
+                    mInfo.IconPath = g_GetTempPath(True) & g_CreateGUID(True) & ".png"
+                    .WriteToFile mInfo.IconPath, "image/png"
+
+                End With
+            End If
+        End With
+    End If
+
     uInit = True
 
 End Function

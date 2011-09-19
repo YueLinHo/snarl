@@ -35,7 +35,7 @@ Dim mView As mfxView
 Dim mApps As BTagList
 
 Const CXICON = 32
-Const CXMARGIN = 8
+Const CXMARGIN = 4
 Const CYITEM = 36
 Dim mSelected As String
 
@@ -86,7 +86,7 @@ Dim i As Long
 Dim pr As BRect
 Dim pa As TApp
 
-    mView.SizeTo cx + CXICON + 4 + (CXMARGIN * 2) + 64, (mApps.CountItems * CYITEM) + (CXMARGIN * 2)
+    mView.SizeTo cx + CXICON + 4 + (CXMARGIN * 2) + 64, (mApps.CountItems * CYITEM) + ((mApps.CountItems - 1) * 2) + (CXMARGIN * 2)
 
     Set pr = mView.Bounds
     pr.InsetBy CXMARGIN, CXMARGIN
@@ -96,7 +96,7 @@ Dim pa As TApp
         .Rewind
         Do While .GetNextTag(pa) = B_OK
             Set pa.PopupFrame = pr.Duplicate
-            pr.OffsetBy 0, CYITEM
+            pr.OffsetBy 0, CYITEM + 2
 
         Loop
 
@@ -175,30 +175,44 @@ Const RX = 14
         .SetHighColour rgba(255, 255, 255, 190)
         .StrokeRoundRect .Bounds.InsetByCopy(1, 1), RX, RX
 
+'        .SetHighColour rgba(244, 244, 244, 190)
+'        .FillRoundRect .Bounds, RX
+'        .SetHighColour rgba(0, 0, 0, 96)
+'        .StrokeRoundRect .Bounds, RX, RX
+        
+        .SetHighColour rgba(0, 0, 0, 64)
+        .SetLowColour rgba(0, 0, 0, 0)
+        .FillRoundRect .Bounds, RX, RX, MFX_VERT_GRADIENT
+
+
     End With
 
     With mApps
         .Rewind
         Do While .GetNextTag(pa) = B_OK
             If pa.Signature = mSelected Then
-'                mView.SetHighColour rgba(255, 255, 255, 60)
-'                mView.EnableSmoothing False
-                mView.SetHighColour rgba(0, 192, 255, 190)
-                mView.SetLowColour rgba(0, 192, 255, 90)
-                mView.FillRoundRect pa.PopupFrame.InsetByCopy(-2, -2), RX, RX, MFX_VERT_GRADIENT
+''                mView.SetHighColour rgba(255, 255, 255, 60)
+''                mView.EnableSmoothing False
+'                mView.SetHighColour rgba(0, 192, 255, 190)
+'                mView.SetLowColour rgba(0, 192, 255, 90)
+'                mView.SetHighColour rgba(128, 128, 128, 64)
+
+                mView.SetHighColour rgba(255, 255, 255, 96)
+                mView.FillRoundRect pa.PopupFrame.InsetByCopy(-1, -1), RX, RX ', MFX_VERT_GRADIENT
 '                mView.SetHighColour rgba(0, 0, 0, 90)
 '                mView.SetLowColour rgba(255, 255, 255, 90)
 '                mView.StrokeFancyRect pa.PopupFrame
 
-'                mView.SetHighColour rgba(, 192, 255, 90)
-'                mView.SetLowColour rgba(, 192, 255, 0)
-'                mView.EnableSmoothing True
+''                mView.SetHighColour rgba(, 192, 255, 90)
+''                mView.SetLowColour rgba(, 192, 255, 0)
+''                mView.EnableSmoothing True
                 mView.SetHighColour rgba(0, 0, 0, 90)
-                mView.StrokeRoundRect pa.PopupFrame.InsetByCopy(-2, -2)
+                mView.StrokeRoundRect pa.PopupFrame.InsetByCopy(-1, -1), RX, RX
 
             End If
 
             mView.SetHighColour rgba(255, 255, 255)
+'            mView.SetHighColour rgba(0, 0, 0, 250)
             mView.DrawString pa.Name, pa.PopupFrame.OffsetByCopy(CXICON + 4, 0), MFX_ALIGN_LEFT Or MFX_ALIGN_V_CENTER
             mView.DrawScaledImage pa.CachedIcon, pa.PopupFrame.TopLeft.OffsetByCopy(0, Fix((CYITEM - CXICON) / 2)), new_BPoint(CXICON, CXICON)
 

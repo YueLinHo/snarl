@@ -224,7 +224,7 @@ Const NUM_ITEMS = 10
 
         With mPage
             .SetMargin 0
-            .Add new_BPrefsControl("label", "", "In addition to the on-screen display, notification content will also be directed to the following styles:")
+            .Add new_BPrefsControl("label", "", "Direct notification content to the following:")
 
             Set pm = New CTempMsg
             pm.Add "checkboxes", 1

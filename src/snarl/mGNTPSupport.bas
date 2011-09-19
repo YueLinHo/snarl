@@ -91,8 +91,10 @@ Public Sub gntp_Process(ByVal Request As String, ByRef Sender As CSocket, ByRef 
     mCustomHeaders = ""
     KeepSocketOpen = False
 
-    uOutput ""
-    uOutput "gntp_Process(): " & Replace$(Request, vbCrLf, "¶")
+    uOutput "--"
+    uOutput "gntp_Process(): request is..."
+    uOutput Replace$(Request, vbCrLf, "¶")
+    uOutput "--"
 
     ' /* split into sections */
 
@@ -136,7 +138,7 @@ Public Sub gntp_Process(ByVal Request As String, ByRef Sender As CSocket, ByRef 
     Exit Sub
 
 er:
-    Debug.Print "gntp_Process(): panic: " & err.Description
+    Debug.Print "gntp_Process(): panic: " & Err.Description
 
 End Sub
 
@@ -163,6 +165,11 @@ Dim pp As TPackedData
         Exit Function
 
     End If
+
+#If GNTP_TEST = 1 Then
+    uListPackedData pp
+#End If
+
 
     ' /* required items */
 
@@ -199,7 +206,7 @@ Dim dwCount As Long
         Response = uCreateResponse(0)
 
 #If GNTP_TEST Then
-        snarl_unregister szAppSig
+        uOutput "uDoRegistration(): snarl_unregister() returned " & snarl_unregister(szAppSig)
 
 #Else
         g_DoAction "unreg", 0, g_newBPackedData("app-sig::" & szAppSig)
@@ -237,6 +244,7 @@ Dim px As T_REG
     ' /* sections 1 to pr.Count should be notification types */
 
 Dim i As Long
+Dim c As Long
 
     For i = 1 To mRegistration.Count
         ' /* if adding any of the notification types fails, we fail */
@@ -247,12 +255,16 @@ Dim i As Long
 
     ' /* sections pr.Count to end should be resource identifiers */
 
-    uOutput "uDoRegistration(): parsing resource identifiers " & CStr(mRegistration.Count) & " to " & CStr(UBound(mSection) - 1)
+    c = UBound(mSection) - 1
 
-    For i = mRegistration.Count To UBound(mSection) - 1
-        uParse i, ""
+    If c >= mRegistration.Count Then
+        uOutput "uDoRegistration(): parsing resource identifiers " & CStr(mRegistration.Count) & " to " & CStr(c)
+        For i = mRegistration.Count To c
+            uParse i, ""
 
-    Next i
+        Next i
+
+    End If
 
     uOutput "uDoRegistration(): registering with Snarl..."
 
@@ -262,6 +274,9 @@ Dim i As Long
 
 #If GNTP_TEST Then
         .Token = snarl_register(.Signature, .AppName, .IconPath)
+        uOutput "--"
+        uOutput "uDoRegistration(): Snarl replied with " & CStr(.Token) & " to app-sig='" & .Signature & "' app-name='" & .AppName & "' icon=" & .IconPath & "'"
+        uOutput "--"
         .Token = 999        ' // don't fail
 
 #Else
@@ -284,19 +299,21 @@ Dim i As Long
 
     ' /* add notification types as classes */
 
+Dim szReq As String
 Dim hr As Long
 
     With mRegistration
         For i = 0 To .Count - 1
 
 #If GNTP_TEST Then
-            hr = snDoRequest("addclass?app-sig=" & .Signature & _
-                             "&id=" & .NotificationType(i).Name & _
-                             "&name=" & .NotificationType(i).DisplayName & _
-                             "&enabled=" & IIf(.NotificationType(i).Enabled, "1", "0") & _
-                             "&icon=" & .NotificationType(i).Icon)
+            szReq = "addclass?app-sig=" & .Signature & _
+                    "&id=" & .NotificationType(i).Name & _
+                    "&name=" & .NotificationType(i).DisplayName & _
+                    "&enabled=" & IIf(.NotificationType(i).Enabled, "1", "0") & _
+                    "&icon=" & .NotificationType(i).Icon
 
-            uOutput "uDoRegistration(): addclass '" & .NotificationType(i).Name & "' returned " & CStr(hr)
+            hr = snDoRequest(szReq)
+            uOutput "uDoRegistration(): Snarl replied with " & CStr(hr) & " to '" & szReq & "'"
 
 #Else
 
@@ -535,20 +552,9 @@ Dim i As Long
 
     uOutput "uDoNotification(): building notification content..."
 
-Dim zz As String
-Dim vv As String
-
-    With pp
-        uOutput "--"
-        .Rewind
-        Do While .GetNextItem(zz, vv)
-            uOutput zz & "-->" & vv
-
-        Loop
-
-        uOutput "--"
-    
-    End With
+#If GNTP_TEST = 1 Then
+    uListPackedData pp
+#End If
 
     ' /* build the Snarl packet */
 
@@ -657,7 +663,6 @@ Dim szd As String
 
     End With
 
-
     ' /* do the notification */
 
 Dim hr As Long
@@ -668,6 +673,11 @@ Dim hr As Long
     sz = Replace$(sz, "::", "=")
     sz = Replace$(sz, "#?", "&")
     hr = snDoRequest("notify?" & sz)
+
+    uOutput "--"
+    uOutput "uDoNotification(): Snarl replied with " & CStr(hr) & " to:"
+    uOutput sz
+    uOutput "--"
 
     Response = uCreateResponse(0)
     uDoNotification = True
@@ -796,7 +806,7 @@ End Function
 Private Sub uOutput(ByVal Text As String)
 
 #If GNTP_TEST = 1 Then
-    Form1.output Text
+    Form1.Output Text
 
 #Else
     g_Debug Text
@@ -865,7 +875,9 @@ Dim szv As String
 
     uAddStandardHeaders Response
 
-    uOutput "gntp_CreateCallbackResponse(): response=" & Response
+    uOutput "++ gntp_CreateCallbackResponse() +++++++++++++++++++++++++++"
+    uOutput Response
+    uOutput "++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++"
     Response = Response & vbCrLf & vbCrLf
 
     gntp_CreateCallbackResponse = True
@@ -893,3 +905,25 @@ Private Sub uAddStandardHeaders(ByRef Response As String)
 
 End Sub
 
+Private Sub uListPackedData(ByRef pp As TPackedData)
+
+    If (pp Is Nothing) Then _
+        Exit Sub
+
+Dim zz As String
+Dim vv As String
+
+    uOutput "++"
+
+    With pp
+        .Rewind
+        Do While .GetNextItem(zz, vv)
+            uOutput g_Quote(zz) & " == " & g_Quote(vv)
+
+        Loop
+
+    End With
+
+    uOutput "++"
+
+End Sub

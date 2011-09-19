@@ -61,12 +61,13 @@ Dim mStylePath As String
 Dim mMenuOpen As Boolean
 
     ' /* R2.4 */
-
 Dim mCloseRect As BRect
 Dim mActionsRect As BRect
-
 Dim mFadeStart As Long
 Dim mOriginalAlpha As Long
+
+    ' /* R2.5 */
+Dim mScriptCallback As TScriptCallback
 
 Implements MWndProcSink
 
@@ -85,6 +86,23 @@ Friend Function Create(ByRef Info As T_NOTIFICATION_INFO, ByRef Instance As ISty
     LSet mInfo = Info
     mClickThru = mInfo.ClassObj.IsClickThru
     mStylePath = StylePath
+
+    ' /* R2.5 Beta 2 */
+
+Dim psc As TScriptCallback
+Dim sz As String
+
+    If (mInfo.ScriptFilename <> "") And (mInfo.ScriptLanguage <> "") Then
+        Set psc = New TScriptCallback
+        If psc.InitFrom(mInfo.ScriptFilename, mInfo.ScriptLanguage, sz) Then
+            Set mScriptCallback = psc
+
+        Else
+            g_Debug "CSnarlWindow.Create(): error intialising callback script (" & sz & ")", LEMON_LEVEL_WARNING
+
+        End If
+
+    End If
 
 Dim pbm As mfxBitmap
 Dim rc As RECT
@@ -463,12 +481,17 @@ Static t As Long
 
 
     Case WM_TIMER
+
+'        If (wParam = TIMER_MAIN_TICK) Then _
+'            Debug.Print (bPaused) & " " & (mCloseButtonVisible) & " " & (mFuzzy) & " " & CStr(mTick) & " " & g_SafeLeftStr(mInfo.Text, 20)
+
         If (wParam = TIMER_MAIN_TICK) And (Not bPaused) And (Not mCloseButtonVisible) And (Not mFuzzy) Then
             mTick = mTick - 1
+'            Debug.Print CStr(mTick) & ": " & mInfo.Text
             If mTick = 0 Then
                 bPaused = True
+                g_Debug "CSnarlWindow.WndProc(): TIMED_OUT (token=" & CStr(mInfo.Token) & ")", LEMON_LEVEL_INFO
                 uNotify SNARL_CALLBACK_TIMED_OUT
-                Debug.Print "timed out"
                 bPaused = False
                 Hide
 
@@ -1348,6 +1371,26 @@ Dim n As Integer
 
         End If
 
+    ElseIf Not (mScriptCallback Is Nothing) Then
+        ' /* R2.5 Beta 2 */
+
+        Select Case Code
+        Case SNARL_NOTIFY_INVOKED, SNARL_CALLBACK_INVOKED
+            mScriptCallback.DoClickedCallback mInfo.CustomUID
+        
+        Case SNARL_NOTIFY_EXPIRED, SNARL_CALLBACK_TIMED_OUT
+            mScriptCallback.DoTimedOutCallback mInfo.CustomUID
+
+        Case SNARL_NOTIFY_ACTION, SNARL_NOTIFY_MENU
+            ' /* send the data verbatim */
+            mScriptCallback.DoActionCallback mInfo.CustomUID, Data
+
+        Case Else
+            g_Debug "CSnarlWindow.uNotify(): not sending deprecated command " & CStr(Code)
+
+        End Select
+
+
     ElseIf (IsWindow(mInfo.hWndReply) <> 0) And (mInfo.uReplyMsg <> 0) Then
         ' /* otherwise, if we have a valid window and message, reply to that */
 
@@ -1358,7 +1401,7 @@ Dim n As Integer
         PostMessage mInfo.hWndReply, mInfo.uReplyMsg, MAKELONG(Code, n), ByVal mInfo.Token
 
     Else
-        g_Debug "CSnarlWindow.uNotify(): no reply socket or window"
+        g_Debug "CSnarlWindow.uNotify(): no reply socket, script or window"
 
     End If
 
@@ -1955,17 +1998,17 @@ Const EMBLEM_ALPHA = 190
 Const EMBLEM_SIZE = 14
 Dim pt As BPoint
 Dim pr As BRect
-Dim n As Integer
+'Dim n As Integer
 
 '    Debug.Print "** draw emblems **"
 
     ' /* pre-process to determine how many are to be drawn */
     
-    If mOriginalTimeout = 0 Then _
-        n = n + 1                       ' // sticky
-
-    If (mInfo.IntFlags And SN_NF_REMOTE) Or (mInfo.ClassObj.App.IsRemote) Then _
-        n = n + 1                       ' // remote app
+'    If mOriginalTimeout = 0 Then _
+'        n = n + 1                       ' // sticky
+'
+'    If (mInfo.IntFlags And SN_NF_REMOTE) Or (mInfo.ClassObj.App.IsRemote) Then _
+'        n = n + 1                       ' // remote app
 
     With theView
 
@@ -1997,6 +2040,12 @@ Dim n As Integer
         ' /* if notification isn't click-through and the mouse pointer isn't
         '    over it, and it has actions or a default callback, draw the actions indicator emblem */
                         '//And (Not mCloseButtonVisible)
+        If (Not mClickThru) And (mInfo.DefaultAck <> "") Then
+            .DrawScaledImage bm_HasActions, pt, new_BPoint(EMBLEM_SIZE, EMBLEM_SIZE), EMBLEM_ALPHA
+            pt.OffsetBy -(EMBLEM_SIZE + 1), 0
+
+        End If
+
 '        If (Not mClickThru) And ((mInfo.Actions.CountItems > 0) Or (mInfo.DefaultAck <> "")) Then
 '            .DrawScaledImage bm_HasActions, pt, new_BPoint(EMBLEM_SIZE, EMBLEM_SIZE), EMBLEM_ALPHA
 '            pt.OffsetBy -(EMBLEM_SIZE + 1), 0

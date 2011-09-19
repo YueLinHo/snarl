@@ -274,24 +274,14 @@ Dim sz As String
 
     End If
 
-    ' /* R2.4.2 DR3: check RemoteHostName is not actually one of our locally-assigned addresses */
-
-    If RemoteHostName <> "" Then
-        g_Debug "RemoteHostName='" & RemoteHostName & "'"
-        If InStr(get_ip_address_table(), RemoteHostName) <> 0 Then _
-            RemoteHostName = ""
-
-        g_Debug "FilteredRemoteHostName='" & RemoteHostName & "'"
-
-    End If
-
 Dim i As Long
 
     ' /* check for duplicate and return existing token */
+'And (mApp(i).RemoteHostName = RemoteHostName)
 
     If mCount Then
         For i = 1 To mCount
-            If (mApp(i).Signature = sz) And (mApp(i).RemoteHostName = RemoteHostName) Then
+            If mApp(i).Signature = sz Then
                 ' /* R2.4 DR7: check same password provided */
                 If (mApp(i).Password <> "") And (mApp(i).Password <> Data.ValueOf("password")) Then
                     g_Debug "'" & sz & "' already registered: password mismatch", LEMON_LEVEL_CRITICAL Or LEMON_LEVEL_PROC_EXIT
@@ -512,7 +502,7 @@ Dim i As Long
         ' /* if app has a password or was registered via some IP protocol
         '    add the relevant system flags here */
 
-        If pa.Password <> "" Then _
+'        If pa.Password <> "" Then _
             lFlags = lFlags Or SN_NF_SECURE
 
         If pa.IsRemote Then _
@@ -521,8 +511,8 @@ Dim i As Long
         ' /* display the 'app registered' notification */
 
         i = g_PrivateNotify(SNARL_CLASS_APP_REG, _
-                            "Application registered", _
-                            pa.Name & " registered successfully with Snarl" & IIf(pa.IsBanned, vbCrLf & vbCrLf & "NOTE: Application has been blocked by Snarl", ""), _
+                            IIf(pa.IsRemote, "Remote a", "A") & "pplication registered", _
+                            pa.NameEx & " registered successfully with Snarl" & IIf(pa.IsBanned, vbCrLf & vbCrLf & "NOTE: Application has been blocked by Snarl", ""), _
                             -1, _
                             IIf(pa.Icon = "", g_MakePath(App.Path) & "etc\icons\no_icon.png", pa.Icon), _
                             , , , _
@@ -814,7 +804,7 @@ Public Function FindBySignature(ByVal Signature As String, ByRef App As TApp, By
 Static i As Long
 
     For i = 1 To mCount
-        If mApp(i).Signature = Signature Then
+        If (mApp(i).Signature = Signature) Then                         ' // And (mApp(i).RemoteHostName = RemoteIP)
             ' /* V42: validate password, if the app has one */
             If (mApp(i).Password <> "") And (mApp(i).Password <> Password) Then
                 g_Debug "TApplicationRoster.FindBySignature(): incorrect password", LEMON_LEVEL_CRITICAL
@@ -1032,11 +1022,10 @@ Dim i As Long
 End Function
 
 Public Function IndexOfSig(ByVal Signature As String) As Long
-Dim i As Long
+Static i As Long
 
     If mCount Then
         For i = 1 To mCount
-'            MsgBox mApp(i).Signature & " / " & Signature
             If mApp(i).Signature = Signature Then
                 IndexOfSig = i
                 Exit Function

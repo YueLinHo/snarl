@@ -109,20 +109,20 @@ Dim f As Boolean
         ' /* must have an "_all" section */
 
         mIsUnknown = Not (.SectionExists("_all"))
-
-        If mIsUnknown Then
+        If mIsUnknown Then _
             .AddSection "_all"
-            uWriteSettings
 
-        End If
-
-        ' /* R2.4.2 DR3: write the application name to the config file */
+        ' /* R2.4.2 DR3: always write the application name to the config file */
 
         If mAppConfig.IndexOf("name") = 0 Then
             mAppConfig.Add "name", Info.Name
-            uWriteSettings
+
+        Else
+            mAppConfig.Update "name", Info.Name
 
         End If
+
+        uWriteSettings
 
     End With
 
@@ -307,7 +307,7 @@ Public Sub SetUseSameSettingsForAllClasses(ByVal Enabled As Boolean)
 
 End Sub
 
-Public Function Show(ByVal Class As String, Optional ByVal Title As String, Optional ByVal Text As String, Optional ByVal Timeout As Long, Optional ByVal Icon As String, Optional ByVal hWndReply As Long, Optional ByVal uMsg As Long, Optional ByVal SoundFile As String, Optional ByVal Style As String, Optional ByVal Ack As String) As M_RESULT
+Public Function Show(ByVal Class As String, Optional ByVal Title As String, Optional ByVal Text As String, Optional ByVal Timeout As Long, Optional ByVal Icon As String, Optional ByVal hWndReply As Long, Optional ByVal uMsg As Long, Optional ByVal SoundFile As String, Optional ByVal Style As String, Optional ByVal Ack As String, Optional ByVal APIVersion As Long) As M_RESULT
 Dim pc As TAlert
 
     ' /* V39.86: wasn't taking account of the "Use Same Settings..." option */
@@ -354,6 +354,7 @@ Dim pInfo As T_NOTIFICATION_INFO
         .StyleName = style_GetStyleName(Style)
         .SchemeName = style_GetSchemeName(Style)
         .DefaultAck = Ack
+        .APIVersion = APIVersion
 
     End With
 
@@ -471,7 +472,20 @@ Dim i As Long
         If .hWndReply = 0 Then _
             .hWndReply = mInfo.hWnd                 ' // if still no reply window, use app-defined value (which may still be 0)
 
-        .IconPath = pData.ValueOf("icon")
+        
+        If pData.Exists("icon-base64") Then
+            ' /* R2.4.2 DR3: use Base64 encoded icon data, if there is any */
+            .IconPath = g_GetBase64Icon(pData.ValueOf("icon-base64"))
+
+        ElseIf pData.Exists("icon-phat64") Then
+            ' /* R2.4.2 DR3: phat64 encoding? */
+            .IconPath = g_GetPhat64Icon(pData.ValueOf("icon-phat64"))
+
+        Else
+            .IconPath = pData.ValueOf("icon")
+
+        End If
+        
 
         .Priority = Val(pData.ValueOf("priority"))
         Set .Socket = ReplySocket
@@ -510,6 +524,15 @@ Dim i As Long
         ' /* 2.4.2 DR3 - store API version */
 
         .APIVersion = (IntFlags And SN_NF_API_MASK)
+
+
+        ' /* R2.5 Beta 2 - script callbacks */
+
+        If (pData.Exists("callback-script")) And (pData.Exists("callback-script-type")) Then
+            .ScriptFilename = pData.ValueOf("callback-script")
+            .ScriptLanguage = pData.ValueOf("callback-script-type")
+
+        End If
 
         ' /* V42 styles need the unabridged content */
 
@@ -975,7 +998,9 @@ End Function
 
 Private Function uCheckDOS() As Boolean
 Const BAN_NUMBER = 10           ' // this many...
-Const BAN_QUANTUM = 50          ' // ...each within this many ms = ban
+Const BAN_LIMIT = 500           ' // ...within this time (in ms) = a ban
+
+Const BAN_QUANTUM = BAN_LIMIT / BAN_NUMBER
 
     If g_ConfigGet("block_dos_attempt") = "0" Then _
         Exit Function
@@ -985,11 +1010,11 @@ Const BAN_QUANTUM = 50          ' // ...each within this many ms = ban
         gSetLastError SNARL_ERROR_ACCESS_DENIED
 
     Else
-        ' /* if we get 10 notifications, each within 50ms, that's a DOS */
+        ' /* if we get BAN_NUMBER within BAN_QUANTUM, that's a ban */
 
         If (GetTickCount() - mLastNotificationTick) < BAN_QUANTUM Then
             mDoSCount = mDoSCount + 1
-            g_Debug "TApp.uCheckDOS(): notification within quantum (" & GetTickCount() - mLastNotificationTick & ") count=" & mDoSCount
+            g_Debug "TApp.uCheckDOS(): notification within ban quantum (" & GetTickCount() - mLastNotificationTick & ") count=" & mDoSCount
 
             If mDoSCount >= BAN_NUMBER Then
                 g_Debug "TApp.uCheckDOS(): possible DoS attack by '" & mInfo.Signature & "' detected", LEMON_LEVEL_CRITICAL

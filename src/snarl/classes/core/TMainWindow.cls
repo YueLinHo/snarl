@@ -485,7 +485,7 @@ Dim sz As String
         If g_AppRoster.FindByToken(gSnarlToken, pa, gSnarlPassword) Then
             ' /* generate the alert using the SNARL_CLASS_ANON class so the user can block them if they want */
             uDoCmd = pa.Show(SNARL_CLASS_ANON, g_UTF8(pss.Title), g_UTF8(pss.Text), pss.Timeout, _
-                             g_UTF8(pss.Icon), pss.LngData2, pss.Id)
+                             g_UTF8(pss.Icon), pss.LngData2, pss.Id, , , , 36)
 
         Else
             ' /* not found */
@@ -698,7 +698,7 @@ Dim pa As TApp
         If g_AppRoster.FindByWindow(hwndFrom, pa) Then
             ' /* found */
             uDoCmdEx = pa.Show(g_UTF8(pssex.Class), g_UTF8(pssex.Title), g_UTF8(pssex.Text), pssex.Timeout, _
-                               g_UTF8(pssex.Icon), pssex.LngData2, pssex.Id, g_UTF8(pssex.Extra))
+                               g_UTF8(pssex.Icon), pssex.LngData2, pssex.Id, g_UTF8(pssex.Extra), , , 37)
 
         Else
             ' /* not found */
@@ -712,7 +712,7 @@ Dim pa As TApp
         If g_AppRoster.FindByPid(pssex.Reserved1, pa) Then
             ' /* found */
             uDoCmdEx = pa.Show(g_UTF8(pssex.Class), g_UTF8(pssex.Title), g_UTF8(pssex.Text), pssex.Timeout, _
-                               g_UTF8(pssex.Icon), pssex.LngData2, pssex.Id, g_UTF8(pssex.Extra))
+                               g_UTF8(pssex.Icon), pssex.LngData2, pssex.Id, g_UTF8(pssex.Extra), , , 39)
 
         Else
             ' /* not found */

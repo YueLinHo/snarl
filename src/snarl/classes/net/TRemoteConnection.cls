@@ -948,9 +948,9 @@ Dim szProvidedKey As String
 Dim szProvidedSalt As String
 Dim szHashType As String
 
-    If ppdHeader.Count > 0 Then
+    If ppdHeader.Count > 1 Then
         ' /* get provided hashing algorithm, key and salt */
-        ppdHeader.EntryAt 1, szHashType, szProvidedKey
+        ppdHeader.EntryAt 2, szHashType, szProvidedKey
 
         If Not uGetSalt(szProvidedKey, szProvidedKey, szProvidedSalt) Then
             ' /* key and/or salt invalid */

@@ -25,8 +25,12 @@ Option Explicit
     '/
     '*********************************************************************************************/
 
+Dim mSubscriberConfig As ConfigFile
 Dim mSubscribers As BTagList
 Dim mRefs As Long
+
+Dim mListenerConfig As ConfigFile
+Dim mListeners As BTagList
 
 Implements MLibrary
 Implements MRoster
@@ -55,6 +59,9 @@ Private Function MLibrary_Magic() As Long
 End Function
 
 Private Function MLibrary_Open() As melon.M_RESULT
+Dim pc As ConfigSection
+Dim ps As TSubscriber
+Dim pl As TWebListener
 
     g_Debug "TSubscriberRoster.Open()", LEMON_LEVEL_PROC_ENTER
 
@@ -63,6 +70,52 @@ Private Function MLibrary_Open() As melon.M_RESULT
         ' /* run startup code */
 
         Set mSubscribers = new_BTagList()
+        Set mSubscriberConfig = New ConfigFile
+        With mSubscriberConfig
+            .File = g_SettingsPath() & "network.snarl"
+            .Load
+
+            ' /* load up persistent entries - specifically:
+            '       forwards from this computer to a remote computer
+            '       subscriptions to a remote computer
+            ' */
+
+            .Rewind
+
+            Do While .GetNextSection(pc)
+                Set ps = New TSubscriber
+                If ps.SetFrom(pc) Then
+                    mSubscribers.Add ps
+                    g_Debug "got " & ps.TypeStr & " to " & ps.Destination
+
+                End If
+            Loop
+
+        End With
+
+        Set mListeners = new_BTagList()
+        Set mListenerConfig = New ConfigFile
+        With mListenerConfig
+            .File = g_SettingsPath() & "listeners.snarl"
+            .Load
+
+            ' /* load up persistent entries - specifically:
+            ' */
+
+            .Rewind
+
+            Do While .GetNextSection(pc)
+                Set pl = New TWebListener
+                If pl.SetFrom(pc) Then
+                    mListeners.Add pl
+                    g_Debug "got weblistener '" & pl.Name & "' url=" & pl.URL
+
+                End If
+            Loop
+
+        End With
+
+
         g_Debug "roster initialised"
 
     End If
@@ -159,61 +212,111 @@ Private Property Get MVersionInfo_Version() As Long
 
 End Property
 
-Public Function Add(ByVal SubscriberType As SN_SUBSCRIBER_TYPE, ByRef Socket As CSocket, ByRef Data As BPackedData) As Boolean
+'Public Function Add(ByVal SubscriberType As SN_SUBSCRIBER_TYPE, ByRef Socket As CSocket, ByRef Data As BPackedData) As Boolean
+Public Function Add(ByVal SubType As SN_SUBSCRIBER_TYPE, ByVal Description As String, ByVal RemoteHost As String, ByVal Apps As String) As Boolean
+Dim pc As ConfigSection
+Dim ps As TSubscriber
 
-    Select Case SubscriberType
-    Case SN_ST_SNP3_FORWARDER
-        Add = uAddNewForwarder(SubscriberType, Data)
+    g_Debug "TSubscriberRoster.Add(): type=0x" & g_HexStr(SubType, 4) & " dest=" & RemoteHost
 
-    Case SN_ST_SNP3_SUBSCRIBER
-        Add = uAddNewSubscriber(SubscriberType, Socket, Data)
+    Select Case SubType
+    Case SN_ST_SNP3_FORWARD, SN_ST_SNP3_SUBSCRIPTION
+        ' /*
+        '   This represents a persistent forward or subscription from this computer to a remote destination using SNP3
+        '
+        '   Description: optional
+        '   RemoteHost: required, specifies where to forward the notifications to
+        '   Apps: optional, identifies which app(s) to forward notifications for
+        '
+        '   On successful add: add to config and save
+        '
+        ' */
+
+        ' /* error checking */
+
+        If (RemoteHost = "") Or (InStr(get_ip_address_table(), RemoteHost) <> 0) Then
+            g_Debug "TSubscriberRoster.Add(): RemoteHost cannot be ourself", LEMON_LEVEL_CRITICAL
+            Exit Function
+    
+        End If
+
+        ' /* check this forward/subscription doesn't already exist */
+
+        If uFindByTypeAndDestination(SubType, RemoteHost, Nothing) Then
+            g_Debug "TSubscriberRoster.Add(): already exists", LEMON_LEVEL_CRITICAL
+            Exit Function
+    
+        End If
+
+        ' /* create persistent config */
+
+        Set pc = mSubscriberConfig.AddSectionObj(g_CreateGUID(True))
+        With pc
+            .Add "type", CStr(SubType)
+            .Add "description", Description
+            .Add "remotehost", RemoteHost
+            .Add "apps", Apps
+            .Add "enabled", "1"
+
+        End With
+
+        ' /* create and initialise the subscriber */
+
+        Set ps = New TSubscriber
+        If Not ps.SetFrom(pc) Then
+            g_Debug "TSubscriberRoster.Add(): failed to initialise", LEMON_LEVEL_CRITICAL
+            mSubscriberConfig.RemoveSection mSubscriberConfig.FindSection(pc.Name)      ' // remove from the config
+            Exit Function
+
+        End If
+
+        ' /* success! so add it to the list */
+
+        mSubscribers.Add ps
+        mSubscriberConfig.Save
+        Add = True
 
     End Select
 
-End Function
-
-Private Function uAddNewForwarder(ByVal SubscriberType As SN_SUBSCRIBER_TYPE, ByRef Data As BPackedData) As Boolean
-
-    If (Data Is Nothing) Then _
-        Exit Function
+'    ps.SetTo "", SubType, Description, RemoteHost, Apps, mConfig.AddSectionObj("")
 
 End Function
 
 Private Function uAddNewSubscriber(ByVal SubscriberType As SN_SUBSCRIBER_TYPE, ByRef Socket As CSocket, ByRef Data As BPackedData) As Boolean
 
-    If (Socket Is Nothing) Or (Data Is Nothing) Then _
-        Exit Function
-
-Dim ps As TSubscriber
-
-    If mSubscribers.Find(Socket.RemoteHostIP & ":" & CStr(Socket.RemotePort), ps) Then
-        ' /* already subscribed */
-        g_Debug "TSubscriberRoster.uAddNewSubscriber(): '" & Socket.RemoteHostIP & ":" & CStr(Socket.RemotePort) & "' is already subscribed", LEMON_LEVEL_INFO
-
-        ' /* check password */
-        If ps.Password <> Data.ValueOf("password") Then
-            g_Debug "TSubscriberRoster.uAddNewSubscriber(): password mismatch", LEMON_LEVEL_CRITICAL
-            gSetLastError SNARL_ERROR_AUTH_FAILURE
-
-        ElseIf Data.Exists("app-sig") Then
-            ' /* add specific apps */
-            uAddNewSubscriber = ps.AddApps(Data)
-
-        Else
-            ' /* cannot do this if already subscribed */
-            g_Debug "TSubscriberRoster.uAddNewSubscriber(): cannot do wildcard subscribe", LEMON_LEVEL_CRITICAL
-            gSetLastError SNARL_ERROR_FAILED
-
-        End If
-
-    Else
-        ' /* not already subscribed */
-        Set ps = New TSubscriber
-        ps.SetTo Socket, SubscriberType, Data
-        mSubscribers.Add ps
-        uAddNewSubscriber = True
-
-    End If
+'    If (Socket Is Nothing) Or (Data Is Nothing) Then _
+'        Exit Function
+'
+'Dim ps As TSubscriber
+'
+'    If mSubscribers.Find(Socket.RemoteHostIP & ":" & CStr(Socket.RemotePort), ps) Then
+'        ' /* already subscribed */
+'        g_Debug "TSubscriberRoster.uAddNewSubscriber(): '" & Socket.RemoteHostIP & ":" & CStr(Socket.RemotePort) & "' is already subscribed", LEMON_LEVEL_INFO
+'
+'        ' /* check password */
+'        If ps.Password <> Data.ValueOf("password") Then
+'            g_Debug "TSubscriberRoster.uAddNewSubscriber(): password mismatch", LEMON_LEVEL_CRITICAL
+'            gSetLastError SNARL_ERROR_AUTH_FAILURE
+'
+'        ElseIf Data.Exists("app-sig") Then
+'            ' /* add specific apps */
+'            uAddNewSubscriber = ps.AddApps(Data)
+'
+'        Else
+'            ' /* cannot do this if already subscribed */
+'            g_Debug "TSubscriberRoster.uAddNewSubscriber(): cannot do wildcard subscribe", LEMON_LEVEL_CRITICAL
+'            gSetLastError SNARL_ERROR_FAILED
+'
+'        End If
+'
+'    Else
+'        ' /* not already subscribed */
+'        Set ps = New TSubscriber
+'        ps.SetTo Socket, SubscriberType, Data
+'        mSubscribers.Add ps
+'        uAddNewSubscriber = True
+'
+'    End If
 
 End Function
 
@@ -257,14 +360,57 @@ Dim i As Long
 End Function
 
 Friend Sub Broadcast(ByRef Content As T_NOTIFICATION_INFO)
+Dim szc As String
+Dim sz As String
+
+    sz = Content.OriginalContent
+    sz = Replace$(sz, "::", "=")
+    sz = Replace$(sz, "#?", "&")
+    sz = Replace$(sz, vbCrLf, "\n")
+
+Dim pa As TApp
+
+    Set pa = Content.ClassObj.App
+
+    ' /* base content */
+
+    szc = "SNP/3.0" & vbCrLf & _
+          "register?app-sig=" & pa.Signature & "&title=" & pa.Name & uTranslateIcon(pa.Icon) & vbCrLf
+
+    ' /* add classes */
+
+Dim i As Long
+
+    With pa
+        If .CountAlerts Then
+            For i = 1 To .CountAlerts
+                With .AlertAt(i)
+                    szc = szc & "addclass?app-sig=" & pa.Signature & "&id=" & .Name & "&name=" & .Description & vbCrLf
+
+                End With
+            Next i
+        End If
+    End With
+
+    ' /* add notification content and footer */
+
+    szc = szc & "notify?app-sig=" & pa.Signature & uTranslateIcon(Content.IconPath) & "&" & sz & vbCrLf & _
+                "END" & vbCrLf
+
+'        Debug.Print "---"
+'        Debug.Print szc
+'        Debug.Print "---"
+
 Dim ps As TSubscriber
 
     With mSubscribers
         .Rewind
         Do While .GetNextTag(ps) = B_OK
-            If ps.IsSubscribedTo(Content.ClassObj.App.Signature) Then _
-                ps.send Content.OriginalContent, Content.ClassObj.App
+            If ps.IsEnabled Then
+                If ps.IsSubscribedTo(pa.Signature) Then _
+                    ps.Forward szc ', pa
 
+            End If
         Loop
 
     End With
@@ -274,5 +420,182 @@ End Sub
 Public Function List() As BTagList
 
     Set List = mSubscribers
+
+End Function
+
+Public Function RemoveByGuid(ByVal Guid As String) As Boolean
+Dim f As Boolean
+Dim i As Long
+
+    i = mSubscribers.IndexOf(Guid)
+    If i <> 0 Then
+        mSubscribers.Remove i
+        f = True
+
+    Else
+        g_Debug "TSubscriberRoster.RemoveByGuid(): '" & Guid & "' not in roster", LEMON_LEVEL_WARNING
+
+    End If
+
+    i = mSubscriberConfig.FindSection(Guid)
+    If i <> 0 Then
+        mSubscriberConfig.RemoveSection i
+        mSubscriberConfig.Save
+
+    Else
+        g_Debug "TSubscriberRoster.RemoveByGuid(): '" & Guid & "' not in config", LEMON_LEVEL_WARNING
+        f = False
+
+    End If
+
+    RemoveByGuid = f
+
+End Function
+
+Public Sub WriteConfig()
+
+    If Not (mSubscriberConfig Is Nothing) Then _
+        mSubscriberConfig.Save
+
+
+End Sub
+
+Private Function uFindByTypeAndDestination(ByVal aType As SN_SUBSCRIBER_TYPE, ByVal Destination As String, ByRef Subscriber As TSubscriber) As Boolean
+Dim ps As TSubscriber
+
+    With mSubscribers
+        .Rewind
+        Do While .GetNextTag(ps) = B_OK
+            If (ps.SubscriptionType = aType) And (ps.Destination = Destination) Then
+                Set Subscriber = ps
+                uFindByTypeAndDestination = True
+                Exit Function
+
+            End If
+
+        Loop
+    End With
+
+End Function
+
+Private Function uTranslateIcon(ByVal Icon As String) As String
+
+    If Icon = "" Then _
+        Exit Function
+
+Dim sz As String
+Dim b As String
+
+'    If (LCase$(g_SafeLeftStr(Icon, 7)) = "http://") Or _
+'       (LCase$(g_SafeLeftStr(Icon, 8)) = "https://") Or _
+
+       
+    If g_SafeLeftStr(Icon, 1) = "!" Then
+'        ' /* add verbatim */
+'        sz = sz & "&icon=" & Icon
+
+    Else
+        ' /* encode it in a slightly modified Base64 format (CRLF's are replaced with #'s) */
+        If uEncodeIcon(Icon, b) Then _
+            sz = sz & "&icon-phat64=" & b
+
+    End If
+
+    uTranslateIcon = sz
+
+End Function
+
+Private Function uEncodeIcon(ByVal IconPath As String, ByRef Base64 As String) As Boolean
+Dim sz As String
+Dim i As Integer
+
+    On Error Resume Next
+
+    i = FreeFile()
+
+    err.Clear
+    Open IconPath For Binary Access Read Lock Write As #i
+    If err.Number = 0 Then
+        sz = String$(LOF(i), Chr$(0))
+        Get #i, , sz
+        Close #i
+
+        sz = Encode64orig(sz)                   ' // encode as standard Base64
+        If sz <> "" Then
+            Base64 = Replace$(sz, vbCrLf, "#")  ' // replace CRLFs
+            Base64 = Replace$(Base64, "=", "%") ' // replace ='s
+            uEncodeIcon = True
+
+        End If
+
+    Else
+        g_Debug "TSubscriberRoster.uEncodeIcon(): " & err.Description, LEMON_LEVEL_CRITICAL
+
+    End If
+
+End Function
+
+Public Function Listeners() As BTagList
+
+    Set Listeners = mListeners
+
+End Function
+
+Public Function RemoveListenerByGuid(ByVal Guid As String) As Boolean
+Dim i As Long
+
+    i = mListeners.IndexOf(Guid)
+    If i = 0 Then
+        g_Debug "TSubscriberRoster.RemoveListenerByGuid(): '" & Guid & "' not in roster", LEMON_LEVEL_CRITICAL
+        Exit Function
+
+    End If
+
+    mListeners.Remove i
+
+    i = mListenerConfig.FindSection(Guid)
+    If i <> 0 Then
+        mListenerConfig.RemoveSection i
+        mListenerConfig.Save
+
+    Else
+        g_Debug "TSubscriberRoster.RemoveListenerByGuid(): '" & Guid & "' not in config", LEMON_LEVEL_WARNING
+
+    End If
+
+    RemoveListenerByGuid = True
+
+End Function
+
+Public Function AddWebListener(ByVal Description As String, ByVal URL As String) As Boolean
+Dim pc As ConfigSection
+Dim pl As TWebListener
+
+    g_Debug "TSubscriberRoster.AddWebListener(): name=" & Description & " URL=" & URL
+
+    ' /* create and initialise the subscriber */
+
+    Set pl = New TWebListener
+    If Not pl.CreateNew(Description, URL) Then
+        g_Debug "TSubscriberRoster.AddWebListener(): failed to initialise", LEMON_LEVEL_CRITICAL
+        Exit Function
+
+    End If
+
+    mListeners.Add pl
+
+    ' /* create persistent config */
+
+    Set pc = mListenerConfig.AddSectionObj(pl.Guid)
+    With pc
+        .Add "type", CStr(SN_ST_WEB_LISTENER)               ' // for now, in case we support other models in the future
+        .Add "name", Description
+        .Add "url", URL
+        .Add "enabled", "1"
+
+    End With
+
+    mListenerConfig.Save
+    AddWebListener = True
 
 End Function

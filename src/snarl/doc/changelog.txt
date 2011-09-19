@@ -1,6 +1,36 @@
 
 	Snarl Change Log
 
+	- Added support for scripted callbacks.  (43.8)
+
+	- Extensions can now provide resource-based icons in extension_info->
+	  iconpath.  For this to work, the path must contain the path to the
+	  resource file, a comma, and the index of the icon to use - e.g.
+	  "shell32.dll,34".  The path need not be absolute, so long as Windows
+	  can figure it out.  (43.6)
+
+	- Only !icons are now sent verbatim; cached icons are sent phat-encoded
+	  just like other filesystem ones.  (43.2)
+
+	- Content is now crafted by the subcriber roster before being passed to
+	  the individual subscribers.  (43.2)
+
+	- Behind-the-scenes forwarding improved significantly.  (43.2)
+
+	- Can now selectively enable and disable individual forwarders and
+	  subscribers via the [Network] page.  (43.2)
+
+	- "Has action" emblem is now drawn if the notification has a static click
+	  callback.  (43.2)
+
+	- Style defaults "width" is now a slider control.  (43.2)
+
+	- Released as R2.5 Beta 1.  (43.1)
+
+	- Bumped to V43.  (43.1)
+
+	-  (42.176)
+
 	- Remote applications are now determined at registration time only and
 	  an application is only considered remote if it's IP address is not one
 	  assigned to the local computer.  (42.171)
@@ -13,7 +43,7 @@
 	- Notifications created by password-protected applications have the
 	  application's name in the HUD drawn in a different colour.  (42.171)
 
-	- Fixed bug whereby sounds provided in a <nofify> request were not being
+	- Fixed bug whereby sounds provided in a <notify> request were not being
 	  played.  Thanks to Danny Tuppeny for spotting this.  (42.171)
 
 	- SNP 2.0 requests are now treated as V42 calls.  (42.171)
@@ -24,7 +54,7 @@
 	- Added simplistic multi-monitor support such that the user can now select
 	  which screen notifications are displayed on.  (42.169)
 
-	- Costmetic enhancements to Missed Notifications panel.  (42.168)
+	- Cosmetic enhancements to Missed Notifications panel.  (42.168)
 
 	- Minor cosmetic enhancements made to [History] list content.  (42.166)
 
@@ -128,10 +158,10 @@
 	- Bug that stopped notification content from updating when using a V42
 	  style fixed.  (42.149)
 
-	- Can now have assign custom actions on a class-by-class basis.  (42.149)
+	- Can now assign custom actions on a class-by-class basis.  (42.149)
 
 	- Bug in misc.resource (and misc2.resource) BPackedData causing problems
-	  with notification fixed temporariliy (will need fixing in both melon).
+	  with notifications fixed temporarily (will need fixing in both resources).
 	  This showed itself in a number of GNTP applications so credit to Skip
 	  and Pieter for raising it.  (42.147)
 

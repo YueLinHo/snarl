@@ -277,7 +277,7 @@ Dim i As Long
                 .Rewind
                 Do While .GetNextTag(pn) = B_OK
                     With pn
-                        SOS_printline g_HexStr(.Info.Token) & " " & g_Pad(.Info.Title, 12, True) & " " & g_Pad(.Info.Text, 24, True)
+                        SOS_printline g_HexStr(.Info.Token) & " t:" & Format$(.Info.Timeout, "00") & " " & g_Pad(IIf(.Info.Title <> "", .Info.Title, "<n/a>"), 12, True) & " " & g_Pad(.Info.Text, 24, True)
                         i = i + 1
 
                     End With
@@ -344,7 +344,7 @@ Dim i As Long
                 Do While .GetNextTag(ps) = B_OK
                     With ps
                         SOS_printline g_Pad(.Socket.RemoteHostIP & ":" & CStr(.Socket.RemotePort), 24) & " " & _
-                                      g_Pad(.SubscriptionTypeStr, 6) & _
+                                      g_Pad(.TypeStr, 6) & _
                                       IIf(.Apps.CountItems = 0, "(all apps)", "(specific apps)") & " " & IIf(.Password <> "", "(secure)", "")
 
                         If .Apps.CountItems Then

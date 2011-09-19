@@ -157,7 +157,7 @@ Private Sub IStyleEngine_StyleAt(ByVal Index As Long, Style As libSnarlStyles.st
             .Path = App.Path
             .Schemes = ""
             .SupportEmail = "info@fullphat.net"
-            .URL = "http://www.fullphat.net"
+            .URL = "http://www.getsnarl.info"
 
         Select Case Index
 
@@ -348,7 +348,7 @@ End Sub
 
 Private Sub uIPFStyleUpdate(ByRef NotificationInfo As notification_info)
 
-    g_ForwardNotification NotificationInfo
+'    g_ForwardNotification NotificationInfo
 
 End Sub
 

@@ -15,9 +15,10 @@ Option Explicit
 
 Dim mPanel As BPrefsPanel
 Dim mhWndOwner As Long
-Dim mType As String
+Dim mType2 As SN_SUBSCRIBER_TYPE
 
 Public Event Closed()
+Public Event Refresh()
 
 Dim WithEvents theSocket As CSocket
 Attribute theSocket.VB_VarHelpID = -1
@@ -41,6 +42,11 @@ Private Sub KPrefsPage_ControlChanged(Control As prefs_kit_d2.BControl, ByVal Va
         prefskit_SafeEnable mPanel, "test_button", (Value <> "")
         prefskit_SafeEnable mPanel, "save_button", (Value <> "")
 
+
+    Case "url", "desc"
+        If mType2 = SN_ST_WEB_LISTENER Then _
+            prefskit_SafeEnable mPanel, "save_button", (prefskit_SafeGetText(mPanel, "desc") <> "") And (prefskit_SafeGetText(mPanel, "url") <> "")
+
     End Select
 
 End Sub
@@ -48,14 +54,13 @@ End Sub
 Private Sub KPrefsPage_ControlInvoked(Control As prefs_kit_d2.BControl)
 Dim pc As BControl
 Dim sz As String
-Dim ps As TSubscriber
 
     Select Case Control.GetName()
     Case "test_button"
         If mPanel.Find("host", pc) Then
             Control.SetEnabled False
             Set theSocket = New CSocket
-            If theSocket.Connect(pc.GetText(), IIf(mType = "subs", SNP_DEFAULT_PORT, GNTP_DEFAULT_PORT)) Then
+            If theSocket.Connect(pc.GetText(), IIf((mType2 And SN_ST_PROTOCOL_MASK) = 0, SNP_DEFAULT_PORT, GNTP_DEFAULT_PORT)) Then
                 Debug.Print "connecting..."
                 Set theTimer = new_BTimer(5000, True, True)
 
@@ -71,17 +76,34 @@ Dim ps As TSubscriber
 '        theAppPicker.Go mPanel.hWnd, mType, ""
 
     Case "save_button"
-        sz = prefskit_SafeGetText(mPanel, "host")
-        If sz = "" Then _
-            Exit Sub
 
-        If (LCase$(sz) = "localhost") Or (LCase$(sz) = LCase$(g_GetComputerName)) Or (InStr(get_ip_address_table(), sz) <> 0) Then
-            MsgBox "Cannot forward notifications to local computer.", vbExclamation Or vbOKOnly, App.Title
+        If mType2 = SN_ST_WEB_LISTENER Then
+            ' /* web listener */
+            If (prefskit_SafeGetText(mPanel, "desc") = "") Or (prefskit_SafeGetText(mPanel, "url") = "") Then
+                MsgBox "Must provide a name and URL", vbExclamation Or vbOKOnly, App.Title
+
+            ElseIf g_SubsRoster.AddWebListener(prefskit_SafeGetText(mPanel, "desc"), prefskit_SafeGetText(mPanel, "url")) Then
+                RaiseEvent Refresh
+                mPanel.Quit
+
+            End If
 
         Else
-            Set ps = New TSubscriber
-            g_SubsRoster.Add SN_ST_SNP3_FORWARDER, Nothing, Nothing
-            mPanel.Quit
+
+            sz = prefskit_SafeGetText(mPanel, "host")
+            If sz = "" Then _
+                Exit Sub
+
+            If (LCase$(sz) = "localhost") Or (LCase$(sz) = LCase$(g_GetComputerName)) Or (InStr(get_ip_address_table(), sz) <> 0) Then
+                MsgBox "Cannot forward notifications to local computer.", vbExclamation Or vbOKOnly, App.Title
+
+            Else
+                If g_SubsRoster.Add(mType2, prefskit_SafeGetText(mPanel, "desc"), sz, "") Then _
+                    frmAbout.SubscribersChanged
+
+                mPanel.Quit
+
+            End If
 
         End If
 
@@ -125,16 +147,13 @@ End Sub
 Private Sub KPrefsPanel_Selected(ByVal Command As String)
 End Sub
 
-Public Sub Go(ByVal hWndPanel As Long, ByVal PanelType As String)
-Dim rcThis As RECT
-Dim rcOwner As RECT
-Dim dw As Long
-Dim sz As String
+Public Sub Go(ByVal hWndPanel As Long, ByVal PanelType As SN_SUBSCRIBER_TYPE)
+Dim szTitle As String
 Dim sza As String
 Dim pp As BPrefsPage
 
     mhWndOwner = hWndPanel
-    mType = PanelType
+    mType2 = PanelType
 
 '        .AddItem .CreateItem("frwd", "Forward to remote computer...")
 '        .AddItem .CreateItem("subs", "Subscribe to remote SNP server...")
@@ -144,21 +163,24 @@ Dim pp As BPrefsPage
     With mPanel
         .SetHandler Me
         Select Case PanelType
-        Case "frwd"
-            sz = "Forward Notifications"
+        Case SN_ST_SNP3_FORWARD
+            szTitle = "Forward Notifications"
             sza = "forward notifications to."
 
-        Case "subs"
-            sz = "SNP Subscription"
+        Case SN_ST_SNP3_SUBSCRIPTION
+            szTitle = "SNP Subscription"
             sza = "subscribe to."
 
-        Case "subg"
-            sz = "GNTP Subscription"
-            sza = "subscribe to."
+'        Case "subg"
+'            szTitle = "GNTP Subscription"
+'            sza = "subscribe to."
+
+        Case SN_ST_WEB_LISTENER
+            szTitle = "Web Listener"
 
         End Select
 
-        .SetTitle sz
+        .SetTitle szTitle
         .SetWidth 460
 
         ' /* page */
@@ -168,33 +190,45 @@ Dim pp As BPrefsPage
         With pp
             .SetMargin 90
 
+            If mType2 = SN_ST_WEB_LISTENER Then
+            
+                .Add new_BPrefsControl("fancyedit", "desc", , "Description:")
+                .Add new_BPrefsControl("fancyedit", "url", , "URL:")
+'                .Add new_BPrefsControl("label", "", "")
+
+            Else
+
 '            .Add new_BPrefsControl("label", "", sza)
 '            .Add new_BPrefsSeparator
 
-            .Add new_BPrefsBanner("", "Destination", "")
-            .Add new_BPrefsControl("fancyedit", "desc", , "Description:")
-            .Add new_BPrefsControl("label", "", "This can be used to describe the remote computer (e.g. ""Tom's Computer"", ""Office Server"", etc.)")
+                .Add new_BPrefsBanner("", "Destination", "")
+                .Add new_BPrefsControl("fancyedit", "desc", , "Description:")
+                .Add new_BPrefsControl("label", "", "This can be used to describe the remote computer (e.g. ""Tom's Computer"", ""Office Server"", etc.)")
+    
+                .Add new_BPrefsControl("fancyedit", "host", , "Host name:")
+                .Add new_BPrefsControl("label", "", "Enter the host name or IP address of the computer you wish to " & sza)
+                .Add new_BPrefsControl("fancybutton2", "test_button", "Check", , , , False)
+    
+    '            .Add new_BPrefsBanner("", "Applications", "")
+    '            .Add new_BPrefsControl("fancybutton2", "pick_apps", "Select Applications...")
+    
+                .Add new_BPrefsControl("fancyedit", "apps", , "Apps:")
+                .Add new_BPrefsControl("label", "", "Enter the signatures of the applications you wish to " & _
+                                       IIf(mType2 = SN_ST_SNP3_FORWARD, "forward from", "subscribe to") & _
+                                       ".  Multiple entries should be separated with a semi-colon.  Refer to the user guide for more information.")
+    
+    '            If PanelType = "frwd" Then
+    '                .Add new_BPrefsControl("label", "", "Enter the signatures of the applications you wish to forward (separate multiple entries with "";"").  To forward from all applications, leave this field empty.")
+    '
+    '            Else
+    '                .Add new_BPrefsControl("label", "", "Enter the signatures of the applications you wish to subscribe (separating multiple entries with "";"") to.  To subscribe to all applications, leave this field empty.")
+    '
+    '            End If
 
-            .Add new_BPrefsControl("fancyedit", "host", , "Host name:")
-            .Add new_BPrefsControl("label", "", "Enter the host name or IP address of the computer you wish to " & sza)
-            .Add new_BPrefsControl("fancybutton2", "test_button", "Check", , , , False)
-
-'            .Add new_BPrefsBanner("", "Applications", "")
-'            .Add new_BPrefsControl("fancybutton2", "pick_apps", "Select Applications...")
-
-'            .Add new_BPrefsControl("fancyedit", "apps", , "")
-'            If PanelType = "frwd" Then
-'                .Add new_BPrefsControl("label", "", "Enter the signatures of the applications you wish to forward (separate multiple entries with "";"").  To forward from all applications, leave this field empty.")
-'
-'            Else
-'                .Add new_BPrefsControl("label", "", "Enter the signatures of the applications you wish to subscribe (separating multiple entries with "";"") to.  To subscribe to all applications, leave this field empty.")
-'
-'            End If
+            End If
 
             .Add new_BPrefsSeparator
             .Add new_BPrefsControl("fancybutton2", "save_button", "Save", , , , False)
-
-'            .Add new_BPrefsControl("ipaddr", "ia>addr", , "IP Address:")
 
         End With
 
@@ -205,12 +239,17 @@ Dim pp As BPrefsPage
         .Go
         g_SetWindowIconToAppResourceIcon .hWnd
 
+Dim dw As Long
+
         dw = GetWindowLong(.hWnd, GWL_STYLE)
         dw = dw And (Not WS_MINIMIZEBOX)
         SetWindowLong .hWnd, GWL_STYLE, dw
 
         SetWindowLong .hWnd, GWL_HWNDPARENT, hWndPanel
         EnableWindow hWndPanel, 0
+
+Dim rcOwner As RECT
+Dim rcThis As RECT
 
         GetWindowRect hWndPanel, rcOwner
         GetWindowRect .hWnd, rcThis

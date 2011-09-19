@@ -110,8 +110,15 @@ Dim pm As CTempMsg
 
             .Add new_BPrefsControl("banner", "", "General")
 
-            .Add new_BPrefsControl("fancyedit", "style:width", gStyleDefaults.ValueOf("width"), "Width:")
+'            .Add new_BPrefsControl("fancyedit", "style:width", gStyleDefaults.ValueOf("width"), "Width:")
+            
+            Set pm = New CTempMsg
+            pm.Add "min", 80&
+            pm.Add "max", 500&
+            pm.Add "freq", 20&
+            .Add new_BPrefsControl("fancyslider", "style:width", "", "Width:", gStyleDefaults.ValueOf("width"), pm)
             .Add new_BPrefsControl("fancycolourpicker", "style:background-colour", , "Background:", gStyleDefaults.ValueOf("background-colour"))
+
 
             .Add new_BPrefsControl("banner", "", "Notification Title")
             .Add new_BPrefsControl("fancyfontpicker", "style:title-font", gStyleDefaults.ValueOf("title-font"), "Font:", gStyleDefaults.ValueOf("title-font"))
@@ -140,6 +147,12 @@ Dim pm As CTempMsg
 
             End With
             .Add new_BPrefsControl("fancyslider", "style:text-opacity", "", "Opacity:", gStyleDefaults.ValueOf("text-opacity"), pm)
+
+
+            .Add new_BPrefsControl("banner", "", "Other Settings")
+            .Add new_BPrefsControl("fancytoggle2", "style:eyesight", "Enable support for people with eyesight problems?", "", gStyleDefaults.ValueOf("eyesight"))
+            .Add new_BPrefsControl("fancytoggle2", "style:animate", "Enable animations?", "", gStyleDefaults.ValueOf("animate"))
+
 
             .Add new_BPrefsSeparator
             .Add new_BPrefsControl("fancybutton2", "test", "Test")

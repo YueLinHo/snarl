@@ -17,77 +17,78 @@ Option Explicit
     '/
     '/  File:           TForwarder.cls
     '/
-    '/  Description:    Represents a single fire-and-forget notification forwarding instance
+    '/  Description:    Represents an instance of a single notification forwarded to a single destination
     '/
-    '/  © 2010 full phat products
+    '/  © 2011 full phat products
     '/
     '/  This file may be used under the terms of the Simplified BSD Licence
     '/
     '*********************************************************************************************/
 
-Dim mInfo As notification_info
-Dim mUID As Long
+Dim mSubscriber As TSubscriber
+Dim mContent As String
+Dim mDest As String
+Dim mGuid As String
 
 Dim WithEvents theSocket As CSocket
 Attribute theSocket.VB_VarHelpID = -1
 Dim WithEvents theTimer As BTimer
 Attribute theTimer.VB_VarHelpID = -1
 
-Public Sub Go(ByVal RemoteComputer As String, ByRef NotificationInfo As notification_info, ByVal UID As Long)
+Implements BTagItem
 
-    LSet mInfo = NotificationInfo
-    mUID = UID
+Private Function BTagItem_Name() As String
 
-    ' /* we're a fire-and-forget notification, so we initiate an asynchronous connection
-    '    to the destination and start a timer (currently 3 seconds).  If the socket
-    '    connects before the timer expires, we send the notification info */
+    BTagItem_Name = mGuid
 
-    ' /* TO DO: make the timeout user configurable */
+End Function
+
+Private Function BTagItem_Value() As String
+End Function
+
+Public Function Init(ByVal Guid As String, ByRef Subscriber As TSubscriber, ByVal Content As String, Optional ByVal IsGNTP As Boolean = False) As Boolean
+
+    mGuid = Guid
+    mContent = Content
+    mDest = Subscriber.Destination
 
     Set theSocket = New CSocket
-    theSocket.Connect RemoteComputer, 9887
-    Set theTimer = new_BTimer(3000, True)
+    If theSocket.Connect(Subscriber.Destination, IIf(IsGNTP, GNTP_DEFAULT_PORT, SNP_DEFAULT_PORT)) Then
+        g_Debug "TForwarder.Init(): connecting to '" & Subscriber.Destination & "'..."
+        Set mSubscriber = Subscriber
+        Set theTimer = new_BTimer(5000, True, True)             ' // should probably be configurable via snarl41.config...
+        Init = True
 
-End Sub
+    Else
+        g_Debug "TForwarder.Init(): invalid destination address '" & Subscriber.Destination & "'", LEMON_LEVEL_CRITICAL
+        Set theSocket = Nothing
 
-Public Function UID() As Long
-
-    UID = mUID
+    End If
 
 End Function
 
 Private Sub theSocket_OnConnect()
 
-    Debug.Print "### " & theSocket.RemoteHostIP & ": connected"
+    g_Debug "TForwarder.OnConnect(): connected to '" & mDest & "'", LEMON_LEVEL_INFO
     Set theTimer = Nothing
-
-Dim sz() As String
-
-    ' /* we ask for the app title as well, so on entry, notificationinfo.Title
-    '    actually looks like this: <creating app>#?<title> */
-
-    sz = Split(Replace$(mInfo.Title, vbCrLf, "\n"), "#?")
-
-    ' /* we must also escape any CRLF's back to \n's otherwise the CR will
-    '    act as a packet terminator */
-
-    theSocket.SendData "snp://notify?title=" & sz(1) & _
-                       "&text=" & Replace$(mInfo.Text, vbCrLf, "\n") & "\n\n" & sz(0) & " on " & g_GetComputerName() & _
-                       "&icon=" & mInfo.Icon & _
-                       vbCr
+    theSocket.SendData mContent
 
 End Sub
 
 Private Sub theSocket_OnSendComplete()
 
-    Debug.Print "### " & theSocket.RemoteHostIP & ": send complete"
-    g_ForwardRemove mUID
+    g_Debug "TForwarder.OnSendComplete(): content sent to '" & mDest & "'", LEMON_LEVEL_INFO
+    theSocket.CloseSocket
+    Set theSocket = Nothing
+    mSubscriber.RemoveForward mGuid
 
 End Sub
 
 Private Sub theTimer_Pulse()
 
-    g_Debug "TForwarder:: timed out connecting to '" & theSocket.RemoteHostIP & "'"
-    g_ForwardRemove mUID
+    g_Debug "TForwarder.Pulse(): timed out connecting to '" & mDest & "'", LEMON_LEVEL_WARNING
+    theSocket.CloseSocket
+    Set theSocket = Nothing
+    mSubscriber.RemoveForward mGuid
 
 End Sub

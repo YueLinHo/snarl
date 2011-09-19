@@ -361,7 +361,18 @@ Dim i As Long
         pm.Add "index", i
 '        pm.Add "checked", IIf(px.State = SN_ES_LOADED, 1&, 0&)
         pm.Add "greyscale", IIf(px.State = SN_ES_NOT_LOADED, 1&, 0&)
-        pm.Add "image-file", IIf(px.State = SN_ES_FAILED, g_MakePath(App.Path) & "etc\icons\bad.png", px.Icon)
+
+        If px.State = SN_ES_FAILED Then
+            pm.Add "image-file", g_MakePath(App.Path) & "etc\icons\bad.png"
+
+        ElseIf InStr(px.Icon, ",") Then
+            pm.Add "image-icon", px.Icon
+
+        Else
+            pm.Add "image-file", px.Icon
+    
+        End If
+
         pc.DoExCmd B_SET_ITEM, pm
 
     Loop

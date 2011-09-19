@@ -15,8 +15,8 @@ Option Explicit
 
     ' /* these are used by the deprecated SNARL_GET_VERSION and for GNTP responses */
 Public Const APP_VER = 2
-Public Const APP_SUB_VER = 4
-Public Const APP_SUB_SUB_VER = 2
+Public Const APP_SUB_VER = 5
+Public Const APP_SUB_SUB_VER = 0
 
 Public Const SNP_VERSION = "3.0"
 
@@ -126,6 +126,9 @@ Public Type T_NOTIFICATION_INFO
     CustomUID As String                 ' // R2.4 DR7: custom UID (set during <notify>)
     Actions As BTagList                 ' // R2.4 DR7: should have been here all along
     APIVersion As Long                  ' // R2.4.1: will be 42 for V42, 0 for everything prior to it
+    ' /* V43 */
+    ScriptFilename As String
+    ScriptLanguage As String
 
 End Type
 
@@ -587,7 +590,7 @@ Dim dwFlags As Long
 
     ' /* intialize the IP forwarding subsystem */
 
-    g_ForwardInit
+'    g_ForwardInit
 
     ' /* R2.31 - pre-set our config folder */
 
@@ -740,7 +743,7 @@ Dim i As Long
 
     If (g_ConfigGet("show_msg_on_start") = "1") Or (gDebugMode) Then
         i = g_PrivateNotify(SNARL_CLASS_GENERAL, "Welcome to Snarl!", _
-                            "Snarl " & g_Version() & vbCrLf & App.LegalCopyright & vbCrLf & "http://www.fullphat.net" & IIf(gDebugMode, vbCrLf & vbCrLf & "Debug mode enabled", ""), , _
+                            "Snarl " & g_Version() & vbCrLf & App.LegalCopyright & vbCrLf & "http://www.getsnarl.info" & IIf(gDebugMode, vbCrLf & vbCrLf & "Debug mode enabled", ""), , _
                             g_MakePath(App.Path) & "etc\icons\snarl.png")
 
         If i Then
@@ -1004,16 +1007,16 @@ Dim i As Long
 
         End If
 
-        i = .FindSection("remote_computers")
-        If i = 0 Then
-            Set gRemoteComputers = .AddSectionObj("remote_computers")
-            If Not gSysAdmin.TreatSettingsAsReadOnly Then _
-                .Save
-
-        Else
-            Set gRemoteComputers = .SectionAt(i)
-
-        End If
+'        i = .FindSection("remote_computers")
+'        If i = 0 Then
+'            Set gRemoteComputers = .AddSectionObj("remote_computers")
+'            If Not gSysAdmin.TreatSettingsAsReadOnly Then _
+'                .Save
+'
+'        Else
+'            Set gRemoteComputers = .SectionAt(i)
+'
+'        End If
 
     End With
 
@@ -1443,71 +1446,71 @@ Dim n As Integer
 
 End Sub
 
-Public Sub g_AddRemoteComputer(ByVal IPAddress As String)
+'Public Sub g_AddRemoteComputer(ByVal IPAddress As String)
+'
+'    If (IPAddress = "") Or (gRemoteComputers Is Nothing) Then _
+'        Exit Sub
+'
+'    ' /* should check for duplicates... */
+'
+'Dim sz As String
+'
+'    With gRemoteComputers
+'        If Not .Find(IPAddress, sz) Then
+'            .Add IPAddress, IPAddress
+'            frmAbout.bUpdateRemoteComputerList
+'            g_Debug "g_AddRemoteComputer(): added '" & IPAddress & "'"
+'            g_WriteConfig
+'
+'        Else
+'            g_Debug "g_AddRemoteComputer(): '" & IPAddress & "' already in list"
+'
+'        End If
+'    End With
+'
+'End Sub
 
-    If (IPAddress = "") Or (gRemoteComputers Is Nothing) Then _
-        Exit Sub
-
-    ' /* should check for duplicates... */
-
-Dim sz As String
-
-    With gRemoteComputers
-        If Not .Find(IPAddress, sz) Then
-            .Add IPAddress, IPAddress
-            frmAbout.bUpdateRemoteComputerList
-            g_Debug "g_AddRemoteComputer(): added '" & IPAddress & "'"
-            g_WriteConfig
-
-        Else
-            g_Debug "g_AddRemoteComputer(): '" & IPAddress & "' already in list"
-
-        End If
-    End With
-
-End Sub
-
-Public Function g_GetRemoteComputers() As String
-Dim pe As ConfigEntry
-Dim sz As String
-
-    If (gRemoteComputers Is Nothing) Then _
-        Exit Function
-
-    With gRemoteComputers
-        .Rewind
-        Do While .GetNextEntry(pe)
-            sz = sz & pe.Value & "|"
-
-        Loop
-
-    End With
-
-    g_GetRemoteComputers = g_SafeLeftStr(sz, Len(sz) - 1)
-
-End Function
+'Public Function g_GetRemoteComputers() As String
+'Dim pe As ConfigEntry
+'Dim sz As String
+'
+'    If (gRemoteComputers Is Nothing) Then _
+'        Exit Function
+'
+'    With gRemoteComputers
+'        .Rewind
+'        Do While .GetNextEntry(pe)
+'            sz = sz & pe.Value & "|"
+'
+'        Loop
+'
+'    End With
+'
+'    g_GetRemoteComputers = g_SafeLeftStr(sz, Len(sz) - 1)
+'
+'End Function
 
 Public Function g_GetRemoteComputersMenu() As OMMenu
 
-    If (gRemoteComputers Is Nothing) Then _
-        Exit Function
-
-Dim pMenu As OMMenu
-Dim pe As ConfigEntry
-
-    Set pMenu = New OMMenu
-    
-    With gRemoteComputers
-        .Rewind
-        Do While .GetNextEntry(pe)
-            pMenu.AddItem pMenu.CreateItem("ip>" & pe.Value, pe.Value)
-
-        Loop
-
-    End With
-    
-    If pMenu.CountItems > 0 Then _
-        Set g_GetRemoteComputersMenu = pMenu
+'    If (gRemoteComputers Is Nothing) Then _
+'        Exit Function
+'
+'Dim pMenu As OMMenu
+'Dim pe As ConfigEntry
+'
+'    Set pMenu = New OMMenu
+'
+'    With gRemoteComputers
+'        .Rewind
+'        Do While .GetNextEntry(pe)
+'            pMenu.AddItem pMenu.CreateItem("ip>" & pe.Value, pe.Value)
+'
+'        Loop
+'
+'    End With
+'
+'    If pMenu.CountItems > 0 Then _
+'        Set g_GetRemoteComputersMenu = pMenu
 
 End Function
 
@@ -2623,7 +2626,6 @@ Dim pApp As TApp
 End Function
 
 Public Function g_DoAction(ByVal action As String, ByVal Token As Long, ByRef Args As BPackedData, Optional ByVal InternalFlags As SN_NOTIFICATION_FLAGS, Optional ByRef ReplySocket As CSocket, Optional ByVal SenderPID As Long) As Long
-Dim sz As String
 
     ' /* this is the central hub for all incoming requests, be they from SNP, Growl/UDP
     '    or Win32.  "Token" here can be either the app token or the notification token;
@@ -2632,20 +2634,74 @@ Dim sz As String
     ' /* Return zero on error (and set lasterror), -1 or a +ve value on success - whatever
     '    called this will figure out what to do with the return value */
 
-    If (g_AppRoster Is Nothing) Or (g_NotificationRoster Is Nothing) Or (Args Is Nothing) Then
-        ' /* pretty much all of these require either or both rosters to be
-        '    available, so let's bail out now if something's really wrong */
+    If (g_AppRoster Is Nothing) Then
         gSetLastError SNARL_ERROR_SYSTEM
-        g_Trap SOS_MISSING_ROSTER, "AppRoster or NotificationRoster"
+        g_Trap SOS_MISSING_ROSTER, "AppRoster"
         Exit Function
 
     End If
 
+    If (g_NotificationRoster Is Nothing) Then
+        gSetLastError SNARL_ERROR_SYSTEM
+        g_Trap SOS_MISSING_ROSTER, "NotificationRoster"
+        Exit Function
+
+    End If
+
+    If (Args Is Nothing) Then
+        gSetLastError SNARL_ERROR_ARG_MISSING
+        Exit Function
+
+    End If
+
+
+Dim szSource As String
 Dim pApp As TApp
 
     ' /* assume all okay... */
 
     gSetLastError 0
+    If Not (ReplySocket Is Nothing) Then _
+        szSource = ReplySocket.RemoteHostIP
+
+    ' /* R2.4.2 DR3: check RemoteHostName is not actually one of our locally-assigned addresses */
+
+'    If szSource <> "" Then
+'        g_Debug "g_DoAction(): RemoteIP=" & szSource
+'
+'        ' /* is it actually a local IP? */
+'        If InStr(get_ip_address_table(), szSource) <> 0 Then _
+'            szSource = ""
+'
+'        g_Debug "g_DoAction(): FilteredRemoteIP=" & szSource
+'
+'    End If
+'
+'Dim pArgs As BPackedData
+'Dim sSig As String
+'Dim sn As String
+'Dim sv As String
+'
+'    ' /* if this is routed from a remote computer and it's using "app-sig"
+'    '    tack on the remote ip address to the provided signature */
+'
+'    If (szSource <> "") And (Args.Exists("app-sig")) Then
+'        Set pArgs = New BPackedData
+'        With Args
+'            sSig = .ValueOf("app-sig")
+'
+'            .Rewind
+'            Do While .GetNextItem(sn, sv)
+'                If sn <> "app-sig" Then _
+'                    pArgs.Add sn, sv
+'
+'            Loop
+'        End With
+'
+'        pArgs.Add "app-sig", sSig & ":" & szSource
+'        Set Args = pArgs
+'
+'    End If
 
     Select Case action
 
@@ -2677,11 +2733,7 @@ Dim pApp As TApp
         g_DoAction = g_DoNotify(Token, Args, ReplySocket, InternalFlags)
 
     Case "reg", "register"
-        If Not (ReplySocket Is Nothing) Then _
-            sz = ReplySocket.RemoteHost
-
-'        g_DoAction = g_AppRoster.Add41(Args, ReplySocket, SenderPID, (InternalFlags And SN_NF_REMOTE), sz)
-        g_DoAction = g_AppRoster.Add41(Args, ReplySocket, SenderPID, sz)
+        g_DoAction = g_AppRoster.Add41(Args, ReplySocket, SenderPID, szSource)
 
     Case "remclass"
         g_DoAction = uRemClass(Token, Args)
@@ -2757,12 +2809,12 @@ Dim pApp As TApp
 
         Else
             g_Debug "g_DoAction(): <subscribe> from " & ReplySocket.RemoteHostIP & ":" & ReplySocket.RemotePort
-            If g_SubsRoster.Add(SN_ST_SNP3_SUBSCRIBER, ReplySocket, Args) Then
-                g_PrivateNotify "", "Subscriber added", ReplySocket.RemoteHostIP & " subscribed", , ".sub-add"
-                frmAbout.SubscribersChanged
-                g_DoAction = -1
-
-            End If
+'            If g_SubsRoster.Add(SN_ST_SNP3_SUBSCRIBER, ReplySocket, Args) Then
+'                g_PrivateNotify "", "Subscriber added", ReplySocket.RemoteHostIP & " subscribed", , ".sub-add"
+'                frmAbout.SubscribersChanged
+'                g_DoAction = -1
+'
+'            End If
 
         End If
 
@@ -3424,7 +3476,7 @@ End Function
 
 Public Function g_DoV42Request(ByVal Request As String, ByVal SenderPID As Long, Optional ByRef ReplySocket As CSocket, Optional ByVal Flags As SN_NOTIFICATION_FLAGS) As Long
 
-    Debug.Print "TMainWindow.g_DoV42Request(): data is '" & Request & "'"
+    g_Debug "g_DoV42Request(): '" & Request & "'"
 
     ' /* must at least have an action */
 
@@ -3437,7 +3489,7 @@ Public Function g_DoV42Request(ByVal Request As String, ByVal SenderPID As Long,
     ' /* R2.4.2 DR3: if a reply socket is provided, set SN_NF_REMOTE accordingly */
 
     If Not (ReplySocket Is Nothing) Then
-        g_Debug "g_DoV42Request(): sender is " & ReplySocket.RemoteHostIP & ":" & ReplySocket.RemotePort
+        g_Debug "g_DoV42Request(): sender is " & ReplySocket.RemoteHost & ":" & ReplySocket.RemotePort
         If ReplySocket.RemoteHostIP <> "127.0.0.1" Then _
              Flags = Flags Or SN_NF_REMOTE
 
@@ -3448,8 +3500,7 @@ Public Function g_DoV42Request(ByVal Request As String, ByVal SenderPID As Long,
     Request = Replace$(Request, "&&", "%26")
     Request = Replace$(Request, "==", "%3d")
 
-    ' /* convert to internal format (note that 'real' equals and ampersands
-    '    will still be url-encoded so they're safe */
+    ' /* convert to internal format.  Real '=' and '&' will still be url-encoded so they're safe */
 
     Request = Replace$(Request, "=", "::")
     Request = Replace$(Request, "&", "#?")
@@ -3480,6 +3531,9 @@ Dim lToken As Long
     Set pData = New BPackedData
     pData.SetTo g_URLDecode(Request)
     lToken = g_SafeLong(pData.ValueOf("token"))
+
+    If (Not (ReplySocket Is Nothing)) And (pData.Exists("app-sig")) Then _
+        pData.Update "app-sig", pData.ValueOf("app-sig") & "#" & ReplySocket.RemoteHost
 
     ' /* pass to master function */
 
@@ -3653,3 +3707,9 @@ Dim sz As String
 
 End Sub
 
+Public Function new_BPackedData(ByVal Content As String) As BPackedData
+
+    Set new_BPackedData = New BPackedData
+    new_BPackedData.SetTo Content
+
+End Function

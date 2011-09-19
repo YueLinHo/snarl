@@ -72,11 +72,11 @@ Dim pm As CTempMsg
             .Add new_BPrefsControl("fancytoggle2", "only_allow_secure_apps", "Only allow password-protected applications?", "", g_ConfigGet("only_allow_secure_apps"))
             .Add new_BPrefsControl("label", "", "Applications can provide a password when registering with Snarl which makes it harder for rogue applications to generate notifications by spoofing a legitimate application.  Note that enabling this setting will prevent existing non-password protected applications from registering.")
 
-            .Add new_BPrefsControl("fancytoggle2", "require_password", "Require a password for remote applications?", "", g_ConfigGet("require_password"))
-            Set pm = New CTempMsg
-            pm.Add "password", 1&
-            .Add new_BPrefsControl("fancyedit", "network_password", g_GetPassword(), "Password:", , pm)
-            .Add new_BPrefsControl("label", "", "This setting applies to applications registering via SNP3 or GNTP from a remote source.")
+'            .Add new_BPrefsControl("fancytoggle2", "require_password", "Require a password for remote applications?", "", g_ConfigGet("require_password"))
+'            Set pm = New CTempMsg
+'            pm.Add "password", 1&
+'            .Add new_BPrefsControl("fancyedit", "network_password", g_GetPassword(), "Password:", , pm)
+'            .Add new_BPrefsControl("label", "", "This setting applies to applications registering via SNP3 or GNTP from a remote source.")
 
             .Add new_BPrefsControl("banner", "", "Notifications")
             .Add new_BPrefsControl("fancytoggle2", "no_callback_urls", "Prevent URLs being used as the default callback?", "", g_ConfigGet("no_callback_urls"))
