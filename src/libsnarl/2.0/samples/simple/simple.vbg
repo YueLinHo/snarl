@@ -1,0 +1,3 @@
+VBGROUP 5.0
+Project=..\..\libsnarl-2-0.vbp
+StartupProject=simple.vbp
