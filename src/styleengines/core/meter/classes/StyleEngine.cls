@@ -61,7 +61,7 @@ Option Explicit
     '
     ' */
 
-Private Const LIB_DATE = "13-Jun-2011"
+Private Const LIB_DATE = "31-Aug-2011"
 
 Private Const STYLE_NAME_JUST_BLACK = "Just Black"
 Private Const STYLE_NAME_IPHONEY = "iPhoney"

@@ -185,7 +185,7 @@ Dim cy As Long
 
         ' /* measure title */
 
-        If mData.Exists("title") Then
+        If mData.ValueOf("title") <> "" Then
             .SetFont mStyle.ReadSetting("title_font"), mStyle.ReadSetting("title_size"), True
             Set prTemp = pr.Duplicate
             prTemp.Bottom = 16384
@@ -196,7 +196,7 @@ Dim cy As Long
 
         ' /* measure text */
 
-        If (mData.Exists("text")) And (Not mIsNumeric) Then
+        If (mData.ValueOf("text") <> "") And (Not mIsNumeric) Then
             .SetFont mStyle.ReadSetting("text_font"), mStyle.ReadSetting("text_size")
             Set prTemp = pr.Duplicate
             prTemp.Bottom = 16384
