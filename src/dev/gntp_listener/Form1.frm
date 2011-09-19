@@ -13,7 +13,7 @@ Begin VB.Form Form1
    StartUpPosition =   3  'Windows Default
    Begin VB.TextBox Text1 
       BeginProperty Font 
-         Name            =   "Tahoma"
+         Name            =   "Verdana"
          Size            =   8.25
          Charset         =   0
          Weight          =   400
@@ -70,7 +70,8 @@ Dim sz As String
 
     g_SetWindowIconToAppResourceIcon2 Me.hWnd
 
-    Me.Output App.ProductName & " initialised"
+    Me.Output vbCrLf & App.ProductName & " " & App.Major & "." & App.Minor & " (" & App.Revision & ") initialised"
+    Me.Output "Logging to '" & l3LogPath & "'" & vbCrLf
 
 End Sub
 

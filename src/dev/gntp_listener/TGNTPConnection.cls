@@ -41,7 +41,10 @@ Dim sz As String
     If g_SafeRightStr(sz, 4) = vbCrLf & vbCrLf Then
         theSocket.GetData sz
         gntp_Process sz, theSocket, szReply, bKeepOpen
-        Form1.Output "response=" & Replace$(szReply, vbCrLf, "¶")
+        Form1.Output "--"
+        Form1.Output "replying to socket with:"
+        Form1.Output Replace$(szReply, vbCrLf, "¶")
+        Form1.Output "--"
 
         theSocket.SendData szReply
         If Not bKeepOpen Then _
