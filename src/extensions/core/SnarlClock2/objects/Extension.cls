@@ -29,13 +29,23 @@ Option Explicit
 
     ' /* our constants */
 
-Const EXT_NAME = "Clock+"
-Const EXT_DATE = "28-Mar-2011"
-Const EXT_REL = "2.06"
+Const EXT_DATE = "14-Sep-2011"
+Const EXT_REL = "3.0"
+
+Const UID_HOURLY = "_clock+_hourly"
+Const UID_TIMER = "_clock+_timer"
 
 Const CLASS_HOUR_CHIME = "hrch"
 Const CLASS_COUNTDOWN_COMPLETE = "ccom"
-'Const CLASS_REMINDERS = "outr"
+Const CLASS_REMINDER = "rmdr"
+Const CLASS_ALARM = "alrm"
+
+Enum CLOCK_FORMAT_TYPES
+    CFT_NUMERIC = 0
+    CFT_TEXT = 1
+    CFT_SPECIAL = 2
+
+End Enum
 
     ' /*
     '
@@ -60,41 +70,50 @@ Const CLASS_COUNTDOWN_COMPLETE = "ccom"
     '
     ' */
 
-Dim mToken As Long
-
 Dim mLastErr As String
 Dim mConfigFile As CConfFile
 
 Dim mPanel As BPrefsPanel           ' // our prefs panel
 Dim mhWndOwner As Long              ' // handle of the window which launched our config (typically Snarl's Prefs panel)
+Dim mPassword As String
 
     ' /* hourly chime */
-Dim mChimeId As Long
 Dim mLastHour As Integer
 
+    ' /* cookies */
+Dim mCookie() As String
+Dim mCookies As Long
+
     ' /* timer */
-Dim mTimerId As Long
 Dim mTimer As Date
 Dim WithEvents theTimer As BTimer
 Attribute theTimer.VB_VarHelpID = -1
+Dim mTimerRunning As Boolean
+
+Dim WithEvents theWatchTimer As BTimer
+Attribute theWatchTimer.VB_VarHelpID = -1
+Dim WithEvents theKeyTimer As BTimer
+Attribute theKeyTimer.VB_VarHelpID = -1
+Dim WithEvents theCornerTimer As BTimer
+Attribute theCornerTimer.VB_VarHelpID = -1
+
+    ' /* reminders */
+Dim WithEvents theReminderPanel As TReminderPanel
+Attribute theReminderPanel.VB_VarHelpID = -1
+Dim mRemConfig As CConfFile3
+Dim mRemList As BTagList
+Dim WithEvents theAlarmAndReminderTimer As BTimer
+Attribute theAlarmAndReminderTimer.VB_VarHelpID = -1
+
+    ' /* alarms */
+Dim mAlarmConfig As CConfFile3
+Dim mAlarmList As BTagList
+Dim WithEvents theAlarmPanel As TReminderPanel
+Attribute theAlarmPanel.VB_VarHelpID = -1
 
 Implements KPrefsPanel              ' // we're a panel handler
 Implements KPrefsPage               ' // and a page handler
 Implements ISnarlExtension
-
-Private Sub Class_Initialize()
-
-    l3OpenLog "%APPDATA%\" & EXT_NAME & ".log"
-    g_Debug EXT_NAME & " running from '" & g_MakePath(App.Path) & "'"
-    g_Debug ""
-
-End Sub
-
-Private Sub Class_Terminate()
-
-'    lemonCloseLog EXT_NAME
-
-End Sub
 
 Private Function ISnarlExtension_GetConfigWindow() As Long
 Dim pPage As BPrefsPage
@@ -108,11 +127,11 @@ Dim pc As BControl
         Set mPanel = New BPrefsPanel
         With mPanel
             .SetHandler Me
-            .SetTitle EXT_NAME & " Preferences"
-            .SetWidth 380
+            .SetTitle App.Title & " Preferences"
+            .SetWidth 500
             .SetWindow 1                    ' // so calling Go() doesn't show the window
 
-            Set pPage = new_BPrefsPage("General", load_image_obj(g_MakePath(App.Path) & "general.png"), Me)
+            Set pPage = new_BPrefsPage("General", uPanelIcon("general"), Me)
 
             ' /* General */
 
@@ -120,27 +139,20 @@ Dim pc As BControl
                 .SetMargin 90
                 .Add new_BPrefsControl("banner", "", "Startup")
             
-'            Set pm = New CTempMsg
-'            pm.Add "inset_by", CLng(Fix(.GetMargin() / 2))
-
-                .Add new_BPrefsControl("fancytoggle2", "show_time_on_load", "Show current time?", , IIf(gConfig.show_time_on_load, "1", "0"))
-                .Add new_BPrefsControl("fancytoggle2", "show_cookie_on_load", "Display random cookie?", , IIf(gConfig.show_cookie_on_load, "1", "0"))
+                .Add new_BPrefsControl("fancytoggle2", "show_time_on_load", "Show current time?", , mConfigFile.ValueOf("show_time_on_load"))
+                .Add new_BPrefsControl("fancytoggle2", "show_cookie_on_load", "Display random cookie?", , mConfigFile.ValueOf("show_cookie_on_load"))
 
                 .Add new_BPrefsControl("banner", "", "Cookies")
-                .Add new_BPrefsControl("fancytoggle2", "show_cookie", "Include random cookie in notification?", , IIf(gConfig.show_cookie, "1", "0"))
+                .Add new_BPrefsControl("fancytoggle2", "show_cookie", "Include random cookie in notification?", , mConfigFile.ValueOf("show_cookie"))
+                .Add new_BPrefsControl("fancyfilepicker", "cookie_file", mConfigFile.ValueOf("cookie_file"), "Cookie file:")
 
-                sz = g_GetPath(gConfig.cookie_file)
-                If sz <> "" Then
-                    Set pm = New CTempMsg
-                    pm.Add "path", sz
+                .Add new_BPrefsControl("banner", "", "Other")
+                .Add new_BPrefsControl("fancytoggle2", "show_time_on_key", "Show time when the Tab key is pressed?", , mConfigFile.ValueOf("show_time_on_key"))
+                .Add new_BPrefsControl("fancytoggle2", "show_time_on_hotspot", "Show time when the mouse pointer moves to the:", , mConfigFile.ValueOf("show_time_on_hotspot"))
+                .Add new_BPrefsControl("fancycycle", "hotspot_corner", "Top-left corner|Top-right corner|Bottom-left corner|Bottom-right corner", , mConfigFile.ValueOf("hotspot_corner"), , (mConfigFile.ValueOf("show_time_on_hotspot") = "1"))
 
-                End If
-
-                .Add new_BPrefsControl("fancyfilepicker", "cookie_file", gConfig.cookie_file, "Cookie file:", , pm)
-
-                .Add new_BPrefsControl("banner", "", "About " & EXT_NAME)
+                .Add new_BPrefsControl("banner", "", "About " & App.Title)
                 .Add new_BPrefsControl("label", "", "V" & CStr(App.Major) & "." & CStr(App.Revision), "Version:")
-                .Add new_BPrefsControl("label", "", App.LegalCopyright)
                 .Add new_BPrefsControl("fancybutton2", "go_website", "www.fullphat.net", "Website:")
 
             End With
@@ -149,7 +161,7 @@ Dim pc As BControl
 
             ' /* Timer */
 
-            Set pPage = new_BPrefsPage("Timer", load_image_obj(g_MakePath(App.Path) & "timer.png"), Me)
+            Set pPage = new_BPrefsPage("Timer", uPanelIcon("timer"), Me)
             With pPage
                 .SetMargin 90
                 .Add new_BPrefsControl("banner", "", "Duration")
@@ -157,38 +169,91 @@ Dim pc As BControl
                 pm.Add "min", 0&
                 pm.Add "max", 23&
                 pm.Add "freq", 2&
-                .Add new_BPrefsControl("fancyslider", "timer_hours", , "Hours:", CStr(gConfig.timer_hours), pm)
+                .Add new_BPrefsControl("fancyslider", "timer_hours", , "Hours:", mConfigFile.ValueOf("timer_hours"), pm)
 
                 Set pm = New CTempMsg
                 pm.Add "min", 0&
                 pm.Add "max", 59&
                 pm.Add "freq", 5&
-                .Add new_BPrefsControl("fancyslider", "timer_mins", , "Minutes:", CStr(gConfig.timer_mins), pm)
+                .Add new_BPrefsControl("fancyslider", "timer_mins", , "Minutes:", mConfigFile.ValueOf("timer_mins"), pm)
 
                 .Add new_BPrefsControl("fancytoggle", "start_stop_timer", "Paused|Running")
                 .Add new_BPrefsControl("label", "timer_current", _
-                                       Format$(gConfig.timer_hours, "00") & ":" & Format$(gConfig.timer_mins, "00") & ":00", _
+                                       Format$(Val(mConfigFile.ValueOf("timer_hours")), "00") & ":" & Format$(Val(mConfigFile.ValueOf("timer_mins")), "00") & ":00", _
                                        "Remaining:")
 
 
                 .Add new_BPrefsControl("banner", "", "Options")
-'            .Add new_BPrefsControl("fancytoggle2", "custom_timer_icon", "Use custom icon?", , IIf(gConfig.custom_timer_icon, "1", "0"))
-                .Add new_BPrefsControl("fancyfilepicker", "timer_icon", gConfig.timer_icon, "Icon:", , pm)
+'            .Add new_BPrefsControl("fancytoggle2", "custom_timer_icon", "Use custom icon?", , IIf(mconfigfile.custom_timer_icon, "1", "0"))
+                .Add new_BPrefsControl("fancyfilepicker", "timer_icon", mConfigFile.ValueOf("timer_icon"), "Icon:", , pm)
 
-                .Add new_BPrefsControl("fancyedit", "timer_message", gConfig.timer_message, "Message:", , pm)
+                .Add new_BPrefsControl("fancyedit", "timer_message", mConfigFile.ValueOf("timer_message"), "Message:", , pm)
                 .Add new_BPrefsControl("label", "", "(Leave either field blank to use the default)")
 
-                .Add new_BPrefsControl("fancytoggle2", "timer_10sec_warning", "Show notification during last 10 seconds?", "Other:", IIf(gConfig.timer_10sec_warning, "1", "0"))
-                .Add new_BPrefsControl("fancytoggle2", "show_meter", "Meter-friendly?", , IIf(gConfig.show_meter, "1", "0"))
-                .Add new_BPrefsControl("label", "", "Enabling this option causes " & EXT_NAME & " to include text in the notification which some styles can display graphically.")
+                .Add new_BPrefsControl("fancytoggle2", "timer_10sec_warning", "Show notification during last 10 seconds?", "Other:", mConfigFile.ValueOf("timer_10sec_warning"))
+                .Add new_BPrefsControl("fancytoggle2", "show_meter", "Meter-friendly?", , mConfigFile.ValueOf("show_meter"))
+                .Add new_BPrefsControl("label", "", "Enabling this option causes " & App.Title & " to include text in the notification which some styles can display graphically.")
 
             End With
 
             .AddPage pPage
 
+
+
+            ' /* alarms */
+
+            Set pPage = new_BPrefsPage("Alarms", uPanelIcon("alarms"), Me)
+            With pPage
+                .SetMargin 10
+'                .Add new_BPrefsControl("banner", "", "Alarms")
+
+                Set pm = New CTempMsg
+                pm.Add "checkboxes", 1&
+                pm.Add "plusminus", 1&
+                pm.Add "item-height", 36&
+
+                Set pc = new_BPrefsControl("listbox", "alarms_list", , , , pm)
+                pc.SizeTo 0, (9 * 36) + 4
+                .Add pc
+                .Add new_BPrefsControl("fancyplusminus", "add_alarm")
+    
+            End With
+
+            .AddPage pPage
+
+
+
+
+            ' /* reminders */
+
+            Set pPage = new_BPrefsPage("Reminders", uPanelIcon("reminders"), Me)
+            With pPage
+                .SetMargin 10
+'                .Add new_BPrefsControl("banner", "", "Reminders")
+
+                Set pm = New CTempMsg
+'                pm.Add "checkboxes", 1&
+                pm.Add "plusminus", 1&
+                pm.Add "item-height", 36&
+
+                Set pc = new_BPrefsControl("listbox", "reminders_list", , , , pm)
+                pc.SizeTo 0, (6 * 36) + 4
+                .Add pc
+                .Add new_BPrefsControl("fancyplusminus", "add_reminder")
+
+'                .Add new_BPrefsControl("banner", "", "Options")
+                .Add new_BPrefsControl("label", "", "Show notification:")
+                .Add new_BPrefsControl("fancycycle", "reminder_offset", "On the event|5 minutes before|10 minutes before|30 minutes before|1 hour before|1 day before", , CStr(uGetReminderOffset() + 1))
+
+            End With
+
+            .AddPage pPage
+
+
+
             ' /* formats */
 
-            Set pPage = new_BPrefsPage("Formats", load_image_obj(g_MakePath(App.Path) & "format.png"), Me)
+            Set pPage = new_BPrefsPage("Formats", uPanelIcon("format"), Me)
             With pPage
                 .SetMargin 90
                 .Add new_BPrefsControl("banner", "", "General Time Format")
@@ -196,23 +261,23 @@ Dim pc As BControl
                 Set pm = New CTempMsg
                 pm.Add "inset_by", CLng(Fix(.GetMargin() / 2))
 
-'                .Add new_BPrefsControl("fancytoggle2", "show_as_words", "Show as text?", , IIf(gConfig.show_as_words, "1", "0"), pm)
-                .Add new_BPrefsControl("fancycycle", "format_type", "Numeric|Text|YYYYMMDDHHMMSS", , CStr(gConfig.format_type + 1))
+'                .Add new_BPrefsControl("fancytoggle2", "show_as_words", "Show as text?", , IIf(mconfigfile.show_as_words, "1", "0"), pm)
+                .Add new_BPrefsControl("fancycycle", "format_type", "Numeric|Text|YYYYMMDDHHMMSS", , CStr(Val(mConfigFile.ValueOf("format_type")) + 1))
 
                 .Add new_BPrefsControl("banner", "", "Numeric Time Format")
-                .Add new_BPrefsControl("fancytoggle2", "use_12_hour_clock", "Use 12 hour clock?", , IIf(gConfig.use_12_hour_clock, "1", "0"), pm)
-                .Add new_BPrefsControl("fancytoggle2", "two_digit_hour", "Two digit hour?", , IIf(gConfig.two_digit_hour, "1", "0"), pm)
-                .Add new_BPrefsControl("fancytoggle2", "show_seconds", "Show seconds?", , IIf(gConfig.show_seconds, "1", "0"), pm)
-                .Add new_BPrefsControl("fancytoggle2", "show_am_pm", "Show AM/PM?", , IIf(gConfig.show_am_pm, "1", "0"), pm)
+                .Add new_BPrefsControl("fancytoggle2", "use_12_hour_clock", "Use 12 hour clock?", , mConfigFile.ValueOf("use_12_hour_clock"))
+                .Add new_BPrefsControl("fancytoggle2", "two_digit_hour", "Two digit hour?", , mConfigFile.ValueOf("two_digit_hour"))
+                .Add new_BPrefsControl("fancytoggle2", "show_seconds", "Show seconds?", , mConfigFile.ValueOf("show_seconds"))
+                .Add new_BPrefsControl("fancytoggle2", "show_am_pm", "Show AM/PM?", , mConfigFile.ValueOf("show_am_pm"), , (mConfigFile.ValueOf("use_12_hour_clock") = "1"))
     
-    '            .Add new_BPrefsControl("fancytoggle2", "custom_am_pm", "Custom AM/PM values?", , IIf(1, "1", "0"), pm, Not gConfig.show_as_words)
+    '            .Add new_BPrefsControl("fancytoggle2", "custom_am_pm", "Custom AM/PM values?", , IIf(1, "1", "0"), pm, Not mconfigfile.show_as_words)
 
-                .Add new_BPrefsControl("banner", "", "Custom Mnemonics")
-                Set pc = new_BPrefsControl("fancyedit", "am_val", gConfig.am_val, "AM:")
+                .Add new_BPrefsControl("banner", "", "Custom Abbreviations")
+                Set pc = new_BPrefsControl("fancyedit", "am_val", mConfigFile.ValueOf("am_val"), "AM:")
                 pc.SizeTo 48, pc.Height
                 .Add pc
     
-                Set pc = new_BPrefsControl("fancyedit", "pm_val", gConfig.pm_val, "PM:")
+                Set pc = new_BPrefsControl("fancyedit", "pm_val", mConfigFile.ValueOf("pm_val"), "PM:")
                 pc.SizeTo 48, pc.Height
                 .Add pc
 
@@ -227,16 +292,21 @@ Dim pc As BControl
 
             .AddPage pPage
 
+            
+
+            
+            
+            
             ' /* create it */
 
             .Go
-            g_SetWindowIconToAppResourceIcon .hwnd
+            g_SetWindowIconToAppResourceIcon .hWnd
 
         End With
 
     End If
 
-    ISnarlExtension_GetConfigWindow = mPanel.hwnd
+    ISnarlExtension_GetConfigWindow = mPanel.hWnd
 
 End Function
 
@@ -248,8 +318,8 @@ Private Sub ISnarlExtension_GetInfo(Info As libSnarlExtn.extension_info)
         .Date = EXT_DATE
         .Description = App.FileDescription
         .Flags = SNARL_EXTN_IS_CONFIGURABLE Or SNARL_EXTN_WANTS_PULSE
-        .IconPath = g_MakePath(App.Path) & "icon.png"
-        .Name = EXT_NAME
+        .IconPath = g_MakePath(App.Path) & IIf(g_IsIDE(), "bin\", "") & "icon.png"
+        .Name = App.Title
         .Path = App.Path
         .Release = EXT_REL
         .Revision = App.Revision
@@ -263,139 +333,49 @@ End Sub
 
 Private Function ISnarlExtension_Initialize() As Long
 Dim szPath As String
+Dim i As Integer
 
     On Error Resume Next
 
+    l3OpenLog "%APPDATA%\" & App.Title & ".log"
+    g_Debug App.Title & " running from '" & g_MakePath(App.Path) & "'"
+    g_Debug ""
+
     mLastErr = ""
+    mPassword = ""
 
     ' /* does snarl's /etc/ path exist? */
 
-    If Not sn42GetConfigPath(szPath) Then
+    If Not snGetConfigPath(szPath) Then
+        g_Debug "Extension.Initialize(): snGetConfigPath() failed", LEMON_LEVEL_CRITICAL
         mLastErr = "Couldn't get Snarl user path"
-        MsgBox "path"
         ISnarlExtension_Initialize = 201
         Exit Function
 
     End If
 
-    ' /* defaults */
+    g_Debug "Extension.Initialize(): snGetConfigPath() is '" & szPath & "'"
 
-    With gConfig
-        .cookie_file = g_MakePath(App.Path) & "cookies.txt"
-        .format_type = 1                    ' // text
-        .show_cookie = True
-        .show_time_on_load = True
-        .use_12_hour_clock = True
-        .show_am_pm = True
-        .show_seconds = False
-        .two_digit_hour = False
-        .am_val = "am"
-        .pm_val = "pm"
-
-        .timer_icon = ""
-        .timer_10sec_warning = True
-        .timer_message = ""
-
-        .timer_hours = 0
-        .timer_mins = 10
-        .timer_running = False
-
-        .show_meter = True
-        .show_cookie_on_load = True
-
-    End With
-
-    ' /* load config: if our config exists we load it, otherwise, if
-    '    the old SnarlClock config exists, we load that instead */
-
-Dim sz As String
-
-    sz = g_MakePath(szPath) & ".snarlclock2"
-    If Not g_Exists(sz) Then
-        sz = g_MakePath(szPath) & "extensions\snarlclock\snarlclock.conf"
-        If Not g_Exists(sz) Then _
-            sz = ""
-
-    End If
-
-Dim szData As String
-
-    If sz <> "" Then
-        With New CConfFile
-            If .SetTo(sz) Then
-                If .FindEntry("cookie_file", szData) Then _
-                    gConfig.cookie_file = szData
-
-'                If .FindEntry("reminder_duration", szData) Then _
-                    gConfig.reminder_duration = Val(szData)
-    
-                If .FindEntry("format_type", szData) Then
-                    gConfig.format_type = Val(szData)
-
-                Else
-                    ' /* set from previous version */
-                    If .FindEntry("show_as_words", szData) Then _
-                        gConfig.format_type = Val(szData)
-
-                End If
-
-                If .FindEntry("show_cookie", szData) Then _
-                    gConfig.show_cookie = (szData = "1")
-
-                If .FindEntry("show_cookie_on_load", szData) Then _
-                    gConfig.show_cookie_on_load = (szData = "1")
-
-                If .FindEntry("show_time_on_load", szData) Then _
-                    gConfig.show_time_on_load = (szData = "1")
-
-                If .FindEntry("use_12_hour_clock", szData) Then _
-                    gConfig.use_12_hour_clock = (szData = "1")
-
-                If .FindEntry("show_am_pm", szData) Then _
-                    gConfig.show_am_pm = (szData = "1")
-            
-                If .FindEntry("show_seconds", szData) Then _
-                    gConfig.show_seconds = (szData = "1")
-            
-                If .FindEntry("two_digit_hour", szData) Then _
-                    gConfig.two_digit_hour = (szData = "1")
-
-                If .FindEntry("pm_val", szData) Then _
-                    gConfig.pm_val = szData
-
-                If .FindEntry("am_val", szData) Then _
-                    gConfig.am_val = szData
-
-                If .FindEntry("debug_mode", szData) Then _
-                    gConfig.debug_enabled = (szData = "1")
-
-                If .FindEntry("timer_icon", szData) Then _
-                    gConfig.timer_icon = szData
-
-                If .FindEntry("timer_message", szData) Then _
-                    gConfig.timer_message = szData
-
-                ' /* 2.0 */
-
-                If .FindEntry("show_meter", szData) Then _
-                    gConfig.show_meter = (szData = "1")
-
-            End If
-
-        End With
-    End If
-
-    ' /* validate config */
-
-'    If gConfig.reminder_duration < 0 Then
-'        gConfig.reminder_duration = 0
+'                Else
+'                    ' /* set from previous version */
+'                    If .FindEntry("show_as_words", szData) Then _
+'                        gConfig.format_type = Val(szData)
 '
-'    ElseIf gConfig.reminder_duration > 60 Then
-'        gConfig.reminder_duration = 60
+'                End If
 '
-'    End If
+'
+'                If .FindEntry("debug_mode", szData) Then _
+'                    gConfig.debug_enabled = (szData = "1")
 
-    g_LoadCookies
+    ' /* create dynamic password */
+
+    For i = 1 To 32
+        Randomize Timer
+        mPassword = mPassword & Chr$((Rnd * (255 - 48)) + 48)
+
+    Next i
+
+    g_Debug "Extension.Initialize(): done"
 
     ' /* ok */
 
@@ -408,20 +388,13 @@ Private Sub ISnarlExtension_LastError(Description As String)
 End Sub
 
 Private Sub ISnarlExtension_Pulse()
-Static dTemp As Date
 
-    ' /* hourly reminder */
+    ' /* hourly chime */
 
     If (Minute(Now()) = 0) And (Second(Now()) = 0) And (Hour(Now()) <> mLastHour) Then
-        If sn41IsVisible(mChimeId) Then _
-            sn41Hide mChimeId
-
-        mChimeId = sn41EZNotify(mToken, _
-                                CLASS_HOUR_CHIME, _
-                                "Hourly reminder", _
-                                g_GetTimeString2(gConfig), _
-                                -1, _
-                                g_MakePath(App.Path) & "hourly.png", -1)
+        snDoRequest "notify?app-sig=" & App.ProductName & "&replace-uid=" & UID_HOURLY & "&uid=" & UID_HOURLY & _
+                    "&class=" & CLASS_HOUR_CHIME & "&title=Hourly Reminder&text=" & uGetTimeString() & _
+                    "&icon=" & g_MakePath(App.Path) & "hourly.png"
 
         mLastHour = Hour(Now)
 
@@ -430,44 +403,146 @@ Static dTemp As Date
 End Sub
 
 Private Sub ISnarlExtension_Start()
+Dim hr As Long
 
-    g_Debug "ISnarlExtension_Start"
+    g_Debug "ISnarlExtension_Start", LEMON_LEVEL_PROC
 
     ' /* register */
-    mToken = sn41RegisterApp("application/vnd.k23-" & EXT_NAME, EXT_NAME, g_MakePath(App.Path) & "icon.png")
-
-    If mToken = 0 Then _
+    hr = snarl_register(App.ProductName, App.Title, g_MakePath(App.Path) & IIf(g_IsIDE(), "bin\", "") & "icon.png", mPassword)
+    If hr < 0 Then
+        g_Debug "ISnarlExtension_Start(): registration failed: " & CStr(hr), LEMON_LEVEL_CRITICAL
         Exit Sub
 
-    sn41AddClass mToken, CLASS_HOUR_CHIME, "Hourly chime"
-    sn41AddClass mToken, CLASS_COUNTDOWN_COMPLETE, "Countdown complete"
-'    sn41AddClass mToken, CLASS_REMINDERS, "Outlook reminders"
+    End If
 
-    ' /* show time on load? */
+    ' /* add classes */
 
-    If gConfig.show_time_on_load Then _
-        sn41EZNotify mToken, CLASS_HOUR_CHIME, _
-                     EXT_NAME, _
-                     g_GetTimeString2(gConfig), _
-                     -1, _
-                     g_MakePath(App.Path) & "icon.png"
-        
-        
-        
-'        sn41EZNotify mToken, "", EXT_NAME, "It's now " & g_GetTimeString(gConfig, False), -1, g_MakePath(App.Path) & "icon.png"
+    snDoRequest "addclass?app-sig=" & App.ProductName & "&password=" & mPassword & "&id=" & CLASS_HOUR_CHIME & "&name=" & "Hourly chime / Ad hoc display"
+    snDoRequest "addclass?app-sig=" & App.ProductName & "&password=" & mPassword & "&id=" & CLASS_COUNTDOWN_COMPLETE & "&name=" & "Countdown complete"
+    snDoRequest "addclass?app-sig=" & App.ProductName & "&password=" & mPassword & "&id=" & CLASS_REMINDER & "&name=" & "Reminder"
+    snDoRequest "addclass?app-sig=" & App.ProductName & "&password=" & mPassword & "&id=" & CLASS_ALARM & "&name=" & "Alarm"
 
-    ' /* seperate cookie notification */
+Dim szPath As String
+Dim ps As CConfSection
+Dim pr As TReminder
+
+    snGetConfigPath szPath
+
+    ' /* (re)read reminders */
+
+    Set mRemList = new_BTagList()
+    Set mRemConfig = New CConfFile3
+    With mRemConfig
+        .SetFile g_MakePath(szPath) & "clock+reminders.conf"
+        .Load
+
+        .Rewind
+        Do While .GetNextSection(ps)
+            Set pr = New TReminder
+            If pr.SetFrom(ps) Then _
+                mRemList.Add pr
+
+        Loop
+
+    End With
+
+Dim pa As TAlarm
+
+    ' /* (re)read alarms */
+
+    Set mAlarmList = new_BTagList()
+    Set mAlarmConfig = New CConfFile3
+    With mAlarmConfig
+        .SetFile g_MakePath(szPath) & "clock+alarms.conf"
+        .Load
+        .Rewind
+        Do While .GetNextSection(ps)
+            Set pa = New TAlarm
+            If pa.SetFrom(ps) Then _
+                mAlarmList.Add pa
+
+        Loop
+
+    End With
+
+
+
+    ' /* (re)read config */
+
+    If g_Exists(g_MakePath(szPath) & ".snarlclock2") Then
+        MoveFile g_MakePath(szPath) & ".snarlclock2", g_MakePath(szPath) & "clock+.conf"
+
+'    ElseIf g_Exists(g_MakePath(szPath) & "extensions\snarlclock\snarlclock.conf") Then
+'        MoveFile g_MakePath(szPath) & "extensions\snarlclock\snarlclock.conf", g_MakePath(szPath) & "clock+.conf"
+    
+    End If
+
+    Set mConfigFile = New CConfFile
+    With mConfigFile
+        .SetTo g_MakePath(szPath) & "clock+.conf"
+
+        .AddIfMissing "cookie_file", g_MakePath(App.Path) & "cookies.txt"
+        .AddIfMissing "format_type", "1"        ' // text
+        .AddIfMissing "show_cookie", "1"
+        .AddIfMissing "show_time_on_load", "1"
+        .AddIfMissing "use_12_hour_clock", "1"
+        .AddIfMissing "show_am_pm", "1"
+        .AddIfMissing "show_seconds", "0"
+        .AddIfMissing "two_digit_hour", "0"
+        .AddIfMissing "am_val", "am"
+        .AddIfMissing "pm_val", "pm"
+        .AddIfMissing "timer_icon", ""
+        .AddIfMissing "timer_10sec_warning", "1"
+        .AddIfMissing "timer_message", ""
+        .AddIfMissing "timer_hours", "0"
+        .AddIfMissing "timer_mins", "10"
+
+        .AddIfMissing "show_meter", "1"
+        .AddIfMissing "show_cookie_on_load", "1"
+
+        .AddIfMissing "show_time_on_key", "0"
+        .AddIfMissing "show_time_on_hotspot", "0"
+        .AddIfMissing "hotspot_corner", "1"
+        .AddIfMissing "reminder_offset", "0"
+
+
+        ' /* hotspot or key watch? */
+
+        uSetHotSpotWatch
+
+        ' /* show time on load? */
+
+        If .ValueOf("show_time_on_load") = "1" Then _
+            uShowCurrentTime
+
+        ' /* get the cookies */
+
+        uLoadCookies .ValueOf("cookie_file")
+
+        ' /* seperate cookie notification */
 
 Dim sz As String
 
-    If (gConfig.show_cookie_on_load) And (g_GetRandomCookie(sz)) Then _
-        sn41EZNotify mToken, "", "", sz, -1, g_MakePath(App.Path) & "cookie.png"
+        If (.ValueOf("show_cookie_on_load") = "1") And (uGetRandomCookie(sz)) Then _
+            snarl_ez_notify App.ProductName, "", _
+                            "", sz, _
+                            g_MakePath(App.Path) & IIf(g_IsIDE(), "bin\", "") & "cookie.png", _
+                            , , _
+                            mPassword
+
+    End With
+
+    Set theAlarmAndReminderTimer = new_BTimer(5000)
 
 End Sub
 
 Private Sub ISnarlExtension_Stop()
 
-    sn41UnregisterApp mToken
+    Set theWatchTimer = Nothing
+    Set theKeyTimer = Nothing
+    Set theCornerTimer = Nothing
+    Set theAlarmAndReminderTimer = Nothing
+    snarl_unregister App.ProductName, mPassword
 
 End Sub
 
@@ -492,12 +567,14 @@ Private Sub KPrefsPanel_Ready()
 Dim pc As BControl
 
     If mPanel.Find("timer_hours", pc) Then _
-        pc.SetEnabled Not gConfig.timer_running
+        pc.SetEnabled Not mTimerRunning
 
     If mPanel.Find("timer_mins", pc) Then _
-        pc.SetEnabled Not gConfig.timer_running
+        pc.SetEnabled Not mTimerRunning
 
     uUpdateRemaining
+    uUpdateReminderList
+    uUpdateAlarmList
 
 End Sub
 
@@ -514,44 +591,30 @@ Private Sub KPrefsPage_ControlChanged(Control As BControl, ByVal Value As String
 Dim pc As BControl
 Dim nm As Integer
 Dim nh As Integer
+Dim i As Long
 
 '    g_Debug "[" & mpanel.GetName() & "]: ControlChanged '" & Control.GetName() & "' >> '" & Value & "'"
 
     Select Case Control.GetName()
 
-    ' /* general */
+    Case "format_type"
+        ' /* format type needs a little tweaking before setting */
+        mConfigFile.Update Control.GetName(), CStr(Val(Value) - 1)
+        mConfigFile.Save
+        uEnableTimeSettings (Val(Value) = 0)
 
-    Case "show_time_on_load"
-        gConfig.show_time_on_load = (Value = "1")
-        g_WriteConfig
-
-    Case "show_cookie"
-        gConfig.show_cookie = (Value = "1")
-        g_WriteConfig
-
-    Case "cookie_file"
-        gConfig.cookie_file = Value
-        g_WriteConfig
-
-    Case "show_cookie_on_load"
-        gConfig.show_cookie_on_load = (Value = "1")
-        g_WriteConfig
-
-    ' /* timer */
 
     Case "start_stop_timer"
-        gConfig.timer_running = (Val(Value) <> 0)
+        ' /* timer master control */
 
-        ' /* enabled/disable the sliders */
+        mTimerRunning = (Val(Value) <> 0)
 
-        If mPanel.Find("timer_hours", pc) Then _
-            pc.SetEnabled Not gConfig.timer_running
+        ' /* enable/disable the sliders */
 
-        If mPanel.Find("timer_mins", pc) Then _
-            pc.SetEnabled Not gConfig.timer_running
+        prefskit_SafeEnable mPanel, "timer_hours", Not mTimerRunning
+        prefskit_SafeEnable mPanel, "timer_mins", Not mTimerRunning
 
-        If gConfig.timer_running Then
-
+        If mTimerRunning Then
             ' /* resumed/started timer so calculate minutes */
 
             If mPanel.Find("timer_hours", pc) Then _
@@ -561,10 +624,8 @@ Dim nh As Integer
                 nm = Val(pc.GetValue())
 
             mTimer = TimeSerial(nh, nm, Second(mTimer))
-            If sn41IsVisible(mTimerId) Then _
-                sn41Hide mTimerId
 
-            mTimerId = 0
+            snDoRequest "hide?app-sig=" & App.ProductName & "&uid=" & UID_TIMER & "&password=" & mPassword
             Set theTimer = new_BTimer(1000)
 
         Else
@@ -573,57 +634,81 @@ Dim nh As Integer
 
         End If
 
+
     Case "timer_hours"
+        ' /* timer hour slider */
         uUpdateRemaining
+
 
     Case "timer_mins"
+        ' /* timer minute slider */
         uUpdateRemaining
 
-    Case "timer_10sec_warning"
-        gConfig.timer_10sec_warning = (Value = "1")
-        g_WriteConfig
-    
-    Case "show_meter"
-        gConfig.show_meter = (Value = "1")
-        g_WriteConfig
-    
-    Case "timer_icon"
-        gConfig.timer_icon = Value
-        g_WriteConfig
 
-    Case "timer_message"
-        gConfig.timer_message = Value
-        g_WriteConfig
+    Case "add_reminder"
+        ' /* add/remove reminder */
+        If Value = "+" Then
+            Set theReminderPanel = New TReminderPanel
+            theReminderPanel.Go mPanel.hWnd, New TReminder, True
 
-    ' /* formats */
+        Else
+            i = Val(prefskit_GetValue(mPanel, "reminders_list"))
+            If i > 0 Then
+                mRemConfig.RemoveSection mRemConfig.IndexOf(mRemList.TagAt(i).Name)
+                mRemConfig.Save
+                mRemList.Remove i
+                uUpdateReminderList
 
-    Case "format_type"
-        gConfig.format_type = Val(Value) - 1
-        g_WriteConfig
-        uEnableTimeSettings (gConfig.format_type = 1)
+            End If
+        End If
+
+
+    Case "add_alarm"
+        ' /* add/remove reminder */
+        If Value = "+" Then
+            Set theAlarmPanel = New TReminderPanel
+            theAlarmPanel.IsAlarmPanel = True
+            theAlarmPanel.Go mPanel.hWnd, New TAlarm, True
+
+        Else
+            i = Val(prefskit_GetValue(mPanel, "alarms_list"))
+            If i > 0 Then
+                mAlarmConfig.RemoveSection mAlarmConfig.IndexOf(mAlarmList.TagAt(i).Name)
+                mAlarmConfig.Save
+                mAlarmList.Remove i
+                uUpdateAlarmList
+
+            End If
+        End If
+
+
+    Case "reminder_offset"
+        ' /* amount of time applied to reminder notifications */
+        mConfigFile.Update Control.GetName(), CStr(Val(Value) - 1)
+        mConfigFile.Save
+
+
+    Case Else
+        mConfigFile.Update Control.GetName(), Value
+        mConfigFile.Save
+
+    End Select
+
+
+
+    ' /* post-processing */
+
+    Select Case Control.GetName()
+    Case "show_time_on_hotspot"
+        prefskit_SafeEnable mPanel, "hotspot_corner", (Value = "1")
+        uSetHotSpotWatch
+
+    Case "show_time_on_key"
+        uSetHotSpotWatch
 
     Case "use_12_hour_clock"
-        gConfig.use_12_hour_clock = (Value = "1")
-        g_WriteConfig
-
-    Case "show_am_pm"
-        gConfig.show_am_pm = (Value = "1")
-        g_WriteConfig
-
-    Case "show_seconds"
-        gConfig.show_seconds = (Value = "1")
-        g_WriteConfig
-
-    Case "two_digit_hour"
-        gConfig.two_digit_hour = (Value = "1")
-        g_WriteConfig
-
-    Case "am_val"
-        gConfig.am_val = Value
-
-    Case "pm_val"
-        gConfig.pm_val = Value
-
+        prefskit_SafeEnable mPanel, "show_am_pm", (Value = "1")
+    
     End Select
 
 End Sub
@@ -635,17 +720,43 @@ Private Sub KPrefsPage_ControlInvoked(Control As BControl)
     Select Case Control.GetName()
 
     Case "test"
-        sn41EZNotify mToken, CLASS_HOUR_CHIME, _
-                     "Hourly reminder", _
-                     g_GetTimeString2(gConfig), _
-                     -1, _
-                     g_MakePath(App.Path) & "hourly.png"
+        snarl_ez_notify App.ProductName, CLASS_HOUR_CHIME, _
+                        "Hourly Reminder", uGetTimeString(), _
+                        g_MakePath(App.Path) & IIf(g_IsIDE(), "bin\", "") & "hourly.png", , , mPassword
+
+
+    Case "reminders_list"
+        Set theReminderPanel = New TReminderPanel
+        theReminderPanel.Go mPanel.hWnd, mRemList.TagAt(Val(prefskit_GetValue(mPanel, Control.GetName())))
+
+    Case "alarms_list"
+        Set theAlarmPanel = New TReminderPanel
+        theAlarmPanel.IsAlarmPanel = True
+        theAlarmPanel.Go mPanel.hWnd, mAlarmList.TagAt(Val(prefskit_GetValue(mPanel, Control.GetName())))
 
     End Select
 
 End Sub
 
 Private Sub KPrefsPage_ControlNotify(Control As BControl, ByVal Notification As String, Data As melon.MMessage)
+Dim pa As TAlarm
+Dim sz As String
+Dim i As Long
+
+    Select Case Control.GetName()
+
+    Case "alarms_list"
+        If Notification = "checked" Then
+            i = Val(prefskit_GetValue(mPanel, Control.GetName))
+            Set pa = mAlarmList.TagAt(i)
+            sz = prefskit_GetItemEx(mPanel, Control.GetName, "checked")
+            pa.SetEnabled (sz = "1")
+            mAlarmConfig.Save
+
+        End If
+
+    End Select
+
 End Sub
 
 Private Sub KPrefsPage_Create(Page As BPrefsPage)
@@ -684,7 +795,7 @@ Dim nh As Integer
         pc.SetText Format$(nh, "00") & ":" & Format$(nm, "00") & ":00"
 
     ' /* if the timer isn't running then disable the switch if 0:0 is specified */
-    If Not gConfig.timer_running Then
+    If Not mTimerRunning Then
         If mPanel.Find("start_stop_timer", pc) Then _
             pc.SetEnabled Not ((nh = 0) And (nm = 0))
 
@@ -715,7 +826,129 @@ Private Sub uEnableTimeSettings(ByVal Enabled As Boolean)
 
 End Sub
 
+Private Sub theAlarmPanel_Closed()
+
+    Set theAlarmPanel = Nothing
+
+End Sub
+
+Private Sub theAlarmPanel_Save(Item As melon4.BTagItem)
+Dim pa As TAlarm
+
+    If mAlarmList.IndexOf(Item.Name) = 0 Then
+        ' /* is a new alarm */
+        mAlarmList.Add Item
+
+        ' /* add to persistent config */
+        Set pa = Item
+        mAlarmConfig.Add pa.Config
+
+    Else
+        ' /* existing alarm */
+
+    End If
+
+    ' /* save config */
+
+    mAlarmConfig.Save
+
+    ' /* update list */
+    
+    uUpdateAlarmList
+
+End Sub
+
+Private Sub theCornerTimer_Pulse()
+
+    uShowCurrentTime
+
+End Sub
+
+Private Sub theKeyTimer_Pulse()
+
+    uShowCurrentTime
+
+End Sub
+
+Private Sub theReminderPanel_Closed()
+
+    Set theReminderPanel = Nothing
+
+End Sub
+
+Private Sub theReminderPanel_Save(Item As melon4.BTagItem)
+Dim pr As TReminder
+
+    If mRemList.IndexOf(Item.Name) = 0 Then
+        ' /* is a new reminder */
+        mRemList.Add Item
+
+        ' /* add to persistent config */
+        Set pr = Item
+        mRemConfig.Add pr.Config
+
+    Else
+        ' /* existing reminder */
+
+    End If
+
+    ' /* save config */
+
+    mRemConfig.Save
+
+    ' /* update list */
+    
+    uUpdateReminderList
+
+End Sub
+
+Private Sub theAlarmAndReminderTimer_Pulse()
+
+    ' /* check reminders */
+
+Dim pr As TReminder
+Dim i As Long
+
+    i = uGetReminderOffset()
+
+    With mRemList
+        .Rewind
+        Do While .GetNextTag(pr) = B_OK
+            If pr.IsDue(i) Then
+                ' /* it's due now so create the notification */
+                If snarl_ez_notify(App.ProductName, CLASS_REMINDER, pr.Description, pr.DueDelta, pr.Icon(True), pr.Priority, , mPassword, pr.Config.Name) > 0 Then
+                    pr.SetWasDisplayed
+                    uUpdateReminderList
+
+                End If
+            End If
+        Loop
+
+    End With
+
+    ' /* check alarms */
+
+Dim pa As TAlarm
+
+    With mAlarmList
+        .Rewind
+        Do While .GetNextTag(pa) = B_OK
+            If pa.IsDue() Then
+                ' /* it's due now so create the notification */
+                If snarl_ez_notify(App.ProductName, CLASS_ALARM, IIf(pa.Label = "", "Alarm", pa.Label), "", g_MakePath(App.Path) & IIf(g_IsIDE(), "bin\", "") & "alarm.png", pa.Priority, , _
+                                   mPassword, pr.Config.Name) > 0 Then _
+                    pa.SetAsDone
+
+            End If
+        Loop
+
+    End With
+
+End Sub
+
 Private Sub theTimer_Pulse()
+Dim szIcon As String
+Dim szMsg As String
 Static i As Long
 
     ' /* doing a countdown */
@@ -723,38 +956,47 @@ Static i As Long
     mTimer = DateAdd("s", -1, mTimer)
 
     If (Hour(mTimer) = 0) And (Minute(mTimer) = 0) Then
+        
+        szIcon = mConfigFile.ValueOf("timer_icon")
+        If szIcon = "" Then _
+            szIcon = g_MakePath(App.Path) & IIf(g_IsIDE(), "bin\", "") & "timer.png"
+        
         Select Case Second(mTimer)
         Case 0
             ' /* we're done */
-            If sn41IsVisible(mTimerId) Then _
-                sn41Hide mTimerId               ' // hide 10 second countdown notification
 
-            i = sn41EZNotify(mToken, _
-                            CLASS_COUNTDOWN_COMPLETE, _
-                            IIf(gConfig.timer_message = "", "Countdown done!", gConfig.timer_message), _
+            snDoRequest "hide?app-sig=" & App.ProductName & "&uid=" & UID_TIMER & "&password=" & mPassword
+            szMsg = mConfigFile.ValueOf("timer_message")
+
+            snarl_ez_notify App.ProductName, CLASS_COUNTDOWN_COMPLETE, _
+                            IIf(szMsg = "", "Countdown done!", szMsg), _
                             "", _
-                            -1, _
-                            IIf(gConfig.timer_icon = "", g_MakePath(App.Path) & "icon.png", gConfig.timer_icon))
+                            szIcon, _
+                            , , _
+                            mPassword, _
+                            UID_TIMER
 
             Set theTimer = Nothing
 
         Case 10
             ' /* show the T-10 countdown notification? */
 
-            If gConfig.timer_10sec_warning Then _
-                mTimerId = sn41EZNotify(mToken, _
-                                        CLASS_COUNTDOWN_COMPLETE, _
-                                        Second(mTimer) & " second" & IIf(Second(mTimer) = 1, "", "s") & " to go", _
-                                        IIf(gConfig.show_meter, "100", ""), _
-                                        -1, _
-                                        IIf(gConfig.timer_icon = "", g_MakePath(App.Path) & "timer.png", gConfig.timer_icon))
+            If mConfigFile.ValueOf("timer_10sec_warning") = "1" Then _
+                snarl_ez_notify App.ProductName, CLASS_COUNTDOWN_COMPLETE, _
+                                Second(mTimer) & " second" & IIf(Second(mTimer) = 1, "", "s") & " to go", _
+                                IIf(mConfigFile.ValueOf("show_meter") = "1", "100", ""), _
+                                szIcon, _
+                                , , _
+                                mPassword, _
+                                UID_TIMER
 
 
         Case Is < 10
-            If gConfig.timer_10sec_warning Then _
-                sn41EZUpdate mTimerId, _
-                             CStr(Second(mTimer)) & " second" & IIf(Second(mTimer) = 1, "", "s") & " to go", _
-                             IIf(gConfig.show_meter, CStr(Second(mTimer) * 10), "")
+            If mConfigFile.ValueOf("timer_10sec_warning") = "1" Then _
+                snDoRequest "notify?app-sig=" & App.ProductName & "&password=" & mPassword & "&uid=" & UID_TIMER & _
+                            "&update-uid=" & UID_TIMER & _
+                            "&title=" & CStr(Second(mTimer)) & " second" & IIf(Second(mTimer) = 1, "", "s") & " to go" & _
+                            IIf(mConfigFile.ValueOf("show_meter") = "1", "&text=" & CStr(Second(mTimer) * 10), "")
 
         End Select
 
@@ -794,3 +1036,389 @@ Static pc As BControl
     End If
 
 End Sub
+
+Private Function uPanelIcon(ByVal Name As String) As MImage
+
+    Set uPanelIcon = load_image_obj(g_MakePath(App.Path) & IIf(g_IsIDE(), "bin\", "") & Name & ".png")
+
+End Function
+
+Private Function uGetTimeString() As String
+Dim txt As String
+Dim pt As CTime
+Dim i As Integer
+
+    ' /* construct the time format */
+
+    g_Debug "uShowMsg()", LEMON_LEVEL_PROC
+
+    Set pt = New CTime
+    pt.SetTo Now()
+
+Dim lType As CLOCK_FORMAT_TYPES
+Dim bAmPm As Boolean
+Dim b12hr As Boolean
+Dim bSecs As Boolean
+Dim b2dh As Boolean
+
+    lType = g_SafeLong(mConfigFile.ValueOf("format_type"))
+    bSecs = (mConfigFile.ValueOf("show_seconds") = "1")
+    b12hr = (mConfigFile.ValueOf("use_12_hour_clock") = "1")
+    b2dh = (mConfigFile.ValueOf("two_digit_hour") = "1")
+    bAmPm = (mConfigFile.ValueOf("show_am_pm") = "1")
+
+    If lType <> CFT_SPECIAL Then _
+        txt = "It's now "
+
+    If lType = CFT_TEXT Then
+        ' /* as text */
+        txt = txt & LCase$(pt.AsText(Not b12hr, bSecs))
+
+    ElseIf lType = CFT_SPECIAL Then
+        ' /* special "YYYYMMDDHHMMSS" format */
+        txt = Format$(pt.Year, "0000") & Format$(pt.Month, "00") & Format$(pt.Day, "00") & _
+              Format$(pt.Hour, "00") & Format$(pt.Minutes, "00") & IIf(bSecs, Format$(pt.Seconds, "00"), "XX")
+
+    Else
+        ' /* numerically */
+        If b12hr Then
+            i = pt.Hour12
+
+        Else
+            i = pt.Hour
+
+        End If
+
+        ' /* construct hh:mm */
+
+        txt = txt & IIf(b2dh, Format$(i, "00"), CStr(i)) & ":" & Format$(pt.Minutes(), "00")
+
+        ' /* add seconds */
+
+        If bSecs Then _
+            txt = txt & ":" & Format$(pt.Seconds(), "00")
+
+        ' /* am/pm setting only applies for 12 hour clock */
+
+        If (b12hr) And (bAmPm) Then
+            If pt.IsAfternoon() Then
+                txt = txt & mConfigFile.ValueOf("pm_val")
+
+            Else
+                txt = txt & mConfigFile.ValueOf("am_val")
+
+            End If
+        End If
+
+
+'    If HoursOnly Then
+'        If TwentyFourHourClock Then
+'            ' /* 24 hour clock */
+'            AsText = HourText() & " hundred hours"
+'
+'        Else
+'            ' /* 12 hour clock */
+'
+'            If Me.Hour12 = 12 Then
+'                AsText = "Noon"
+'
+'            ElseIf Me.Hour12 = 0 Then
+'                AsText = "Midnight"
+'
+'            Else
+'                AsText = HourText() & " o'clock"
+'
+'            End If
+'
+'        End If
+'
+'    Else
+'        If TwentyFourHourClock Then
+'            AsText = HourText()
+'
+'        Else
+'
+'
+'        End If
+'
+'    End If
+
+
+
+    End If
+
+'        Else
+'
+'            ' /* for the hourly reminder, show_seconds means we display as hh:mm:ss instead of h o'clock... */
+'
+'            If m_Config.show_seconds Then
+'
+'                ' /* display as h[h]:mm:ss [ampm] */
+'
+'                i = IIf(m_Config.use_12_hour_clock, .Hour12, .Hour)
+'
+'                txt = IIf(m_Config.two_digit_hour, Format$(i, "00"), CStr(i))
+'                txt = txt & ":00:00"          ' // we _know_ it's 00:00 as it's an hourly reminder...
+'
+'                If (m_Config.show_am_pm) And (m_Config.use_12_hour_clock) Then
+'                    ' /* only show am/pm value if we're using 12 hour format */
+'
+'                    If .IsAfternoon Then
+'                        txt = txt & " " & m_Config.pm_val
+'
+'                    Else
+'                        txt = txt & " " & m_Config.am_val
+'
+'                    End If
+'
+'                End If
+'            Else
+'                txt = CStr(.Hour12) & " o'clock"
+'
+'            End If
+'
+'        End If
+'
+'    End With
+
+Dim a As Long
+
+    ' /* R2.06: suppress in-line cookie if using the packed time format */
+
+'    If (Config.show_cookie) And (mCookies > 0) And (Config.format_type <> 2) Then
+'        Randomize Timer
+'        a = Rnd * mCookies
+'        txt = txt & vbCrLf & vbCrLf & mCookie(a)
+'
+'    ElseIf Config.show_cookie Then
+'        g_Debug "uGetTimeString(): show_cookie option set but no cookies available", LEMON_LEVEL_WARNING
+'
+'    End If
+
+    uGetTimeString = txt
+
+End Function
+
+Private Sub uLoadCookies(ByVal Path As String)
+
+    On Error Resume Next
+
+    If Not g_Exists(Path) Then
+        g_Debug "uLoadCookies(): '" & Path & "' does not exist", LEMON_LEVEL_CRITICAL
+        Exit Sub
+
+    End If
+
+Dim sz As String
+Dim n As Integer
+
+    mCookies = 0
+    ReDim mCookie(0)
+
+    n = FreeFile()
+    Err.Clear
+    Open Path For Input As #n
+    If Err.Number = 0 Then
+        Do While Not EOF(n)
+            Line Input #n, sz
+            If sz <> "" Then
+                If Left$(sz, 1) <> "#" Then
+                    mCookies = mCookies + 1
+                    ReDim Preserve mCookie(mCookies)
+                    mCookie(mCookies) = sz
+
+                End If
+            End If
+        Loop
+        Close #n
+        g_Debug "uLoadCookies(): " & CStr(mCookies) & " loaded"
+
+    Else
+        g_Debug "uLoadCookies(): bad path '" & Path & "'", LEMON_LEVEL_CRITICAL
+
+    End If
+
+End Sub
+
+Private Function uGetRandomCookie(ByRef Cookie As String) As Boolean
+
+    If mCookies = 0 Then _
+        Exit Function
+
+    Randomize Timer
+    Cookie = mCookie(Rnd * mCookies)
+    uGetRandomCookie = (Cookie <> "")
+
+End Function
+
+Private Sub uSetHotSpotWatch()
+
+    Set theWatchTimer = Nothing
+
+    If (mConfigFile.ValueOf("show_time_on_key") = "1") Or (mConfigFile.ValueOf("show_time_on_hotspot") = "1") Then _
+        Set theWatchTimer = new_BTimer(100)
+
+End Sub
+
+Private Sub theWatchTimer_Pulse()
+Dim pt As POINTAPI
+Dim rc As RECT
+
+    If mConfigFile.ValueOf("show_time_on_hotspot") = "1" Then
+        rc.Right = g_ScreenWidth()
+        rc.Bottom = g_ScreenHeight()
+        GetCursorPos pt
+
+        Select Case Val(mConfigFile.ValueOf("hotspot_corner"))
+        Case 1      ' // top-left
+            rc.Right = 15
+            rc.Bottom = 15
+
+        Case 2      ' // top-right
+            rc.Left = rc.Right - 15
+            rc.Bottom = 15
+
+        Case 3      ' // bottom-left
+            rc.Right = 15
+            rc.Top = rc.Bottom - 15
+
+        Case 4      ' // bottom-right
+            rc.Left = rc.Right - 15
+            rc.Top = rc.Bottom - 15
+
+        End Select
+
+        If g_PointInRect(rc, pt) Then
+            ' /* pointer is in the hotspot corner */
+            If (theCornerTimer Is Nothing) Then
+                ' /* lag timer isn't running so start now */
+                Debug.Print "## pointer is in hotspot corner"
+                Set theCornerTimer = new_BTimer(250, True)
+
+            End If
+
+        ElseIf Not (theCornerTimer Is Nothing) Then
+            ' /* pointer has exited hotspot corner */
+            Debug.Print "## pointer left hotspot corner"
+            Set theCornerTimer = Nothing
+            snDoRequest "hide?app-sig=" & App.ProductName & "&password=" & mPassword & "&uid=" & UID_HOURLY
+
+        End If
+    End If
+
+    ' /* key press/hold */
+
+    If mConfigFile.ValueOf("show_time_on_key") = "1" Then
+        If g_IsPressed(vbKeyTab) Then
+            If (theKeyTimer Is Nothing) Then
+                Debug.Print "key pressed"
+                Set theKeyTimer = new_BTimer(250, True)
+
+            End If
+
+        ElseIf Not (theKeyTimer Is Nothing) Then
+            Debug.Print "key was released"
+            Set theKeyTimer = Nothing
+            snDoRequest "hide?app-sig=" & App.ProductName & "&password=" & mPassword & "&uid=" & UID_HOURLY
+
+        End If
+    End If
+
+End Sub
+
+Private Sub uShowCurrentTime()
+
+    snarl_ez_notify App.ProductName, CLASS_HOUR_CHIME, _
+                    App.Title, uGetTimeString(), g_MakePath(App.Path) & IIf(g_IsIDE(), "bin\", "") & "icon.png", , , _
+                    mPassword, UID_HOURLY
+
+End Sub
+
+Private Sub uUpdateReminderList()
+
+    If (mPanel Is Nothing) Then _
+        Exit Sub
+
+Dim pr As TReminder
+Dim sz As String
+
+    With mRemList
+        .Rewind
+        Do While .GetNextTag(pr) = B_OK
+            sz = sz & pr.Description & IIf(g_IsIDE(), " (due " & Format$(pr.NextDue, "d mmm yyyy hh:mm") & ")", "") & "#?0#?" & pr.Details & "|"
+        
+        Loop
+
+    End With
+
+    prefskit_SafeSetText mPanel, "reminders_list", g_SafeLeftStr(sz, Len(sz) - 1)
+
+    ' /* icons */
+
+Dim i As Long
+
+    With mRemList
+        If .CountItems Then
+            For i = 1 To .CountItems
+                Set pr = .TagAt(i)
+                prefskit_SetItemEx mPanel, "reminders_list", "image-file", i, pr.Icon(True)
+
+            Next i
+        End If
+    End With
+
+End Sub
+
+Private Sub uUpdateAlarmList()
+Dim pa As TAlarm
+Dim sz As String
+
+    With mAlarmList
+        .Rewind
+        Do While .GetNextTag(pa) = B_OK
+            sz = sz & pa.Details & "#?0#?" & pa.Label & "|"
+
+        Loop
+
+    End With
+
+    prefskit_SafeSetText mPanel, "alarms_list", g_SafeLeftStr(sz, Len(sz) - 1)
+
+    ' /* icons */
+
+Dim i As Long
+
+    With mAlarmList
+        If .CountItems Then
+            For i = 1 To .CountItems
+                Set pa = .TagAt(i)
+                prefskit_SetItemEx mPanel, "alarms_list", "image-file", i, g_MakePath(App.Path) & IIf(g_IsIDE(), "bin\", "") & "alarm.png"
+                prefskit_SetItemEx mPanel, "alarms_list", "checked", i, IIf(pa.IsEnabled, 1&, 0&)
+
+            Next i
+        End If
+    End With
+
+End Sub
+
+'Private Sub uRecalcReminders()
+'Dim pr As TReminder
+'
+'    With mRemList
+'        .Rewind
+'        Do While .GetNextTag(pr) = B_OK
+'            pr.CalcNextDue
+'
+'        Loop
+'
+'    End With
+'
+'    uUpdateReminderList
+'
+'End Sub
+
+Private Function uGetReminderOffset() As Long
+
+    uGetReminderOffset = g_SafeLong(mConfigFile.ValueOf("reminder_offset"))
+
+End Function
