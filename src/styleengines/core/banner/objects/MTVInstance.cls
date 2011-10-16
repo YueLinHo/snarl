@@ -118,17 +118,17 @@ Const H_SPLIT = 500
         xOffset = xOffset + cxIcon + MARGIN
 
 
-Dim pb As mfxBitmap
-
-    With New mfxView
-        .EnableSmoothing True
-        .SizeTo 500, 500
-        .SetHighColour rgba(255, 255, 255, 10)
-        .SetHighColour rgba(255, 255, 255, 255)
-        .FillRect .Bounds ', MFX_VERT_GRADIENT
-        Set pb = .ConvertToBitmap
-
-    End With
+'Dim pb As mfxBitmap
+'
+'    With New mfxView
+'        .EnableSmoothing True
+'        .SizeTo 500, 500
+'        .SetHighColour rgba(255, 255, 255, 10)
+'        .SetHighColour rgba(255, 255, 255, 255)
+'        .FillRect .Bounds ', MFX_VERT_GRADIENT
+'        Set pb = .ConvertToBitmap
+'
+'    End With
 
 Dim pr As BRect
 Dim i As Integer
@@ -142,19 +142,31 @@ Dim i As Integer
 
         ' /* background */
 
-        .SetHighColour rgba(34, 34, 34)
-        .FillRect new_BRect(0, 0, .Bounds.Right - H_SPLIT, .Bounds.Bottom)
+        Set pr = new_BRect(0, 0, .Bounds.Right, Fix(.Height / 2) - 1)
 
-        .SetHighColour rgba(34, 34, 34)
-        .SetLowColour rgba(0, 102, 127)
-        .FillRect new_BRect(.Bounds.Right - H_SPLIT, 0, .Bounds.Right, .Bounds.Bottom), MFX_HORIZ_GRADIENT
 
-        .SetHighColour rgba(0, 0, 0, 32)
+'        .SetHighColour rgba(25, 25, 25, 0)
+'        .SetLowColour rgba(25, 25, 25, 90)
+'        .FillRect pr, MFX_VERT_GRADIENT
 
-        For i = 0 To .Bounds.Bottom Step 4
-            .StrokeLine new_BRect(0, i, .Bounds.Right, i)
+        .SetHighColour .LowColour
+        .SetHighColour rgba(0, 0, 0, 230)
+        pr.OffsetBy 0, pr.Height
+        .FillRect pr
 
-        Next i
+'        .SetHighColour rgba(34, 34, 34)
+'        .FillRect new_BRect(0, 0, .Bounds.Right - H_SPLIT, .Bounds.Bottom)
+'
+'        .SetHighColour rgba(34, 34, 34)
+'        .SetLowColour rgba(0, 102, 127)
+'        .FillRect new_BRect(.Bounds.Right - H_SPLIT, 0, .Bounds.Right, .Bounds.Bottom), MFX_HORIZ_GRADIENT
+'
+'        .SetHighColour rgba(0, 0, 0, 32)
+'
+'        For i = 0 To .Bounds.Bottom Step 4
+'            .StrokeLine new_BRect(0, i, .Bounds.Right, i)
+'
+'        Next i
 
 '        If (NotificationInfo.Flags And S_NOTIFICATION_IS_PRIORITY) Then
 '            .SetHighColour rgba(255, 0, 0, 0)
@@ -173,6 +185,7 @@ Dim i As Integer
 '        ppd.SetTo "title::Last Train To Trancentral#?value-rating::4/5#?label-artist::The KLF#?label-album::The White Room#?label-duration::3:47#?label-copyright::© 1991 KLF COMMUNICATIONS"
         ' /* TESTING TESTING TESTING */
 
+Dim pb As mfxBitmap
 
 Dim cy As Long
 Dim j As Integer
@@ -268,7 +281,8 @@ Dim sz As String
                 .SetFont FONT_NAME, FONT_SIZE_TEXT, True
                 Set pr = new_BRect(xOffset, .Bounds.Bottom - TEXT_MARGIN - 1 - .StringHeight("A"), .Bounds.Right - MARGIN - 1, .Bounds.Bottom - TEXT_MARGIN - 1)
                 .SetHighColour rgba(0, 204, 254)
-                .DrawString ppd.ValueOf("text"), pr, MFX_ALIGN_TOP
+                .SetLowColour rgba(0, 0, 0, 64)
+                .DrawString ppd.ValueOf("text"), pr, MFX_ALIGN_TOP Or MFX_SIMPLE_OUTLINE
                 cy = pr.Height - 4
 
             End If
@@ -279,7 +293,8 @@ Dim sz As String
                 Set pr = new_BRect(xOffset, .Bounds.Bottom - TEXT_MARGIN - 1 - .StringHeight("A"), .Bounds.Right - MARGIN - 1, .Bounds.Bottom - TEXT_MARGIN - 1)
                 pr.OffsetBy 0, -cy
                 .SetHighColour rgba(255, 255, 255)
-                .DrawString ppd.ValueOf("title"), pr, MFX_ALIGN_TOP
+                .SetLowColour rgba(0, 0, 0, 64)
+                .DrawString ppd.ValueOf("title"), pr, MFX_ALIGN_TOP Or MFX_SIMPLE_OUTLINE
 
             End If
         End If

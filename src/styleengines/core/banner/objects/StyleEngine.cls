@@ -13,7 +13,7 @@ Attribute VB_PredeclaredId = False
 Attribute VB_Exposed = True
 Option Explicit
 
-Private Const LIB_DATE = "9-Jun-2011"
+Private Const LIB_DATE = "7-Oct-2011"
 
 Dim mLastErr As String
 Dim mPanel As BPrefsPanel
@@ -331,7 +331,7 @@ Private Sub IStyleEngine_StyleAt(ByVal Index As Long, Style As libSnarlStyles.st
             .Name = "Music Video"
             .Description = "Displays the notification as a banner along the bottom of the screen."
             .Major = 1
-            .Minor = 200
+            .Minor = 202
             .Flags = S_STYLE_NO_DROPSHADOW Or S_STYLE_CUSTOM_SHOW Or S_STYLE_CUSTOM_HIDE Or S_STYLE_SINGLE_INSTANCE Or S_STYLE_DONT_QUEUE Or S_STYLE_CLICK_THROUGH Or S_STYLE_V42_CONTENT
             .Schemes = SCHEME_1 ' & "|" & SCHEME_2
 

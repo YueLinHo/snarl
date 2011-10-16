@@ -46,11 +46,12 @@ Option Explicit
     '
     ' */
 
-Private Const LIB_DATE = "7-Sep-2011"
+Private Const LIB_DATE = "29-Sep-2011"
 
 Private Const STYLE_NAME_TOASTY = "Toasty"
 Private Const STYLE_NAME_NMA = "Notify My Android"
 Private Const STYLE_NAME_WEB_FORWARD = "WebForward"
+Private Const STYLE_NAME_OUTLOOK_LOG = "Outlook Logger"
 
 Dim mLastErr As String
 Dim mStyle() As TStyle
@@ -100,6 +101,9 @@ Dim px As TGenericInstance
         Set IStyleEngine_CreateInstance = pWF
         Exit Function
 
+    Case STYLE_NAME_OUTLOOK_LOG
+        Set IStyleEngine_CreateInstance = New TOutlookLogInstance
+
     End Select
 
 '    If Not (pStyle Is Nothing) Then
@@ -118,7 +122,7 @@ End Function
 
 Private Function IStyleEngine_Description() As String
 
-    IStyleEngine_Description = App.FileDescription
+    IStyleEngine_Description = "Provides a suite of styles that send notification content via different Internet transport protocols and APIs"
 
 End Function
 
@@ -214,10 +218,17 @@ Private Function IStyleEngine_Initialize() As melon.M_RESULT
          1, 1
 
     uAdd STYLE_NAME_WEB_FORWARD, _
-         "Forwards the notification content to a specific URL using a customizable template.  Please note that this style is an alpha release and, as such, is not suitable for general use.", _
+         "Forwards the notification content to a specific URL using a customizable template.", _
          S_STYLE_IS_CONFIGURABLE Or S_STYLE_MULTI_INSTANCE Or S_STYLE_IS_WINDOWLESS Or S_STYLE_V42_CONTENT, _
          uGetWebForwardSchemes(), _
          1, 0
+
+    uAdd STYLE_NAME_OUTLOOK_LOG, _
+         "Creates the notification as an email item in the Inbox in Microsoft Outlook.  Note that Outlook must be running for the item to be created successfully.", _
+         S_STYLE_MULTI_INSTANCE Or S_STYLE_IS_WINDOWLESS Or S_STYLE_V42_CONTENT, _
+         "Inbox", _
+         0, 1
+
 
     IStyleEngine_Initialize = M_OK
 

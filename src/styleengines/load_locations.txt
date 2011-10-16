@@ -80,6 +80,8 @@
 
 	mobile.styleengine
 
+	- Added Outlook Logger 0.1 style.  (41.17)
+
 	- Minor cosmetic changes to WebForwarder.  (41.16)
 
 	- Toasty style now correctly sends icon data.  (41.13)
