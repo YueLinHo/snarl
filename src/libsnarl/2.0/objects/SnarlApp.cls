@@ -48,9 +48,9 @@ Public Enum STATUS_CODE
 End Enum
 
 Private Declare Sub Sleep Lib "kernel32" (ByVal dwMilliseconds As Long)
-Private Declare Function IsWindow Lib "user32" (ByVal hwnd As Long) As Long
+Private Declare Function IsWindow Lib "user32" (ByVal hWnd As Long) As Long
 
-Const CLASS_NAME = "libsnarl2_app_callback"
+Const CLASS_NAME = "libsnarl25_app_callback"
 
 Private Type T_INFO
     ' /* set during SetTo() */
@@ -63,15 +63,18 @@ Private Type T_INFO
     ConfigTool As String
     Hint As String
     RemoteHost As String
-    Destinations As Destinations
 
 End Type
 
-Dim mCached As T_INFO
+Dim mInfo As T_INFO
 Dim mhWnd As Long                       ' // if registered using Win api
 Dim mMsg As Long
-Dim mSNP3Requests As Collection
 Dim mTokens As Collection
+
+Dim WithEvents theSocket As CSocket
+Attribute theSocket.VB_VarHelpID = -1
+
+Dim mCache As Collection
 
 Public Event NotificationInvoked(ByVal UID As String)
 Public Event NotificationExpired(ByVal UID As String)
@@ -86,8 +89,8 @@ Public Event SnarlLaunched()
 Private Sub Class_Initialize()
 
     Set mTokens = New Collection
-    Set mSNP3Requests = New Collection
-    mCached.Password = snCreatePassword()
+    Set mCache = New Collection
+    mInfo.Password = snCreatePassword()
     Randomize Timer
     mMsg = &H400 + (Rnd * 255)
     Debug.Print "SnarlApp.SetTo(): callback msg=0x" & g_HexStr(mMsg, 4)
@@ -98,10 +101,17 @@ Private Sub Class_Terminate()
 
     Debug.Print "SnarlApp.Terminate"
 
-    ' /* unregister locally */
+    If mInfo.Signature <> "" Then
+        If mInfo.RemoteHost = "" Then
+            ' /* unregister locally */
+            snDoRequest "unreg?app-sig=" & mInfo.Signature & "&password=" & mInfo.Password
 
-    If mCached.Signature <> "" Then _
-        snDoRequest "unreg?app-sig=" & mCached.Signature & "&password=" & mCached.Password
+        ElseIf Me.IsConnected() Then
+            theSocket.SendData "unregister?app-sig=" & mInfo.Signature & "&password=" & mInfo.Password
+
+        End If
+
+    End If
 
     If mhWnd <> 0 Then
         EZ4RemoveWindow mhWnd
@@ -113,7 +123,7 @@ Private Sub Class_Terminate()
 
 End Sub
 
-Friend Function bWndProc(ByVal hwnd As Long, ByVal uMsg As Long, ByVal wParam As Long, ByVal lParam As Long, ByVal PrevWndProc As Long, ReturnValue As Long) As Boolean
+Friend Function bWndProc(ByVal hWnd As Long, ByVal uMsg As Long, ByVal wParam As Long, ByVal lParam As Long, ByVal PrevWndProc As Long, ReturnValue As Long) As Boolean
 Dim pn As Notification
 
     If uMsg = snAppMsg() Then
@@ -171,97 +181,97 @@ End Function
 
 Public Property Get Signature() As String
 
-    Signature = mCached.Signature
+    Signature = mInfo.Signature
 
 End Property
 
 Public Property Let Signature(ByVal vNewValue As String)
 
-    mCached.Signature = vNewValue
+    mInfo.Signature = vNewValue
 
 End Property
 
 Public Property Get Title() As String
 
-    Title = mCached.Title
+    Title = mInfo.Title
 
 End Property
 
 Public Property Let Title(ByVal vNewValue As String)
 
-    mCached.Title = vNewValue
+    mInfo.Title = vNewValue
 
 End Property
 
 Public Property Get Icon() As String
 
-    Icon = mCached.Icon
+    Icon = mInfo.Icon
 
 End Property
 
 Public Property Let Icon(ByVal vNewValue As String)
 
-    mCached.Icon = vNewValue
+    mInfo.Icon = vNewValue
 
 End Property
 
 Public Property Get Classes() As Classes
 
-    Set Classes = mCached.Classes
+    Set Classes = mInfo.Classes
 
 End Property
 
 Public Property Let Classes(ByVal vNewValue As Classes)
 
-    Set mCached.Classes = vNewValue
+    Set mInfo.Classes = vNewValue
 
 End Property
 
-Public Property Get Destinations() As Destinations
+Public Property Get RemoteComputer() As String
 
-    Set Destinations = mCached.Destinations
+    RemoteComputer = mInfo.RemoteHost
 
 End Property
 
-Public Property Let Destinations(ByVal vNewValue As Destinations)
+Public Property Let RemoteComputer(ByVal vNewValue As String)
 
-    Set mCached.Destinations = vNewValue
+    mInfo.RemoteHost = vNewValue
 
 End Property
 
 Public Property Get ConfigTool() As String
 
-    ConfigTool = mCached.ConfigTool
+    ConfigTool = mInfo.ConfigTool
 
 End Property
 
 Public Property Let ConfigTool(ByVal vNewValue As String)
 
-    mCached.ConfigTool = vNewValue
+    mInfo.ConfigTool = vNewValue
 
 End Property
 
 Public Property Get Hint() As String
 
-    Hint = mCached.Hint
+    Hint = mInfo.Hint
 
 End Property
 
 Public Property Let Hint(ByVal vNewValue As String)
 
-    mCached.Hint = vNewValue
+    mInfo.Hint = vNewValue
 
 End Property
 
 Public Property Get IsDaemon() As Boolean
 
-    IsDaemon = mCached.IsAppDaemon
+    IsDaemon = mInfo.IsAppDaemon
 
 End Property
 
 Public Property Let IsDaemon(ByVal vNewValue As Boolean)
 
-    mCached.IsAppDaemon = vNewValue
+    mInfo.IsAppDaemon = vNewValue
 
 End Property
 
@@ -273,25 +283,16 @@ Public Function Show(ByRef Notification As Notification) As STATUS_CODE
 
     End If
 
-Dim bDoLocal As Boolean
+Dim szReq As String
 Dim hr As STATUS_CODE
-
-    If Not (mCached.Destinations Is Nothing) Then
-        bDoLocal = mCached.Destinations.SendToLocalInstance
-
-    Else
-        bDoLocal = True
-
-    End If
 
     ' /* send locally (via Win32 API)? */
 
-    If bDoLocal Then
+    If mInfo.RemoteHost = "" Then
         hr = uRegisterLocal()
         If hr >= SUCCESS Then
             ' /* registered ok */
-
-            hr = snDoRequest(Notification.bAsRequest(mCached.Signature, mCached.Password))
+            hr = snDoRequest(Notification.bAsRequest(mInfo.Signature, mInfo.Password))
             If hr > SUCCESS Then
                 uAddToken Notification, CStr(hr)
                 Debug.Print "SnarlApp.Show(): logged uid '" & Notification.UID & "' against token " & CStr(hr)
@@ -309,25 +310,26 @@ Dim hr As STATUS_CODE
 
         Show = Abs(hr)
 
-    End If
+    Else
+        ' /* build the SNP3 request */
 
-    ' /* send to any remote destinations */
+        szReq = "SNP/3.0" & vbCrLf & uAsRequest(False) & Notification.bAsRequest(mInfo.Signature, mInfo.Password) & vbCrLf & "END" & vbCrLf
 
-Dim pReq As TSNP3Req
-Dim i As Long
+        If NOTNULL(theSocket) Then
+            ' /* send to remote computer */
+            Debug.Print "sending '" & Replace$(szReq, vbCrLf, "+") & "' to " & mInfo.RemoteHost & "..."
+            theSocket.SendData szReq
 
-    If Not (mCached.Destinations Is Nothing) Then
-        With mCached.Destinations
-            If .Count Then
-                For i = 1 To .Count
-                    Debug.Print "SnarlApp.Show(): sending to '" & .bDestination(i) & "'"
-                    Set pReq = New TSNP3Req
-                    pReq.send Me, Notification, .bDestination(i)
-                    mSNP3Requests.Add pReq, pReq.Guid
+        Else
+            ' /* cache the request and initiate a connection to the remote computer */
 
-                Next i
-            End If
-        End With
+            mCache.Add szReq
+
+            Set theSocket = New CSocket
+            theSocket.Connect mInfo.RemoteHost, 9887
+
+        End If
+
     End If
 
 End Function
@@ -336,7 +338,7 @@ Private Function uRegisterLocal() As STATUS_CODE
 
     ' /* return */
 
-    If (mCached.Signature = "") Or (mCached.Title = "") Then
+    If (mInfo.Signature = "") Or (mInfo.Title = "") Then
         Debug.Print "SnarlApp.uRegisterLocal(): invalid args"
         uRegisterLocal = ERROR_ARG_MISSING
         Exit Function
@@ -359,7 +361,7 @@ Private Function uRegisterLocal() As STATUS_CODE
 
     End If
 
-    uRegisterLocal = snDoRequest(Me.bAsRequest(True))
+    uRegisterLocal = snDoRequest(uAsRequest(True))
 
     If uRegisterLocal < 0 Then
         ' /* failed */
@@ -376,12 +378,12 @@ Private Function uRegisterLocal() As STATUS_CODE
 
 Dim i As Long
 
-    If Not (mCached.Classes Is Nothing) Then
-        With mCached.Classes
+    If Not (mInfo.Classes Is Nothing) Then
+        With mInfo.Classes
             If .Count Then
                 Debug.Print "adding classes..."
                 For i = 1 To .Count
-                    snDoRequest .bAsRequest(i, mCached.Signature, mCached.Password)
+                    snDoRequest .bAsRequest(i, mInfo.Signature, mInfo.Password)
 
                 Next i
 
@@ -415,7 +417,7 @@ End Function
 
 Public Function Hide(ByVal UID As String) As STATUS_CODE
 
-    Hide = Abs(snDoRequest("hide?app-sig=" & mCached.Signature & "&password=" & mCached.Password & "&uid=" & UID))
+    Hide = Abs(snDoRequest("hide?app-sig=" & mInfo.Signature & "&password=" & mInfo.Password & "&uid=" & UID))
 
 End Function
 
@@ -445,25 +447,25 @@ Public Function MakePath(ByVal Path As String) As String
 
 End Function
 
-Friend Function bAsRequest(ByVal ForLocalInstance As Boolean) As String
+Private Function uAsRequest(ByVal ForLocalInstance As Boolean) As String
 Dim sz As String
 
-    sz = "register?app-sig=" & mCached.Signature & "&password=" & mCached.Password & "&title=" & mCached.Title
+    sz = "register?app-sig=" & mInfo.Signature & "&password=" & mInfo.Password & "&title=" & mInfo.Title
     
     If ForLocalInstance Then _
         sz = sz & "&reply-to=" & CStr(mhWnd) & "&reply-with=" & CStr(mMsg)
 
 
-    If mCached.Icon <> "" Then _
-        sz = sz & "&icon=" & mCached.Icon
+    If mInfo.Icon <> "" Then _
+        sz = sz & "&icon=" & mInfo.Icon
 
-    If mCached.ConfigTool <> "" Then _
-        sz = sz & "&config-tool=" & mCached.ConfigTool
+    If mInfo.ConfigTool <> "" Then _
+        sz = sz & "&config-tool=" & mInfo.ConfigTool
     
-    If mCached.Hint <> "" Then _
-        sz = sz & "&hint=" & mCached.Hint
+    If mInfo.Hint <> "" Then _
+        sz = sz & "&hint=" & mInfo.Hint
 
-    If (mCached.IsAppDaemon) And (Not ForLocalInstance) Then _
+    If (mInfo.IsAppDaemon) And (Not ForLocalInstance) Then _
         sz = sz & "&app-daemon=1"
 
 
@@ -473,11 +475,11 @@ Dim i As Long
 
     If Not ForLocalInstance Then
         sz = sz & vbCrLf
-        If Not (mCached.Classes Is Nothing) Then
-            With mCached.Classes
+        If Not (mInfo.Classes Is Nothing) Then
+            With mInfo.Classes
                 If .Count Then
                     For i = 1 To .Count
-                        sz = sz & .bAsRequest(i, mCached.Signature, mCached.Password) & vbCrLf
+                        sz = sz & .bAsRequest(i, mInfo.Signature, mInfo.Password) & vbCrLf
                         
                     Next i
 
@@ -486,13 +488,13 @@ Dim i As Long
         End If
     End If
 
-    bAsRequest = sz
+    uAsRequest = sz
 
 End Function
 
 Friend Function bPassword() As String
 
-    bPassword = mCached.Password
+    bPassword = mInfo.Password
 
 End Function
 
@@ -503,31 +505,98 @@ Private Sub uAddToken(ByRef pn As Notification, ByVal Key As String)
 
 End Sub
 
-Public Sub TidyUp()
-Dim pr As TSNP3Req
-Dim i As Long
-
-    ' /* unregister remotely */
-
-    If Not (mCached.Destinations Is Nothing) Then
-        With mCached.Destinations
-            If .Count Then
-                For i = 1 To .Count
-                    Set pr = New TSNP3Req
-                    pr.SendData "unregister?app-sig=" & mCached.Signature & "&password=" & mCached.Password, .bDestination(i)
-                    mSNP3Requests.Add pr, pr.Guid
-
-                Next i
-
-'                i = GetTickCount()
-'                Do While (GetTickCount() - i) < 10000
-'                    DoEvents
-'                    Sleep 1
+'Public Sub TidyUp()
+'Dim pr As TSNP3Req
+'Dim i As Long
 '
-'                Loop
+'    ' /* unregister remotely */
+'
+''    If Not (mInfo.Destinations Is Nothing) Then
+''        With mInfo.Destinations
+''            If .Count Then
+''                For i = 1 To .Count
+''                    Set pr = New TSNP3Req
+''                    pr.SendData "unregister?app-sig=" & mInfo.Signature & "&password=" & mInfo.Password, .bDestination(i)
+''                    mSNP3Requests.Add pr, pr.Guid
+''
+''                Next i
+''
+'''                i = GetTickCount()
+'''                Do While (GetTickCount() - i) < 10000
+'''                    DoEvents
+'''                    Sleep 1
+'''
+'''                Loop
+''
+''            End If
+''        End With
+''    End If
+'
+'End Sub
 
-            End If
-        End With
+Public Property Get IsConnected() As Boolean
+
+    If mInfo.RemoteHost = "" Then
+        ' /* using API */
+        IsConnected = snIsSnarlRunning()
+
+    ElseIf NOTNULL(theSocket) Then
+        IsConnected = theSocket.State = sckConnected
+
+    End If
+
+End Property
+
+Public Property Get LibVersion() As Integer
+
+    LibVersion = App.Major
+
+End Property
+
+Public Property Get LibRevision() As Integer
+
+    LibRevision = App.Minor
+
+End Property
+
+Private Sub theSocket_OnClose()
+
+    Debug.Print "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+    Debug.Print "!! Snarl dropped connection !!"
+    Debug.Print "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+
+End Sub
+
+Private Sub theSocket_OnConnect()
+Dim i As Long
+Dim c As Long
+
+    Debug.Print "SnarlApp.OnConnect(): now connected to " & theSocket.RemoteHost
+
+    c = mCache.Count
+    If c > 0 Then
+        For i = 1 To c
+            Debug.Print "SnarlApp.OnConnect(): sending '" & mCache.Item(1) & "'..."
+            theSocket.SendData mCache.Item(1)
+            mCache.Remove 1
+
+        Next i
+
     End If
 
 End Sub
+
+Public Function IsSnarlInstalled() As Boolean
+Dim hKey As Long
+Dim sz As String
+
+    If reg_OpenKey(HKEY_LOCAL_MACHINE, "SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\Snarl.exe", hKey) Then
+        If reg_GetValue(hKey, "", sz) Then _
+            IsSnarlInstalled = g_Exists(sz)
+
+        Debug.Print "IsSnarlInstalled: '" & sz & "': " & IsSnarlInstalled
+
+    End If
+
+End Function
+

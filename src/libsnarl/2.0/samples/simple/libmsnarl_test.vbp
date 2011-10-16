@@ -1,6 +1,6 @@
 Type=Exe
 Reference=*\G{00020430-0000-0000-C000-000000000046}#2.0#0#C:\WINDOWS\system32\stdole2.tlb#OLE Automation
-Reference=*\A..\..\libsnarl-2-0.vbp
+Reference=*\G{091955B7-F9CA-4064-AEBF-8212FA6C4844}#3.0#0#..\..\bin\libsnarl-2-5.dll#libSnarl 2.5 Beta 1 (V43)
 Form=Form2.frm
 Startup="Form2"
 HelpFile=""

@@ -18,6 +18,14 @@ Begin VB.Form Form2
    ScaleHeight     =   3090
    ScaleWidth      =   4680
    StartUpPosition =   3  'Windows Default
+   Begin VB.CheckBox Check1 
+      Caption         =   "Use Win32 API"
+      Height          =   255
+      Left            =   300
+      TabIndex        =   2
+      Top             =   120
+      Width           =   2175
+   End
    Begin VB.CommandButton Command2 
       Caption         =   "Command2"
       Height          =   495
@@ -27,7 +35,7 @@ Begin VB.Form Form2
       Width           =   2175
    End
    Begin VB.CommandButton Command1 
-      Caption         =   "Register using Win32 API"
+      Caption         =   "Register"
       Height          =   555
       Left            =   300
       TabIndex        =   0
@@ -69,6 +77,8 @@ Dim pn As Notification
 
     End With
 
+    If Check1.Value = vbUnchecked Then _
+        myApp.RemoteComputer = "127.0.0.1"
 
     ' /* go */
     
@@ -78,30 +88,25 @@ End Sub
 
 Private Sub Command2_Click()
 
-    myApp.TidyUp
+'    myApp.TidyUp
 
 End Sub
 
 Private Sub Form_Load()
 
-    ' /* create destinations */
-
-Dim pd As Destinations
-
-    Set pd = New Destinations
-'    pd.SendToLocalInstance = False
-    pd.Add "192.168.24.1"
-
     ' /* create app */
 
     Set myApp = New SnarlApp
+
+    Debug.Print myApp.IsSnarlInstalled()
+
+
     With myApp
         .Signature = "test/libmsnarl2"
         .Title = "snarl.library 2 test"
         .Icon = .MakePath(App.Path) & "icon.png"
         .Hint = "Acme Products Present"
         .IsDaemon = True
-        .Destinations = pd
 
     End With
 
