@@ -55,7 +55,7 @@ Implements BWndProcSink
 Implements KPrefsPanel
 Implements KPrefsPage
 
-Private Function BWndProcSink_WndProc(ByVal hWnd As Long, ByVal uMsg As Long, ByVal wParam As Long, ByVal lParam As Long, ByVal PrevWndProc As Long, ReturnValue As Long) As Boolean
+Private Function BWndProcSink_WndProc(ByVal hwnd As Long, ByVal uMsg As Long, ByVal wParam As Long, ByVal lParam As Long, ByVal PrevWndProc As Long, ReturnValue As Long) As Boolean
 Dim pOutlook As Outlook.Application
 Dim pItem As TItem
 Dim sz As String
@@ -69,7 +69,7 @@ Dim n As Long
 
         ' /* basic initialisation */
 
-        mhWnd = hWnd
+        mhWnd = hwnd
         Set mMail = new_BTagList()
         mPassword = snCreatePassword()
 
@@ -109,7 +109,7 @@ Dim n As Long
         uShowTrayIcon (mConfig.ValueOf("show_tray_icon") = "1")
 
         If Not uGetOutlook(pOutlook) Then
-            SetTimer hWnd, TIMER_WAIT_FOR_OUTLOOK, 5000, 0
+            SetTimer hwnd, TIMER_WAIT_FOR_OUTLOOK, 5000, 0
 
         Else
             Form1.Add "got Outlook..."
@@ -146,14 +146,14 @@ Dim n As Long
                 Set myOutlook = pOutlook
                 Set mContacts = myOutlook.GetNamespace("MAPI").GetDefaultFolder(olFolderContacts).Items
                 Form1.Add "got Outlook"
-                KillTimer hWnd, wParam
+                KillTimer hwnd, wParam
 
             End If
 
         Case TIMER_WAIT_FOR_QUIT
             Form1.Add "settle timeout completed"
-            KillTimer hWnd, wParam
-            SetTimer hWnd, TIMER_WAIT_FOR_OUTLOOK, 5000, 0
+            KillTimer hwnd, wParam
+            SetTimer hwnd, TIMER_WAIT_FOR_OUTLOOK, 5000, 0
 
         End Select
 
@@ -260,6 +260,10 @@ Dim n As Long
 
 End Function
 
+Private Sub Class_Initialize()
+
+End Sub
+
 Private Sub KPrefsPage_AllAttached()
 End Sub
 
@@ -298,7 +302,7 @@ Private Sub KPrefsPage_ControlInvoked(Control As prefs_kit_d2.BControl)
 
     Select Case Control.GetName
     Case "go_support"
-        ShellExecute thePanel.hWnd, "open", "http://groups.google.com/group/snarl-discuss/?pli=1", vbNullString, vbNullString, 5
+        ShellExecute thePanel.hwnd, "open", "http://groups.google.com/group/snarl-discuss/?pli=1", vbNullString, vbNullString, 5
 
     End Select
 
@@ -576,12 +580,12 @@ Dim pPage As BPrefsPage
 
             .Go
 
-            g_SetWindowIconToAppResourceIcon .hWnd
+            g_SetWindowIconToAppResourceIcon .hwnd
 
         End With
     End If
 
-    g_WindowToFront thePanel.hWnd, True
+    g_WindowToFront thePanel.hwnd, True
 
 
 End Sub
