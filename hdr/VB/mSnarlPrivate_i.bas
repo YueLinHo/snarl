@@ -371,7 +371,7 @@ Dim hWnd As Long
 Dim pcds As COPYDATASTRUCT
 Dim dw As Long
 
-    hWnd = snGetSnarlWindow()
+    hWnd = hWnd = FindWindow("w>Snarl", "Snarl")
     If IsWindow(hWnd) <> 0 Then
         pcds.dwData = 2                 '// SNARLSTRUCT
         pcds.cbData = LenB(pss)
@@ -487,42 +487,42 @@ End Function
 
 Public Function snCommandStr(ByVal Command As Long) As String
 
-    Select Case Command
-    Case SNARL_SHOW
-        snCommandStr = "SNARL_SHOW"
-
-    Case SNARL_HIDE
-        snCommandStr = "SNARL_HIDE"
-
-    Case SNARL_UPDATE
-        snCommandStr = "SNARL_UPDATE"
-
-    Case SNARL_IS_VISIBLE
-        snCommandStr = "SNARL_IS_VISIBLE"
-
-    Case SNARL_GET_VERSION
-        snCommandStr = "SNARL_GET_VERSION"
-
-    Case SNARL_REGISTER_CONFIG_WINDOW
-        snCommandStr = "SNARL_REGISTER_CONFIG_WINDOW"
-
-    Case SNARL_REVOKE_CONFIG_WINDOW
-        snCommandStr = "SNARL_REVOKE_CONFIG_WINDOW"
-
-    ' /* R1.6 onwards */
-    Case SNARL_REGISTER_ALERT
-        snCommandStr = "SNARL_REGISTER_ALERT"
-
-    Case SNARL_REVOKE_ALERT                  '// for future use
-        snCommandStr = "SNARL_REVOKE_ALERT"
-
-    Case SNARL_REGISTER_CONFIG_WINDOW_2
-        snCommandStr = "SNARL_REGISTER_CONFIG_WINDOW_2"
-
-    Case Else
-        snCommandStr = "unknown: " & CStr(Command)
-
-    End Select
+'    Select Case Command
+'    Case SNARL_SHOW
+'        snCommandStr = "SNARL_SHOW"
+'
+'    Case SNARL_HIDE
+'        snCommandStr = "SNARL_HIDE"
+'
+'    Case SNARL_UPDATE
+'        snCommandStr = "SNARL_UPDATE"
+'
+'    Case SNARL_IS_VISIBLE
+'        snCommandStr = "SNARL_IS_VISIBLE"
+'
+'    Case SNARL_GET_VERSION
+'        snCommandStr = "SNARL_GET_VERSION"
+'
+'    Case SNARL_REGISTER_CONFIG_WINDOW
+'        snCommandStr = "SNARL_REGISTER_CONFIG_WINDOW"
+'
+'    Case SNARL_REVOKE_CONFIG_WINDOW
+'        snCommandStr = "SNARL_REVOKE_CONFIG_WINDOW"
+'
+'    ' /* R1.6 onwards */
+'    Case SNARL_REGISTER_ALERT
+'        snCommandStr = "SNARL_REGISTER_ALERT"
+'
+'    Case SNARL_REVOKE_ALERT                  '// for future use
+'        snCommandStr = "SNARL_REVOKE_ALERT"
+'
+'    Case SNARL_REGISTER_CONFIG_WINDOW_2
+'        snCommandStr = "SNARL_REGISTER_CONFIG_WINDOW_2"
+'
+'    Case Else
+'        snCommandStr = "unknown: " & CStr(Command)
+'
+'    End Select
 
 End Function
 

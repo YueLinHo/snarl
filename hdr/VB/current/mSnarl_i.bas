@@ -43,11 +43,11 @@ Option Explicit
 Private Declare Function FindWindow Lib "user32" Alias "FindWindowA" (ByVal lpClassName As String, ByVal lpWindowName As String) As Long
 Private Declare Function GetClipboardFormatName Lib "user32" Alias "GetClipboardFormatNameA" (ByVal wFormat As Long, ByVal lpString As String, ByVal nMaxCount As Long) As Long
 Private Declare Function GetCurrentProcessId Lib "kernel32" () As Long
-Private Declare Function GetProp Lib "user32" Alias "GetPropA" (ByVal hwnd As Long, ByVal lpString As String) As Long
-Private Declare Function IsWindow Lib "user32" (ByVal hwnd As Long) As Long
+Private Declare Function GetProp Lib "user32" Alias "GetPropA" (ByVal hWnd As Long, ByVal lpString As String) As Long
+Private Declare Function IsWindow Lib "user32" (ByVal hWnd As Long) As Long
 Private Declare Function RegisterWindowMessage Lib "user32" Alias "RegisterWindowMessageA" (ByVal lpString As String) As Long
-Private Declare Function SendMessageTimeout Lib "user32" Alias "SendMessageTimeoutA" (ByVal hwnd As Long, ByVal Msg As Long, ByVal wParam As Long, lParam As Any, ByVal fuFlags As Long, ByVal uTimeout As Long, lpdwResult As Long) As Long
-Private Declare Function SetProp Lib "user32" Alias "SetPropA" (ByVal hwnd As Long, ByVal lpString As String, ByVal hData As Long) As Long
+Private Declare Function SendMessageTimeout Lib "user32" Alias "SendMessageTimeoutA" (ByVal hWnd As Long, ByVal Msg As Long, ByVal wParam As Long, lParam As Any, ByVal fuFlags As Long, ByVal uTimeout As Long, lpdwResult As Long) As Long
+Private Declare Function SetProp Lib "user32" Alias "SetPropA" (ByVal hWnd As Long, ByVal lpString As String, ByVal hData As Long) As Long
 Private Declare Function WideCharToMultiByte Lib "kernel32" (ByVal CodePage As Long, ByVal dwFlags As Long, ByVal lpWideCharStr As Long, ByVal cchWideChar As Long, ByVal lpMultiByteStr As Long, ByVal cchMultiByte As Long, ByVal lpDefaultChar As Long, lpUsedDefaultChar As Long) As Long
 
 Private Const SMTO_ABORTIFHUNG = 2
@@ -194,16 +194,57 @@ Public Const SNARLAPP_QUIT_REQUESTED = 4        '// V43
 ' /*
 ' /****************************************************************************************/
 
+
+
+
+' /****************************************************************************************
+' /*
+' /*                                    Base functions
+' /*
+' /****************************************************************************************/
+
+' /*
+'   snAppMsg() -- Returns Snarl application message  (V41)
+'
+'   Inputs
+'       None
+'
+'   Results
+'       Returns the Snarl application Windows registered message
+'
+' */
+Public Function snAppMsg() As Long
+
+    snAppMsg = RegisterWindowMessage("SnarlAppMessage")
+
+End Function
+
+' /*
+'   snDoRequest() -- Send a request to Snarl  (V41)
+'
+'   Inputs
+'       Request: complete request
+'       ReplyTimeout: the amount of time (in milliseconds) to wait for a response
+'
+'   Results
+'       Returns whatever Snarl returns or:
+'           SNARL_ERROR_NOT_RUNNING:    if Snarl's message handling window isn't found
+'           SNARL_ERROR_TIMED_OUT:      if SendMessageTimeout() times out
+'
+'   Note
+'       When returning an error, ensure the value is negated.
+'
+' */
 Public Function snDoRequest(ByVal Request As String, Optional ByVal ReplyTimeout As Long = 1000) As Long
-Dim hwnd As Long
+Dim hWnd As Long
 
     ' /* returns zero or a positive value on success, negative value on failure
     '    in the case of failure, the return value will be a negated member of
     '    the SNARL_STATUS_CODE enum - thus ABS(ReturnValue) is required to
     '    correctly identify the error code */
 
-    hwnd = FindWindow("w>Snarl", "Snarl")
-    If IsWindow(hwnd) = 0 Then
+    hWnd = FindWindow("w>Snarl", "Snarl")
+    If IsWindow(hWnd) = 0 Then
         snDoRequest = -SNARL_ERROR_NOT_RUNNING
         Exit Function
 
@@ -227,7 +268,7 @@ Dim dw As Long
 
     ' /* return zero on failure */
 
-    If SendMessageTimeout(hwnd, WM_COPYDATA, GetCurrentProcessId(), pcds, SMTO_ABORTIFHUNG, ReplyTimeout, dw) <> 0 Then
+    If SendMessageTimeout(hWnd, WM_COPYDATA, GetCurrentProcessId(), pcds, SMTO_ABORTIFHUNG, ReplyTimeout, dw) <> 0 Then
         snDoRequest = dw
 
     Else
@@ -238,30 +279,274 @@ Dim dw As Long
 
 End Function
 
+' /*
+'   snGetConfigPath() -- Returns a path to Snarl's config folder  (V41)
+'
+'   Inputs
+'       Path is a string to contain the returned path.
+'
+'   Results
+'       TRUE on success, FALSE otherwise.
+'
+' */
+Public Function snGetConfigPath(ByRef Path As String) As Boolean
+Dim h As Long
 
+    h = FindWindow("w>Snarl", "Snarl")
+    If h = 0 Then _
+        Exit Function
 
-            ' /****************************************************************************************
-            ' /*
-            ' /* Helper functions
-            ' /*
-            ' /****************************************************************************************/
+Dim lAtom As Long
 
+    lAtom = GetProp(h, "_config_path")
+    If lAtom = 0 Then _
+        Exit Function
+
+Dim sz As String
+
+    sz = String$(1024, 0)
+    h = GetClipboardFormatName(lAtom, sz, Len(sz))
+    If h > 0 Then _
+        Path = Left$(sz, h) & "etc\"
+
+    snGetConfigPath = (Path <> "")
+
+End Function
 
 ' /*
-'   app_msg() -- Returns Snarl application message  (V41)
+'   snIsSnarlRunning() -- Determines Snarl state  (V41)
 '
 '   Inputs
 '       None
 '
 '   Results
-'       Returns the Snarl application Windows registered message
+'       Returns TRUE if Snarl is running, FALSE otherwise.
 '
 ' */
-Public Function app_msg() As Long
+Public Function snIsSnarlRunning() As Boolean
 
-    app_msg = RegisterWindowMessage("SnarlAppMessage")
+    snIsSnarlRunning = (IsWindow(FindWindow("w>Snarl", "Snarl")) <> 0)
 
 End Function
+
+' /*
+'   snSysMsg() -- Return Snarl's system broadcast message
+'
+'   Inputs
+'       None
+'
+'   Results
+'       Returns Snarl's registered system message
+'
+' */
+Public Function snSysMsg() As Long
+
+    snSysMsg = RegisterWindowMessage("SnarlGlobalEvent")
+
+End Function
+
+
+
+
+' /****************************************************************************************
+' /*
+' /*                                    Helper functions
+' /*
+' /****************************************************************************************/
+
+' /*
+'   snarl_add_class() -- Add a notification class
+'
+'   Inputs
+'       Signature
+'       Id
+'       Name
+'       Enabled
+'       Password
+'
+'   Results
+'       Status code
+'
+'   Notes
+'       Wraps the "addclass" command
+'
+' */
+Public Function snarl_add_class(ByVal Signature As String, ByVal Id As String, ByVal Name As String, Optional ByVal Enabled As Boolean = True, Optional ByVal Password As String) As Long
+Dim sz As String
+
+    sz = "addclass?app-sig=" & Signature & "&id=" & Id & "&name=" & Name & "&enabled=" & IIf(Enabled, "1", "0")
+    If Password <> "" Then _
+        sz = sz & "&password=" & Password
+
+    snarl_add_class = snDoRequest(sz)
+
+End Function
+
+' /*
+'   snarl_hide_notification() -- Hide a notification
+'
+'   Inputs
+'       Signature
+'       UID
+'       Password
+'
+'   Results
+'       Status code
+'
+'   Notes
+'       Wraps the "hide" command
+'
+' */
+Public Function snarl_hide_notification(ByVal Signature As String, ByVal UID As String, Optional ByVal Password As String) As Long
+
+    snarl_hide_notification = snDoRequest("hide?app-sig=" & Signature & "&uid=" & UID & IIf(Password <> "", "&password=" & Password, ""))
+
+End Function
+
+' /*
+'   snarl_notify() -- Show a notification
+'
+'   Inputs
+'       Signature
+'       Class
+'       UID
+'       Password
+'       Title
+'       Text
+'       Icon
+'       Priority
+'       Duration
+'       Callback
+'       PercentValue
+'       CustomData
+'
+'   Result
+'       Status code
+'
+'   Notes
+'       Wraps the "notify" command
+'
+' */
+Public Function snarl_notify(ByVal Signature As String, ByVal Class As String, ByVal UID As String, Optional ByVal Password As String, Optional ByVal Title As String, Optional ByVal Text As String, Optional ByVal Icon As String, Optional ByVal Priority As Long, Optional ByVal Duration As Long = -1, Optional ByVal Callback As String, Optional ByVal PercentValue As Long = -1, Optional ByVal CustomData As String) As Long
+Dim sz As String
+
+    sz = "notify?app-sig=" & Signature & _
+         "&id=" & Class & _
+         "&title=" & Title & "&text=" & Text & _
+         "&priority=" & CStr(Priority) & _
+         IIf(Duration > -1, "&timeout=" & CStr(Duration), "") & _
+         IIf(Icon <> "", "&icon=" & Icon, "") & _
+         IIf(Password <> "", "&password=" & Password, "") & _
+         IIf(UID <> "", "&uid=" & UID, "") & _
+         IIf(Callback <> "", "&callback=" & Callback, "")
+
+    If (PercentValue >= 0) And (PercentValue <= 100) Then _
+        sz = sz & "&value-percent=" & CStr(PercentValue)
+
+    If CustomData <> "" Then _
+        sz = sz & "&" & CustomData
+
+    snarl_notify = snDoRequest(sz)
+
+End Function
+
+
+
+' /*
+'   snarl_register() -- Registers an application
+'
+'   Inputs
+'       Signature
+'       Name
+'       Icon
+'       Password
+'       ReplyTo
+'       ReplyWith
+'       IsDaemon
+'
+'   Results
+'       Status code
+'
+'   Notes
+'       Wraps the "register" command
+'
+' */
+Public Function snarl_register(ByVal Signature As String, ByVal Name As String, ByVal Icon As String, Optional ByVal Password As String, Optional ByVal ReplyTo As Long, Optional ByVal ReplyWith As Long, Optional ByVal IsDaemon As Boolean = False) As Long
+
+    snarl_register = snDoRequest("register?app-sig=" & Signature & "&title=" & Name & "&icon=" & Icon & _
+                                 IIf(Password <> "", "&password=" & Password, "") & _
+                                 IIf(ReplyTo <> 0, "&reply-to=" & CStr(ReplyTo), "") & _
+                                 IIf(ReplyWith <> 0, "&reply-with=" & CStr(ReplyWith), "") & _
+                                 IIf(IsDaemon, "&app-daemon=1", ""))
+
+End Function
+
+' /*
+'   snarl_register() -- Registers an application
+'
+'   Inputs
+'       TokenOrSignature
+'       Password
+'
+'   Results
+'       Status code
+'
+'   Notes
+'       Wraps the "unregister" command
+'
+' */
+Public Function snarl_unregister(ByVal TokenOrSignature As Variant, Optional ByVal Password As String) As Long
+Dim sz As String
+
+    sz = "unregister?"
+
+    If VarType(TokenOrSignature) = vbLong Then
+        sz = sz & "token=" & CStr(TokenOrSignature)
+
+    ElseIf VarType(TokenOrSignature) = vbString Then
+        sz = sz & "app-sig=" & CStr(TokenOrSignature)
+
+    Else
+        snarl_unregister = SNARL_ERROR_ARG_MISSING
+        Exit Function
+
+    End If
+
+    If Password <> "" Then _
+        sz = sz & "&password=" & Password
+
+    snarl_unregister = snDoRequest(sz)
+    Debug.Print "snarl_unregister: " & snarl_unregister
+
+End Function
+
+' /*
+'   snarl_version() -- Returns the version of Snarl
+'
+'   Inputs
+'       None
+'
+'   Results
+'       Status code or version of Snarl
+'
+'   Notes
+'       Wraps the "version" command
+'
+' */
+Public Function snarl_version() As Long
+
+    snarl_version = snDoRequest("version")
+
+End Function
+
+
+
+' /****************************************************************************************
+' /*
+' /*                                  VB-specific functions
+' /*
+' /****************************************************************************************/
+
 
 ' /*
 '   create_password() -- Create a password  (V43)
@@ -288,22 +573,6 @@ Dim i As Integer
 End Function
 
 ' /*
-'   is_snarl_running() -- Determines Snarl state  (V41)
-'
-'   Inputs
-'       None
-'
-'   Results
-'       Returns TRUE if Snarl is running, FALSE otherwise.
-'
-' */
-Public Function is_snarl_running() As Boolean
-
-    is_snarl_running = (IsWindow(FindWindow("w>Snarl", "Snarl")) <> 0)
-
-End Function
-
-' /*
 '   make_path() -- Path validator  (V43)
 '
 '   Inputs
@@ -326,76 +595,18 @@ Public Function make_path(ByVal Path As String) As String
 
 End Function
 
+
 ' /*
-'   snarl_msg() -- Snarl registered message
+'   uToUTF8() -- Convert a string to UTF8
 '
 '   Inputs
-'       None
+'       str: string to convert
 '
 '   Results
-'       Returns Snarl's registered Window message
+'       UTF8-encoded string
 '
 ' */
-Public Function snarl_msg() As Long
-
-    snarl_msg = RegisterWindowMessage("SnarlGlobalEvent")
-
-End Function
-
-
-
-Public Function snarl_register(ByVal Signature As String, ByVal Name As String, ByVal Icon As String, Optional ByVal Password As String, Optional ByVal ReplyTo As Long, Optional ByVal Reply As Long, Optional ByVal IsDaemon As Boolean = False) As Long
-
-    snarl_register = snDoRequest("register?app-sig=" & Signature & "&title=" & Name & "&icon=" & Icon & _
-                                 IIf(Password <> "", "&password=" & Password, "") & _
-                                 IIf(ReplyTo <> 0, "&reply-to=" & CStr(ReplyTo), "") & _
-                                 IIf(Reply <> 0, "&reply-with=" & CStr(Reply), "") & _
-                                 IIf(IsDaemon, "&app-daemon=1", ""))
-
-End Function
-
-Public Function snarl_unregister(ByVal TokenOrSignature As Variant, Optional ByVal Password As String) As Long
-Dim sz As String
-
-    sz = "unregister?"
-
-    If VarType(TokenOrSignature) = vbLong Then
-        sz = sz & "token=" & CStr(TokenOrSignature)
-
-    ElseIf VarType(TokenOrSignature) = vbString Then
-        sz = sz & "app-sig=" & CStr(TokenOrSignature)
-
-    Else
-        snarl_unregister = SNARL_ERROR_ARG_MISSING
-        Exit Function
-
-    End If
-
-    If Password <> "" Then _
-        sz = sz & "&password=" & Password
-
-    snarl_unregister = snDoRequest(sz)
-    Debug.Print "snarl_unregister: " & snarl_unregister
-
-End Function
-
-Public Function snarl_version() As Long
-
-    snarl_version = snDoRequest("version")
-
-End Function
-
-
-
-' /****************************************************************************************
-' /*
-' /*
-' /*                                Internal helper functions
-' /*
-' /*
-' /****************************************************************************************/
-
-Public Function uToUTF8(ByVal str As String) As String
+Private Function uToUTF8(ByVal str As String) As String
 
     On Error GoTo ex
 
@@ -420,64 +631,27 @@ End Function
 
 
 
-' /*
-'   sn41GetConfigPath() -- Returns a path to Snarl's config folder  (V41)
-'
-'   Inputs
-'       None
-'
-'   Results
-'       Snarl Application registered message.
-'
-' */
 
-Public Function get_config_path(ByRef Path As String) As Boolean
-Dim h As Long
 
-    h = FindWindow("w>Snarl", "Snarl")
-    If h = 0 Then _
-        Exit Function
 
-Dim lAtom As Long
 
-    lAtom = GetProp(h, "_config_path")
-    If lAtom = 0 Then _
-        Exit Function
-
+Public Function snarl_ez_notify(ByVal Signature As String, ByVal Class As String, Optional ByVal Title As String, Optional ByVal Text As String, Optional ByVal Icon As String, Optional ByVal Priority As Long, Optional ByVal Duration As Long = -1, Optional ByVal Password As String, Optional ByVal UID As String, Optional ByVal Callback As String, Optional ByVal Percent As Long = -1) As Long
 Dim sz As String
 
-    sz = String$(1024, 0)
-    h = GetClipboardFormatName(lAtom, sz, Len(sz))
-    If h > 0 Then _
-        Path = Left$(sz, h) & "etc\"
+    sz = "notify?app-sig=" & Signature & _
+         "&id=" & Class & _
+         "&title=" & Title & "&text=" & Text & _
+         "&priority=" & CStr(Priority) & _
+         IIf(Duration > -1, "&timeout=" & CStr(Duration), "") & _
+         IIf(Icon <> "", "&icon=" & Icon, "") & _
+         IIf(Password <> "", "&password=" & Password, "") & _
+         IIf(UID <> "", "&uid=" & UID, "") & _
+         IIf(Callback <> "", "&callback=" & Callback, "")
 
-    get_config_path = (Path <> "")
+    If (Percent >= 0) And (Percent <= 100) Then _
+        sz = sz & "&value-percent=" & CStr(Percent)
 
-End Function
-
-
-
-' /****************************************************************************************
-' /*
-' /*
-' /*                                Public helper functions
-' /*
-' /*
-' /****************************************************************************************/
-
-
-
-Public Function snarl_ez_notify(ByVal Signature As String, ByVal Class As String, Optional ByVal Title As String, Optional ByVal Text As String, Optional ByVal Icon As String, Optional ByVal Priority As Long, Optional ByVal Duration As Long = -1, Optional ByVal Password As String, Optional ByVal UID As String) As Long
-
-    snarl_ez_notify = snDoRequest("notify?app-sig=" & Signature & _
-                                  "&id=" & Class & _
-                                  "&title=" & Title & "&text=" & Text & _
-                                  "&priority=" & CStr(Priority) & _
-                                  IIf(Duration > -1, "&timeout=" & CStr(Duration), "") & _
-                                  IIf(Icon <> "", "&icon=" & Icon, "") & _
-                                  IIf(Password <> "", "&password=" & Password, "") & _
-                                  IIf(UID <> "", "&uid=" & UID, "") _
-                                  )
+    snarl_ez_notify = snDoRequest(sz)
 
 End Function
 
