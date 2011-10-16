@@ -7,7 +7,7 @@ Begin VB.Form Form1
    ClientTop       =   450
    ClientWidth     =   9915
    BeginProperty Font 
-      Name            =   "Verdana"
+      Name            =   "Lucida Console"
       Size            =   9
       Charset         =   0
       Weight          =   400
@@ -23,7 +23,18 @@ Begin VB.Form Form1
    StartUpPosition =   3  'Windows Default
    Begin VB.TextBox Text2 
       Appearance      =   0  'Flat
+      BackColor       =   &H00263C2E&
       BorderStyle     =   0  'None
+      BeginProperty Font 
+         Name            =   "Verdana"
+         Size            =   9.75
+         Charset         =   0
+         Weight          =   400
+         Underline       =   0   'False
+         Italic          =   0   'False
+         Strikethrough   =   0   'False
+      EndProperty
+      ForeColor       =   &H00EAF0E8&
       Height          =   270
       Left            =   60
       TabIndex        =   1
@@ -32,28 +43,39 @@ Begin VB.Form Form1
    End
    Begin VB.TextBox Text1 
       Appearance      =   0  'Flat
+      BackColor       =   &H00263C2E&
       BorderStyle     =   0  'None
+      BeginProperty Font 
+         Name            =   "Verdana"
+         Size            =   9.75
+         Charset         =   0
+         Weight          =   400
+         Underline       =   0   'False
+         Italic          =   0   'False
+         Strikethrough   =   0   'False
+      EndProperty
+      ForeColor       =   &H00EAF0E8&
       Height          =   2295
       Left            =   60
       Locked          =   -1  'True
       MultiLine       =   -1  'True
-      ScrollBars      =   2  'Vertical
       TabIndex        =   0
       Top             =   0
       Width           =   4515
    End
    Begin VB.Label Label1 
-      BackColor       =   &H00FFFFFF&
+      BackColor       =   &H00263C2E&
       Caption         =   ">"
       BeginProperty Font 
          Name            =   "Verdana"
-         Size            =   9
+         Size            =   9.75
          Charset         =   0
-         Weight          =   700
+         Weight          =   400
          Underline       =   0   'False
          Italic          =   0   'False
          Strikethrough   =   0   'False
       EndProperty
+      ForeColor       =   &H00EAF0E8&
       Height          =   285
       Left            =   1740
       TabIndex        =   2
@@ -80,7 +102,7 @@ Private Sub Form_Load()
 '    uOut ""
     uPrompt
 
-    g_SimpleSetWindowIcon Me.hWnd
+    g_SimpleSetWindowIcon Me.hwnd
 
     Me.Show
     Text2.SetFocus
@@ -158,15 +180,19 @@ Dim hr As Long
 
     Case 13
         sz = Text2.Text         '//(Text2.Text, Len(Text2.Text) - 0)
-        If sz <> "" Then
+        If (sz = "help") Or (sz = "?") Then
+            uOut "Enter a Snarl request at the prompt and press return." & vbCrLf & "Some examples:" & vbCrLf & "  register?app-sig=foo/bar&title=Some App" & vbCrLf & "  notify?title=Hello, world!" & vbCrLf
+            uPrompt
+
+        ElseIf sz <> "" Then
             uOut g_Quote(sz)
             hr = snDoRequest(sz)
             If hr >= 0 Then
-                uOut "OK: " & CStr(hr)
+                uOut "OK: " & CStr(hr) & vbCrLf
 
             Else
                 hr = Abs(hr)
-                uOut "Error " & CStr(hr) & ": " & uError(hr)
+                uOut "Error " & CStr(hr) & ": " & uError(hr) & vbCrLf
             
             End If
 

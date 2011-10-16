@@ -37,6 +37,7 @@ Attribute VB_PredeclaredId = True
 Attribute VB_Exposed = False
 Option Explicit
 
+Dim mIndent As Integer
 Dim mConn() As TGNTPConnection
 Dim mCount As Long
 
@@ -91,7 +92,7 @@ End Sub
 
 Private Sub theSocket_OnConnectionRequest(ByVal requestID As Long)
 
-    Me.Output vbCrLf & "[ ConnectionRequest ]"
+    Me.Output vbCrLf & "[ Incoming Request ]" & vbCrLf
 
     mCount = mCount + 1
     ReDim Preserve mConn(mCount)
@@ -103,12 +104,26 @@ End Sub
 Public Sub Output(ByVal Text As String)
 
     With Text1
-        .Text = .Text & Text & vbCrLf
+        .Text = .Text & Space$(Abs(mIndent)) & Text & vbCrLf
         .SelLength = 0
         .SelStart = Len(.Text)
 
     End With
 
     g_Debug Text
+
+End Sub
+
+Public Sub Indent()
+
+    mIndent = mIndent + 2
+    Me.Output "{"
+    
+End Sub
+
+Public Sub Outdent()
+
+    Me.Output "}"
+    mIndent = mIndent - 2
 
 End Sub
