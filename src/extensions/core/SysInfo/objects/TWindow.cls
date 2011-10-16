@@ -37,8 +37,8 @@ Option Explicit
 Private Const WM_CREATE = &H1
 Private Const WM_TIMER = &H113
 Private Const WM_POWERBROADCAST = &H218
-Private Declare Function SetTimer Lib "user32" (ByVal hWnd As Long, ByVal nIDEvent As Long, ByVal uElapse As Long, ByVal lpTimerFunc As Long) As Long
-Private Declare Function KillTimer Lib "user32" (ByVal hWnd As Long, ByVal nIDEvent As Long) As Long
+Private Declare Function SetTimer Lib "user32" (ByVal hwnd As Long, ByVal nIDEvent As Long, ByVal uElapse As Long, ByVal lpTimerFunc As Long) As Long
+Private Declare Function KillTimer Lib "user32" (ByVal hwnd As Long, ByVal nIDEvent As Long) As Long
 Private Declare Function GetKeyState Lib "user32" (ByVal nVirtKey As Long) As Integer
 
 Dim mhWnd As Long
@@ -83,9 +83,14 @@ Dim mIPCount As Long
 Public Event LocalIPAddressChanged(ByVal Details As String)
 
 Private Const TIMER_DISK_CAPACITY = 95
+Private Const TIMER_IE_DOWNLOAD = 96
+Private Const TIMER_FAST = 97
 Private Const TIMER_SYS_LOAD = 98
+Private Const TIMER_SLOW = 99
 
+Dim mIEWindowList As BTagList
 Public Event IEDownloadCompleted()
+
 Public Event ClipboardChanged()
 Dim mBlockClipboardChange As Boolean
 
@@ -104,6 +109,8 @@ Private Sub Class_Initialize()
 
     uScanIPTable
 
+    Set mIEWindowList = new_BTagList()
+
 End Sub
 
 Private Sub Class_Terminate()
@@ -113,12 +120,12 @@ Private Sub Class_Terminate()
 
 End Sub
 
-Private Function MWndProcSink_WndProc(ByVal hWnd As Long, ByVal uMsg As Long, ByVal wParam As Long, ByVal lParam As Long, ByVal PrevWndProc As Long, ReturnValue As Long) As Boolean
+Private Function MWndProcSink_WndProc(ByVal hwnd As Long, ByVal uMsg As Long, ByVal wParam As Long, ByVal lParam As Long, ByVal PrevWndProc As Long, ReturnValue As Long) As Boolean
 Dim fClipboard As Boolean
 
     ' /* from the clipboard? */
 
-    If g_ClipboardHandle(hWnd, uMsg, wParam, lParam, fClipboard) Then
+    If g_ClipboardHandle(hwnd, uMsg, wParam, lParam, fClipboard) Then
         If fClipboard Then
             If mBlockClipboardChange Then
                 mBlockClipboardChange = False
@@ -210,7 +217,7 @@ Static m As Long
 
             End If
 
-        Case 97
+        Case TIMER_FAST
             ' /* fast timer - 100ms */
             uCheckKeys
             uScanIPTable
@@ -221,7 +228,10 @@ Static m As Long
         Case TIMER_DISK_CAPACITY
             uCheckDisks
 
-        Case 99
+        Case TIMER_IE_DOWNLOAD
+            uCheckIEWindows
+
+        Case TIMER_SLOW
             ' /* slow timer - every 5 seconds */
             uCheckNoRAM
 
@@ -243,8 +253,8 @@ End Function
 Public Sub SetEnabled(ByVal Enabled As Boolean)
 
     If Enabled Then
-        SetTimer mhWnd, 99, 5000, 0
-        SetTimer mhWnd, 97, 100, 0
+        SetTimer mhWnd, TIMER_SLOW, 5000, 0
+        SetTimer mhWnd, TIMER_FAST, 100, 0
 
     End If
 
@@ -314,6 +324,19 @@ Dim n As Long
             g_Debug "TWindow.ConfigChanged(): clipboard snooping disabled"
 
         End If
+
+    Case "other.watch_ie"
+        If Value = "0" Then
+            KillTimer mhWnd, TIMER_IE_DOWNLOAD
+            g_Debug "TWindow.ConfigChanged(): ie download monitoring stopped"
+
+        ElseIf Value = "1" Then
+            SetTimer mhWnd, TIMER_IE_DOWNLOAD, 500, 0
+            g_Debug "TWindow.ConfigChanged(): ie download monitoring started"
+
+        End If
+
+
 
     End Select
 
@@ -690,5 +713,45 @@ Private Sub uAddIPAddr(ByVal ipaddr As String)
 
 End Sub
 
+Private Sub uCheckIEWindows()
+Static pt As BTagItem
+Static h As Long
+Static c As Long
+Static i As Long
+Static p As Long
 
+    ' /* gone windows */
+
+    With mIEWindowList
+        If .CountItems Then
+            For i = .CountItems To 1 Step -1
+                h = Val(.TagAt(i).Name)
+                If IsWindow(h) = 0 Then
+                    Debug.Print "removed " & g_HexStr(h)
+                    .Remove i
+            
+                End If
+            Next i
+        End If
+    End With
+
+    ' /* new windows */
+
+    c = g_AppWindows_Refresh(True)
+    If c Then
+        For i = 1 To c
+            h = g_AppWindows_WindowAt(i)
+            If (g_ClassName(h) = "#32770") And (g_WindowText(h) = "Download complete") And (mIEWindowList.IndexOf(CStr(h)) = 0) Then
+                GetWindowThreadProcessId h, p
+                If g_GetProcessFriendlyName2(p) = "Internet Explorer" Then
+                    Debug.Print "found window 0x" & g_HexStr(h)
+                    mIEWindowList.Add new_BTagItem(CStr(h), "")
+                    RaiseEvent IEDownloadCompleted
+
+                End If
+            End If
+        Next i
+    End If
+
+End Sub
 

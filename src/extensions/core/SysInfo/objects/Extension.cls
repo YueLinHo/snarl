@@ -50,9 +50,9 @@ Option Explicit
     '
     ' */
 
-Private Const LIB_DATE = "10-Jun-2011"
-Private Const LIB_RELEASE = "3.05"
-Private Const EXT_NAME = "SysInfo"
+Private Const LIB_DATE = "20-Sep-2011"
+Private Const LIB_RELEASE = "3.1"
+'Private Const EXT_NAME = "SysInfo"
 Private Const EXT_COMMENT = "Tracks events specific to this computer"
 
 Private Const CLASS_LOW_MEM = "lmem"
@@ -75,11 +75,11 @@ Private Const CLASS_CLIPBOARD = "clip"
 
 Dim mLastErr As String
 Dim mhWndOwner As Long              ' // handle of the window which launched our config (typically Snarl's Prefs panel)
-
-Dim mToken As Long
+Dim mPassword As String
 Dim mConfig As CConfFile
 
 Dim mAdapterList As BTagList
+Dim mPanel As BPrefsPanel
 
 Dim WithEvents theNICTimer As BTimer
 Attribute theNICTimer.VB_VarHelpID = -1
@@ -96,22 +96,10 @@ Attribute theVolRoster.VB_VarHelpID = -1
 Dim WithEvents theHandler As TWindow
 Attribute theHandler.VB_VarHelpID = -1
 
-Dim mPanel As BPrefsPanel
-
-    ' /* notification tokens */
-
-Dim mPowerId As Long
-Dim mLowPowerId As Long
-Dim mLowRamId As Long
-Dim mCapsId As Long
-Dim mNumId As Long
-Dim mScrlId As Long
-
-Implements KPrefsPanel
-Implements KPrefsPage
-
 'Implements MVersionInfo             ' // optional: allows the SDOS version command to query the object
 Implements ISnarlExtension
+Implements KPrefsPanel
+Implements KPrefsPage
 
 Private Function ISnarlExtension_GetConfigWindow() As Long
 Dim pPage As BPrefsPage
@@ -197,6 +185,9 @@ Dim pm As CTempMsg
             Set pPage = new_BPrefsPage("Disk", load_image_obj(g_MakePath(App.Path) & IIf(g_IsIDE, "bin\", "") & "diskfree.png"), Me)
             With pPage
                 .SetMargin 32
+                
+                .Add new_BPrefsControl("fancytoggle2", "disk.monitor", "Watch disk insertions and removals?", , mConfig.ValueOf("disk.monitor"))
+                
                 .Add new_BPrefsControl("fancytoggle2", "disk.enabled", "Monitor disk space?", , mConfig.ValueOf("disk.enabled"))
                 .Add new_BPrefsControl("label", "", "Warn when disk free space drops to:")
 
@@ -278,7 +269,7 @@ Dim pm As CTempMsg
                 .Add new_BPrefsControl("fancytoggle2", "keyb.watch_scrl", "Watch Scroll Lock?", , mConfig.ValueOf("keyb.watch_scrl"))
 
                 .Add new_BPrefsControl("banner", "", "Miscellaneous")
-                .Add new_BPrefsControl("fancytoggle2", "other.ie", "Notify when an Internet Explorer download completes?", , mConfig.ValueOf("other.ie"))
+                .Add new_BPrefsControl("fancytoggle2", "other.watch_ie", "Notify when an Internet Explorer download completes?", , mConfig.ValueOf("other.watch_ie"))
                 .Add new_BPrefsControl("fancytoggle2", "other.watch_clipboard", "Notify when clipboard content changes?", , mConfig.ValueOf("other.watch_clipboard"))
 
 '                .Add new_BPrefsSeparator
@@ -312,7 +303,7 @@ Dim pm As CTempMsg
 
     End If
 
-    ISnarlExtension_GetConfigWindow = mPanel.hwnd
+    ISnarlExtension_GetConfigWindow = mPanel.hWnd
 
 End Function
 
@@ -324,8 +315,8 @@ Private Sub ISnarlExtension_GetInfo(Info As libSnarlExtn.extension_info)
         .Date = LIB_DATE
         .Description = EXT_COMMENT
         .Flags = SNARL_EXTN_WANTS_PULSE Or SNARL_EXTN_IS_CONFIGURABLE
-        .IconPath = g_MakePath(App.Path) & "icon.png"
-        .Name = EXT_NAME
+        .IconPath = g_MakePath(App.Path) & IIf(g_IsIDE(), "bin\", "") & "icon.png"
+        .Name = App.Title
         .Path = App.Path
         .Release = LIB_RELEASE
         .Revision = App.Revision
@@ -341,26 +332,38 @@ Private Function ISnarlExtension_Initialize() As Long
 
     On Error Resume Next
 
-    l3OpenLog "%APPDATA%\full phat\snarl\" & EXT_NAME & ".log", True
+    l3OpenLog "%APPDATA%\full phat\snarl\" & App.Title & ".log", True
     g_Debug "pwd: " & g_MakePath(App.Path)
 
-    If sn41GetVersion = 0 Then
-        g_Debug "Needs Snarl V41 or better", LEMON_LEVEL_CRITICAL
-        mLastErr = "Requires Snarl V41 or greater"
+    If snarl_version() < 43 Then
+        g_Debug "Needs Snarl V43 or better", LEMON_LEVEL_CRITICAL
+        mLastErr = "Requires Snarl V43 or greater"
         ISnarlExtension_Initialize = -1
         Exit Function
 
     End If
 
-    Err.Clear
+Dim sz As String
+
+    If Not snarl_config_path(sz) Then
+        g_Debug "Can't find Snarl config path", LEMON_LEVEL_CRITICAL
+        mLastErr = "Can't find Snarl config path"
+        ISnarlExtension_Initialize = -1
+        Exit Function
+
+    End If
+
+    err.Clear
     get_host_name
-    If Err.Number <> 0 Then
+    If err.Number <> 0 Then
         g_Debug "misc.resource missing", LEMON_LEVEL_CRITICAL
         mLastErr = "Requires misc.resource"
         ISnarlExtension_Initialize = -1
         Exit Function
 
     End If
+
+    mPassword = create_password()
 
     ' /* create window */
 
@@ -393,12 +396,12 @@ Dim i As Integer
 
     On Error Resume Next
 
-    mToken = 0
-
     ' /* load config */
 
+    snarl_config_path szPath            ' // already checked this exists during Init()
+
     Set mConfig = New CConfFile
-    mConfig.SetTo sn41GetConfigPath() & "sysinfo.config"
+    mConfig.SetTo szPath & "sysinfo.config"
 
     uCfgCheck "cpu.enabled", "1"        ' // R3.04
     uCfgCheck "cpu.high_mark", "90"
@@ -427,37 +430,38 @@ Dim i As Integer
     uCfgCheck "keyb.watch_numl", "0"
     uCfgCheck "keyb.watch_scrl", "0"
 
-    uCfgCheck "other.ie", "0"
+    uCfgCheck "other.watch_ie", "0"
     uCfgCheck "other.watch_clipboard", "0"
+
+    uCfgCheck "disk.monitor", "1"
 
     mConfig.Save
 
     ' /* register */
 
-    mToken = sn41RegisterApp("application/vnd.k23-" & LCase$(EXT_NAME), EXT_NAME, g_MakePath(App.Path) & "icon.png")
-    If mToken = 0 Then _
-        Exit Sub
+    If snarl_register(App.ProductName, App.Title, g_MakePath(App.Path) & IIf(g_IsIDE(), "bin\", "") & "icon.png", mPassword) >= 0 Then
 
-    sn41AddClass mToken, CLASS_LOW_MEM, "Physical memory low", False
-    sn41AddClass mToken, CLASS_NO_MEM, "Physical memory exhausted", False
-    sn41AddClass mToken, CLASS_HIGH_CPU, "High processor utilisation"
-    sn41AddClass mToken, CLASS_LOW_DISK, "Low disk space", False
-    sn41AddClass mToken, CLASS_NIC_CONN, "Network connected", False
-    sn41AddClass mToken, CLASS_NIC_DISC, "Network disconnected", False
-    sn41AddClass mToken, CLASS_VOL_MNT, "Volume mounted"
-    sn41AddClass mToken, CLASS_VOL_UMNT, "Volume unmounted"
-    sn41AddClass mToken, CLASS_POWER_CONNECT, "Power connected"
-    sn41AddClass mToken, CLASS_POWER_DISCONNECT, "Power disconnected"
-    sn41AddClass mToken, CLASS_POWER_LOW, "Low power warning"
-    sn41AddClass mToken, CLASS_LOCK_KEY, "Caps, Num or Scroll lock activated"
-    sn41AddClass mToken, CLASS_IP_CHANGE, "IP address change"
-    ' /* R3.05 */
-    sn41AddClass mToken, CLASS_IE_DOWNLOAD, "Internet Explorer download completed"
-    sn41AddClass mToken, CLASS_CLIPBOARD, "Clipboard content changed"
+        uAddClass CLASS_LOW_MEM, "Physical memory low", False
+        uAddClass CLASS_NO_MEM, "Physical memory exhausted", False
+        uAddClass CLASS_HIGH_CPU, "High processor utilisation"
+        uAddClass CLASS_LOW_DISK, "Low disk space", False
+        uAddClass CLASS_NIC_CONN, "Network connected", False
+        uAddClass CLASS_NIC_DISC, "Network disconnected", False
+        uAddClass CLASS_VOL_MNT, "Volume mounted"
+        uAddClass CLASS_VOL_UMNT, "Volume unmounted"
+        uAddClass CLASS_POWER_CONNECT, "Power connected"
+        uAddClass CLASS_POWER_DISCONNECT, "Power disconnected"
+        uAddClass CLASS_POWER_LOW, "Low power warning"
+        uAddClass CLASS_LOCK_KEY, "Caps, Num or Scroll lock activated"
+        uAddClass CLASS_IP_CHANGE, "IP address change"
+        ' /* R3.05 */
+        uAddClass CLASS_IE_DOWNLOAD, "Internet Explorer download completed"
+        uAddClass CLASS_CLIPBOARD, "Clipboard content changed"
+
+    End If
 
     Set mAdapterList = new_BTagList()
     Set theVolRoster = New TSimpleVolRoster
-
 
     ' /* call kernel info once to get baseline */
 
@@ -494,7 +498,7 @@ Dim i As Integer
     ' /* NIC/DUN and volume scanning is handled by this object */
 
     uEnableNICScanning (mConfig.ValueOf("nic.enabled") = "1")
-    uEnableVolScanning True
+    uEnableVolScanning (mConfig.ValueOf("disk.monitor") = "1")
 
 End Sub
 
@@ -503,8 +507,7 @@ Private Sub ISnarlExtension_Stop()
     uEnableNICScanning False
     uEnableVolScanning False
 
-    sn41UnregisterApp mToken
-    mToken = 0
+    snarl_unregister App.ProductName, mPassword
 
 End Sub
 
@@ -515,10 +518,6 @@ Private Sub ISnarlExtension_TidyUp()
 End Sub
 
 Private Sub theDUNRoster_Connected(ByVal Name As String, Details As melon4.BTagList)
-
-    If mToken = 0 Then _
-        Exit Sub
-
 Dim szTitle As String
 Dim szText As String
 
@@ -538,20 +537,17 @@ Dim szText As String
 
     End Select
 
-Dim i As Long
+'Dim i As Long
 
-    i = sn41EZNotify(mToken, _
-                     CLASS_DUN_CONN, _
-                     szTitle, _
-                     szText, , "!dun-connected")
+    snarl_ez_notify App.ProductName, CLASS_DUN_CONN, szTitle, szText, "!dun-connected", , , mPassword
+'    i = sn41EZNotify(mToken, _
+'                     CLASS_DUN_CONN, _
+'                     szTitle, _
+'                     szText, , "!dun-connected")
 
 End Sub
 
 Private Sub theDUNRoster_Disconnected(ByVal Name As String, Details As melon4.BTagList)
-
-    If mToken = 0 Then _
-        Exit Sub
-
 Dim szTitle As String
 Dim szText As String
 
@@ -571,11 +567,13 @@ Dim szText As String
 
     End Select
 
-Dim i As Long
+'Dim i As Long
+'
+'    i = sn41EZNotify(mToken, CLASS_DUN_DISC, _
+'                     szTitle, _
+'                     szText, , "!dun-disconnected")
 
-    i = sn41EZNotify(mToken, CLASS_DUN_DISC, _
-                     szTitle, _
-                     szText, , "!dun-disconnected")
+    snarl_ez_notify App.ProductName, CLASS_DUN_DISC, szTitle, szText, "!dun-disconnected", , , mPassword
 
 End Sub
 
@@ -657,7 +655,8 @@ Dim pt As BTagItem
     '    we don't bother displaying the notification in an effort to reduce spam */
 
     If (bShow) And ((GetTickCount - lPrev) > 500) Then
-        Call sn41EZNotify(mToken, CLASS_CLIPBOARD, "Clipboard changed", sz, , IIf(szic <> "", szic, g_MakePath(App.Path) & "clipboard.png"), , szcb)
+        snarl_ez_notify App.ProductName, CLASS_CLIPBOARD, "Clipboard changed", sz, IIf(szic <> "", szic, g_MakePath(App.Path) & "clipboard.png"), , , mPassword, , szcb
+'        Call sn41EZNotify(mToken, CLASS_CLIPBOARD, "Clipboard changed", sz, , IIf(szic <> "", szic, g_MakePath(App.Path) & "clipboard.png"), , szcb)
         lPrev = GetTickCount()
 
     End If
@@ -669,13 +668,18 @@ Dim pt As BTagItem
 
 End Sub
 
+Private Sub theHandler_IEDownloadCompleted()
+
+    snarl_ez_notify App.ProductName, CLASS_IE_DOWNLOAD, "Download completed", , "!system-info", , , mPassword
+
+End Sub
+
 Private Sub theHandler_LocalIPAddressChanged(ByVal Details As String)
-Dim l As Long
 
-    l = sn41EZNotify(mToken, CLASS_IP_CHANGE, "IP address change", Details, , g_MakePath(App.Path) & "ipaddrchange.png")
-
-'    If mNotify Then _
-        snShowMessageEx Me.CLASS_1, "Local IP Change", IPAddr & " added", 10, g_MakePath(App.Path) & "icon.png", Me.hWnd, &H401
+    snDoRequest "notify?app-sig=" & App.ProductName & "&password=" & mPassword & "&class=" & CLASS_IP_CHANGE & _
+                "&title=IP address change&text=" & Replace$(Details, vbCrLf, "") & _
+                "&icon=" & g_MakePath(App.Path) & IIf(g_IsIDE(), "bin\", "") & "ipaddrchange.png" & _
+                "&uid=ipaddrchange&merge-uid=ipaddrchange"
 
 End Sub
 
@@ -698,19 +702,23 @@ Private Sub theHandler_OnCPUMonitoringStopped()
 End Sub
 
 Private Sub theHandler_OnCPUThresholdReached(ByVal LoadPercent As Integer, ByVal Duration As Integer)
-Dim l As Long
-
-    l = sn41EZNotify(mToken, CLASS_HIGH_CPU, "High processor utilisation", _
+'Dim l As Long
+'
+'    l = sn41EZNotify(mToken, CLASS_HIGH_CPU, "High processor utilisation", _
                      "The system has been at least " & CStr(LoadPercent) & "% busy for " & CStr(Duration) & " seconds", , _
                      "!system-warning", , , , "action::Task Manager...,taskmgr.exe#?action::Run...,!system run_dialog#?action::Shutdown...,!system shutdown_dialog")
+
+    snDoRequest "notify?app-sig=" & App.ProductName & "&password=" & mPassword & "&id=" & CLASS_HIGH_CPU & _
+                "&title=High processor utilisation" & _
+                "&text=The system has been at least " & CStr(LoadPercent) & "% busy for " & CStr(Duration) & " seconds" & _
+                "&icon=!system-warning" & _
+                "&action=Task Manager...,taskmgr.exe" & _
+                "&action=Run...,!system run_dialog" & _
+                "&action=Shutdown...,!system shutdown_dialog"
 
 End Sub
 
 Private Sub theHandler_OnDiskThresholdReached(ByVal FreePercent As Integer, ByVal Path As String)
-
-    If mToken = 0 Then _
-        Exit Sub
-
 Dim szTitle As String
 Dim szText As String
 Dim szExtra As String
@@ -742,7 +750,7 @@ Dim szExtra As String
         With New TSimpleVolume
             If .SetTo(Path) Then
                 szText = g_FileSizeToStringEx2(.Available) & " of " & g_FileSizeToStringEx2(.Capacity) & " remaining"
-                szExtra = "value-percent::" & CStr(100 - FreePercent)
+                szExtra = "&value-percent=" & CStr(100 - FreePercent)
 
             Else
                 szText = "??" & Path
@@ -753,7 +761,7 @@ Dim szExtra As String
 
     End Select
 
-Dim l As Long
+'Dim l As Long
 
     ' /* verbosity      title           text
     '       1           "disk low"      path
@@ -761,7 +769,7 @@ Dim l As Long
     '       3                           "x gb of y gb (%) remaining
     ' */
 
-    l = sn41EZNotify(mToken, _
+'    l = sn41EZNotify(mToken, _
                      CLASS_LOW_DISK, _
                      szTitle, _
                      szText, , "!disk-low_space", , , , "action::Open," & Path & IIf(szExtra <> "", "#?" & szExtra, ""))
@@ -769,38 +777,40 @@ Dim l As Long
 '    If l Then _
         sn42AddAction l, "Open", Path
 
+    snDoRequest "notify?app-sig=" & App.ProductName & "&password=" & mPassword & "&id=" & CLASS_LOW_DISK & _
+                "&title=" & szTitle & "&text=" & szText & "&icon=!disk-low_space" & _
+                "&action=Open," & Path & _
+                szExtra
+
 End Sub
 
 Private Sub theHandler_OnLockKeyPressed(ByVal Key As melon4.B_MODIFIER_KEYS, ByVal Enabled As Boolean)
 
-    If mToken = 0 Then _
-        Exit Sub
-
     Select Case Key
     Case B_CAPS_LOCK
         If (Enabled) And (mConfig.ValueOf("keyb.watch_caps") = "1") Then
-            mCapsId = sn41EZNotify(mToken, CLASS_LOCK_KEY, "Caps Lock on", "", , "!system-warning")
+            snarl_ez_notify App.ProductName, CLASS_LOCK_KEY, "Caps lock on", , "!system-warning", , , mPassword, "capslock"
 
         ElseIf Not Enabled Then
-            sn41Hide mCapsId
+            snarl_hide App.ProductName, "capslock", mPassword
 
         End If
 
     Case B_NUM_LOCK
         If (Enabled) And (mConfig.ValueOf("keyb.watch_numl") = "1") Then
-            mNumId = sn41EZNotify(mToken, CLASS_LOCK_KEY, "Num Lock on", "", , "!system-warning")
+            snarl_ez_notify App.ProductName, CLASS_LOCK_KEY, "Num lock on", , "!system-warning", , , mPassword, "numlock"
 
         ElseIf Not Enabled Then
-            sn41Hide mNumId
+            snarl_hide App.ProductName, "numlock", mPassword
 
         End If
 
     Case B_SCROLL_LOCK
         If (Enabled) And (mConfig.ValueOf("keyb.watch_scrl") = "1") Then
-            mScrlId = sn41EZNotify(mToken, CLASS_LOCK_KEY, "Scroll Lock on", "", , "!system-warning")
+            snarl_ez_notify App.ProductName, CLASS_LOCK_KEY, "Scroll lock on", , "!system-warning", , , mPassword, "scrllock"
 
         ElseIf Not Enabled Then
-            sn41Hide mScrlId
+            snarl_hide App.ProductName, "scrllock", mPassword
 
         End If
 
@@ -838,7 +848,14 @@ Dim sz As String
 
     End If
 
-    mLowPowerId = sn41EZNotify(mToken, _
+    snarl_ez_notify App.ProductName, CLASS_POWER_LOW, _
+                    IIf(mConfig.ValueOf("power.show_text") = "1", "Battery getting low", ""), _
+                    sz, "!battery-low", _
+                    1, , _
+                    mPassword, _
+                    "lowpower"
+
+'    mLowPowerId = sn41EZNotify(mToken, _
                                CLASS_POWER_LOW, _
                                IIf(mConfig.ValueOf("power.show_text") = "1", "Battery getting low", ""), _
                                sz, _
@@ -854,7 +871,9 @@ Private Sub theHandler_OnPhysicalRAMGone()
 
     ' /* if the low RAM warning is still visible, remove it */
 
-    If sn41IsVisible(mLowRamId) Then _
+    snarl_hide App.ProductName, "lowram", mPassword
+
+'    If sn41IsVisible(mLowRamId) Then _
         sn41Hide mLowRamId
 
 Dim sz As String
@@ -869,9 +888,11 @@ Dim sz As String
 '
 '    End If
 
-    sn41EZNotify mToken, _
+    snarl_ez_notify App.ProductName, CLASS_NO_MEM, "Physical memory exhausted", sz, "!system-warning", , , mPassword, "noram"
+
+'    sn41EZNotify mToken, _
                  CLASS_NO_MEM, _
-                 "Physical memory exhausted", _
+                 ", _
                  sz, , "!system-warning"
 
 End Sub
@@ -888,7 +909,9 @@ Dim sz As String
 
     End If
 
-    mLowRamId = sn41EZNotify(mToken, _
+    snarl_ez_notify App.ProductName, CLASS_LOW_MEM, "Physical memory low", sz, "!system-info", , , mPassword, "lowram", , PercentRemaining
+
+'    mLowRamId = sn41EZNotify(mToken, _
                              CLASS_LOW_MEM, _
                              "Physical memory low", _
                              sz, , "!system-info")
@@ -922,17 +945,26 @@ Dim sz As String
 
     ' /* remove existing notification */
 
-    If sn41IsVisible(mPowerId) Then _
+    snarl_hide App.ProductName, "powerchange", mPassword
+
+'    If sn41IsVisible(mPowerId) Then _
         sn41Hide mPowerId
 
     If Connected Then
 
         ' /* also remove low power warning if it's still on screen */
 
-        If sn41IsVisible(mLowPowerId) Then _
+        snarl_hide App.ProductName, "lowpower", mPassword
+
+'        If sn41IsVisible(mLowPowerId) Then _
             sn41Hide mLowPowerId
 
-        mPowerId = sn41EZNotify(mToken, _
+        snarl_ez_notify App.ProductName, CLASS_POWER_CONNECT, _
+                        IIf(mConfig.ValueOf("power.show_text") = "1", "Power connected", ""), _
+                        sz, _
+                        "!power-connected", , , mPassword, "powerchange"
+
+'        mPowerId = sn41EZNotify(mToken, _
                                        CLASS_POWER_CONNECT, _
                                        IIf(mConfig.ValueOf("power.show_text") = "1", "Power connected", ""), _
                                        sz, _
@@ -941,7 +973,13 @@ Dim sz As String
                                        )
 
     Else
-        mPowerId = sn41EZNotify(mToken, _
+
+        snarl_ez_notify App.ProductName, CLASS_POWER_DISCONNECT, _
+                        IIf(mConfig.ValueOf("power.show_text") = "1", "Power disconnected", ""), _
+                        sz, _
+                        "!power-disconnected", , , mPassword, "powerchange"
+
+'        mPowerId = sn41EZNotify(mToken, _
                                        CLASS_POWER_DISCONNECT, _
                                        IIf(mConfig.ValueOf("power.show_text") = "1", "Power disconnected", ""), _
                                        sz, _
@@ -958,76 +996,59 @@ End Sub
 Private Sub theNetRoster_Connected(ByVal Name As String, Device As melon4.BTagList)
 Dim szTitle As String
 Dim szText As String
-Dim i As Long
-
-'    sz = Device.ValueOf("name")
-
-    If mToken Then
     
-        Select Case Val(mConfig.ValueOf("nic.verbosity"))
-        Case 1
-            ' /* icon only */
+    Select Case Val(mConfig.ValueOf("nic.verbosity"))
+    Case 1
+        ' /* icon only */
 
-        Case 2
-            ' /* simple */
-            szTitle = Name
-            szText = ""
+    Case 2
+        ' /* simple */
+        szTitle = Name
+        szText = ""
 
-        Case Else
-            ' /* detailed */
-            szTitle = "Network connected"
-            szText = Name & " is now connected" & vbCrLf & "Speed: " & Device.ValueOf("formatted_speed", "0") '& _
-                     IIf(sz <> "", vbCrLf & "Device: " & sz, "")
+    Case Else
+        ' /* detailed */
+        szTitle = "Network connected"
+        szText = Name & " is now connected" & vbCrLf & "Speed: " & Device.ValueOf("formatted_speed", "0") '& _
+                 IIf(sz <> "", vbCrLf & "Device: " & sz, "")
 
-        End Select
+    End Select
 
-        i = sn41EZNotify(mToken, _
-                         CLASS_NIC_CONN, _
-                         szTitle, _
-                         szText, , _
-                         "!network-connected")
+    snarl_hide App.ProductName, "net-dis-" & Name, mPassword
 
-'        sn41EZNotify mToken, "", "Connected", _
-'                     Name & vbCrLf & _
-'                     "Speed: " & Details.ValueOf("formatted_speed") & vbCrLf & _
-'                     "Type: " & Details.ValueOf("type") & vbCrLf & _
-'                     "Media: " & Details.ValueOf("media_type"), , _
-'                     "!network-connected"
+    snDoRequest "notify?app-sig=" & App.ProductName & "&password=" & mPassword & "&class=" & CLASS_NIC_CONN & _
+                "&title=" & szTitle & "&text=" & szText & "&icon=!network-connected" & _
+                "&uid=net-con-" & Name '& _
+                "&style-corp-tagline=" & Device.ValueOf("formatted_speed", "0")
 
-    End If
+    Debug.Print "dev: " & Device.ValueOf("name")
+
+'    snarl_ez_notify App.ProductName, CLASS_NIC_CONN, szTitle, szText, "!network-connected", , , mPassword
 
 End Sub
 
 Private Sub theNetRoster_Disconnected(ByVal Name As String, ByVal DeviceType As Long)
 Dim szTitle As String
 Dim szText As String
-Dim i As Long
 
-    If mToken Then
+    Select Case Val(mConfig.ValueOf("nic.verbosity"))
+    Case 1
+        ' /* icon only */
 
-        Select Case Val(mConfig.ValueOf("nic.verbosity"))
-        Case 1
-            ' /* icon only */
+    Case 2
+        ' /* simple */
+        szTitle = Name
+        szText = ""
 
-        Case 2
-            ' /* simple */
-            szTitle = Name
-            szText = ""
+    Case Else
+        ' /* detailed */
+        szTitle = "Network disconnected"
+        szText = Name & " is disconnected"
 
-        Case Else
-            ' /* detailed */
-            szTitle = "Network disconnected"
-            szText = Name & " is disconnected"
+    End Select
 
-        End Select
-
-        i = sn41EZNotify(mToken, _
-                         CLASS_NIC_DISC, _
-                         szTitle, _
-                         szText, , _
-                         "!network-disconnected")
-
-    End If
+    snarl_hide App.ProductName, "net-con-" & Name, mPassword
+    snarl_ez_notify App.ProductName, CLASS_NIC_DISC, szTitle, szText, "!network-disconnected", , , mPassword, "net-dis-" & Name
 
 End Sub
 
@@ -1057,33 +1078,37 @@ Private Function uSpeed(ByVal Speed As Long) As String
 End Function
 
 Private Sub theVolRoster_VolumeMounted(ByVal Path As String, ByVal Label As String, ByVal VolType As Long)
+
+    ' /* remove any corresponding "Volume unmounted" notification */
+    snarl_hide App.ProductName, "unmounted-" & Path, mPassword
+
+Dim nPercentUsed As Integer
 Dim sz As String
-Dim n As Integer
-Dim i As Long
 
-    sz = uCapacityInfo(Path, n)
-
-    i = sn41EZNotify(mToken, CLASS_VOL_MNT, _
-                     "Voume mounted", _
-                     uLabel(Label, Path) & sz, , uIcon(Path), , Path, n)
+    sz = uCapacityInfo(Path, nPercentUsed)
+    snarl_ez_notify App.ProductName, CLASS_VOL_MNT, _
+                    "Disk inserted", uSmartenUpLabel(Label, Path) & sz, uIcon(Path), , , _
+                    mPassword, "mounted-" & Path, Path, nPercentUsed
 
 End Sub
 
 Private Sub theVolRoster_VolumeUnmounted(ByVal Path As String, ByVal Label As String, ByVal VolType As Long)
-Dim i As Long
 
-    i = sn41EZNotify(mToken, CLASS_VOL_UMNT, _
-                     "Volume unmounted", _
-                     uLabel(Label, Path), , "!vol-unmounted", , , , "merge::1")
+    ' /* remove any corresponding "Volume mounted" notification */
+    snarl_hide App.ProductName, "mounted-" & Path, mPassword
+
+    snarl_ez_notify App.ProductName, CLASS_VOL_UMNT, _
+                    "Disk removed", uSmartenUpLabel(Label, Path), "!vol-unmounted", , , _
+                    mPassword, "unmounted-" & Path
 
 End Sub
 
-Private Function uLabel(ByVal Label As String, Optional ByVal Path As String, Optional ByVal AddPath As Boolean = True) As String
+Private Function uSmartenUpLabel(ByVal Label As String, Optional ByVal Path As String, Optional ByVal AddPath As Boolean = True) As String
 
-    uLabel = IIf(Label = "", "<untitled>", Label)
+    uSmartenUpLabel = IIf(Label = "", "<untitled>", Label)
 
     If AddPath Then _
-        uLabel = uLabel & " (" & Path & ")"
+        uSmartenUpLabel = uSmartenUpLabel & " (" & Path & ")"
 
 End Function
 
@@ -1205,6 +1230,10 @@ Dim pc As BControl
             pc.SetEnabled (Value = "1")
 
 
+    Case "disk.monitor"
+        ' /* volume mounts/unmounts */
+        uEnableVolScanning (Value = "1")
+
     End Select
 
     theHandler.ConfigChanged Control.GetName, Value
@@ -1237,7 +1266,7 @@ Private Sub KPrefsPage_ControlInvoked(Control As BControl)
         theHandler_OnDiskThresholdReached mConfig.ValueOf("disk.low_mark"), g_SafeLeftStr(App.Path, 3)
 
     Case "go_website"
-        ShellExecute Control.Page.Panel.hwnd, "open", "http://www.fullphat.net", vbNullString, vbNullString, 5
+        ShellExecute Control.Page.Panel.hWnd, "open", "http://www.fullphat.net", vbNullString, vbNullString, 5
 
     End Select
 
@@ -1550,5 +1579,11 @@ Dim sz As String
         End With
 
     End If
+
+End Sub
+
+Private Sub uAddClass(ByVal Id As String, ByVal Desc As String, Optional ByVal Enabled As Boolean = True)
+
+    snarl_addclass App.ProductName, Id, Desc, Enabled, mPassword
 
 End Sub

@@ -50,21 +50,21 @@ Option Explicit
     '
     ' */
 
-Private Const LIB_DATE = "1-May-2011"
-Private Const LIB_REL = "2.03"
+Private Const LIB_DATE = "11-Oct-2011"
+Private Const LIB_REL = "2.1"
 
 Private Const CLASS_AUDIO_CHANGE = "audx"
 Private Const CUSTOM_DURATION = 2
 
 Dim mLastErr As String
-Dim mAppToken As Long
 
+Dim mPassword As String
 Dim mConfigFile As ConfigFile
 Dim mSettings As ConfigSection
 
 Dim mPanel As BPrefsPanel           ' // our prefs panel
 
-'Dim WithEvents InputMixer As BAudioMixer
+Private Declare Function WinExec Lib "kernel32" (ByVal lpCmdLine As String, ByVal nCmdShow As Long) As Long
 
 Dim mMixer As Long
 
@@ -73,6 +73,8 @@ Dim mCurrentId As Long
 
 Private Const CLASS_NAME = "w>audiomon"
 Dim mhWnd As Long
+
+Dim mIgnoreDaemon As Boolean
 
 Implements KPrefsPanel              ' // we're a panel handler
 Implements KPrefsPage               ' // we're also a page handler
@@ -132,7 +134,7 @@ Dim pPage As BPrefsPage
 
                 .Add new_BPrefsControl("banner", "", "General")
 '                .Add new_BPrefsControl("fancytoggle2", "MultiNotificationMode", "Use separate mute and volume change classes?", , mSettings.GetValueWithDefault("MultiNotificationMode", "1"))
-                .Add new_BPrefsControl("fancytoggle2", "MeterStyleMode", "Display current volume level as a meter?", , mSettings.GetValueWithDefault("MeterStyleMode", "0"))
+                .Add new_BPrefsControl("fancytoggle2", "MeterStyleMode", "Display current volume level as a meter?", , mSettings.GetValueWithDefault("MeterStyleMode", "1"))
                 .Add new_BPrefsControl("fancytoggle2", "LegacyMeterSupport", "Enable legacy style support?", , mSettings.GetValueWithDefault("LegacyMeterSupport", "0"))
                 .Add new_BPrefsControl("label", "", "Enabling legacy style support sends the current volume level in the notification's text.")
 
@@ -168,7 +170,7 @@ Dim pPage As BPrefsPage
 
     End If
 
-    ISnarlExtension_GetConfigWindow = mPanel.hwnd
+    ISnarlExtension_GetConfigWindow = mPanel.hWnd
 
 End Function
 
@@ -188,7 +190,7 @@ Private Sub ISnarlExtension_GetInfo(Info As libSnarlExtn.extension_info)
 '
 '        End If
 
-        .IconPath = g_MakePath(App.Path) & "icon.png"
+        .IconPath = g_MakePath(App.Path) & IIf(g_IsIDE, "bin\", "") & "icon.png"
         .Name = App.Title
         .Path = g_MakePath(App.Path)
         .Release = LIB_REL
@@ -253,10 +255,14 @@ Private Function ISnarlExtension_Initialize() As Long
 
     End If
 
+Dim sz As String
+
     ' /* all tests passed */
 
+    snGetConfigPath sz
+
     Set mConfigFile = New ConfigFile
-    mConfigFile.File = sn41GetConfigPath() & ".audiomon"
+    mConfigFile.File = sz & ".audiomon"
 
     g_Debug "", LEMON_LEVEL_PROC_EXIT
 
@@ -285,7 +291,10 @@ Dim s As Single
     If g_IsWinVistaOrBetter Then
         g_Debug "Vista, Windows7 or better..."
         ' /* launch volume spy daemon */
-        ShellExecute mhWnd, "open", g_MakePath(App.Path) & "snarl-audiomon.exe", vbNullString, vbNullString, 5
+        mIgnoreDaemon = True
+        WinExec g_MakePath(App.Path) & "snarl-audiomon.exe", 0
+        mIgnoreDaemon = False
+'        ShellExecute mhWnd, "open", g_MakePath(App.Path) & "snarl-audiomon.exe", vbNullString, vbNullString, 0      ' // SW_HIDE
 
     Else
         ' /* use win32mm */
@@ -322,7 +331,7 @@ Dim i As Long
 
         With mSettings
             If .IndexOf("MeterStyleMode") = 0 Then _
-                .Add "MeterStyleMode", "0"
+                .Add "MeterStyleMode", "1"
 
             If .IndexOf("mute_detail") = 0 Then _
                 .Add "mute_detail", "2"
@@ -336,16 +345,18 @@ Dim i As Long
 
     End With
 
+    mPassword = create_password()
+
+Dim hr As SNARL_STATUS_CODE
+
     ' /* register */
 
-    mAppToken = sn41RegisterApp(App.ProductName, App.Title, g_MakePath(App.Path) & "icon.png")
-
-    If mAppToken Then
-        g_Debug "registered successfully"
-        sn41AddClass mAppToken, CLASS_AUDIO_CHANGE, "Master volume"
+    hr = snarl_register(App.ProductName, App.Title, g_MakePath(App.Path) & "icon.png", mPassword)
+    If hr < SNARL_SUCCESS Then
+        g_Debug "failed to register with Snarl (" & CStr(Abs(hr)) & ")", LEMON_LEVEL_CRITICAL
 
     Else
-        g_Debug "failed to register with Snarl (" & CStr(sn41GetLastError()) & ")", LEMON_LEVEL_CRITICAL
+        snarl_add_class App.ProductName, CLASS_AUDIO_CHANGE, "Master Volume", , mPassword
 
     End If
 
@@ -359,12 +370,13 @@ Private Sub ISnarlExtension_Stop()
 
     ' /* unregister */
 
-    sn41UnregisterApp mAppToken
+    snarl_unregister App.ProductName, mPassword
 
     If g_IsWinVistaOrBetter() Then
         g_Debug "Vista, Windows7 or better..."
         ' /* kill audio monitoring daemon */
-        ShellExecute mhWnd, "open", g_MakePath(App.Path) & "snarl-audiomon.exe", "-quit", vbNullString, 5
+        mIgnoreDaemon = True
+        ShellExecute mhWnd, "open", g_MakePath(App.Path) & "snarl-audiomon.exe", "-quit", vbNullString, 0
 
     Else
         g_Debug "XP or earlier..."
@@ -435,7 +447,7 @@ Private Sub KPrefsPage_ControlInvoked(Control As BControl)
     Select Case Control.GetName()
 
     Case "go_website"
-        ShellExecute mPanel.hwnd, "open", "http://www.fullphat.net/", vbNullString, vbNullString, 5
+        ShellExecute mPanel.hWnd, "open", "http://www.fullphat.net/", vbNullString, vbNullString, 5
 
     End Select
 
@@ -557,12 +569,17 @@ End Function
 '
 'End Sub
 
-Private Function MWndProcSink_WndProc(ByVal hwnd As Long, ByVal uMsg As Long, ByVal wParam As Long, ByVal lParam As Long, ByVal PrevWndProc As Long, ReturnValue As Long) As Boolean
+Private Function MWndProcSink_WndProc(ByVal hWnd As Long, ByVal uMsg As Long, ByVal wParam As Long, ByVal lParam As Long, ByVal PrevWndProc As Long, ReturnValue As Long) As Boolean
 Dim b As Boolean
 Dim s As Single
 
     Select Case uMsg
     Case &H440
+        ' /* from Windows 7 AudioMon daemon */
+
+        If mIgnoreDaemon Then _
+            Exit Function
+
         Select Case wParam
         Case 0
             ' /* master mute */
@@ -604,6 +621,7 @@ Dim s As Single
 End Function
 
 Private Sub uVolChanged(ByVal Value As Long) ', ByVal Detail As Long)
+Static lTick As Long
 
     On Error GoTo fail
 
@@ -611,6 +629,11 @@ Private Sub uVolChanged(ByVal Value As Long) ', ByVal Detail As Long)
 
     If (Value = mVol) Or (Value < 0) Or (Value > 100) Then _
         Exit Sub
+
+    If (GetTickCount() - lTick) < 20 Then _
+        Exit Sub
+
+    lTick = GetTickCount()
 
     g_Debug "uVolChanged(): value=" & CStr(Value)
 
@@ -676,13 +699,15 @@ Dim iVol As Integer
 
     End Select
 
-    If sn41IsVisible(mCurrentId) Then
-        sn41EZUpdate mCurrentId, szTitle, szText, , uGetIcon(mVol), IIf(iVol > -1, "value-percent::" & CStr(iVol), "")
+    snarl_notify App.ProductName, CLASS_AUDIO_CHANGE, CLASS_AUDIO_CHANGE, mPassword, szTitle, szText, uGetIcon(mVol), , , , iVol
 
-    Else
-        mCurrentId = sn41EZNotify(mAppToken, CLASS_AUDIO_CHANGE, szTitle, szText, CUSTOM_DURATION, uGetIcon(mVol), , , iVol)
-
-    End If
+'    If sn41IsVisible(mCurrentId) Then
+'        sn41EZUpdate mCurrentId, szTitle, szText, , uGetIcon(mVol), IIf(iVol > -1, "value-percent::" & CStr(iVol), "")
+'
+'    Else
+'        mCurrentId = sn41EZNotify(mAppToken, CLASS_AUDIO_CHANGE, szTitle, szText, CUSTOM_DURATION, uGetIcon(mVol), , , iVol)
+'
+'    End If
 
     Exit Sub
 
@@ -729,13 +754,16 @@ Dim szText As String
 
     Debug.Print "uMuteChanged(): title=" & szTitle & " text=" & szText
 
-    If sn41IsVisible(mCurrentId) Then
-        sn41EZUpdate mCurrentId, szTitle, szText, , IIf(Value = 1, "!audio-volume-mute", uGetIcon(mVol))
+    snarl_notify App.ProductName, CLASS_AUDIO_CHANGE, CLASS_AUDIO_CHANGE, mPassword, szTitle, szText, _
+                 IIf(Value = 1, "!audio-volume-mute", uGetIcon(mVol)), , , , IIf(Value = 0, mVol, -1)
 
-    Else
-        mCurrentId = sn41EZNotify(mAppToken, CLASS_AUDIO_CHANGE, szTitle, szText, _
-                                  CUSTOM_DURATION, IIf(Value = 1, "!audio-volume-mute", uGetIcon(mVol)))
-
-    End If
+'    If sn41IsVisible(mCurrentId) Then
+'        sn41EZUpdate mCurrentId, szTitle, szText, , IIf(Value = 1, "!audio-volume-mute", uGetIcon(mVol))
+'
+'    Else
+'        mCurrentId = sn41EZNotify(mAppToken, CLASS_AUDIO_CHANGE, szTitle, szText, _
+'                                  CUSTOM_DURATION, IIf(Value = 1, "!audio-volume-mute", uGetIcon(mVol)))
+'
+'    End If
 
 End Sub

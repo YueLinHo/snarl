@@ -394,7 +394,7 @@ Private Sub ISnarlExtension_Pulse()
     If (Minute(Now()) = 0) And (Second(Now()) = 0) And (Hour(Now()) <> mLastHour) Then
         snDoRequest "notify?app-sig=" & App.ProductName & "&replace-uid=" & UID_HOURLY & "&uid=" & UID_HOURLY & _
                     "&class=" & CLASS_HOUR_CHIME & "&title=Hourly Reminder&text=" & uGetTimeString() & _
-                    "&icon=" & g_MakePath(App.Path) & "hourly.png"
+                    "&icon=" & g_MakePath(App.Path) & "hourly.png" & "&password=" & mPassword
 
         mLastHour = Hour(Now)
 
@@ -1309,7 +1309,7 @@ Dim rc As RECT
     ' /* key press/hold */
 
     If mConfigFile.ValueOf("show_time_on_key") = "1" Then
-        If g_IsPressed(vbKeyTab) Then
+        If (g_IsPressed(vbKeyTab)) And (Not g_IsPressed(VK_MENU)) Then
             If (theKeyTimer Is Nothing) Then
                 Debug.Print "key pressed"
                 Set theKeyTimer = new_BTimer(250, True)
