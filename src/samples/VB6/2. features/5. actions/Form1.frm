@@ -223,12 +223,19 @@ Dim hr As Long
         MsgBox "Error registering with Snarl (" & CStr(hr) & ")", vbExclamation Or vbOKOnly, App.Title
 
     Else
-        mMsg = snDoRequest("notify?app-sig=" & App.ProductName & _
+
+'        mMsg = snDoRequest("notify?app-sig=" & App.ProductName & _
                            "&title=Notifications with actions" & _
                            "&text=The gear icon in the bottom right corner indicates the notification supports actions; " & _
                            "you can access these by clicking the gear gadget in the top-left corner." & _
                            "&timeout=0" & _
                            "&action=Red,@333&action=Green,@666&action=Blue,@999&action=Reset,@000")
+
+        mMsg = snDoRequest("notify?app-sig=" & App.ProductName & _
+                           "&title=Launch detection" & _
+                           "&text=Indian Ocean station 4 has detected ICBM launch" & _
+                           "&timeout=0&icon=!system-warning" & _
+                           "&action=Protest,@333&action=Ignore,@666&action=Panic,@999&action=Invoke Armageddon,@000")
 
         Command1(1).Enabled = True
 
