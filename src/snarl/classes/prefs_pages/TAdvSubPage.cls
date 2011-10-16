@@ -61,7 +61,7 @@ Dim pm As CTempMsg
 
             ' /* other */
             .Add new_BPrefsControl("banner", "", "Other")
-            .Add new_BPrefsControl("fancytoolbar", "general_toolbar", "Recreate Tray Icon|Empty Icon Cache")
+            .Add new_BPrefsControl("fancytoolbar", "general_toolbar", "Recreate Tray Icon|Empty Icon Cache||Restore Factory Settings")
 
 
         Case "sec"
@@ -178,6 +178,20 @@ Dim sz() As String
             If Not (g_NotificationRoster Is Nothing) Then _
                 g_NotificationRoster.EmptyIconCache
 
+        Case 4
+            ' /* restore factory settings */
+            If MsgBox("Are you sure you want to do this?" & vbCrLf & vbCrLf & _
+                      "Your current Snarl and application settings will be renamed with a '.backup' extension" & vbCrLf & _
+                      "in case you want to recover some or all of them at a later date.", _
+                      vbQuestion Or vbYesNo, _
+                      "Restore Factory Settings") = vbYes Then
+
+                uBackupUserConfig
+                ShellExecute 0, "open", g_MakePath(App.Path) & "delayload.exe", IIf(gDebugMode, "-debug", ""), vbNullString, SW_HIDE
+                PostQuitMessage 0
+
+            End If
+
         End Select
 
 
@@ -283,4 +297,30 @@ Private Function KPrefsPage_hWnd() As Long
 End Function
 
 Private Sub KPrefsPage_PanelResized(ByVal Width As Long, ByVal Height As Long)
+End Sub
+
+Private Sub uBackupUserConfig()
+Dim szPath As String
+Dim sz As String
+
+    If g_GetUserFolderPath(szPath) Then
+        szPath = g_MakePath(szPath) & "etc"
+
+        ' /* rename Snarl configs */
+        MoveFile szPath & "\config41.snarl", szPath & "\config41.snarl.backup"
+        MoveFile szPath & "\styledefaults.conf", szPath & "\styledefaults.conf.backup"
+
+        ' /* rename class files */
+        With New CFolderContent2
+            If .SetTo(szPath) Then
+                .Rewind
+                Do While .GetNextFile(sz)
+                    If g_GetExtension(sz, True) = "class" Then _
+                        MoveFile sz, sz & ".backup"
+
+                Loop
+            End If
+        End With
+    End If
+
 End Sub

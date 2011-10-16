@@ -96,6 +96,10 @@ Private Sub theSocket_OnClose()
 
     g_Debug "TRemoteConnection.OnClose(): id=0x" & g_HexStr(mId), LEMON_LEVEL_PROC
 
+    Debug.Print "!!!!!!!!!!!!!!!!!!!!!!!!"
+    Debug.Print "!! connection dropped !!"
+    Debug.Print "!!!!!!!!!!!!!!!!!!!!!!!!"
+
 End Sub
 
 Private Sub theSocket_OnConnect()
@@ -112,11 +116,11 @@ End Sub
 
 Private Sub theSocket_OnDataArrival(ByVal bytesTotal As Long)
 
-    If mType = GNTP_DEFAULT_PORT Then
+    Select Case mType
+    Case GNTP_DEFAULT_PORT
         uDoGNTP bytesTotal
 
-    ElseIf mType = SNP_DEFAULT_PORT Then
-        
+    Case SNP_DEFAULT_PORT, MELON_DEFAULT_PORT
         If g_ConfigGet("listen_for_snarl") = "0" Then
             g_Debug "TRemoteConnection.OnDataArrival(): ignored (user disabled incoming notifications)"
             theSocket.SendData uSNPCreateReply(SNP_ERROR_NOT_RUNNING)
@@ -128,10 +132,10 @@ Private Sub theSocket_OnDataArrival(ByVal bytesTotal As Long)
 
         End If
 
-    ElseIf mType = JSON_DEFAULT_PORT Then
+    Case JSON_DEFAULT_PORT
         uDoJSON bytesTotal
 
-    End If
+    End Select
 
 End Sub
 
@@ -684,7 +688,12 @@ Dim sz As String
 
     theSocket.PeekData sz
 
-    If g_SafeRightStr(sz, 4) = vbCrLf & vbCrLf Then
+    If g_SafeRightStr(sz, 1) = Chr$(0) Then
+        ' /* is it a flash permission request? */
+        If LCase$(g_TrimStr(sz)) = "<policy-file-request/>" Then _
+            theSocket.SendData "<?xml version=""1.0""?><!DOCTYPE cross-domain-policy SYSTEM ""/xml/dtds/cross-domain-policy.dtd""><cross-domain-policy><site-control permitted-cross-domain-policies=""master-only""/><allow-access-from domain=""*"" to-ports=""*"" /></cross-domain-policy>" & Chr$(0)
+
+    ElseIf g_SafeRightStr(sz, 4) = vbCrLf & vbCrLf Then
         theSocket.GetData sz
         gntp_Process sz, theSocket, szReply, bKeepOpen
         uOutput "TRemoteConnection.uDoGNTP(): response=" & Replace$(szReply, vbCrLf, "¶")
@@ -712,6 +721,16 @@ Dim sz As String
     On Error GoTo er
 
     theSocket.PeekData sz
+
+
+    If g_SafeRightStr(sz, 1) = Chr$(0) Then
+        ' /* is it a flash permission request? */
+        If LCase$(g_TrimStr(sz)) = "<policy-file-request/>" Then
+            theSocket.SendData "<?xml version=""1.0""?><!DOCTYPE cross-domain-policy SYSTEM ""/xml/dtds/cross-domain-policy.dtd""><cross-domain-policy><site-control permitted-cross-domain-policies=""master-only""/><allow-access-from domain=""*"" to-ports=""*"" /></cross-domain-policy>" & Chr$(0)
+            theSocket.CloseSocket
+
+        End If
+    End If
 
     ' /* if it doesn't end with a least an LF, keep waiting */
 

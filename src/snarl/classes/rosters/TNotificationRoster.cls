@@ -31,8 +31,8 @@ Private Declare Function GetTempPath Lib "kernel32" Alias "GetTempPathA" (ByVal 
 
 Dim mToken As Long
 Dim mRefs As Long
-Dim mMissedPanel As TMissedNotificationsPanel
-Dim mActualMissed As Long                       ' // number that appeared since DnD enabled
+'Dim mActualMissed As Long                       ' // number that appeared since DnD enabled
+Dim mMissedCount As Long
 
     ' /* lists - a notification should only ever be in one of them */
 Dim mActive As BTagList
@@ -141,13 +141,16 @@ Private Property Get MVersionInfo_Version() As Long
     MVersionInfo_Version = App.Major
 End Property
 
-Friend Function Add(ByRef Info As T_NOTIFICATION_INFO, ByRef Args As BPackedData) As Long
+Friend Function Add(ByRef Info As T_NOTIFICATION_INFO, ByRef Args As BPackedData, Optional ByVal AddToHistory As Boolean = True, Optional ByVal IgnorePresence As Boolean = False) As Long
 
     ' /* adds a notification to the roster: should only be called by:
     '       TAlert.ShowNotification()
     '       g_DoSchemePreview()
     '       TNotification (when download complete)
     '       Missed Notifications panel (when "Display" button invoked by user)
+    '
+    '    Note: old-style function: returns zero on error and sets lasterror
+    '
     ' */
 
     gSetLastError SNARL_ERROR_FAILED
@@ -186,50 +189,40 @@ Dim lQuantum As Long
         lQuantum = 750
 
     If (Info.ClassObj.GetValue("block_spam") = "1") And ((GetTickCount() - Info.ClassObj.LastNotificationGeneratedTick) < lQuantum) Then
-        Debug.Print "!!! SPAM !!! " & CStr(lQuantum)
-
         ' /* R2.31 - for now, block and return a failure code.  For the future, it would be lovely to
         '    allow more functionality (e.g. update notification, append to notification, send to missed log, etc. */
-
+        Debug.Print "TNotificationRoster.Add(): flooding detected (quantum=" & CStr(lQuantum) & ")"
         gSetLastError SNARL_ERROR_FLOODING
         Exit Function
 
     End If
 
+
+    ' /* ===== end of error checking ===== */
+
+
+
+    gSetLastError SNARL_SUCCESS
+
+
+
+
     If (Info.Actions Is Nothing) Then _
         Set Info.Actions = new_BTagList()                   ' // create list even if there are no actions defined
 
     ' /* R2.4.2: erase callback if url detection enabled */
-
-    If g_ConfigGet("no_callback_urls") = "1" Then
-        If g_IsURL(Info.DefaultAck) Then _
-            Info.DefaultAck = ""
-
-    End If
+    If (g_ConfigGet("no_callback_urls") = "1") And (g_IsURL(Info.DefaultAck)) Then _
+        Info.DefaultAck = ""
 
     ' /* only record the tick of the last _generated_ notification */
-
     Info.ClassObj.LastNotificationGeneratedTick = GetTickCount()
 
-    gSetLastError SNARL_SUCCESS
-
-    ' /* R2.3: set datestamp */
-
+    ' /* R2.3: set timestamp */
     Info.DateStamp = Now()
-    
-    ' /* R2.4: overflow trimming */
 
+    ' /* R2.4: overflow trimming */
     Info.Title = g_TrimLines(Info.Title)
     Info.Text = g_TrimLines(Info.Text)
-
-    ' /* R2.4: generate the "OriginalContent" content */
-
-    ' /* ===============================================
-    '   Note: this is temporary until TNotification
-    '   can take care of window creation (see notes below)
-    '    =============================================== */
-
-    g_KludgeNotificationInfo Info
 
 '    ' /* R2.4 DR7 - can include actions in request */
 '
@@ -255,7 +248,7 @@ Dim lQuantum As Long
     '    async download of the icon and put the notification onto a stack while
     '    we wait for the download to complete */
 
-Dim pn As TNotification
+Dim pz As TNotification
 Dim pt As BTagItem
 
     If g_IsURL(Info.IconPath) Then
@@ -275,15 +268,13 @@ Dim pt As BTagItem
             g_Debug "TNotificationRoster.Add(): starting async download to '" & pt.Value & "'..."
             mIconCache.Add pt
 
-            Set pn = New TNotification
-            If pn.Init(pt, Args) Then
-                ' /* allocate a token now */
-                Info.Token = mToken
-                pn.SetTo SN_NS_WAITING, Info
+            Set pz = New TNotification
+            If pz.StartAsyncIconDownload(pt, Info, Args) Then
+                Info.Token = Me.GetNextToken()
+                pz.SetTo SN_NS_WAITING, Info
                 ' /* add to the queue */
-                mWait.Add pn
-                Add = mToken                                '// return the token that was allocated
-                mToken = mToken + 1
+                mWait.Add pz
+                Add = pz.Info.Token
                 Exit Function
 
             Else
@@ -299,66 +290,21 @@ Dim pt As BTagItem
     End If
 
 
+    ' /* R2.4: generate the "OriginalContent" content */
+    g_KludgeNotificationInfo Info
+
+    ' /* R2.5 Beta 2: if user is active, send to selected global pass-thru styles */
+
+    If (Not g_IsDND()) And (Not g_IsAway()) Then _
+        uDoPassThrough Info
+
     ' /* R2.3: send to any selected non-window styles */
 
-Dim pCopyInfo As T_NOTIFICATION_INFO
-Dim fc As Long              ' // needs to be an enum before we forget what the flags mean!
-
-    If Not (Info.ClassObj.ForwardList Is Nothing) Then
-        With Info.ClassObj.ForwardList
-            .Rewind
-            Do While .GetNextTag(pt) = B_OK
-                fc = Val(pt.Value)
-
-                Debug.Print "TNotificationRoster.Add(): is_dnd=" & g_IsDND() & " is_away=" & g_IsAway() & "cond=" & g_HexStr(fc)
-
-                If (g_IsDND()) And ((fc And SN_SFF_WHEN_BUSY) <> 0) Then
-                    ' /* shadow only when busy */
-                    fc = -1
-
-                ElseIf (g_IsAway()) And ((fc And SN_SFF_WHEN_AWAY) <> 0) Then
-                    ' /* shadow only when away */
-                    fc = -1
-
-                ElseIf (fc And SN_SFF_WHEN_NOT_AWAY_OR_BUSY) <> 0 Then
-                    ' /* shadow when present and not busy */
-                    fc = -1
-
-                Else
-                    ' /* no shadowing */
-                    fc = 0
-
-                End If
-
-                If fc <> 0 Then
-                    g_Debug "TNotificationRoster.Add(): shadowing to '" & pt.Name & "'..."
-                    LSet pCopyInfo = Info
-                    pCopyInfo.StyleName = style_GetStyleName(pt.Name)
-                    pCopyInfo.SchemeName = style_GetSchemeName(pt.Name)
-                    uCopyTo pCopyInfo ', Info.ClassObj
-
-                End If
-            Loop
-        End With
-    End If
-
-
+    uDoClassPassThrough Info
 
     ' /* R2.4.2 DR3 - send to subscribers */
 
     g_SubsRoster.Broadcast Info
-
-
-    If (Info.Priority < 0) And (Info.Timeout = 0) Then
-        ' /* R2.4: low-priority notifications cannot be sticky */
-        Info.Timeout = Val(g_ConfigGet("default_duration"))
-
-    ElseIf Info.Timeout = -1 Then
-        ' /* V41: if timeout is -1 then use global default timeout */
-        Info.Timeout = Val(g_ConfigGet("default_duration"))
-
-    End If
-
 
     ' /*
     '   R2.4 DR8: presence management, as follows:
@@ -378,96 +324,49 @@ Dim fc As Long              ' // needs to be an enum before we forget what the f
 
 '    Debug.Print "++ current presence: " & g_HexStr(g_GetPresence())
 
+
+
     ' /* sticky snarls take precendence, then DND mode setting, then Away mode setting */
 
-Dim nPMode As SN_PRESENCE_ACTIONS
+Dim lWhatToDo As SN_PRESENCE_ACTIONS
 
-    If g_ConfigGet("sticky_snarls") = "1" Then
-        g_Debug "TNotificationRoster.Add(): Sticky mode enabled"
-        ' /* R2.4 DR8: *all* notifications are sticky */
-        Info.Timeout = 0
+    If Not IgnorePresence Then
+        lWhatToDo = uApplyPresence(Info)
+        g_Debug "TNotificationRoster.Add(): applied presence: " & CStr(lWhatToDo)
 
-    ElseIf g_IsDND() Then
-        ' /* Do Not Disturb (Busy) mode */
-        g_Debug "TNotificationRoster.Add(): Busy (aka DND) mode enabled: priority=" & CStr(Info.Priority)
-        If Info.Priority < 0 Then
-            ' /* low priority = ignored */
-            gSetLastError SNARL_ERROR_DO_NOT_DISTURB
-            Exit Function
-
-        ElseIf Info.Priority = 0 Then
-            ' /* determine what to do with normal priority notifications */
-            nPMode = Val(Info.ClassObj.GetValue("override-busy")) - 1
-            If nPMode = SN_PA_DO_DEFAULT Then _
-                nPMode = Val(g_ConfigGet("busy_mode"))
-
-        End If
-
-    ElseIf g_IsAway() Then
-        ' /* Away mode */
-        g_Debug "TNotificationRoster.Add(): Away mode enabled: priority=" & CStr(Info.Priority)
-        If Info.Priority < 0 Then
-            ' /* low priority = ignored */
-            gSetLastError SNARL_ERROR_CLASS_BLOCKED
-            Exit Function
-
-        ElseIf Info.Priority = 0 Then
-            ' /* determine what to do with normal priority notifications */
-            nPMode = Val(Info.ClassObj.GetValue("override-away")) - 1
-            Debug.Print "### away class setting is: " & nPMode
-            If nPMode = SN_PA_DO_DEFAULT Then _
-                nPMode = Val(g_ConfigGet("away_mode"))
-
-            Debug.Print "### away setting is: " & nPMode
-
-        Else
-            ' /* high priority = logged as missed irrespective of class setting */
-            uAddToMissedList Info
-            Add = Info.Token
-
-        End If
-
-    Else
-        nPMode = Val(Info.ClassObj.GetValue("override-normal")) - 1
-
-    End If
-
-    g_Debug "TNotificationRoster.Add(): Presence action=" & CStr(nPMode)
-
-    If nPMode <> SN_PA_DO_DEFAULT Then
-        ' /* we have something specific to do with the notification */
-
-        Select Case nPMode
-
-        Case SN_PA_LOG_AS_MISSED
-            ' /* put in missed list (unless class setting says otherwise) and return the token */
-'            If Info.ClassObj.GetValue("log_during_dnd") = "1" Then
-                uAddToMissedList Info
-                Add = Info.Token
+        If lWhatToDo <> SN_PA_DO_DEFAULT Then
+            ' /* we have something specific to do with the notification */
+            Select Case lWhatToDo
+            Case SN_PA_LOG_AS_MISSED
+                ' /* put in missed list (unless class setting says otherwise) and return the token */
+    '            If Info.ClassObj.GetValue("log_during_dnd") = "1" Then
+                    uAddToMissedList Info
+                    Add = Info.Token
+                    Exit Function
+    
+    '            End If
+    
+            Case SN_PA_DO_NOTHING
+                ' /* bin it */
+                gSetLastError SNARL_ERROR_CLASS_BLOCKED
                 Exit Function
-
-'            End If
-
-        Case SN_PA_MAKE_STICKY
-            Info.Timeout = 0
-
-        Case SN_PA_DO_NOTHING
-            ' /* bin it */
-            gSetLastError SNARL_ERROR_CLASS_BLOCKED
-            Exit Function
-
-        Case SN_PA_DISPLAY_URGENT
-            Info.Priority = 1
-
-        Case SN_PA_DISPLAY_NORMAL
-            ' /* allow it through */
-
-        Case SN_PA_FORWARD
-            Info.StyleName = style_GetStyleName(g_ConfigGet(IIf(g_IsDND, "busy_style", "away_style")))
-            Info.SchemeName = style_GetSchemeName(g_ConfigGet(IIf(g_IsDND, "busy_style", "away_style")))
-
-        End Select
-
+    
+            Case SN_PA_MAKE_STICKY
+                Info.Timeout = 0
+    
+            Case SN_PA_DISPLAY_URGENT
+                Info.Priority = 1
+    
+            Case SN_PA_DISPLAY_NORMAL
+                ' /* allow it through */
+    
+            Case SN_PA_FORWARD
+                Info.StyleName = style_GetStyleName(g_ConfigGet(IIf(g_IsDND, "busy_style", "away_style")))
+                Info.SchemeName = style_GetSchemeName(g_ConfigGet(IIf(g_IsDND, "busy_style", "away_style")))
+    
+            End Select
+    
+        End If
     End If
 
 
@@ -482,24 +381,38 @@ Dim nPMode As SN_PRESENCE_ACTIONS
 
     If (Info.IntFlags And SN_NF_MERGE) Then
         ' /* is there an existing notification we can merge with? */
-        If uFindMergeCandidate(Info.ClassObj, Info.Title, pn) Then
+        If uFindMergeCandidate(Info.ClassObj, Info.Title, pz) Then
             ' /* update content */
-            pn.UpdateOrMerge Args, True
+            pz.UpdateOrMerge Args, True
             gSetLastError SNARL_WAS_MERGED                      ' // set LastError to indicate the merge
-            Add = pn.Info.Token                                 ' // return existing token
+            Add = pz.Info.Token                                 ' // return existing token
             Exit Function
 
         End If
-
     End If
 
-    ' /* no style name?  that's okay, use the default */
+    ' /* bounds/logic checking */
 
-    If Info.StyleName = "" Then
-        Info.StyleName = style_GetStyleName(g_ConfigGet("default_style"))
-        Info.SchemeName = style_GetSchemeName(g_ConfigGet("default_style"))
+    With Info
+        If (.Priority < 0) And (.Timeout = 0) Then
+            ' /* R2.4: low-priority notifications cannot be sticky */
+            .Timeout = Val(g_ConfigGet("default_duration"))
 
-    End If
+        ElseIf .Timeout = -1 Then
+            ' /* V41: if timeout is -1 then use global default timeout */
+            .Timeout = Val(g_ConfigGet("default_duration"))
+
+        End If
+
+        If .StyleName = "" Then
+            .StyleName = style_GetStyleName(g_ConfigGet("default_style"))
+            .SchemeName = style_GetSchemeName(g_ConfigGet("default_style"))
+
+        End If
+
+    End With
+
+
 
 Dim hr As M_RESULT
 Dim ar As BRect
@@ -516,6 +429,10 @@ Dim pStyle As TStyle
 
     uSafeGetStyle Info.StyleName & "/" & Info.SchemeName, pStyle, psi
 
+    ' /* R2.4: generate the "OriginalContent" content */
+
+    g_KludgeNotificationInfo Info
+
     ' /* get the path to the style - we need this for style-provided icons and sounds */
 
 '    Info.IconPath = uTranslateIconPath(Info.IconPath, pStyle.Path)
@@ -528,7 +445,7 @@ Dim pStyle As TStyle
 '        psi.UpdateContent pStyle.CreateNotificationInfo(Info.Title, Info.Text, Info.IconPath, Info.SchemeName, IIf(Info.Priority > 0, S_NOTIFICATION_IS_PRIORITY, 0))
 
         ' /* uCopyTo() will return TRUE if the style asked for the notification
-        '    to be passed back for on-screen display (pass-through) */
+        '    to be passed back for on-screen display */
 
         If uCopyTo(Info) Then
             ' /* style is asking for the notification to be displayed on-screen */
@@ -537,8 +454,10 @@ Dim pStyle As TStyle
             Add = Me.Add(Info, Args)
 
         Else
-            ' /* no need to pass through */
-
+            ' /* KLUDGE: add the notification to our history */
+            Set pz = New TNotification
+            pz.SetTo SN_NS_ACTIVE, Info
+            uAddToHistory pz
             Add = -1                ' // TEMPORARY while we figure out what best to return here
 
         End If
@@ -551,11 +470,11 @@ Dim pStyle As TStyle
     '    a notification of this style on-screen */
 
     If (pStyle.Flags And S_STYLE_SINGLE_INSTANCE) Then
-        If uFindbyStyleName(Info.StyleName, pn) Then
+        If uFindbyStyleName(Info.StyleName, pz) Then
             ' /* notification found, so decide what to do next... */
             If (pStyle.Flags And S_STYLE_DONT_QUEUE) Then
                 ' /* don't queue notifications - so remove the existing one and create new */
-                pn.Remove
+                pz.Remove
 
             Else
                 ' /* TO DO: add to queue */
@@ -622,10 +541,6 @@ Dim pStyle As TStyle
     If Info.Priority < 0 Then _
         Info.ClassObj.App.SetCurrentLowPriority Info.Token
 
-'    Else
-'        Info.ClassObj.App.SetCurrentLowPriority 0
-'
-'    End If
 
 
 
@@ -686,22 +601,20 @@ Dim i As Long
 
     g_Debug "TNotificationRoster.Add(): placing at " & ar.Left & "," & ar.Top & "-" & ar.Right & "," & ar.Bottom
 
-
     ' /* add it to our list */
 
-    Set pn = New TNotification
-    pn.SetTo SN_NS_ACTIVE, Info, psw, i, ar
-    mActive.Add pn
-    frmAbout.bRefreshHistory
+    Set pz = New TNotification
+    pz.SetTo SN_NS_ACTIVE, Info, psw, i, ar
+    mActive.Add pz
 
     ' /* return value */
 
     Add = Info.Token
 
     ' /* add to history */
-    
-    mHistory.Add pn
 
+    If AddToHistory Then _
+        uAddToHistory pz
 
     ' /* R2.4 DR8: last thing to do - play the sound */
 
@@ -925,7 +838,7 @@ Dim pn As TNotification
         Case SN_NS_MISSED
             ' /* remove from missed list */
             mMissedX.Remove mMissedX.IndexOf(CStr(pn.Info.Token))
-            UpdateMissedPanel
+            frmAbout.bUpdateMissedList
 
         Case SN_NS_WAITING
             ' /* remove from wait list */
@@ -1118,55 +1031,57 @@ Dim pn As TNotification
 
 End Function
 
-Public Sub ShowMissedPanel()
+'Public Sub ShowMissedPanel()
+'
+''    If (mMissedPanel Is Nothing) Then _
+''        Set mMissedPanel = New TMissedNotificationsPanel
+''
+''    mMissedPanel.Go
+'
+'End Sub
 
-    If (mMissedPanel Is Nothing) Then _
-        Set mMissedPanel = New TMissedNotificationsPanel
+Public Function RealMissedCount() As Long
 
-    mMissedPanel.Go
+'    ActualMissedCount = mActualMissed
 
-End Sub
-
-Public Function ActualMissedCount() As Long
-
-    ActualMissedCount = mActualMissed
+    RealMissedCount = mMissedX.CountItems - mMissedCount
 
 End Function
 
-Public Sub ClearMissedList()
+'Public Sub ClearMissedList()
+'
+'    ' /* clear the missed list and reset counters */
+'
+'    mMissedX.MakeEmpty
+'    ResetMissedList
+'
+'End Sub
 
-    ' /* clear the missed list and reset counters */
-
-    mMissedX.MakeEmpty
-    ResetMissedList
-
-End Sub
-
-Public Sub ResetMissedList()
-
-    ' /* this tags the existing missed notifications as seen and resets
-    '    the manual missed count tracker - it does NOT clear the list */
-
-    mActualMissed = 0
-
-    ' /* mark existing notifications as seen */
-
-Dim pItem As TNotification
-
-    With mMissedX
-        .Rewind
-        Do While .GetNextTag(pItem) = B_OK
-            pItem.MarkAsSeen
-
-        Loop
-
-    End With
-
-    ' /* tell the tray icon */
-
-    frmAbout.bSetTrayIcon
-
-End Sub
+'Private Sub uResetMissedList()
+'
+'    ' /* this tags the existing missed notifications as seen and resets
+'    '    the manual missed count tracker - it does NOT clear the list */
+'
+'    mActualMissed = 0
+'
+''    ' /* mark existing notifications as seen */
+''
+''Dim pItem As TNotification
+''
+''    With mMissedX
+''        .Rewind
+''        Do While .GetNextTag(pItem) = B_OK
+''            pItem.MarkAsSeen
+''
+''        Loop
+''
+''    End With
+'
+'    ' /* tell the tray icon */
+'
+'    frmAbout.bSetTrayIcon
+'
+'End Sub
 
 Public Function HitTest(ByVal x As Long, ByVal y As Long) As Long
 
@@ -1608,38 +1523,21 @@ Private Sub uAddToMissedList(ByRef Info As T_NOTIFICATION_INFO)
 
     End If
 
-Dim pNewList As BTagList
+    ' /* if more than 1000 items in the missed list, remove the oldest */
 
-    ' /* create new list */
+    If mMissedX.CountItems > 999 Then _
+        mMissedX.Remove 1000
 
-    Set pNewList = new_BTagList()
-
-    ' /* create the new node and add it to the head */
+    ' /* create the new node and add it */
 
 Dim pn As TNotification
 
     Set pn = New TNotification
     pn.SetTo SN_NS_MISSED, Info
-    pNewList.Add pn
+    mMissedX.Add pn
 
-    With mMissedX
-        .Rewind
-        Do While .GetNextTag(pn) = B_OK
-            pNewList.Add pn
-
-        Loop
-
-    End With
-
-    ' /* assign our new list as the missed list */
-
-    Set mMissedX = pNewList
-    mActualMissed = mActualMissed + 1
-
-    ' /* if the panel is open, update it */
-
-    If Not (mMissedPanel Is Nothing) Then _
-        mMissedPanel.UpdateList
+'    mActualMissed = mActualMissed + 1
+    frmAbout.bUpdateMissedList
 
     ' /* tell the tray icon */
 
@@ -1665,7 +1563,13 @@ End Function
 
 Public Sub CheckMissed()
 
-    If mActualMissed < 1 Then _
+'    If mActualMissed < 1 Then _
+        Exit Sub
+
+Dim n As Long
+
+    n = mMissedX.CountItems - mMissedCount
+    If n < 1 Then _
         Exit Sub
 
 Static iToken As Long
@@ -1674,11 +1578,13 @@ Static iToken As Long
         Me.Hide iToken, "", "", gSnarlPassword
 
     iToken = g_PrivateNotify(SNARL_CLASS_GENERAL, "While you were away...", _
-                             "You missed " & CStr(mActualMissed) & " notification" & IIf(mActualMissed > 1, "s", ""), _
+                             "You missed " & CStr(n) & " notification" & IIf(n > 1, "s", ""), _
                              -1, _
                              g_MakePath(App.Path) & "etc\icons\snarl.png", _
                              , _
                              "!snarl show_missed_panel")
+
+'    uResetMissedList
 
 End Sub
 
@@ -1694,12 +1600,12 @@ Public Function MissedList() As BTagList
 
 End Function
 
-Public Sub UpdateMissedPanel()
-
-    If Not (mMissedPanel Is Nothing) Then _
-        mMissedPanel.UpdateList
-
-End Sub
+'Public Sub UpdateMissedPanel()
+'
+'    If Not (mMissedPanel Is Nothing) Then _
+'        mMissedPanel.UpdateList
+'
+'End Sub
 
 Public Sub CloseMostRecent()
 Dim pn As TNotification
@@ -1746,3 +1652,213 @@ Public Function History() As BTagList
 
 End Function
 
+'Public Function Replay(ByVal HistoryIndex As Long) As Boolean
+'Dim pn As TNotification
+'
+'    Set pn = mHistory.TagAt(HistoryIndex)
+'
+'    MsgBox "replaying '" & pn.Info.Title & " / " & pn.Info.Text & "'"
+'
+'
+''    If Not (pn Is Nothing) Then _
+'        Me.Add pn.Info, Nothing
+'
+'End Function
+
+Private Sub uDoPassThrough(ByRef Content As T_NOTIFICATION_INFO)
+Dim pInfo As T_NOTIFICATION_INFO
+Dim ppd As BPackedData
+Dim szn As String
+Dim szv As String
+
+    Set ppd = New BPackedData
+    With ppd
+        If .SetTo(g_ConfigGet("global_shadow_list")) Then
+            .Rewind
+            Do While .GetNextItem(szn, szv)
+                If szv = "1" Then
+                    LSet pInfo = Content
+                    pInfo.StyleName = style_GetStyleName(szn)
+                    pInfo.SchemeName = style_GetSchemeName(szn)
+                    uCopyTo pInfo
+
+                End If
+            Loop
+
+        Else
+            g_Debug "TNotificationRoster.uDoPassThrough(): failed to set packed data", LEMON_LEVEL_WARNING
+
+        End If
+    End With
+
+End Sub
+
+Private Sub uAddToHistory(ByRef Notification As TNotification)
+Dim n As SN_THREE_STATE
+
+    ' /* check class setting */
+
+    n = g_SafeLong(Notification.Info.ClassObj.GetValue("log_in_history"))
+    
+    Select Case n
+    Case SN_TS_NEVER
+        Exit Sub
+
+    Case SN_TS_APP_DECIDES
+        ' /* if notification includes "log=0" then we don't log */
+        If Notification.PackedArgs.Exists("log") Then
+            If g_SafeLong(Notification.PackedArgs.ValueOf("log")) = 0 Then _
+                Exit Sub
+
+        End If
+
+    Case Else
+        ' /* assume "always" */
+    
+    End Select
+
+    ' /* keep history below 256 items */
+
+    If mHistory.CountItems > 255 Then _
+        mHistory.Remove 1
+
+    mHistory.Add Notification
+    frmAbout.bUpdateHistoryList
+
+End Sub
+
+Public Function GetNextToken() As Long
+
+    GetNextToken = mToken
+    mToken = mToken + 1
+
+End Function
+
+'Public Function IconCache() As BTagList
+'
+'    Set IconCache = mIconCache
+'
+'End Function
+
+Private Sub uDoClassPassThrough(ByRef Info As T_NOTIFICATION_INFO)
+
+    If (Info.ClassObj.ForwardList Is Nothing) Then _
+        Exit Sub
+
+Dim pCopyInfo As T_NOTIFICATION_INFO
+Dim fConditions As Long    ' // needs to be an enum before we forget what the flags mean!
+Dim pt As BTagItem
+
+    With Info.ClassObj.ForwardList
+        .Rewind
+        Do While .GetNextTag(pt) = B_OK
+            fConditions = Val(pt.Value)
+
+            Debug.Print "TNotificationRoster.uDoClassPassThrough(): is_dnd=" & g_IsDND() & " is_away=" & g_IsAway() & " cond=" & g_HexStr(fConditions)
+
+            If (g_IsDND()) And ((fConditions And SN_SFF_WHEN_BUSY) <> 0) Then
+                ' /* shadow only when busy */
+                fConditions = -1
+
+            ElseIf (g_IsAway()) And ((fConditions And SN_SFF_WHEN_AWAY) <> 0) Then
+                ' /* shadow only when away */
+                fConditions = -1
+
+            ElseIf (fConditions And SN_SFF_WHEN_NOT_AWAY_OR_BUSY) <> 0 Then
+                ' /* shadow when present and not busy */
+                fConditions = -1
+
+            Else
+                ' /* no shadowing */
+                fConditions = 0
+
+            End If
+
+            If fConditions <> 0 Then
+                g_Debug "TNotificationRoster.uDoClassPassThrough(): passing to '" & pt.Name & "'..."
+                LSet pCopyInfo = Info
+                pCopyInfo.StyleName = style_GetStyleName(pt.Name)
+                pCopyInfo.SchemeName = style_GetSchemeName(pt.Name)
+                uCopyTo pCopyInfo
+
+            End If
+        Loop
+
+    End With
+
+End Sub
+
+Private Function uApplyPresence(ByRef Info As T_NOTIFICATION_INFO) As SN_PRESENCE_ACTIONS
+
+    If g_ConfigGet("sticky_snarls") = "1" Then
+        g_Debug "TNotificationRoster.uApplyPresence(): Sticky mode enabled"
+        ' /* R2.4 DR8: *all* notifications are sticky */
+        Info.Timeout = 0
+
+    ElseIf g_IsDND() Then
+        ' /* Do Not Disturb (Busy) mode */
+        g_Debug "TNotificationRoster.uApplyPresence(): Busy (aka DND) mode enabled: priority=" & CStr(Info.Priority)
+        If Info.Priority < 0 Then
+            ' /* low priority = ignored */
+            gSetLastError SNARL_ERROR_DO_NOT_DISTURB
+            uApplyPresence = SN_PA_DO_NOTHING
+
+        ElseIf Info.Priority = 0 Then
+            ' /* determine what to do with normal priority notifications */
+            uApplyPresence = Val(Info.ClassObj.GetValue("override-busy")) - 1
+            If uApplyPresence = SN_PA_DO_DEFAULT Then _
+                uApplyPresence = Val(g_ConfigGet("busy_mode"))
+
+        End If
+
+    ElseIf g_IsAway() Then
+        ' /* Away mode */
+        g_Debug "TNotificationRoster.uApplyPresence(): Away mode enabled: priority=" & CStr(Info.Priority)
+        If Info.Priority < 0 Then
+            ' /* low priority = binned */
+            gSetLastError SNARL_ERROR_CLASS_BLOCKED
+            uApplyPresence = SN_PA_DO_NOTHING
+
+        ElseIf Info.Priority = 0 Then
+            ' /* determine what to do with normal priority notifications */
+            uApplyPresence = Val(Info.ClassObj.GetValue("override-away")) - 1
+            Debug.Print "### away class setting is: " & uApplyPresence
+            If uApplyPresence = SN_PA_DO_DEFAULT Then _
+                uApplyPresence = Val(g_ConfigGet("away_mode"))
+
+            Debug.Print "### away setting is: " & uApplyPresence
+
+        Else
+            ' /* high priority = logged as missed */
+            uApplyPresence = SN_PA_LOG_AS_MISSED
+
+        End If
+
+    Else
+        uApplyPresence = Val(Info.ClassObj.GetValue("override-normal")) - 1
+
+    End If
+
+End Function
+
+Public Sub SaveCurrentMissedCount()
+
+    mMissedCount = mMissedX.CountItems
+
+End Sub
+
+Public Sub MarkMissed()
+'Dim pItem As TNotification
+'
+'    ' /* mark existing notifications as seen */
+'
+'    With mMissedX
+'        .Rewind
+'        Do While .GetNextTag(pItem) = B_OK
+'            pItem.MarkAsSeen
+'
+'        Loop
+'
+'    End With
+
+End Sub

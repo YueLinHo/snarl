@@ -164,7 +164,7 @@ Private Sub IStyleEngine_StyleAt(ByVal Index As Long, Style As libSnarlStyles.st
         Case 1
             .Copyright = DEF_STYLE_COPY
             .Date = DEF_STYLE_DATE
-            .Description = "Built-in default style"
+            .Description = "Built-in style which uses the Default Style settings (see the [Display] page)."
             .Flags = S_STYLE_MULTI_INSTANCE
             .IconPath = g_MakePath(App.Path) & "etc\icons\default_style.png"
             .Major = 1
@@ -274,7 +274,7 @@ End Sub
 
 Private Sub uDoFileRunner(ByRef NotificationInfo As notification_info, ByRef Scheme As TRunFileScheme)
 Dim ppd As BPackedData
-Dim S As String
+Dim s As String
 Dim t As String
 Dim u As String
 
@@ -296,12 +296,12 @@ Dim u As String
             ' /* loop through and for any item beginnning with either "data-" or
             '    "value-" add it to the args */
 
-            Do While .GetNextItem(S, t)
-                If g_SafeLeftStr(S, 5) = "data-" Then
-                    u = u & " " & g_Quote(S & "=" & t)
+            Do While .GetNextItem(s, t)
+                If g_SafeLeftStr(s, 5) = "data-" Then
+                    u = u & " " & g_Quote(s & "=" & t)
 
-                ElseIf g_SafeLeftStr(S, 6) = "value-" Then
-                    u = u & " " & g_Quote(S & "=" & t)
+                ElseIf g_SafeLeftStr(s, 6) = "value-" Then
+                    u = u & " " & g_Quote(s & "=" & t)
 
                 End If
 
@@ -328,19 +328,19 @@ Dim u As String
         g_Debug "TInternalStyle.uDoFileRunner(): template is '" & Scheme.Template & "'"
         Set ppd = New BPackedData
         ppd.SetTo NotificationInfo.Text
-        S = uReplaceMarkers(Scheme.Template, ppd)
-        g_Debug "TInternalStyle.uDoFileRunner(): fixed-up template is '" & S & "'..."
-        ShellExecute 0, "open", Scheme.Target, S, vbNullString, SW_SHOW
+        s = uReplaceMarkers(Scheme.Template, ppd)
+        g_Debug "TInternalStyle.uDoFileRunner(): fixed-up template is '" & s & "'..."
+        ShellExecute 0, "open", Scheme.Target, s, vbNullString, SW_SHOW
 
 
     Case 3
         ' /* &/= format */
-        S = g_URLEncode(NotificationInfo.Text)
-        S = Replace$(S, "#?", "&")
-        S = Replace$(S, "::", "=")
-        S = S & "&app=" & NotificationInfo.Title
+        s = g_URLEncode(NotificationInfo.Text)
+        s = Replace$(s, "#?", "&")
+        s = Replace$(s, "::", "=")
+        s = s & "&app=" & NotificationInfo.Title
         g_Debug "TInternalStyle.uDoFileRunner(): sending V3 content to '" & Scheme.Target & "'..."
-        ShellExecute 0, "open", Scheme.Target, g_Quote(Scheme.Template & S), vbNullString, SW_SHOW
+        ShellExecute 0, "open", Scheme.Target, g_Quote(Scheme.Template & s), vbNullString, SW_SHOW
 
     End Select
 
@@ -400,15 +400,21 @@ Dim lWidth As Long
 
         End With
 
-        ppdFont.SetTo gStyleDefaults.ValueOf("title-font")
-        .SetFont ppdFont.ValueOf("name"), CLng(ppdFont.ValueOf("size")), (ppdFont.ValueOf("bold") = "1")
-        .MeasureString NotificationInfo.Title, prFrame, pr
-        cyTitle = pr.Height
+        If NotificationInfo.Title <> "" Then
+            ppdFont.SetTo gStyleDefaults.ValueOf("title-font")
+            .SetFont ppdFont.ValueOf("name"), CLng(ppdFont.ValueOf("size")), (ppdFont.ValueOf("bold") = "1")
+            .MeasureString NotificationInfo.Title, prFrame, pr
+            cyTitle = pr.Height
 
-        ppdFont.SetTo gStyleDefaults.ValueOf("text-font")
-        .SetFont ppdFont.ValueOf("name"), CLng(ppdFont.ValueOf("size")), (ppdFont.ValueOf("bold") = "1")
-        .MeasureString NotificationInfo.Text, prFrame, pr
-        cyText = pr.Height
+        End If
+
+        If NotificationInfo.Text <> "" Then
+            ppdFont.SetTo gStyleDefaults.ValueOf("text-font")
+            .SetFont ppdFont.ValueOf("name"), CLng(ppdFont.ValueOf("size")), (ppdFont.ValueOf("bold") = "1")
+            .MeasureString NotificationInfo.Text, prFrame, pr
+            cyText = pr.Height
+
+        End If
 
         cy = (BORDER_SIZE * 2) + cyTitle + cyText
         If (NotificationInfo.Title <> "") And (NotificationInfo.Text <> "") Then _
@@ -421,17 +427,11 @@ Dim lWidth As Long
         ' /* draw background */
 
         If (NotificationInfo.Flags And S_NOTIFICATION_IS_PRIORITY) Then
-            .SetHighColour rgba(236, 59, 0)
-
-'            .SetHighColour rgba(255, 0, 0)
-'            .StrokeRoundRect .Bounds, RX, RX
+            .SetHighColour gStyleDefaults.ValueOf("background-colour-priority")
 
         Else
-            
+
             .SetHighColour gStyleDefaults.ValueOf("background-colour")
-            
-'            .SetHighColour rgba(235, 235, 235)
-'            .SetLowColour rgba(205, 205, 205)
 
         End If
 
@@ -460,14 +460,14 @@ Dim lWidth As Long
         ' /* title */
 
         If (NotificationInfo.Flags And S_NOTIFICATION_IS_PRIORITY) Then
-            .SetHighColour rgba(255, 255, 255, 210)
+            lCol = CLng(gStyleDefaults.ValueOf("title-colour-priority"))
 
         Else
             lCol = CLng(gStyleDefaults.ValueOf("title-colour"))
-            .SetHighColour g_SetRGB32Alpha(lCol, g_OpacityFromPercent(gStyleDefaults.ValueOf("title-opacity")))
-            '//rgba(36, 36, 36, 210)
 
         End If
+
+        .SetHighColour g_SetRGB32Alpha(lCol, g_OpacityFromPercent(gStyleDefaults.ValueOf("title-opacity")))
 
         ppdFont.SetTo gStyleDefaults.ValueOf("title-font")
         .SetFont ppdFont.ValueOf("name"), CLng(ppdFont.ValueOf("size")), (ppdFont.ValueOf("bold") = "1")
@@ -490,13 +490,14 @@ Dim lWidth As Long
         ' /* text */
 
         If (NotificationInfo.Flags And S_NOTIFICATION_IS_PRIORITY) Then
-            .SetHighColour rgba(255, 255, 255, 210)
+            lCol = CLng(gStyleDefaults.ValueOf("text-colour-priority"))
 
         Else
             lCol = CLng(gStyleDefaults.ValueOf("text-colour"))
-            .SetHighColour g_SetRGB32Alpha(lCol, g_OpacityFromPercent(gStyleDefaults.ValueOf("text-opacity")))
 
         End If
+
+        .SetHighColour g_SetRGB32Alpha(lCol, g_OpacityFromPercent(gStyleDefaults.ValueOf("text-opacity")))
 
         ppdFont.SetTo gStyleDefaults.ValueOf("text-font")
         .SetFont ppdFont.ValueOf("name"), CLng(ppdFont.ValueOf("size")), (ppdFont.ValueOf("bold") = "1")

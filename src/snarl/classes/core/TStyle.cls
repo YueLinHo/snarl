@@ -288,3 +288,16 @@ Dim i As Long
     Debug.Print "TStyle.uUpdateStyleInfo(): couldn't find style '" & mContent.Info.Name & "'"
 
 End Sub
+
+Public Function SafeSchemeAt(ByVal Index As Long) As String
+
+    If (Index > 0) And (Index <= mContent.SchemeCount) Then _
+        SafeSchemeAt = mContent.Scheme(Index)
+
+    If SafeSchemeAt = "<Default>" Then _
+        SafeSchemeAt = ""
+
+End Function
+
+
+

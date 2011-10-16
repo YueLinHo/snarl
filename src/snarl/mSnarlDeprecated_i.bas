@@ -59,7 +59,7 @@ Public Enum S_SNARL_COMMANDS
     '    -----------------------------------------------------------------*/
     
     SNARL_SHOW = 1
-    SNARL_HIDE
+    SNARL_HIDE_COMMAND
     SNARL_UPDATE
     SNARL_IS_VISIBLE
     SNARL_GET_VERSION
@@ -81,7 +81,7 @@ Public Enum S_SNARL_COMMANDS
     SNARL_CHANGE_ATTR
     SNARL_REGISTER_APP
     SNARL_UNREGISTER_APP
-    SNARL_ADD_CLASS
+    SNARL_ADD_CLASS_
 
     ' /* following were/are private */
 
@@ -166,7 +166,7 @@ Public Function g_XCommandStr(ByVal Command As Long) As String
     Case SNARL_SHOW
         g_XCommandStr = "SNARL_SHOW"
 
-    Case SNARL_HIDE
+    Case SNARL_HIDE_COMMAND
         g_XCommandStr = "SNARL_HIDE"
 
     Case SNARL_UPDATE

@@ -114,7 +114,8 @@ Dim bEnabled As Boolean
                         "normal_mode::1#?away_mode::1#?busy_mode::1#?" & _
                         "override-normal::1#?override-away::1#?override-busy::1#?" & _
                         "block_if_foreground::0#?" & _
-                        "use_custom_ations::0#?custom_actions::"
+                        "use_custom_ations::0#?custom_actions::#?" & _
+                        "log_in_history::1"
 
         Set .Forward = new_BTagList()
 
@@ -307,6 +308,8 @@ Dim pInfo As T_NOTIFICATION_INFO
         .Title = Me.Description
         .Text = "Test Notification"
         .Timeout = -1
+        .APIVersion = VB.App.Major
+        .IntFlags = VB.App.Major
 
     End With
 
@@ -515,9 +518,21 @@ Dim sv As String
         End With
     End If
 
+    ' /* R2.5 Beta 2: check "log" value */
+
+Dim bLog As Boolean
+
+    bLog = True
+    
+'    If NOTNULL(Args) Then
+'        If Args.ValueOf("log") = "0" Then _
+'            bLog = False
+'
+'    End If
+
     ' /* send it to the notification roster */
 
-    ShowNotification = g_NotificationRoster.Add(Info, Args)
+    ShowNotification = g_NotificationRoster.Add(Info, Args, bLog)
 
     mLastToken = Info.Token
     Debug.Print "TAlert.ShowNotification(): token=" & CStr(mLastToken) & " sender=" & CStr(mContent.App.Token) & " (" & mContent.App.Signature & ") title='" & Info.Title & "' text='" & Info.Text & "'"

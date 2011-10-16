@@ -70,6 +70,8 @@ Dim pl As TWebListener
         ' /* run startup code */
 
         Set mSubscribers = new_BTagList()
+'        Set mGNTPSubscribers = new_BTagList()
+
         Set mSubscriberConfig = New ConfigFile
         With mSubscriberConfig
             .File = g_SettingsPath() & "network.snarl"
@@ -138,7 +140,7 @@ End Sub
 
 Private Function MRoster_CountItems() As Long
 
-    MRoster_CountItems = mSubscribers.CountItems
+    MRoster_CountItems = mSubscribers.CountItems '+ mGNTPSubscribers.CountItems
 
 End Function
 
@@ -360,55 +362,23 @@ Dim i As Long
 End Function
 
 Friend Sub Broadcast(ByRef Content As T_NOTIFICATION_INFO)
-Dim szc As String
-Dim sz As String
-
-    sz = Content.OriginalContent
-    sz = Replace$(sz, "::", "=")
-    sz = Replace$(sz, "#?", "&")
-    sz = Replace$(sz, vbCrLf, "\n")
-
+Dim szRequest As String
+Dim ps As TSubscriber
 Dim pa As TApp
 
+    szRequest = uCreateSNP3Forward(Content)
     Set pa = Content.ClassObj.App
-
-    ' /* base content */
-
-    szc = "SNP/3.0" & vbCrLf & _
-          "register?app-sig=" & pa.Signature & "&title=" & pa.Name & uTranslateIcon(pa.Icon) & vbCrLf
-
-    ' /* add classes */
-
-Dim i As Long
-
-    With pa
-        If .CountAlerts Then
-            For i = 1 To .CountAlerts
-                With .AlertAt(i)
-                    szc = szc & "addclass?app-sig=" & pa.Signature & "&id=" & .Name & "&name=" & .Description & vbCrLf
-
-                End With
-            Next i
-        End If
-    End With
-
-    ' /* add notification content and footer */
-
-    szc = szc & "notify?app-sig=" & pa.Signature & uTranslateIcon(Content.IconPath) & "&" & sz & vbCrLf & _
-                "END" & vbCrLf
-
-'        Debug.Print "---"
-'        Debug.Print szc
-'        Debug.Print "---"
-
-Dim ps As TSubscriber
 
     With mSubscribers
         .Rewind
         Do While .GetNextTag(ps) = B_OK
             If ps.IsEnabled Then
+                ' /* TO-DO: if the subscriber uses GNTP we will need to do
+                '    a two-pass process.  Step 1 will do the REGISTER;
+                '    STEP 2 will do the NOTIFY */
+
                 If ps.IsSubscribedTo(pa.Signature) Then _
-                    ps.Forward szc ', pa
+                    ps.Send szRequest
 
             End If
         Loop
@@ -506,6 +476,13 @@ Dim b As String
 End Function
 
 Private Function uEncodeIcon(ByVal IconPath As String, ByRef Base64 As String) As Boolean
+
+    If IconPath = "" Then _
+        Exit Function
+
+    If Not g_Exists(IconPath) Then _
+        Exit Function
+
 Dim sz As String
 Dim i As Integer
 
@@ -599,3 +576,155 @@ Dim pl As TWebListener
     AddWebListener = True
 
 End Function
+
+Private Function uCreateSNP3Forward(ByRef Content As T_NOTIFICATION_INFO) As String
+Dim szc As String
+Dim sz As String
+
+    sz = Content.OriginalContent
+    sz = Replace$(sz, "::", "=")
+    sz = Replace$(sz, "#?", "&")
+    sz = Replace$(sz, vbCrLf, "\n")
+
+Dim pa As TApp
+
+    Set pa = Content.ClassObj.App
+
+    ' /* base content */
+
+    szc = "SNP/3.0" & vbCrLf & _
+          "register?app-sig=" & pa.Signature & "&title=" & pa.Name & uTranslateIcon(pa.Icon) & vbCrLf
+
+    ' /* add classes */
+
+Dim i As Long
+
+    With pa
+        If .CountAlerts Then
+            For i = 1 To .CountAlerts
+                With .AlertAt(i)
+                    szc = szc & "addclass?app-sig=" & pa.Signature & "&id=" & .Name & "&name=" & .Description & vbCrLf
+
+                End With
+            Next i
+        End If
+    End With
+
+    ' /* add notification content and footer */
+
+    szc = szc & "notify?app-sig=" & pa.Signature & uTranslateIcon(Content.IconPath) & "&" & sz & vbCrLf & _
+                "END" & vbCrLf
+
+'        Debug.Print "---"
+'        Debug.Print szc
+'        Debug.Print "---"
+
+    uCreateSNP3Forward = szc
+
+End Function
+
+Private Function uCreateGNTPForward(ByRef Content As T_NOTIFICATION_INFO) As String
+Dim szc As String
+Dim sz As String
+
+    sz = Content.OriginalContent
+    sz = Replace$(sz, "::", "=")
+    sz = Replace$(sz, "#?", "&")
+    sz = Replace$(sz, vbCrLf, "\n")
+
+Dim pa As TApp
+
+    Set pa = Content.ClassObj.App
+
+    ' /* base content */
+
+    szc = "GNTP/1.0 REGISTER NONE" & vbCrLf & _
+          "Application-Name: " & pa.Name & vbCrLf & _
+          "Notifications-Count: " & CStr(pa.CountAlerts) & vbCrLf & vbCrLf
+
+    ' /* add classes */
+
+Dim i As Long
+
+    With pa
+        If .CountAlerts Then
+            For i = 1 To .CountAlerts
+                With .AlertAt(i)
+                    szc = szc & "Notification-Name: " & .Name & vbCrLf & _
+                                "Notification-Display-Name: " & .Description & vbCrLf & _
+                                "Notification-Enabled: " & IIf(.IsEnabled, "True", "False") & vbCrLf & vbCrLf
+
+                End With
+            Next i
+        End If
+    End With
+
+    ' /* add notification content and footer */
+
+    szc = szc & vbCrLf & vbCrLf
+
+    uCreateGNTPForward = szc
+
+End Function
+
+Private Function uCreateGNTPNotify(ByRef Content As T_NOTIFICATION_INFO) As String
+Dim szc As String
+Dim sz As String
+
+    sz = Content.OriginalContent
+    sz = Replace$(sz, "::", "=")
+    sz = Replace$(sz, "#?", "&")
+    sz = Replace$(sz, vbCrLf, "\n")
+
+Dim pa As TApp
+
+    Set pa = Content.ClassObj.App
+
+    ' /* base content */
+
+    szc = "GNTP/1.0 NOTIFY NONE" & vbCrLf & _
+          "Application-Name: " & pa.Name & vbCrLf
+
+
+'Notification-Name: <string>
+'Required - The name (type) of the notification (must match a previously registered notification name registered by the application specified in Application-Name)
+'
+'Notification-ID: <string>
+'Optional - A unique ID for the notification. If used, this should be unique for every request, even if the notification is replacing a current notification (see Notification-Coalescing-ID)
+'
+'Notification-Title: <string>
+'Required - The notification's title
+'
+'Notification-Text: <string>
+'Optional - The notification's text. (defaults to "")
+'
+'Notification-Sticky: <boolean>
+'Optional - Indicates if the notification should remain displayed until dismissed by the user. (default to False)
+'
+'Notification-Priority: <int>
+'Optional - A higher number indicates a higher priority. This is a display hint for the receiver which may be ignored. (valid values are between -2 and 2, defaults to 0)
+'
+'Notification-Icon: <url> | <uniqueid>
+'Optional - The icon to display with the notification.
+'
+'Notification-Coalescing-ID: <string>
+'Optional - If present, should contain the value of the Notification-ID header of a previously-sent notification. This serves as a hint to the notification system that this notification should replace/update the matching previous notification. The notification system may ignore this hint.
+'
+'Notification-Callback-Context: <string>
+'Optional - Any data (will be passed back in the callback unmodified)
+'
+'Notification-Callback-Context-Type: <string>
+'Optional, but Required if 'Notification-Callback-Context' is passed - The type of data being passed in Notification-Callback-Context (will be passed back in the callback unmodified). This does not need to be of any pre-defined type, it is only a convenience to the sending application.
+'
+'Notification-Callback-Target: <string>
+'Optional - An alternate target for callbacks from this notification. If passed, the standard behavior of performing the callback over the original socket will be ignored and the callback data will be passed
+
+
+    ' /* end marker */
+
+    szc = szc & vbCrLf & vbCrLf
+
+    uCreateGNTPNotify = szc
+
+End Function
+

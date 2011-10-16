@@ -160,19 +160,23 @@ Private Function BWndProcSink_WndProc(ByVal hWnd As Long, ByVal uMsg As Long, By
 '        If (wParam = SC_SCREENSAVE) And (g_ConfigGet("auto_sticky_on_screensaver") = 1) Then _
 
 
-    Case MSG_SHOW_PREFS
+    Case WM_SNARL_COMMAND
         Select Case wParam
-        Case 1
+        Case SN_DP_INSTALL
             ' /* install specified style engine or extension */
 '            uInstall uAtomName(lParam)
 
-        Case 2
+        Case SN_DP_CONFIGURE
             ' /* configure specified style engine or extension */
             uConfigure uAtomName(lParam)
 
-        Case Is > 2
+        Case SN_DP_RESTART To SN_DP_LOAD
             ' /* configure specified style engine or extension */
             uProcessArg wParam, uAtomName(lParam)
+
+        Case SN_DP_RESTART_STYLE_ROSTER
+            If Not (g_StyleRoster Is Nothing) Then _
+                g_StyleRoster.Restart
 
         Case Else
             frmAbout.NewDoPrefs
@@ -214,10 +218,10 @@ Private Function uManageSnarl(ByVal wParam As Long, ByVal lParam As Long) As Lon
             ' /* enable sticky option */
             g_ConfigSet "sticky_snarls", IIf(g_ConfigGet("sticky_snarls") = "1", "0", "1")
 
-        Case 2
-            ' /* show missed panel */
-            If Not (g_NotificationRoster Is Nothing) Then _
-                g_NotificationRoster.ShowMissedPanel
+'        Case 2
+'            ' /* show missed panel */
+'            If Not (g_NotificationRoster Is Nothing) Then _
+'                g_NotificationRoster.ShowMissedPanel
 
         End Select
 
@@ -494,7 +498,7 @@ Dim sz As String
 
         End If
 
-    Case SNARL_HIDE
+    Case SNARL_HIDE_COMMAND
         uDoCmd = g_NotificationRoster.Hide(pss.Id, "", "", "")
 
     Case SNARL_UPDATE
@@ -580,7 +584,7 @@ Dim sz As String
 
         End If
 
-    Case SNARL_ADD_CLASS
+    Case SNARL_ADD_CLASS_
         ' /* added as private in V38, will be doc'd in V39 */
         If Not (g_AppRoster Is Nothing) Then
             uDoCmd = gfAddClass(pss.Timeout, g_UTF8(pss.Text), pss.LngData2, g_UTF8(pss.Title))

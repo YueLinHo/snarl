@@ -230,7 +230,7 @@ Dim lr As VbMsgBoxResult
 
             Case 3
                 ' /* unregister */
-                lr = MsgBox("Do you want to delete the settings for " & mCurrentApp.Name & "?", _
+                lr = MsgBox("Do you want to delete the settings for " & mCurrentApp.Name & "?  (If you're not sure, select 'No').", _
                             vbQuestion Or vbYesNoCancel, _
                             "Unregister Application")
 

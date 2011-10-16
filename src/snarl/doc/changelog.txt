@@ -1,6 +1,65 @@
 
 	Snarl Change Log
 
+	- Notification details menu now includes the source computer in the application
+	  name.  (43.32)
+
+	- Improvements to forwarding code.  (43.32)
+
+	- "Log to history" is now a 3-state control with the ability for the app to
+	  suggest what should be done if the user allows it.  The app can do this by
+	  supplying "log=0" within the <notify> command to prevent the notification
+	  from being logged, otherwise it gets logged.  (43.31)
+
+	- Snarl no longer creates an empty file when an invalid icon path is
+	  provided.  (43.31)
+
+	- Notifications can now be replyed even while DnD mode is enabled.  (43.31)
+
+	- Changed "Missed Notifications..." menu item to a menu parent which will
+	  open a submenu of (at most) the last 10 missed notifications.  Selecting
+	  an entry from the menu will reply the notification.  (43.31)
+
+	- Added GNTP flash policy support.  (43.30)
+
+	- Added "Restory Factory Settings" button to [Advanced] page (suggested
+	  by Shawn) which currently renames "config41.snarl", "styledefaults.conf"
+	  and anything with the extension of ".class" to "xxx.backup", launches
+	  the new DelayLoad app, and quits Snarl.  (43.29)
+
+	- Added priority background, title and text colours to default style
+	  settings.  (43.21)
+
+	- Pass-Thru implemented.  This only applies when the user is Active (that
+	  is, when they're neither Away nor Busy).  (43.21)
+
+	- Moved [Pass-Thru] from [Display] into [Presence->Active].  (43.21)
+
+	- Command-line parser now supports .runz and .webforward files which are
+	  copied/extracted accordingly.  (43.20)
+
+	- Can now drag-and-drop .runz (zipped runnable styles) and .webforward
+	  files onto the Preferences panel.  Snarl will copy/extract accordingly
+	  and re-load styles.  (43.20)
+
+	- Added "never_ban" setting to the per-application config - if this
+	  is set to 1 the application will never be banned by Snarl.  (43.20)
+
+	- Improved way Missed and History lists are managed.  (43.20)
+
+	- History and Missed lists now limited to 1,000 items.  (43.19)
+
+	- NOTIFY will now register and the application if "app-sig" and "app-
+	  title" are both supplied.  It will also add the required class if
+	  "class-id" and "class-name" are supplied.  (43.18)
+
+	- Listen for JSON and SNP/GNTP now enabled by default.  (43.15)
+
+	- Now listen on 5233 as well.  (43.15)
+
+	- Moved Missed Notifications into [History] page under new "Missed"
+	  tab.  Suggested by Shawn.  (43.14)
+
 	- Added support for scripted callbacks.  (43.8)
 
 	- Extensions can now provide resource-based icons in extension_info->

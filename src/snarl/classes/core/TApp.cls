@@ -62,6 +62,7 @@ End Function
 Private Sub Class_Initialize()
 
     mInfo.Name = "Snarl"
+    mInfo.Signature = App.ProductName
 
 End Sub
 
@@ -81,7 +82,7 @@ Dim f As Boolean
 
     LSet mInfo = Info
     mIsUnknown = False
-    
+
     Set mCachedIcon = load_image_obj(mInfo.Icon)
 
     ' /* do we have a config file for this app? */
@@ -616,19 +617,44 @@ Public Function AddClass(ByRef Data As BPackedData, Optional ByRef ClassObject A
 
     End If
 
-    If Not Data.Exists("id") Then
-        g_Debug "TApp.AddClass(): required arg 'id' missing", LEMON_LEVEL_CRITICAL
+Dim szId As String
+
+    ' /* R2.5 Beta 2: support for adding classes via NOTIFY */
+
+    If Data.Exists("class-id") Then
+        szId = Data.ValueOf("class-id")
+
+    ElseIf Data.Exists("id") Then
+        szId = Data.ValueOf("id")
+
+    End If
+
+    ' /* arg checking */
+
+    If szId = "" Then
+        g_Debug "TApp.AddClass(): required arg 'class-id/id' missing", LEMON_LEVEL_CRITICAL
         gSetLastError SNARL_ERROR_ARG_MISSING
         Exit Function
 
     End If
 
-    If Not Data.Exists("name") Then
-        g_Debug "TApp.AddClass(): required arg 'name' missing", LEMON_LEVEL_CRITICAL
-        gSetLastError SNARL_ERROR_ARG_MISSING
-        Exit Function
+
+Dim szName As String
+
+    ' /* R2.5 Beta 2: support for adding classes via NOTIFY */
+
+    If Data.Exists("class-name") Then
+        szName = Data.ValueOf("class-name")
+
+    ElseIf Data.Exists("name") Then
+        szName = Data.ValueOf("name")
 
     End If
+
+    ' /* name isn't mandatory so set it from id */
+
+    If szName = "" Then _
+        szName = szId
 
     ' /* enabled/disabled (backwards compatability with pre-release editions) */
 
@@ -642,7 +668,7 @@ Dim lFlags As SN_CLASS_FLAGS
 
     ' /* Use AddAlert() to actually add the class to our app - LastError will be set on failure */
 
-    If AddAlert(Data.ValueOf("id"), Data.ValueOf("name"), ClassObject, lFlags) <> M_OK Then _
+    If AddAlert(szId, szName, ClassObject, lFlags) <> M_OK Then _
         Exit Function
 
     ' /* do some V41 post-initialization */
@@ -997,13 +1023,15 @@ Public Function IsBanned() As Boolean
 End Function
 
 Private Function uCheckDOS() As Boolean
-Const BAN_NUMBER = 10           ' // this many...
-Const BAN_LIMIT = 500           ' // ...within this time (in ms) = a ban
 
-Const BAN_QUANTUM = BAN_LIMIT / BAN_NUMBER
+    ' /* R2.5 Beta 2: ignore if app's "never_ban" setting is enabled */
 
-    If g_ConfigGet("block_dos_attempt") = "0" Then _
+    If (g_ConfigGet("block_dos_attempt") = "0") Or (mAppConfig.GetValueWithDefault("never_ban", "0") = "1") Then _
         Exit Function
+
+Const BAN_NUMBER = 10                           ' // this many...
+Const BAN_LIMIT = 500                           ' // ...within this time (in ms) = a ban
+Const BAN_QUANTUM = BAN_LIMIT / BAN_NUMBER      ' // so this is the per-notification trigger
 
     If mIsBanned Then
         g_Debug "TApp.uCheckDOS(): '" & mInfo.Signature & "' is banned", LEMON_LEVEL_CRITICAL

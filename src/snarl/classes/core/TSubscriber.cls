@@ -51,7 +51,6 @@ Dim WithEvents theTimer As BTimer
 Attribute theTimer.VB_VarHelpID = -1
 
 Dim mType As SN_SUBSCRIBER_TYPE
-'Dim mData As BPackedData
 Dim mApps As BTagList               ' // which app(s) we're subscribed to - an empty list means "all"
 
 Dim mRemoteAddr As String           ' // where to forward notifications or computer to subscribe to
@@ -59,10 +58,8 @@ Dim mDescription As String
 Dim mPassword As String
 Dim mGuid As String
 
-'Dim mContent As BTagList
-Dim mForwarders As BTagList
 Dim mSuccess As Boolean
-'Dim mBusy As Boolean
+Dim mCache As BTagList              ' // requests are cached while we wait for the socket to connect
 
 Dim mEnabled As Boolean
 Dim mConfig As ConfigSection
@@ -86,6 +83,8 @@ End Function
 
 Private Sub Class_Initialize()
 
+    Set mCache = new_BTagList()
+
     mEnabled = True     ' // temp
 
 End Sub
@@ -93,7 +92,7 @@ End Sub
 Private Sub theSocket_OnClose()
 
     Set theSocket = Nothing
-'    MsgBox "Closed"
+    MsgBox "Closed"
 
 '    g_SubsRoster.Remove theSocket, mType, mData
 '    frmAbout.SubscribersChanged
@@ -101,15 +100,24 @@ Private Sub theSocket_OnClose()
 End Sub
 
 Public Function SetFrom(ByRef Config As ConfigSection) As Boolean
-Dim aType As SN_SUBSCRIBER_TYPE
 
     ' /* configure from an existing (or recently created ConfigSection).  This implies
     '    persistency and thus means we're either a forwarder or a subscription to a
     '    remote computer */
 
-    aType = g_SafeLong(Config.GetValueWithDefault("type", ""))
 
-    Select Case aType
+    ' /* provided IP cannot be same as this computer (or NULL) */
+    mRemoteAddr = Config.GetValueWithDefault("remotehost", "")
+
+    If (mRemoteAddr = "") Or (InStr(get_ip_address_table(), mRemoteAddr) <> 0) Then
+        g_Debug "TSubscriber.SetFrom(): invalid IP address '" & mRemoteAddr & "'", LEMON_LEVEL_CRITICAL
+        Exit Function
+
+    End If
+
+    mType = g_SafeLong(Config.GetValueWithDefault("type", ""))
+
+    Select Case mType
     Case SN_ST_GNTP_FORWARD, SN_ST_GNTP_SUBSCRIPTION, SN_ST_SNP3_FORWARD, SN_ST_SNP3_SUBSCRIPTION
 
     Case Else
@@ -118,28 +126,46 @@ Dim aType As SN_SUBSCRIBER_TYPE
 
     End Select
 
-Dim sDest As String
+    ' /* initialize */
 
-    sDest = Config.GetValueWithDefault("remotehost", "")
+    Set mConfig = Config
+    mGuid = Config.Name
+    mDescription = Config.GetValueWithDefault("description", "")
     mEnabled = (Config.GetValueWithDefault("enabled", "0") = "1")
 
-    If Not (Config Is Nothing) Then _
-        SetFrom = uInit(Config.Name, aType, Config.GetValueWithDefault("description", ""), _
-                        sDest, Config.GetValueWithDefault("apps", ""), Config)
+    ' /* TO-DO: allow forwarding or subscribing to named apps */
+    Set mApps = new_BTagList()
+    '// Config.GetValueWithDefault("apps", "")
 
-    If Not SetFrom Then _
-        Exit Function
+    ' /* create the socket */
 
-    ' /* if it's a subscription, we need to create the socket and send the request */
+    Select Case mType
 
-    Select Case aType
-
-    Case SN_ST_SNP3_SUBSCRIPTION, SN_ST_GNTP_SUBSCRIPTION
-        g_Debug "TSubscriber.SetFrom(): connecting to '" & sDest & "'..."
+    Case SN_ST_SNP3_FORWARD
+        g_Debug "TSubscriber.SetFrom(): creating as SNP3 forwarder to '" & mRemoteAddr & "'..."
         Set theSocket = New CSocket
-        theSocket.Connect sDest, IIf(aType = SN_ST_SNP3_SUBSCRIPTION, SNP_DEFAULT_PORT, GNTP_DEFAULT_PORT)
+        theSocket.Connect mRemoteAddr, SNP_DEFAULT_PORT
+
+    Case SN_ST_GNTP_FORWARD
+        g_Debug "TSubscriber.SetFrom(): GNTP forwarder not currently implemented", LEMON_LEVEL_WARNING
+        Exit Function
+'        Set theSocket = New CSocket
+'        theSocket.Connect mRemoteAddr, GNTP_DEFAULT_PORT
+
+    Case SN_ST_SNP3_SUBSCRIPTION
+        g_Debug "TSubscriber.SetFrom(): subscribing as SNP3 to '" & mRemoteAddr & "'..."
+        Set theSocket = New CSocket
+        theSocket.Connect mRemoteAddr, SNP_DEFAULT_PORT
+
+    Case SN_ST_GNTP_SUBSCRIPTION
+        g_Debug "TSubscriber.SetFrom(): GNTP subscriber not currently implemented", LEMON_LEVEL_WARNING
+        Exit Function
+'        Set theSocket = New CSocket
+'        theSocket.Connect mRemoteAddr, GNTP_DEFAULT_PORT
 
     End Select
+
+    SetFrom = True
 
 End Function
 
@@ -175,128 +201,152 @@ Public Function uInit(ByVal Guid As String, ByVal SubType As SN_SUBSCRIBER_TYPE,
 
     Set theSocket = Socket
     Set mApps = new_BTagList()
-    Set mForwarders = new_BTagList()
 
     uInit = True
 
 End Function
 
+Public Function Send(ByVal Content As String) As Boolean
 
-'Public Sub SetTo(ByRef Socket As CSocket, ByVal SubscriberType As SN_SUBSCRIBER_TYPE, ByRef Data As BPackedData)
-'
-'    Set theSocket = Socket
-'    mType = SubscriberType
-'    Set mData = Data
-'    Set mApps = new_BTagList()
-'
-'    mDest = Socket.RemoteHostIP & " (" & theSocket.RemoteHost & ")"
-'
-'    If Not (mData Is Nothing) Then
-'        mPassword = Data.ValueOf("password")
-'        AddApps mData
-'
-'    Else
-'        g_Debug "TSubscriber.SetTo(): Data missing", LEMON_LEVEL_WARNING
-'
-'    End If
-'
-'End Sub
+    If ISNULL(theSocket) Then _
+        Exit Function
 
-Public Function Forward(ByVal Content As String) As Boolean
-Dim pf As TForwarder
+    ' /* if we're connected to the remote destination send immediately
+    '    otherwise cache content */
 
     Select Case mType
-    
     Case SN_ST_SNP3_FORWARD
-        ' /* create a new forwarder: this will send the content
-        '    once it has connected successfully */
-        Set pf = New TForwarder
-        If pf.Init(g_CreateGUID(True), Me, Content, False) Then _
-            mForwarders.Add pf
+        If theSocket.State = sckConnected Then
+            Debug.Print "TSubscriber.Forward(): sending content..."
+            theSocket.SendData Content
 
-    Case SN_ST_SNP3_SUBSCRIBER
+        Else
+            Debug.Print "TSubscriber.Forward(): caching content..."
+            mCache.Add new_BTagItem(Content, "")
+            If mCache.CountItems > 32 Then
+                g_Debug "TSubscriber.Forward(): pruning cache..."
+                mCache.Remove 1
+        
+            End If
 
-'        If theSocket.State <> sckConnected Then
-'            g_Debug "TSubscriber.Forward(): no longer connected to subscriber", LEMON_LEVEL_CRITICAL
-'            ' /* TO DO: remove subscriber */
-'            Exit Function
+        End If
+
+
+    Case SN_ST_GNTP_FORWARD
+        ' /* need to create a REGISTRATION packet and a NOTIFY
+        '    packet and send them both */
+
+'        sz = uCreateGNTPForward(Content)
+'        szn = uCreateGNTPNotify(Content)
+'        If theSocket.State = sckConnected Then
+'            Debug.Print "TSubscriber.Forward(): sending registration..."
+'            theSocket.SendData sz
+'            theSocket.SendData szn
 '
-'        End If
-'
-'        ' /* SNP 3.0 subscription (sent as FORWARD) */
-'
-'        sz = "SNP/3.0 FORWARD" & vbCrLf
-'
-'        ' /* add app info */
-'
-'        sz = sz & "app-signature: " & App.Signature & vbCrLf
-'        sz = sz & "app-name: " & App.Name & vbCrLf
-'
-'        ' /* add selected parts of the content */
-'
-''        Set ppd = New BPackedData
-''        content.SetTo Content
-'
-'        ' /* standard components */
-'
-'        sz = sz & "class: " & Content.ValueOf("id") & vbCrLf
-'        sz = sz & "title: " & Replace$(Content.ValueOf("title"), vbCrLf, "\n") & vbCrLf
-'        sz = sz & "text: " & Replace$(Content.ValueOf("text"), vbCrLf, "\n") & vbCrLf
-'        sz = sz & "priority: " & Content.ValueOf("priority") & vbCrLf
-'        sz = sz & "uid: " & Content.ValueOf("uid") & vbCrLf                 ' // TO DO: should we prefix with sender host name?
-'
-'        ' /* icon */
-'
-'        szn = Content.ValueOf("icon")
-'        If szn <> "" Then
-'            If (LCase$(g_SafeLeftStr(szn, 7)) = "http://") Or _
-'               (LCase$(g_SafeLeftStr(szn, 8)) = "https://") Or _
-'               (LCase$(g_SafeLeftStr(szn, 1)) = "!") Then
-'                ' /* add verbatim */
-'                sz = sz & "icon: " & szn & vbCrLf
-'
-'            Else
-'                ' /* encode it in a slightly modified Base64 format (CRLF's are replaced with #'s) */
-'                If uEncodeIcon(szn, szv) Then _
-'                    sz = sz & "icon-phat64: " & szv & vbCrLf
+'        Else
+'            Debug.Print "TSubscriber.Forward(): caching content..."
+'            mCache.Add new_BTagItem(sz, "")
+'            mCache.Add new_BTagItem(szn, "")
+'            If mCache.CountItems > 64 Then
+'                g_Debug "TSubscriber.Forward(): pruning cache..."
+'                mCache.Remove 1
+'                mCache.Remove 1
 '
 '            End If
 '
-'            szn = ""
-'            szv = ""
-'
 '        End If
-'
-'        ' /* add data-*, label-* and value-* elements */
-'
-'        With Content
-'            .Rewind
-'            Do While .GetNextItem(szn, szv)
-'                If (LCase$(g_SafeLeftStr(szn, 5)) = "data-") Or _
-'                   (LCase$(g_SafeLeftStr(szn, 6)) = "label-") Or _
-'                   (LCase$(g_SafeLeftStr(szn, 6)) = "value-") Then _
-'                    sz = sz & szn & ": " & szv & vbCrLf
-'
-'            Loop
-'
-'        End With
-'
-'        ' /* standard headers */
-'
-'        sz = sz & "x-timestamp: " & Format$(Now(), "d mmm yyyy hh:mm:ss") & vbCrLf
-'        sz = sz & "x-daemon: " & "Snarl " & CStr(APP_VER) & "." & CStr(APP_SUB_VER) & vbCrLf
-'        sz = sz & "x-host: " & LCase$(g_GetComputerName()) & vbCrLf
-'
-'        sz = sz & "END" & vbCrLf
-'        theSocket.SendData sz
-'
-'
-'    Case SN_ST_GNTP
-
 
 
 
     End Select
+
+
+
+
+'
+'    Case SN_ST_SNP3_SUBSCRIBER
+'
+''        If theSocket.State <> sckConnected Then
+''            g_Debug "TSubscriber.Forward(): no longer connected to subscriber", LEMON_LEVEL_CRITICAL
+''            ' /* TO DO: remove subscriber */
+''            Exit Function
+''
+''        End If
+''
+''        ' /* SNP 3.0 subscription (sent as FORWARD) */
+''
+''        sz = "SNP/3.0 FORWARD" & vbCrLf
+''
+''        ' /* add app info */
+''
+''        sz = sz & "app-signature: " & App.Signature & vbCrLf
+''        sz = sz & "app-name: " & App.Name & vbCrLf
+''
+''        ' /* add selected parts of the content */
+''
+'''        Set ppd = New BPackedData
+'''        content.SetTo Content
+''
+''        ' /* standard components */
+''
+''        sz = sz & "class: " & Content.ValueOf("id") & vbCrLf
+''        sz = sz & "title: " & Replace$(Content.ValueOf("title"), vbCrLf, "\n") & vbCrLf
+''        sz = sz & "text: " & Replace$(Content.ValueOf("text"), vbCrLf, "\n") & vbCrLf
+''        sz = sz & "priority: " & Content.ValueOf("priority") & vbCrLf
+''        sz = sz & "uid: " & Content.ValueOf("uid") & vbCrLf                 ' // TO DO: should we prefix with sender host name?
+''
+''        ' /* icon */
+''
+''        szn = Content.ValueOf("icon")
+''        If szn <> "" Then
+''            If (LCase$(g_SafeLeftStr(szn, 7)) = "http://") Or _
+''               (LCase$(g_SafeLeftStr(szn, 8)) = "https://") Or _
+''               (LCase$(g_SafeLeftStr(szn, 1)) = "!") Then
+''                ' /* add verbatim */
+''                sz = sz & "icon: " & szn & vbCrLf
+''
+''            Else
+''                ' /* encode it in a slightly modified Base64 format (CRLF's are replaced with #'s) */
+''                If uEncodeIcon(szn, szv) Then _
+''                    sz = sz & "icon-phat64: " & szv & vbCrLf
+''
+''            End If
+''
+''            szn = ""
+''            szv = ""
+''
+''        End If
+''
+''        ' /* add data-*, label-* and value-* elements */
+''
+''        With Content
+''            .Rewind
+''            Do While .GetNextItem(szn, szv)
+''                If (LCase$(g_SafeLeftStr(szn, 5)) = "data-") Or _
+''                   (LCase$(g_SafeLeftStr(szn, 6)) = "label-") Or _
+''                   (LCase$(g_SafeLeftStr(szn, 6)) = "value-") Then _
+''                    sz = sz & szn & ": " & szv & vbCrLf
+''
+''            Loop
+''
+''        End With
+''
+''        ' /* standard headers */
+''
+''        sz = sz & "x-timestamp: " & Format$(Now(), "d mmm yyyy hh:mm:ss") & vbCrLf
+''        sz = sz & "x-daemon: " & "Snarl " & CStr(APP_VER) & "." & CStr(APP_SUB_VER) & vbCrLf
+''        sz = sz & "x-host: " & LCase$(g_GetComputerName()) & vbCrLf
+''
+''        sz = sz & "END" & vbCrLf
+''        theSocket.SendData sz
+''
+''
+''    Case SN_ST_GNTP
+'
+'
+'
+'
+'    End Select
 
 End Function
 
@@ -458,20 +508,35 @@ Public Function Guid() As String
 End Function
 
 Private Sub theSocket_OnConnect()
+Dim pt As BTagItem
 
     Select Case mType
     Case SN_ST_SNP3_SUBSCRIPTION
-        g_Debug "TSubscriber.OnConnect(): SNP3 subscription here", LEMON_LEVEL_INFO
+        g_Debug "TSubscriber.OnConnect(): SNP3 subscriptions are not currently implemented", LEMON_LEVEL_WARNING
 
     Case SN_ST_GNTP_SUBSCRIPTION
         g_Debug "TSubscriber.OnConnect(): GNTP subscriptions are not currently implemented", LEMON_LEVEL_WARNING
+
+
+    Case SN_ST_SNP3_FORWARD, SN_ST_GNTP_FORWARD
+        g_Debug "TSubscriber.OnConnect(): [SN_ST_x_FORWARD] now connected to '" & theSocket.RemoteHost & "'"
+
+        With mCache
+            .Rewind
+            Do While .GetNextTag(pt) = B_OK
+                theSocket.SendData pt.Name
+
+            Loop
+
+            .MakeEmpty
+
+        End With
 
     Case Else
         g_Debug "TSubscriber.OnConnect(): spurious connection (dest=" & mRemoteAddr & " type=" & g_HexStr(mType, 2) & ")", LEMON_LEVEL_WARNING
 
     End Select
     
-    theSocket.CloseSocket       ' // temp
     Set theTimer = Nothing
 
 End Sub
@@ -489,27 +554,6 @@ Private Sub theTimer_Pulse()
     Set theSocket = Nothing
 
 End Sub
-
-
-
-'Private Sub uSendNext()
-'Dim sz As String
-'
-'    If mContent.CountItems > 0 Then
-'        mBusy = True
-'        sz = mContent.TagAt(1).Value
-'        mContent.Remove 1
-'        Debug.Print "^sending '" & sz & "'...^"
-'        theSocket.SendData sz
-'
-'    Else
-'        mBusy = False
-''        theSocket.CloseSocket
-''        Set theSocket = Nothing
-'
-'    End If
-'
-'End Sub
 
 Public Sub SetEnabled(ByVal Enabled As Boolean)
 
@@ -530,8 +574,13 @@ Public Function IsEnabled() As Boolean
 
 End Function
 
-Public Sub RemoveForward(ByVal Guid As String)
+Public Function IsConnected() As Boolean
 
-    mForwarders.Remove mForwarders.IndexOf(Guid)
+    If NOTNULL(theSocket) Then _
+        IsConnected = (theSocket.State = sckConnected)
 
-End Sub
+End Function
+
+
+
+

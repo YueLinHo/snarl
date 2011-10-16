@@ -40,139 +40,139 @@ Private Sub KPrefsPage_Attached()
 End Sub
 
 Private Sub KPrefsPage_ControlChanged(Control As prefs_kit_d2.BControl, ByVal Value As String)
-Dim pmi As OMMenuItem
-Dim pc As BControl
-Dim sz As String
-Dim i As Long
-
-    Select Case Control.GetName()
-    Case "item_list"
-        Set mSelected = g_NotificationRoster.MissedList.TagAt(Val(Value))
-
-        ' /* toolbar */
-        prefskit_SafeEnable mPanel, "toolbar_options", (Value <> "0")
-
-        If mPanel.Find("toolbar_options", pc) Then
-            prefskit_SetItem pc, 1, "enabled", IIf(mSelected.Info.DefaultAck <> "", 1&, 0&)
-            prefskit_SetItem pc, 2, "enabled", IIf(mSelected.Info.Actions.CountItems, 1&, 0&)
-
-        End If
-
+'Dim pmi As OMMenuItem
+'Dim pc As BControl
 'Dim sz As String
-
-        sz = Replace$(mSelected.Info.Title, vbCrLf, "¶ ")
-        If sz <> "" Then _
-            sz = sz & vbCrLf
-
-        sz = sz & Replace$(mSelected.Info.Text, vbCrLf, "¶ ")
-
-        prefskit_SafeSetText mPanel, "the_detail", sz
-
-Dim pm As CTempMsg
-
-        Set pm = New CTempMsg
-        pm.Add "image-file", g_TranslateIconPath(mSelected.Info.IconPath, "")
-        If mPanel.Find("the_icon", pc) Then _
-            pc.DoExCmd B_SET_ITEM, pm
-
-
-'        prefskit_SafeSetText mPanel, "the_title", Replace$(mSelected.Title, vbCrLf, "¶ ")
-'        prefskit_SafeSetText mPanel, "the_text", Replace$(mSelected.Text, vbCrLf, "¶ ")
-'        prefskit_SafeEnable mPanel, "fb>ack", (mSelected.DefaultAck <> "")
+'Dim i As Long
 '
-'Debug.Print "********************************* " & mSelected.Actions.CountItems
+'    Select Case Control.GetName()
+'    Case "item_list"
+'        Set mSelected = g_NotificationRoster.MissedList.TagAt(Val(Value))
 '
-'        sz = Format$(mSelected.DateStamp, "hh:mm:ss") & _
-'             IIf(DateDiff("d", Now, mSelected.DateStamp) = "0", " today", " on " & Format$(mSelected.DateStamp, "short date")) & vbCrLf & _
-'             Replace$(mSelected.ClassObj.App.Name, vbCrLf, "¶ ") & " (" & mSelected.ClassObj.Description & ")"
+'        ' /* toolbar */
+'        prefskit_SafeEnable mPanel, "toolbar_options", (Value <> "0")
 '
-'        If mSelected.RemoteHost <> "" Then _
-'        If Not (mSelected.Socket Is Nothing) Then _
-'            sz = sz & " on " & mSelected.RemoteHost
+'        If mPanel.Find("toolbar_options", pc) Then
+'            prefskit_SetItem pc, 1, "enabled", IIf(mSelected.Info.DefaultAck <> "", 1&, 0&)
+'            prefskit_SetItem pc, 2, "enabled", IIf(mSelected.Info.Actions.CountItems, 1&, 0&)
 '
-''        If mSelected.DefaultAck <> "" Then _
-'            sz = sz & "  Callback: " & mSelected.DefaultAck
+'        End If
+'
+''Dim sz As String
+'
+'        sz = Replace$(mSelected.Info.Title, vbCrLf, "¶ ")
+'        If sz <> "" Then _
+'            sz = sz & vbCrLf
+'
+'        sz = sz & Replace$(mSelected.Info.Text, vbCrLf, "¶ ")
 '
 '        prefskit_SafeSetText mPanel, "the_detail", sz
-''        prefskit_SafeSetText mPanel, "the_callback", Replace$(mSelected.DefaultAck, vbCrLf, "¶ ")
 '
-''        prefskit_SafeSetText mPanel, "sending_app", "Sent from " & mSelected.Sender & " using class '" & mSelected.Class & "'"
-''        prefskit_SafeSetText mPanel, "sending_class", mSelected.Class
+'Dim pm As CTempMsg
 '
-    Case "toolbar_options"
-
-        Select Case Val(Value)
-        Case 1
-            If mSelected.Info.DefaultAck <> "" Then _
-                g_ProcessAck mSelected.Info.DefaultAck
-
-        Case 2
-            With New OMMenu
-                For i = 1 To mSelected.Info.Actions.CountItems
-                    .AddItem .CreateItem(mSelected.Info.Actions.TagAt(i).Value, mSelected.Info.Actions.TagAt(i).Name)
-                    If i < mSelected.Info.Actions.CountItems Then _
-                        .AddSeparator
-
-                Next i
-
-                Set pmi = .Track(Control.Page.Panel.hWnd)
-                If Not (pmi Is Nothing) Then
-                    If g_SafeLeftStr(pmi.Name, 1) = "@" Then
-                        ' /* TO-DO: dynamic callback */
-
-                    Else
-                        g_ProcessAck pmi.Name
-
-                    End If
-                End If
-
-            End With
-
-        Case 3
-            ' /* copy to clipboard */
-            Clipboard.Clear
-            Clipboard.SetText mSelected.Info.Title & vbCrLf & mSelected.Info.Text & vbCrLf & mSelected.Info.ClassObj.App.Name
-
-        Case 4
-            ' /* display */
-            If Not g_IsDND() Then _
-                g_NotificationRoster.Add mSelected.Info, Nothing
-
-        End Select
-
-    End Select
+'        Set pm = New CTempMsg
+'        pm.Add "image-file", g_TranslateIconPath(mSelected.Info.IconPath, "")
+'        If mPanel.Find("the_icon", pc) Then _
+'            pc.DoExCmd B_SET_ITEM, pm
+'
+'
+''        prefskit_SafeSetText mPanel, "the_title", Replace$(mSelected.Title, vbCrLf, "¶ ")
+''        prefskit_SafeSetText mPanel, "the_text", Replace$(mSelected.Text, vbCrLf, "¶ ")
+''        prefskit_SafeEnable mPanel, "fb>ack", (mSelected.DefaultAck <> "")
+''
+''Debug.Print "********************************* " & mSelected.Actions.CountItems
+''
+''        sz = Format$(mSelected.DateStamp, "hh:mm:ss") & _
+''             IIf(DateDiff("d", Now, mSelected.DateStamp) = "0", " today", " on " & Format$(mSelected.DateStamp, "short date")) & vbCrLf & _
+''             Replace$(mSelected.ClassObj.App.Name, vbCrLf, "¶ ") & " (" & mSelected.ClassObj.Description & ")"
+''
+''        If mSelected.RemoteHost <> "" Then _
+''        If Not (mSelected.Socket Is Nothing) Then _
+''            sz = sz & " on " & mSelected.RemoteHost
+''
+'''        If mSelected.DefaultAck <> "" Then _
+''            sz = sz & "  Callback: " & mSelected.DefaultAck
+''
+''        prefskit_SafeSetText mPanel, "the_detail", sz
+'''        prefskit_SafeSetText mPanel, "the_callback", Replace$(mSelected.DefaultAck, vbCrLf, "¶ ")
+''
+'''        prefskit_SafeSetText mPanel, "sending_app", "Sent from " & mSelected.Sender & " using class '" & mSelected.Class & "'"
+'''        prefskit_SafeSetText mPanel, "sending_class", mSelected.Class
+''
+'    Case "toolbar_options"
+'
+'        Select Case Val(Value)
+'        Case 1
+'            If mSelected.Info.DefaultAck <> "" Then _
+'                g_ProcessAck mSelected.Info.DefaultAck
+'
+'        Case 2
+'            With New OMMenu
+'                For i = 1 To mSelected.Info.Actions.CountItems
+'                    .AddItem .CreateItem(mSelected.Info.Actions.TagAt(i).Value, mSelected.Info.Actions.TagAt(i).Name)
+'                    If i < mSelected.Info.Actions.CountItems Then _
+'                        .AddSeparator
+'
+'                Next i
+'
+'                Set pmi = .Track(Control.Page.Panel.hWnd)
+'                If Not (pmi Is Nothing) Then
+'                    If g_SafeLeftStr(pmi.Name, 1) = "@" Then
+'                        ' /* TO-DO: dynamic callback */
+'
+'                    Else
+'                        g_ProcessAck pmi.Name
+'
+'                    End If
+'                End If
+'
+'            End With
+'
+'        Case 3
+'            ' /* copy to clipboard */
+'            Clipboard.Clear
+'            Clipboard.SetText mSelected.Info.Title & vbCrLf & mSelected.Info.Text & vbCrLf & mSelected.Info.ClassObj.App.Name
+'
+'        Case 4
+'            ' /* display */
+'            If Not g_IsDND() Then _
+'                g_NotificationRoster.Add mSelected.Info, Nothing
+'
+'        End Select
+'
+'    End Select
 
 End Sub
 
 Private Sub KPrefsPage_ControlInvoked(Control As prefs_kit_d2.BControl)
-Dim pc As BControl
-
-    Select Case Control.GetName()
-    Case "fb>clear"
-        If Not (g_NotificationRoster Is Nothing) Then
-            g_NotificationRoster.ClearMissedList
-            UpdateList
-
-            prefskit_SafeSetText mPanel, "the_title", ""
-            prefskit_SafeSetText mPanel, "the_text", ""
-            prefskit_SafeSetText mPanel, "sending_app", ""
-
-        End If
-
-
-    Case "fb>ack"
-        If mSelected.Info.DefaultAck <> "" Then
-            g_ProcessAck mSelected.Info.DefaultAck
-
-        ElseIf (IsWindow(mSelected.Info.hWndReply) <> 0) And (mSelected.Info.uReplyMsg <> 0) Then
-            PostMessage mSelected.Info.hWndReply, mSelected.Info.uReplyMsg, SNARL_CALLBACK_INVOKED, ByVal mSelected.Info.Token
-
-        Else
-            Debug.Print "TMissedNotificationsPanel.fb>ack(): no ack or reply window/message"
-
-        End If
-
-    End Select
+'Dim pc As BControl
+'
+'    Select Case Control.GetName()
+'    Case "fb>clear"
+'        If Not (g_NotificationRoster Is Nothing) Then
+'            g_NotificationRoster.ClearMissedList
+'            UpdateList
+'
+'            prefskit_SafeSetText mPanel, "the_title", ""
+'            prefskit_SafeSetText mPanel, "the_text", ""
+'            prefskit_SafeSetText mPanel, "sending_app", ""
+'
+'        End If
+'
+'
+'    Case "fb>ack"
+'        If mSelected.Info.DefaultAck <> "" Then
+'            g_ProcessAck mSelected.Info.DefaultAck
+'
+'        ElseIf (IsWindow(mSelected.Info.hWndReply) <> 0) And (mSelected.Info.uReplyMsg <> 0) Then
+'            PostMessage mSelected.Info.hWndReply, mSelected.Info.uReplyMsg, SNARL_CALLBACK_INVOKED, ByVal mSelected.Info.Token
+'
+'        Else
+'            Debug.Print "TMissedNotificationsPanel.fb>ack(): no ack or reply window/message"
+'
+'        End If
+'
+'    End Select
 
 End Sub
 

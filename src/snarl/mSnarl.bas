@@ -23,6 +23,7 @@ Public Const SNP_VERSION = "3.0"
 Public Const GNTP_DEFAULT_PORT = 23053
 Public Const SNP_DEFAULT_PORT = 9887
 Public Const JSON_DEFAULT_PORT = 9889
+Public Const MELON_DEFAULT_PORT = 5233
 
     ' /* private V43 Snarl App flags */
 Public Const SNARLAPP_IS_DAEMON = &H4000&
@@ -34,7 +35,7 @@ Public Enum SOS_ERRORS
     SOS_MISSING_ROSTER                      '// one of the rosters is unavailable
     SOS_SPURIOUS_MANAGE                     '// reserved for unhandled WM_MANAGESNARL
     SOS_SPURIOUS_TEST                       '// unhandled WM_SNARLTEST
-    SOS_SPURIOUS_COMMAND                    '// reserved for unhandled MSG_SHOW_PREFS
+    SOS_SPURIOUS_COMMAND                    '// reserved for unhandled WM_SNARL_COMMAND
 
     SOS_FILE_NOT_FOUND = &H50               '// critical file error
     SOS_PATH_NOT_FOUND                      '// critical path error
@@ -48,6 +49,7 @@ Private Declare Function LockWorkStation Lib "user32.dll" () As Long
 Private Declare Function RegisterClipboardFormat Lib "user32" Alias "RegisterClipboardFormatA" (ByVal lpString As String) As Long
 Private Declare Sub ShellAbout Lib "SHELL32.DLL" Alias "ShellAboutA" (ByVal hWndOwner As Long, ByVal lpszAppName As String, ByVal lpszMoreInfo As String, ByVal hIcon As Long)
 Public Declare Function WinExec Lib "kernel32" (ByVal lpCmdLine As String, ByVal nCmdShow As Long) As Long
+Private Declare Function CopyFile Lib "kernel32" Alias "CopyFileA" (ByVal lpExistingFileName As String, ByVal lpNewFileName As String, ByVal bFailIfExists As Long) As Long
 
 Private Const WINDOW_CLASS = "w>Snarl"
 
@@ -58,6 +60,27 @@ Public Const WM_SNARL_TRAY_ICON = WM_USER + 3
 
 'Public Const WM_REMOTENOTIFY = WM_USER + 9              ' // frmAbout: remote notifications
 Public Const WM_INSTALL_SNARL = WM_USER + 12            ' // frmAbout: snarl update available
+
+
+Public Const WM_SNARL_COMMAND = WM_USER + 80
+    ' /* WM_SNARL_COMMAND expanded in R2.3 (renamed in R2.5 Beta 2) to use wParam and lParam, as follows:
+    '       wParam                                                          lParam
+    '          0        Display Preferences Panel                           0
+    '          1        Install style or extension                          atom of registered string containing style or extension
+    '          2        Configure style or extension                        ("")
+    ' */
+
+Public Enum SN_DO_PREFS
+    SN_DP_DO_PREFS
+    SN_DP_INSTALL
+    SN_DP_CONFIGURE
+    SN_DP_RESTART
+    SN_DP_UNLOAD
+    SN_DP_LOAD
+    SN_DP_RESTART_STYLE_ROSTER
+
+End Enum
+
 
 Public Const TIMER_UPDATES = 32
 
@@ -211,24 +234,6 @@ Private Const FE_FONTSMOOTHINGCLEARTYPE = 2
 
 Public Const HWND_SNARL = &H534E524C Or &H80000000
 
-Public Const MSG_SHOW_PREFS = WM_USER + 80
-    ' /* MSG_SHOW_PREFS expanded in R2.3 to use wParam and lParam, as follows:
-    '       wParam                                                          lParam
-    '          0        Display Preferences Panel                           0
-    '          1        Install style or extension                          atom of registered string containing style or extension
-    '          2        Configure style or extension                        ("")
-    ' */
-
-Public Enum SN_DO_PREFS
-    SN_DP_DO_PREFS
-    SN_DP_INSTALL
-    SN_DP_CONFIGURE
-    SN_DP_RESTART
-    SN_DP_UNLOAD
-    SN_DP_LOAD
-
-End Enum
-
 Public bm_Close As MImage
 'Public bm_Menu As MImage
 Public bm_Actions As MImage
@@ -278,7 +283,7 @@ Public g_SubsRoster As TSubscriberRoster                ' // R2.4.2 DR3
 '
 'End Enum
 
-Private Const SNARL_XXX_GLOBAL_MSG = "SnarlGlobalEvent"
+'Private Const SNARL_XXX_GLOBAL_MSG = "SnarlGlobalEvent"
 
 Public Type T_CONFIG
 
@@ -358,6 +363,7 @@ End Enum
 Dim mPresFlags As SN_PRESENCE_FLAGS
 
 Public Enum SN_PRESENCE_ACTIONS
+'    SN_PA_LAST_ERROR_SET = -1
     SN_PA_DO_DEFAULT = 0
     SN_PA_LOG_AS_MISSED = 1
     SN_PA_MAKE_STICKY = 2
@@ -377,22 +383,23 @@ Public gRunFiles As BTagList    '// BTagItem->Name = filename, BTagItem->Value =
 Public gStyleDefaults As CConfFile
 Public gStartTime As Date
 
+    ' /* new three-state option - easier to use with prefs kit which requires a 1-based value */
+
+Public Enum SN_THREE_STATE
+    SN_TS_ALWAYS = 1
+    SN_TS_NEVER = 2
+    SN_TS_APP_DECIDES = 3
+
+End Enum
+
+
     ' /* requesters */
 Dim mReq() As TRequester
 Dim mReqs As Long
 Public gRequestId As Long
 
 Public Sub Main()
-Dim szArg() As String
 Dim l As Long
-
-'    g_ProcessAck "!snarl manage snarlware"
-'    Exit Sub
-
-'Dim iv As MVersionInfo
-'
-'    Set iv = web_resource.globals
-'    MsgBox iv.Version & "." & iv.Revision
 
     ' /* get comctl.dll loaded up for our XP manifest... */
 
@@ -402,6 +409,7 @@ Dim l As Long
 
     l = FindWindow(WINDOW_CLASS, "Snarl")
 
+Dim szArg() As String
 Dim n As SN_DO_PREFS
 
     szArg = Split(Command$, " ")
@@ -421,7 +429,7 @@ Dim n As SN_DO_PREFS
         Case "-install"
             ' /* must have one further arg: style engine or extension to install */
             If (UBound(szArg()) = 1) And (l <> 0) Then
-                PostMessage l, MSG_SHOW_PREFS, 1, ByVal RegisterClipboardFormat(szArg(1))
+                PostMessage l, WM_SNARL_COMMAND, 1, ByVal RegisterClipboardFormat(szArg(1))
                 Exit Sub
 
             End If
@@ -429,7 +437,7 @@ Dim n As SN_DO_PREFS
         Case "-configure"
             ' /* must have one further arg: style or extension to install */
             If (UBound(szArg()) = 1) And (l <> 0) Then
-                PostMessage l, MSG_SHOW_PREFS, 2, ByVal RegisterClipboardFormat(szArg(1))
+                PostMessage l, WM_SNARL_COMMAND, 2, ByVal RegisterClipboardFormat(szArg(1))
                 Exit Sub
 
             End If
@@ -449,10 +457,31 @@ Dim n As SN_DO_PREFS
                     
                 End Select
 
-                PostMessage l, MSG_SHOW_PREFS, n, ByVal RegisterClipboardFormat(szArg(1))
+                PostMessage l, WM_SNARL_COMMAND, n, ByVal RegisterClipboardFormat(szArg(1))
                 Exit Sub
 
             End If
+
+        Case Else
+
+            ' /* check to see if a particular file was dropped */
+
+            Select Case g_GetExtension(Command$, True)
+            Case "webforward"
+                g_CopyToAppData Command$, "styles\webforward"
+                If l Then _
+                    PostMessage l, WM_SNARL_COMMAND, SN_DP_RESTART_STYLE_ROSTER, ByVal 0&
+
+                Exit Sub
+
+            Case "rsz"
+                g_ExtractToAppData Command$, "styles\runnable"
+                If l Then _
+                    PostMessage l, WM_SNARL_COMMAND, SN_DP_RESTART_STYLE_ROSTER, ByVal 0&
+
+                Exit Sub
+
+            End Select
 
         End Select
 
@@ -460,7 +489,7 @@ Dim n As SN_DO_PREFS
 
     If l <> 0 Then
         ' /* Snarl is already running (and no useful command-line arg specified) */
-        PostMessage l, MSG_SHOW_PREFS, 0, ByVal 0&    ' // tell the running instance to show its ui...
+        PostMessage l, WM_SNARL_COMMAND, 0, ByVal 0&    ' // tell the running instance to show its ui...
         Exit Sub
 
     End If
@@ -826,7 +855,7 @@ Dim t As Long
     ' /* broadcast SNARL_QUIT */
 
     g_Debug "main(): broadcasting SNARL_QUIT..."
-    PostMessage HWND_BROADCAST, g_GlobalMessage(), SNARL_BROADCAST_QUIT, ByVal CLng(App.Major)
+    PostMessage HWND_BROADCAST, snSysMsg(), SNARL_BROADCAST_QUIT, ByVal CLng(App.Major)
 
     SendMessage ghWndMain, WM_SNARL_QUIT, 0, ByVal 0&
     Unload frmAbout
@@ -914,8 +943,8 @@ Public Function g_ConfigInit() As Boolean
         .Add "melontype_contrast", "10"
 
         ' /* R2.1 (V39) */
-        .Add "listen_for_json", "0"
-        .Add "listen_for_snarl", "0"
+        .Add "listen_for_json", "1"             ' // R2.5 Beta 2 now enabled by default
+        .Add "listen_for_snarl", "1"            ' // R2.5 Beta 2 now enabled by default
         .Add "duplicates_quantum", "2000"
         .Add "hotkey_prefs", CStr(vbKeyF10)
         .Add "notify_on_first_register", "0"
@@ -1028,15 +1057,18 @@ Dim i As Long
         .SetTo g_MakePath(gPrefs.SnarlConfigPath) & "etc\styledefaults.conf"
 
         .AddIfMissing "background-colour", CStr(rgba(235, 235, 235))
+        .AddIfMissing "background-colour-priority", CStr(rgba(235, 99, 5))
         .AddIfMissing "width", "250"
 
         .AddIfMissing "title-font", "name::Tahoma#?size::8#?bold::1#?italic::0#?underline::0#?strikeout::0"
         .AddIfMissing "title-colour", CStr(rgba(0, 0, 0))
+        .AddIfMissing "title-colour-priority", CStr(rgba(0, 0, 0))
 '        .AddIfMissing "title-weight", "1"
         .AddIfMissing "title-opacity", "70"
 
         .AddIfMissing "text-font", "name::Tahoma#?size::8#?bold::0#?italic::0#?underline::0#?strikeout::0"
         .AddIfMissing "text-colour", CStr(rgba(0, 0, 0))
+        .AddIfMissing "text-colour-priority", CStr(rgba(0, 0, 0))
 '        .AddIfMissing "text-weight", "1"
         .AddIfMissing "text-opacity", "60"
 
@@ -1139,7 +1171,7 @@ Dim dw As Long
 
         ' /* R2.4: broadcast a started message */
 
-        PostMessage HWND_BROADCAST, g_GlobalMessage(), SNARL_BROADCAST_STARTED, ByVal 0&
+        PostMessage HWND_BROADCAST, snSysMsg(), SNARL_BROADCAST_STARTED, ByVal 0&
 
 
 '        If Broadcast Then
@@ -1159,7 +1191,7 @@ Dim dw As Long
 '        End If
 
         ' /* R2.4: broadcast a stopped message */
-        PostMessage HWND_BROADCAST, g_GlobalMessage(), SNARL_BROADCAST_STOPPED, ByVal 0&
+        PostMessage HWND_BROADCAST, snSysMsg(), SNARL_BROADCAST_STOPPED, ByVal 0&
 
         ' /* close all notifications */
         If Not (g_NotificationRoster Is Nothing) Then _
@@ -1566,7 +1598,7 @@ Dim pn As storage_kit.Node
     gIconThemes = gIconThemes + 1
     ReDim Preserve gIconTheme(gIconThemes)
     With gIconTheme(gIconThemes)
-        .Name = Folder.FileName
+        .Name = Folder.Filename
         .Path = pn.File
         .IconFile = g_MakePath(Folder.File) & "theme.png"
 
@@ -1654,11 +1686,10 @@ Dim szText As String
 
     End If
 
-
 Dim pInfo As T_NOTIFICATION_INFO
 
     With pInfo
-        .Title = pStyle.Name & IIf(Scheme = "<Default>", "", "/" & Scheme)        '// "Scheme Preview"
+        .Title = pStyle.Name & IIf(Scheme = "<Default>", "", "/" & Scheme) & IIf(IsPriority, " (Priority)", "")
         .Text = szText
         .Timeout = -1
         .IconPath = IIf(pStyle.IconPath = "", g_MakePath(App.Path) & "etc\icons\style_preview.png", pStyle.IconPath)
@@ -1667,10 +1698,14 @@ Dim pInfo As T_NOTIFICATION_INFO
         .Position = SN_SP_DEFAULT_POS
         .Priority = IIf(IsPriority, 1, 0)
         Set .ClassObj = New TAlert
+        .CustomUID = "style-preview" & IIf(IsPriority, "-priority", "")
+        .APIVersion = App.Major
+
+        g_NotificationRoster.Hide 0, .CustomUID, App.ProductName, ""
 
     End With
 
-    g_DoSchemePreview2 = (g_NotificationRoster.Add(pInfo, Nothing) <> 0)
+    g_DoSchemePreview2 = (g_NotificationRoster.Add(pInfo, Nothing, False) <> 0)
 
 End Function
 
@@ -1696,21 +1731,19 @@ Dim c As Long
 
 End Function
 
-Public Sub g_LockConfig()
+Public Sub g_ConfigLock()
 
     mConfigLocked = True
 
 End Sub
 
-Public Sub g_UnlockConfig()
+Public Sub g_ConfigUnlock(Optional ByVal IgnoreDelayedWrite As Boolean)
 
     mConfigLocked = False
-
-    If mWriteConfigOnUnlock Then
-        mWriteConfigOnUnlock = False
+    If (mWriteConfigOnUnlock) And (Not IgnoreDelayedWrite) Then _
         g_WriteConfig
 
-    End If
+    mWriteConfigOnUnlock = False
 
 End Sub
 
@@ -1821,9 +1854,7 @@ Dim i As Long
     Select Case LCase$(pti.Name)
 
     Case "show_missed_panel"
-        If Not (g_NotificationRoster Is Nothing) Then _
-            g_NotificationRoster.ShowMissedPanel
-
+        frmAbout.bShowMissedPanel
 
     Case "cfg"
         ' /* show our prefs panel targetted on the app in arg(2) */
@@ -2098,7 +2129,7 @@ Dim pr As BRect
 
 End Function
 
-Public Sub g_KludgeNotificationInfo(ByRef nInfo As T_NOTIFICATION_INFO)
+Public Sub g_KludgeNotificationInfo(ByRef nInfo As T_NOTIFICATION_INFO, Optional ByRef pPacked As BPackedData)
 
     ' /* translates current T_NOTIFICATION_INFO content into a BPackedString
     '    and then stores that back into T_NOTIFICATION_INFO->OriginalContent
@@ -2110,22 +2141,22 @@ Public Sub g_KludgeNotificationInfo(ByRef nInfo As T_NOTIFICATION_INFO)
 
     End If
 
-Dim ppd As BPackedData
+'Dim ppacked As BPackedData
 
-    Set ppd = New BPackedData
+    Set pPacked = New BPackedData
 
     With nInfo
         .Title = Replace$(.Title, "\n", vbCrLf)
         .Text = Replace$(.Text, "\n", vbCrLf)
 
-        ppd.Add "id", .ClassObj.Name
-        ppd.Add "title", .Title
-        ppd.Add "text", .Text
-        ppd.Add "timeout", CStr(.Timeout)
-        ppd.Add "icon", .IconPath
-        ppd.Add "priority", CStr(.Priority)
-        ppd.Add "callback", .DefaultAck
-        ppd.Add "value", .Value
+        pPacked.Add "id", .ClassObj.Name
+        pPacked.Add "title", .Title
+        pPacked.Add "text", .Text
+        pPacked.Add "timeout", CStr(.Timeout)
+        pPacked.Add "icon", .IconPath
+        pPacked.Add "priority", CStr(.Priority)
+        pPacked.Add "callback", .DefaultAck
+        pPacked.Add "value", .Value
 
 '        If (Info.Flags And SNARL41_NOTIFICATION_ALLOWS_MERGE) Then _
             .Add "merge", "1"
@@ -2143,14 +2174,14 @@ Dim szv As String
         If .SetTo(nInfo.OriginalContent) Then
             .Rewind
             Do While .GetNextItem(szn, szv)
-                If Not ppd.Exists(LCase$(szn)) Then _
-                    ppd.Add szn, szv
+                If Not pPacked.Exists(LCase$(szn)) Then _
+                    pPacked.Add szn, szv
 
             Loop
         End If
     End With
 
-    nInfo.OriginalContent = ppd.AsString()
+    nInfo.OriginalContent = pPacked.AsString()
 
 
 
@@ -2438,12 +2469,13 @@ Public Function g_PrivateNotify(Optional ByVal ClassId As String = SNARL_CLASS_G
 
     g_PrivateNotify = g_DoNotify(0, _
                                  uCreatePacked(ClassId, Title, Text, Timeout, Icon, Priority, Ack, Flags, gSnarlPassword, AddTestAction, UID), _
-                                 , _
-                                 IntFlags Or App.Major)
+                                 Nothing, _
+                                 IntFlags Or App.Major, _
+                                 "", 0)
 
 End Function
 
-Public Function g_DoNotify(ByVal AppToken As Long, ByRef pData As BPackedData, Optional ByRef ReplySocket As CSocket, Optional ByVal IntFlags As SN_NOTIFICATION_FLAGS) As Long '//, Optional ByVal RemoteHost As String) As Long
+Public Function g_DoNotify(ByVal AppToken As Long, ByRef pData As BPackedData, ByRef ReplySocket As CSocket, ByVal IntFlags As SN_NOTIFICATION_FLAGS, ByVal RemoteHost As String, ByVal SenderPID As Long) As Long
 
     ' /* master notification generator
     '
@@ -2464,6 +2496,31 @@ Public Function g_DoNotify(ByVal AppToken As Long, ByRef pData As BPackedData, O
         Exit Function
 
     End If
+
+
+    ' /* R2.5 Beta 2: if "app-sig" and "app-title" exists, we can do a register as well */
+
+    If (pData.Exists("app-sig")) And (pData.Exists("app-title")) Then
+        g_DoNotify = g_AppRoster.Add41(pData, ReplySocket, SenderPID, RemoteHost)
+        If g_DoNotify < 0 Then
+            g_Debug "g_DoNotify(): pre-registration failed: " & str(g_DoNotify), LEMON_LEVEL_CRITICAL
+            Exit Function
+
+        End If
+
+        ' /* R2.5 Beta 2: if "class-id" exists, we can add the class as well */
+
+        If pData.Exists("class-id") Then
+            g_DoNotify = uAddClass(0, pData)
+            If g_DoNotify <> -1 Then
+                g_DoNotify = g_QuickLastError()
+                g_Debug "g_DoNotify(): class registration failed: " & str(g_DoNotify), LEMON_LEVEL_CRITICAL
+                Exit Function
+
+            End If
+        End If
+    End If
+
 
     ' /* look for the new "replace-uid" and "update-uid" and "merge-uid" args:
     '    "replace" will remove the notification with the specified uid if it's
@@ -2730,7 +2787,7 @@ Dim pApp As TApp
         g_DoAction = CLng(g_NotificationRoster.IsVisible(Token, Args.ValueOf("uid"), Args.ValueOf("app-sig"), Args.ValueOf("password")))
 
     Case "notify"
-        g_DoAction = g_DoNotify(Token, Args, ReplySocket, InternalFlags)
+        g_DoAction = g_DoNotify(Token, Args, ReplySocket, InternalFlags, szSource, SenderPID)
 
     Case "reg", "register"
         g_DoAction = g_AppRoster.Add41(Args, ReplySocket, SenderPID, szSource)
@@ -3055,11 +3112,11 @@ End Function
 '
 'End Function
 
-Public Function g_GlobalMessage() As Long
-
-    g_GlobalMessage = RegisterWindowMessage(SNARL_XXX_GLOBAL_MSG)
-
-End Function
+'Public Function g_GlobalMessage() As Long
+'
+'    g_GlobalMessage = RegisterWindowMessage(SNARL_XXX_GLOBAL_MSG)
+'
+'End Function
 
 Private Function uAddClass(ByVal Token As Long, ByRef Args As BPackedData) As Long
 Dim pApp As TApp
@@ -3120,14 +3177,24 @@ Dim sz As String
 End Function
 
 Public Sub g_SetPresence(ByVal Flags As SN_PRESENCE_FLAGS)
+Dim fWasActive As Boolean
 Dim fWasAway As Boolean
 
     fWasAway = g_IsAway()
+    fWasActive = (mPresFlags = 0)
+
+    ' /* apply */
+
     mPresFlags = mPresFlags Or Flags
+
+    ' /* if we've gone from Active to non-Active, log the current missed count */
+
+    If (fWasActive) And (mPresFlags <> 0) Then _
+        g_NotificationRoster.SaveCurrentMissedCount
 
     ' /* if we've transitioned to Away, notify registered apps */
 
-    If (Not fWasAway) And ((mPresFlags And SN_PF_AWAY_MASK) <> 0) Then _
+    If (Not fWasAway) And (g_IsAway()) Then _
         g_AppRoster.SendToAll SNARL_BROADCAST_USER_AWAY
 
     ' /* R2.4.2 DR3: change the tray icon */
@@ -3139,17 +3206,27 @@ Public Sub g_ClearPresence(ByVal Flags As SN_PRESENCE_FLAGS)
 Dim fWasAwayOrBusy As Boolean
 Dim fIsAwayOrBusy As Boolean
 
+Dim fWasActive As Boolean
+Dim fWasAway As Boolean
+
+    fWasAway = g_IsAway()
+    fWasActive = (mPresFlags = 0)
+
     fWasAwayOrBusy = (mPresFlags <> 0)
+
+    ' /* apply flags */
     mPresFlags = mPresFlags And (Not Flags)
     fIsAwayOrBusy = (mPresFlags <> 0)
 
-    ' /* if we've transitioned from Away or Busy, notify registered apps */
+    ' /* if we've transitioned from Away, notify registered apps */
 
-    If (fWasAwayOrBusy) And (mPresFlags = 0) Then
+    If (fWasAway) And (Not g_IsAway()) Then _
         g_AppRoster.SendToAll SNARL_BROADCAST_USER_BACK
-        g_NotificationRoster.CheckMissed
 
-    End If
+    ' /* if we've transitioned to Active, check missed count */
+
+    If (fWasAwayOrBusy) And (mPresFlags = 0) Then _
+        g_NotificationRoster.CheckMissed
 
     ' /* R2.4.2 DR3: change the tray icon */
 
@@ -3301,8 +3378,9 @@ Dim i As Long
 
     ' /* if an hour or more ago, use hours */
 
-    i = DateDiff("h", Timestamp, Now)
-    If i > 0 Then
+    i = DateDiff("n", Timestamp, Now)
+    If i > 59 Then
+        i = Fix(i / 60)
         g_When = CStr(i) & " hour" & IIf(i = 1, "", "s") & " ago"
         Exit Function
 
@@ -3713,3 +3791,44 @@ Public Function new_BPackedData(ByVal Content As String) As BPackedData
     new_BPackedData.SetTo Content
 
 End Function
+
+Public Function g_CopyToAppData(ByVal Source As String, ByVal DestPath As String) As Boolean
+Dim sz As String
+
+    If g_GetUserFolderPath(sz) Then
+        sz = g_MakePath(sz) & g_MakePath(DestPath) & g_FilenameFromPath(Source)
+        If g_Exists(sz) Then
+            If MsgBox("'" & g_FilenameFromPath(Source) & "' already exists.  Do you want to replace the existing file?", vbYesNo Or vbQuestion, App.Title) = vbNo Then _
+                Exit Function
+
+        End If
+    
+        g_CopyToAppData = (CopyFile(Source, sz, 0) <> 0)
+
+            
+'            MsgBox "Web Forwarder '" & g_FilenameFromPath(Source) & "' was installed successfully", vbInformation Or vbOKOnly, App.Title
+    
+    End If
+
+End Function
+
+Public Function g_ExtractToAppData(ByVal Source As String, ByVal DestPath As String) As Boolean
+Dim sz As String
+
+    If g_GetUserFolderPath(sz) Then
+        sz = g_MakePath(sz) & g_MakePath(DestPath)
+        With New CZippedContent
+            If .OpenZip(Source) Then
+                g_ExtractToAppData = .Extract(sz, True, True)
+                'Then _
+                    MsgBox " Style '" & g_FilenameFromPath(Source) & "' was installed successfully", vbInformation Or vbOKOnly, App.Title
+
+            Else
+                MsgBox "'" & Source & "' is not valid", vbExclamation Or vbOKOnly, App.Title
+    
+            End If
+        End With
+    End If
+
+End Function
+

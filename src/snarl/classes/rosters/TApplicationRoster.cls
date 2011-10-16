@@ -308,8 +308,17 @@ Dim pInfo As T_SNARL_APP
 
     With pInfo
         .Name = szTitle
-        .Icon = Data.ValueOf("icon")
         .Signature = sz
+
+        If Data.Exists("app-icon") Then
+            ' /* R2.5 Beta 2: so we can separate the two when using NOTIFY to register */
+            .Icon = Data.ValueOf("app-icon")
+
+        Else
+            .Icon = Data.ValueOf("icon")
+
+        End If
+
         .Pid = SenderPID                        ' // R2.4.2: added
         .RemoteHostName = RemoteHostName        ' // R2.4.2 DR3
 

@@ -60,7 +60,8 @@ Dim sz As String
     Select Case Control.GetName
     Case "show_on_screen", "use_style", "custom_timeout", "use_custom_icon", "custom_icon", _
          "use_custom_sound", "custom_sound", "ignore_input", "use_custom_ack", "custom_ack", "log_during_dnd", "block_spam", _
-         "override-normal", "override-away", "override-busy", "block_if_foreground", "use_custom_actions", "custom_actions"
+         "override-normal", "override-away", "override-busy", "block_if_foreground", "use_custom_actions", "custom_actions", _
+         "log_in_history"
 
         gSelectedClass.SetValue Control.GetName, Value
 
@@ -333,7 +334,7 @@ Dim pc As BControl
 
 
 
-        Set pp = new_BPrefsPage("Pass-Thru", load_image_obj(g_MakePath(App.Path) & "etc\icons\class-fwd.png"), Me)
+        Set pp = new_BPrefsPage("Redirection", load_image_obj(g_MakePath(App.Path) & "etc\icons\class-fwd.png"), Me)
         With pp
             .SetMargin 0
             .SetWidth 300
@@ -416,8 +417,7 @@ Dim pc As BControl
             .Add new_BPrefsControl("fancyedit", "custom_actions", , "Actions:")
             .Add new_BPrefsControl("label", "", "<Action>=<command>.  Separate multiple actions with semi-colons.")
 
-            .Add new_BPrefsControl("label", "", " ")
-
+            .Add new_BPrefsControl("fancycycle", "log_in_history", "Always|Never|App Decides", "Log:", gSelectedClass.GetValue("log_in_history"))
 
             ' /* R2.31: test button here too */
             .Add new_BPrefsSeparator

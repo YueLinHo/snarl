@@ -43,31 +43,31 @@ Dim pc As BControl
         pc.SetValue g_ConfigGet("default_duration")
 
 
-    ' /* 2.4.2: global shadowing */
-
-Dim ppd As BPackedData
-
-    Set ppd = New BPackedData
-    ppd.SetTo g_ConfigGet("global_shadow_list")
-
-Dim sz As String
-Dim i As Long
-Dim j As Long
-
-    If mPage.Find("global_shadow_list", pc) Then
-        j = prefskit_GetItemCount(pc)
-        If j Then
-            For i = 1 To j
-                sz = Replace$(prefskit_GetItem(pc, "text", i), ": ", "/")
-                If ppd.ValueOf(sz) = "1" Then _
-                    prefskit_SetItem pc, i, "checked", 1&
-    
-            Next i
-        End If
-    
-        g_StyleRoster.SetNonWindowStyleIcons pc
-    
-    End If
+'    ' /* 2.4.2: global shadowing */
+'
+'Dim ppd As BPackedData
+'
+'    Set ppd = New BPackedData
+'    ppd.SetTo g_ConfigGet("global_shadow_list")
+'
+'Dim sz As String
+'Dim i As Long
+'Dim j As Long
+'
+'    If mPage.Find("global_shadow_list", pc) Then
+'        j = prefskit_GetItemCount(pc)
+'        If j Then
+'            For i = 1 To j
+'                sz = Replace$(prefskit_GetItem(pc, "text", i), ": ", "/")
+'                If ppd.ValueOf(sz) = "1" Then _
+'                    prefskit_SetItem pc, i, "checked", 1&
+'
+'            Next i
+'        End If
+'
+'        g_StyleRoster.SetNonWindowStyleIcons pc
+'
+'    End If
 
 End Sub
 
@@ -217,23 +217,23 @@ Dim i As Long
 
     Case "thu"
         
-        ' /* Pass-Through settings */
-
-Const ITEM_HEIGHT = 30
-Const NUM_ITEMS = 10
-
-        With mPage
-            .SetMargin 0
-            .Add new_BPrefsControl("label", "", "Direct notification content to the following:")
-
-            Set pm = New CTempMsg
-            pm.Add "checkboxes", 1
-            pm.Add "item-height", CLng(ITEM_HEIGHT)
-            Set pc = new_BPrefsControl("listbox", "global_shadow_list", g_StyleRoster.GetNonWindowStyleList(), "", "", pm)
-            pc.SizeTo 0, (NUM_ITEMS * ITEM_HEIGHT) + 2
-            .Add pc
-
-        End With
+'        ' /* Pass-Through settings */
+'
+'Const ITEM_HEIGHT = 30
+'Const NUM_ITEMS = 10
+'
+'        With mPage
+'            .SetMargin 0
+'            .Add new_BPrefsControl("label", "", "Direct notification content to the following:")
+'
+'            Set pm = New CTempMsg
+'            pm.Add "checkboxes", 1
+'            pm.Add "item-height", CLng(ITEM_HEIGHT)
+'            Set pc = new_BPrefsControl("listbox", "global_shadow_list", g_StyleRoster.GetNonWindowStyleList(), "", "", pm)
+'            pc.SizeTo 0, (NUM_ITEMS * ITEM_HEIGHT) + 2
+'            .Add pc
+'
+'        End With
 
 
     Case "adv"
@@ -655,11 +655,11 @@ Private Function uTranslateIconTheme(ByVal Path As String) As String
 
     Path = g_RemoveExtension(g_FilenameFromPath(Path))
 
-Dim S() As String
+Dim s() As String
 
-    S = Split(Path, "@")
-    If UBound(S) = 1 Then
-        uTranslateIconTheme = S(1) & " by " & S(0)
+    s = Split(Path, "@")
+    If UBound(s) = 1 Then
+        uTranslateIconTheme = s(1) & " by " & s(0)
 
     Else
         uTranslateIconTheme = Path

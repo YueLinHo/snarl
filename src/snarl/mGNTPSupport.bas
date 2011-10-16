@@ -91,18 +91,16 @@ Public Sub gntp_Process(ByVal Request As String, ByRef Sender As CSocket, ByRef 
     mCustomHeaders = ""
     KeepSocketOpen = False
 
-    uOutput "--"
-    uOutput "gntp_Process(): request is..."
-    uOutput Replace$(Request, vbCrLf, "¶")
-    uOutput "--"
+    uOutput "gntp_Process()"
+    uIndent
 
     ' /* split into sections */
 
     mSection = Split(Request, vbCrLf & vbCrLf)
-    uOutput "gntp_Process(): sections=" & UBound(mSection) - 1
+    uOutput "section count = " & UBound(mSection) - 1
 
     If UBound(mSection) < 1 Then
-        uOutput "gntp_Process(): failed: no sections"
+        uOutput "failed: no sections"
         Response = uCreateResponse(INVALID_REQUEST)
         Exit Sub
 
@@ -113,13 +111,13 @@ Public Sub gntp_Process(ByVal Request As String, ByRef Sender As CSocket, ByRef 
     mDirective = ""
 
     If Not uParse(0, Response) Then
-        uOutput "gntp_Process(): failed: invalid info block"
+        uOutput "failed: invalid info block"
         Response = uCreateResponse(INVALID_REQUEST)
         Exit Sub
 
     End If
 
-    uOutput "gntp_Process(): info block okay, directive=" & mDirective
+    uOutput "info block okay, directive is '" & mDirective & "'"
 
     Select Case mDirective
     Case "REGISTER"
@@ -129,16 +127,18 @@ Public Sub gntp_Process(ByVal Request As String, ByRef Sender As CSocket, ByRef 
         Debug.Print uDoNotification(Response, Sender, KeepSocketOpen)
 
     Case Else
-        uOutput "gntp_Process(): unsupported directive '" & mDirective & "'"
+        uOutput "unsupported directive '" & mDirective & "'"
         Response = uCreateResponse(INVALID_REQUEST)
 
     End Select
 
-    uOutput "gntp_Process(): done"
+    uOutput "done"
+    uOutdent
     Exit Sub
 
 er:
-    Debug.Print "gntp_Process(): panic: " & Err.Description
+    Debug.Print "  panic: " & err.Description
+    uOutdent
 
 End Sub
 
@@ -400,47 +400,56 @@ Dim sx() As String
 End Function
 
 Private Function uParse(ByVal SectionIndex As Long, ByRef Response As String) As Boolean
-Dim S() As String
+Dim s() As String
+
+    uOutput "uParse()"
+    uIndent
 
     ' /* parses the first line of the given section and returns
     '    the appropriate result */
 
-    S = Split(mSection(SectionIndex), vbCrLf)
-    If UBound(S) < 1 Then
-        uOutput "uParse(): failed: invalid section"
+    s = Split(mSection(SectionIndex), vbCrLf)
+    If UBound(s) < 1 Then
+        uOutput "failed: invalid section"
+        uOutdent
         Response = uCreateResponse(INVALID_REQUEST)
         Exit Function
 
     End If
 
-    uOutput "uParse(): section " & CStr(SectionIndex) & " header='" & S(0) & "'"
+    uOutput "section #" & CStr(SectionIndex) & " header is '" & s(0) & "'"
 
     ' /* identify section type from the first line */
 
 Dim x() As String
 
-    If g_SafeLeftStr(S(0), 4) = "GNTP" Then
+    If g_SafeLeftStr(s(0), 4) = "GNTP" Then
         ' /* information line first */
-        uParse = uParseInfoLine(S(0), Response)
+        uOutput "is information block"
+        uParse = uParseInfoLine(s(0), Response)
 
-    ElseIf g_SafeLeftStr(S(0), 12) = "Identifier: " Then
+    ElseIf g_SafeLeftStr(s(0), 12) = "Identifier: " Then
         ' /* resource identifier */
-        x = Split(S(0), ": ")
+        uOutput "is resource identifier"
+        x = Split(s(0), ": ")
         uSaveBinary SectionIndex + 1, x(1)
         uParse = True
 
     Else
         ' /* other headers... */
+        uOutput "is unknown!"
 
     End If
+
+    uOutdent
 
 End Function
 
 Private Function uParseInfoLine(ByVal str As String, ByRef Response As String) As Boolean
-Dim S() As String
+Dim s() As String
 
-    S = Split(str, " ")
-    If UBound(S) < 2 Then
+    s = Split(str, " ")
+    If UBound(s) < 2 Then
         uOutput "uParseInfoLine(): not enough params"
         Response = uCreateResponse(INVALID_REQUEST)
         Exit Function           ' // not enough params
@@ -449,7 +458,7 @@ Dim S() As String
 
 Dim v() As String
 
-    v = Split(S(0), "/")
+    v = Split(s(0), "/")
     If UBound(v) <> 1 Then
         uOutput "uParseInfoLine(): not GNTP"
         Response = uCreateResponse(UNKNOWN_PROTOCOL)
@@ -473,9 +482,9 @@ Dim v() As String
 
     mDirective = ""
 
-    Select Case S(1)
+    Select Case s(1)
     Case "REGISTER", "NOTIFY"
-        mDirective = S(1)
+        mDirective = s(1)
 
     Case Else
         uOutput "uParseInfoLine(): unsupported directive"
@@ -484,11 +493,11 @@ Dim v() As String
 
     End Select
 
-    Select Case S(2)
+    Select Case s(2)
     Case "NONE"
     
     Case Else
-        uOutput "uParseInfoLine(): unsupported encryption (" & S(2) & ")"
+        uOutput "uParseInfoLine(): unsupported encryption (" & s(2) & ")"
         Response = uCreateResponse(INVALID_REQUEST)
         Exit Function           ' // unsupported encryption
 
@@ -515,6 +524,9 @@ End Sub
 
 Private Function uDoNotification(ByRef Response As String, ByRef Sender As CSocket, ByRef KeepSocketOpen As Boolean) As Boolean
 
+    uOutput "uDoNotification()"
+    uIndent
+
     mCustomHeaders = "Response-Action: NOTIFY"
 
 Dim pp As TPackedData
@@ -523,8 +535,9 @@ Dim pp As TPackedData
 
     Set pp = New TPackedData
     If Not pp.SetTo(mSection(0), vbCrLf, ": ") Then
-        uOutput "uDoNotification(): bad data"
+        uOutput "bad data"
         Response = uCreateResponse(INVALID_REQUEST)
+        uOutdent
         Exit Function
 
     End If
@@ -532,25 +545,32 @@ Dim pp As TPackedData
     ' /* required items */
 
     If (Not pp.Exists("Application-Name")) Or (Not pp.Exists("Notification-Name")) Or (Not pp.Exists("Notification-Title")) Then
-        uOutput "uDoNotification(): missing required arg"
+        uOutput "missing required arg"
         Response = uCreateResponse(REQUIRED_HEADER_MISSING)
+        uOutdent
         Exit Function
 
     End If
 
+Dim c As Long
+Dim i As Long
 
     ' /* sections pr.Count to end should be resource identifiers */
 
-    uOutput "uDoNotification(): scanning for resource identifiers in blocks 1 to " & CStr(UBound(mSection) - 1) & "..."
+    c = UBound(mSection) - 1
+    If c > 0 Then
+        uOutput "scanning for resource identifiers in blocks 1 to " & CStr(c) & "..."
+        For i = 1 To c
+            uParse i, ""
 
-Dim i As Long
+        Next i
 
-    For i = 1 To UBound(mSection) - 1
-        uParse i, ""
+    Else
+        uOutput "no blocks to check"
 
-    Next i
+    End If
 
-    uOutput "uDoNotification(): building notification content..."
+    uOutput "building notification content..."
 
 #If GNTP_TEST = 1 Then
     uListPackedData pp
@@ -674,10 +694,9 @@ Dim hr As Long
     sz = Replace$(sz, "#?", "&")
     hr = snDoRequest("notify?" & sz)
 
-    uOutput "--"
-    uOutput "uDoNotification(): Snarl replied with " & CStr(hr) & " to:"
-    uOutput sz
-    uOutput "--"
+    uOutput "Snarl replied with " & CStr(hr) & " to 'notify?" & sz & "'"
+    If hr < 0 Then _
+        uOutput "(error is ignored by GNTP Listener)"
 
     Response = uCreateResponse(0)
     uDoNotification = True
@@ -703,7 +722,7 @@ Dim pxSnarl As BPackedData
     If hr = 0 Then
         ' /* failed */
 
-        uOutput "uDoNotification(): <notify> failed: " & CStr(g_QuickLastError())
+        uOutput "<notify> failed: " & CStr(g_QuickLastError())
         Select Case g_QuickLastError()
         Case SNARL_ERROR_AUTH_FAILURE
             Response = uCreateResponse(NOT_AUTHORIZED)
@@ -722,8 +741,9 @@ Dim pxSnarl As BPackedData
 
     End If
 
-
 #End If
+
+    uOutdent
 
 End Function
 
@@ -806,7 +826,7 @@ End Function
 Private Sub uOutput(ByVal Text As String)
 
 #If GNTP_TEST = 1 Then
-    Form1.Output Text
+    Form1.output Text
 
 #Else
     g_Debug Text
@@ -925,5 +945,21 @@ Dim vv As String
     End With
 
     uOutput "++"
+
+End Sub
+
+Private Sub uIndent()
+
+#If GNTP_TEST = 1 Then
+    Form1.indent
+#End If
+
+End Sub
+
+Private Sub uOutdent()
+
+#If GNTP_TEST = 1 Then
+    Form1.outdent
+#End If
 
 End Sub

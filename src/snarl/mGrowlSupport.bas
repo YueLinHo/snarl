@@ -361,6 +361,6 @@ Dim ppd As BPackedData
 
     ' /* R2.4.1 - include major version number in this */
 
-    uNotify = g_DoNotify(AppToken, ppd, , SN_NF_REMOTE Or App.Major) '//, pgn.Sender)
+    uNotify = g_DoNotify(AppToken, ppd, Nothing, SN_NF_REMOTE Or App.Major, "", 0)
 
 End Function

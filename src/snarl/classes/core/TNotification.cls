@@ -55,25 +55,28 @@ Dim mSeen As Boolean
 Dim WithEvents theIconRequest As BWebRequest
 Attribute theIconRequest.VB_VarHelpID = -1
 
+Dim mPacked As BPackedData
+
 Implements BTagItem
 
-Public Function Init(ByRef Cached As BTagItem, ByRef Args As BPackedData) As Boolean
+Friend Function StartAsyncIconDownload(ByRef RemoteIcon As BTagItem, ByRef Info As T_NOTIFICATION_INFO, ByRef Args As BPackedData) As Boolean
 
     On Error Resume Next
 
     err.Clear
     Set theIconRequest = New BWebRequest
     If err.Number <> 0 Then
-        g_Debug "TNotification.Init(): couldn't create BWebRequest", LEMON_LEVEL_CRITICAL
+        g_Debug "TNotification.StartAsyncIconDownload(): couldn't create BWebRequest", LEMON_LEVEL_CRITICAL
         Exit Function
 
     End If
 
-    mTempIcon = Cached.Value
+    LSet mInfo = Info
+    mTempIcon = RemoteIcon.Value
     Set mArgs = Args
 
-    g_Debug "TNotification.Init(): saving as '" & mTempIcon & "'"
-    Init = theIconRequest.GetFile(Cached.Name, mTempIcon)
+    g_Debug "TNotification.uStartAsyncIconDownload(): saving icon as '" & mTempIcon & "'..."
+    StartAsyncIconDownload = theIconRequest.GetFile(RemoteIcon.Name, mTempIcon)
 
 End Function
 
@@ -138,6 +141,7 @@ Dim sz As String
     End If
 
     mInfo.IconPath = sz
+    uFixupContent
 
     If Not (g_NotificationRoster Is Nothing) Then _
         g_NotificationRoster.Add mInfo, mArgs
@@ -256,6 +260,12 @@ Public Function AppSigAndUID() As String
 
 End Function
 
+'Public Sub SetState(ByVal State As SN_NOTIFICATION_STATUS)
+'
+'    mState = State
+'
+'End Sub
+
 Public Function State() As SN_NOTIFICATION_STATUS
 
     State = mState
@@ -285,7 +295,7 @@ End Function
 
 Private Sub uFixupContent()
 
-    g_KludgeNotificationInfo mInfo
+    g_KludgeNotificationInfo mInfo, mPacked
 
 '    ' /* translates current T_NOTIFICATION_INFO content into a BPackedString
 '    '    and then stores that back into T_NOTIFICATION_INFO->OriginalContent
@@ -385,6 +395,9 @@ Public Function SetIcon(ByVal Icon As String) As Boolean
     mInfo.IconPath = Icon
     uFixupContent
     SetIcon = True
+
+    If (mWindow Is Nothing) Then _
+        Exit Function
 
     Select Case mState
     Case SN_NS_ACTIVE
@@ -501,7 +514,7 @@ Dim dw As Long
 
     Case SN_NS_MISSED
         ' /* need to update the missed notifications panel, if it's open */
-        g_NotificationRoster.UpdateMissedPanel
+        frmAbout.bUpdateMissedList
 
     Case SN_NS_WAITING
 
@@ -520,15 +533,13 @@ Public Function UpdateOrMerge(ByRef Args As BPackedData, ByVal ShouldMerge As Bo
     Select Case mState
     Case SN_NS_ACTIVE
         uFixupContent
-
         Debug.Print "text: " & mInfo.Text
-
         UpdateOrMerge = mWindow.Update(mInfo)
 
 
     Case SN_NS_MISSED
         ' /* refresh the missed panel if it's open */
-        g_NotificationRoster.UpdateMissedPanel
+        frmAbout.bUpdateMissedList
         UpdateOrMerge = True
 
 
@@ -638,5 +649,203 @@ Dim sz As String
     sz = Replace$(sz, "\n", vbCrLf)
 
     uUnescape = sz
+
+End Function
+
+'Friend Function Init2(ByRef Info As T_NOTIFICATION_INFO) As Long
+'
+'    LSet mInfo = Info
+'
+'    ' /* do some setting up */
+'
+'    With mInfo
+'
+'        ' /* create an empty list if no actions defined */
+'        If (.Actions Is Nothing) Then _
+'            Set .Actions = new_BTagList()
+'
+'        ' /* R2.4.2: erase callback if url detection enabled */
+'        If (g_ConfigGet("no_callback_urls") = "1") And (g_IsURL(.DefaultAck)) Then _
+'            .DefaultAck = ""
+'
+'        ' /* only record the tick of the last _generated_ notification */
+'        .ClassObj.LastNotificationGeneratedTick = GetTickCount()
+'
+'        ' /* R2.3: set datestamp */
+'        .DateStamp = Now()
+'
+'        ' /* R2.4: overflow trimming */
+'        .Title = g_TrimLines(.Title)
+'        .Text = g_TrimLines(.Text)
+'
+'        ' /* some bounds checking */
+'        If (.Priority < 0) And (.Timeout = 0) Then
+'            ' /* R2.4: low-priority notifications cannot be sticky */
+'            .Timeout = Val(g_ConfigGet("default_duration"))
+'
+'        ElseIf .Timeout = -1 Then
+'            ' /* V41: if timeout is -1 then use global default timeout */
+'            .Timeout = Val(g_ConfigGet("default_duration"))
+'
+'        End If
+'
+'        ' /* R2.4: generate the "OriginalContent" content */
+'        uFixupContent
+'
+'    End With
+'
+'    ' /* 40.7 - icon can be an http:// or https:// url - if it is we initiate an
+'    '    async download of the icon and put the notification onto a stack while
+'    '    we wait for the download to complete */
+'
+'    Init2 = uCheckIcon()
+'    If Init2 <> 0 Then
+'        Exit Function
+'
+'
+'
+'
+'
+'
+'End Function
+'
+'Private Function uCheckIcon() As Long
+'Dim pt As BTagItem
+'
+'    ' /* returns allocated token or zero if no async download required */
+'
+'    With mInfo
+'        If g_IsURL(.IconPath) Then
+'            g_Debug "TNotification.uCheckIcon(): remote icon '" & .IconPath & "'"
+'
+'            ' /* to-do: allow user to suppress this by specifying a maximum download wait
+'            '    of zero seconds - in which case use the class default icon */
+'
+'            If g_NotificationRoster.IconCache.Find(.IconPath, pt) Then
+'                ' /* icon is already cached */
+'                g_Debug "TNotification.uCheckIcon(): icon found in cache (" & pt.Value & ")", LEMON_LEVEL_INFO
+'                .IconPath = pt.Value
+'
+'            Else
+'                ' /* icon isn't already cached */
+'                Set pt = new_BTagItem(Info.IconPath, g_GetTempPath(True) & LCase$(g_CreateGUID(True)) & ".png")
+'                g_Debug "TNotification.uCheckIcon(): starting async download to '" & pt.Value & "'..."
+'                g_NotificationRoster.IconCache.Add pt
+'
+'                If pnx.StartAsyncIconDownload(pt, Args) Then
+'
+'                    mState = SN_NS_WAITING
+'
+'                    ' /* assign the token now */
+'                    .Token = g_NotificationRoster.GetNextToken()
+'                    uCheckIcon = .Token
+'                    Exit Function
+'
+'                Else
+'                    g_Debug "TNotification.uCheckIcon(): remote icon specified but couldn't start icon download", LEMON_LEVEL_WARNING
+'
+'                End If
+'            End If
+'
+'        ElseIf g_IsFileURI(.IconPath) Then
+'            ' /* R2.4.2 DR3: support for "file://" protocol */
+'             .IconPath = g_PathFromURI(.IconPath)
+'
+'        End If
+'
+'    End With
+'
+'End Function
+
+'Public Function ApplyPresence() As SN_PRESENCE_ACTIONS
+'
+'    If g_ConfigGet("sticky_snarls") = "1" Then
+'        g_Debug "TNotification.ApplyPresence(): Sticky mode enabled"
+'        ' /* R2.4 DR8: *all* notifications are sticky */
+'        mInfo.Timeout = 0
+'
+'    ElseIf g_IsDND() Then
+'        ' /* Do Not Disturb (Busy) mode */
+'        g_Debug "TNotification.ApplyPresence(): Busy (aka DND) mode enabled: priority=" & CStr(mInfo.Priority)
+'        If mInfo.Priority < 0 Then
+'            ' /* low priority = ignored */
+'            gSetLastError SNARL_ERROR_DO_NOT_DISTURB
+'            ApplyPresence = SN_PA_LAST_ERROR_SET
+'
+'        ElseIf Info.Priority = 0 Then
+'            ' /* determine what to do with normal priority notifications */
+'            ApplyPresence = Val(mInfo.ClassObj.GetValue("override-busy")) - 1
+'            If ApplyPresence = SN_PA_DO_DEFAULT Then _
+'                ApplyPresence = Val(g_ConfigGet("busy_mode"))
+'
+'        End If
+'
+'    ElseIf g_IsAway() Then
+'        ' /* Away mode */
+'        g_Debug "TNotification.ApplyPresence(): Away mode enabled: priority=" & CStr(Info.Priority)
+'        If mInfo.Priority < 0 Then
+'            ' /* low priority = ignored */
+'            ApplyPresence = SN_PA_DO_NOTHING
+'
+'        ElseIf Info.Priority = 0 Then
+'            ' /* determine what to do with normal priority notifications */
+'            ApplyPresence = Val(mInfo.ClassObj.GetValue("override-away")) - 1
+'            Debug.Print "### away class setting is: " & ApplyPresence
+'            If ApplyPresence = SN_PA_DO_DEFAULT Then _
+'                ApplyPresence = Val(g_ConfigGet("away_mode"))
+'
+'            Debug.Print "### away setting is: " & ApplyPresence
+'
+'        Else
+'            ' /* high priority = logged as missed irrespective of class setting */
+'            ApplyPresence = SN_PA_LOG_AS_MISSED
+'
+'        End If
+'
+'    Else
+'        ' /* Normal/Active */
+'        ApplyPresence = Val(Info.ClassObj.GetValue("override-normal")) - 1
+'
+'    End If
+'
+'    ' /* post-processing */
+'
+'    Select Case ApplyPresence
+'    Case SN_PA_MAKE_STICKY
+'        mInfo.Timeout = 0
+'
+'    Case SN_PA_DISPLAY_URGENT
+'        mInfo.Priority = 1
+'
+'    End Select
+'
+'End Function
+'
+'Public Sub ValidateStyle()
+'
+'    ' /* no style name?  that's okay, use the default */
+'
+'    With mInfo
+'        If .StyleName = "" Then
+'            .StyleName = style_GetStyleName(g_ConfigGet("default_style"))
+'            .SchemeName = style_GetSchemeName(g_ConfigGet("default_style"))
+'
+'        End If
+'
+'    End With
+'
+'End Sub
+
+Public Function AppNameAndTitle() As String
+
+    AppNameAndTitle = mInfo.ClassObj.App.Name
+    If mInfo.Title <> "" Then _
+        AppNameAndTitle = AppNameAndTitle & ": " & mInfo.Title
+
+End Function
+
+Public Function PackedArgs() As BPackedData
+
+    Set PackedArgs = mPacked
 
 End Function
