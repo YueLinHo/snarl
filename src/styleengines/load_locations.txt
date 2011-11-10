@@ -133,7 +133,27 @@
 
 	runnable.styleengine
 
+	- Now supports {copyright} and {release_date} optional entries in config.  (41.15)
+
+	- Now uses ShellExecuteEx() to launch the specified style engine.  This allows
+	  for non-executables (e.g. VBscript) to be launched.  (41.15)
+
+	- Schemes now moved into [Schemes] section in config.  Simply list each scheme
+	  as an individual entry (no need for '=' sign).  (41.15)
+
+	- Added support for {redirect} setting - set to "1" if the style should be
+	  treated as a redirect.  (41.15)
+
+	- No longer any need to specify icon if it's called "icon.png".  (41.15)
+
+	- Can now specify custom executable using {style_exe} in config file.  (41.15)
+
+	- Will look for runnable\runnable.conf and, if it exists, will use
+	  "timeout=ms" value as the default timeout value.  Default is 500ms
+	  if it's not found, is missing, etc.  (41.13)
+
 	- First pass.  (41.1)
+
 
 
 
