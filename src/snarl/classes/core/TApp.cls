@@ -272,9 +272,9 @@ Public Function uMsg() As Long
 
 End Function
 
-Public Function Pid() As Long
+Public Function PID() As Long
 
-    Pid = mInfo.Pid
+    PID = mInfo.PID
 
 End Function
 
@@ -346,7 +346,7 @@ Dim pInfo As T_NOTIFICATION_INFO
         If .uReplyMsg = 0 Then _
             .uReplyMsg = mInfo.uMsg
 
-        .Pid = mInfo.Pid
+        .PID = mInfo.PID
         .Title = Title
         .Text = Text
         .Timeout = Timeout
@@ -412,7 +412,7 @@ Dim pClass As TAlert
     ' /* R2.4.2: if "Don't show if foreground app?" is set, check now */
 
     If pClass.GetValue("block_if_foreground") = "1" Then
-        If (mInfo.Pid <> 0) And (uGetForegroundPID() = mInfo.Pid) Then
+        If (mInfo.PID <> 0) And (uGetForegroundPID() = mInfo.PID) Then
             g_Debug "TApp.Show41(): discarded: application is foreground", LEMON_LEVEL_INFO
             gSetLastError SNARL_ERROR_DISCARDED
             Exit Function
@@ -699,7 +699,10 @@ Dim lFlags As SN_CLASS_FLAGS
 
         .DefaultSound = Data.ValueOf("sound")
         .DefaultText = Data.ValueOf("text")
-        .DefaultTimeout = Val(Data.ValueOf("duration"))
+
+        If Data.Exists("duration") Then _
+            .DefaultTimeout = Val(Data.ValueOf("duration"))
+
         .DefaultTitle = Data.ValueOf("title")
 
     End With

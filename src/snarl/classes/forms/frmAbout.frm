@@ -30,44 +30,6 @@ Begin VB.Form frmAbout
       Left            =   240
       Top             =   3240
    End
-   Begin VB.Label Label3 
-      BackStyle       =   0  'Transparent
-      Caption         =   "UTF8 support by Tomas, Icons by Mattahan.  Additional development and testing:   "
-      BeginProperty Font 
-         Name            =   "Calibri"
-         Size            =   9
-         Charset         =   0
-         Weight          =   400
-         Underline       =   0   'False
-         Italic          =   0   'False
-         Strikethrough   =   0   'False
-      EndProperty
-      Height          =   435
-      Index           =   5
-      Left            =   1980
-      TabIndex        =   5
-      Top             =   1200
-      Width           =   3555
-   End
-   Begin VB.Label Label3 
-      BackStyle       =   0  'Transparent
-      Caption         =   $"frmAbout.frx":1042
-      BeginProperty Font 
-         Name            =   "Calibri"
-         Size            =   9
-         Charset         =   0
-         Weight          =   400
-         Underline       =   0   'False
-         Italic          =   0   'False
-         Strikethrough   =   0   'False
-      EndProperty
-      Height          =   915
-      Index           =   4
-      Left            =   1980
-      TabIndex        =   4
-      Top             =   1680
-      Width           =   4395
-   End
    Begin VB.Label Label1 
       Alignment       =   2  'Center
       BackStyle       =   0  'Transparent
@@ -92,7 +54,7 @@ Begin VB.Form frmAbout
       Appearance      =   0  'Flat
       Height          =   450
       Left            =   5580
-      Picture         =   "frmAbout.frx":10E9
+      Picture         =   "frmAbout.frx":1042
       Stretch         =   -1  'True
       Top             =   2520
       Width           =   825
@@ -107,7 +69,7 @@ Begin VB.Form frmAbout
    Begin VB.Image Image1 
       Height          =   1920
       Left            =   60
-      Picture         =   "frmAbout.frx":1D4F
+      Picture         =   "frmAbout.frx":1CA8
       Top             =   180
       Width           =   1920
    End
@@ -132,7 +94,7 @@ Begin VB.Form frmAbout
    End
    Begin VB.Label Label3 
       BackStyle       =   0  'Transparent
-      Caption         =   "A Notification System for Windows"
+      Caption         =   "A notification system for Windows"
       BeginProperty Font 
          Name            =   "Calibri"
          Size            =   9.75
@@ -440,6 +402,15 @@ Private Sub IDropTarget_DragLeave()
 End Sub
 
 Private Sub IDropTarget_DragOver(ByVal grfKeyState As Long, ByVal ptx As Long, ByVal pty As Long, pdwEffect As olelib.DROPEFFECTS)
+'Dim pdo As CDropContentLite
+'
+'    Set pdo = New CDropContentLite
+'    If pdo.SetTo(pDataObject) Then
+'        If pdo.HasFormat(CF_HDROP) Then _
+'            pdwEffect = DROPEFFECT_COPY
+'
+'    End If
+
 End Sub
 
 Private Sub IDropTarget_Drop(ByVal pDataObject As olelib.IDataObject, ByVal grfKeyState As Long, ByVal ptx As Long, ByVal pty As Long, pdwEffect As olelib.DROPEFFECTS)
@@ -575,7 +546,7 @@ Dim hWnd As Long
         g_ConfigInit
 
     Case "test_display_settings"
-        g_PrivateNotify "", "Settings Test", "This is a test of the current display settings", 0, , 1, , , SN_NF_REMOTE Or SN_NF_SECURE, True
+        g_PrivateNotify "", "Settings Test", "This is a test of the current display settings", 0, , 1, , , SN_NF_REMOTE Or SN_NF_SECURE, True, "_display_settings_test"
 
     ' /* [About] */
 
@@ -983,8 +954,23 @@ Dim pdsp As TDisplaySubPage
 
             .AddPage pp
 
-            
-            .AddPage new_BPrefsPage("Styles", load_image_obj(g_MakePath(App.Path) & "etc\icons\styles.png"), New TStylesPage)
+            ' /* styles */
+
+            Set pp = new_BPrefsPage("Styles", load_image_obj(g_MakePath(App.Path) & "etc\icons\styles.png"), Me)
+            With pp
+                .SetMargin 0
+                Set pm = New CTempMsg
+                pm.Add "height", 412
+                Set pc = new_BPrefsControl("tabstrip", "", , , , pm)
+                BTabStrip_AddPage pc, "Display Styles", new_BPrefsPage("sty-display", , New TNetSubPage)
+                BTabStrip_AddPage pc, "Redirect Styles", new_BPrefsPage("sty-redirect", , New TNetSubPage)
+                .Add pc
+
+            End With
+            .AddPage pp
+
+'            .AddPage new_BPrefsPage("Styles", load_image_obj(g_MakePath(App.Path) & "etc\icons\styles.png"), New TStylesPage)
+
             .AddPage new_BPrefsPage("Extensions", load_image_obj(g_MakePath(App.Path) & "etc\icons\extensions.png"), New TExtPage)
             
             ' /* network */
@@ -996,8 +982,10 @@ Dim pdsp As TDisplaySubPage
                 pm.Add "height", 412
                 Set pc = new_BPrefsControl("tabstrip", "", , , , pm)
                 BTabStrip_AddPage pc, "General", new_BPrefsPage("net-general", , New TNetSubPage)
-                BTabStrip_AddPage pc, "Clients", new_BPrefsPage("net-clients", , New TNetSubPage)
-                BTabStrip_AddPage pc, "Listeners", new_BPrefsPage("net-listeners", , New TNetSubPage)
+                BTabStrip_AddPage pc, "Forwarding", new_BPrefsPage("net-clients", , New TNetSubPage)
+                BTabStrip_AddPage pc, "Subscriptions", new_BPrefsPage("net-subs", , New TNetSubPage)
+                BTabStrip_AddPage pc, "Subscribers", new_BPrefsPage("net-subscribers", , New TNetSubPage)
+'                BTabStrip_AddPage pc, "Listeners", new_BPrefsPage("net-listeners", , New TNetSubPage)
                 .Add pc
 
             End With
@@ -1515,9 +1503,10 @@ Dim pci As B_CPU_INFO
 
         End If
 
+'                        IIf(dw > 1, CStr(dw) & " x ", "") & Format$(dFreq, "0.0#") & " " & szMetric & " CPU" & vbCrLf & _
+
         g_PrivateNotify "", g_GetUserName() & " on " & g_GetComputerName(), _
                         g_GetOSName() & " " & g_GetServicePackName() & vbCrLf & _
-                        IIf(dw > 1, CStr(dw) & " x ", "") & Format$(dFreq, "0.0#") & " " & szMetric & " CPU" & vbCrLf & _
                         g_FileSizeToStringEx2(g_GetPhysMem(True), "GB", " ", "0.0") & " (" & g_FileSizeToStringEx2(g_GetPageMem(True) + g_GetPhysMem(True), "GB", " ", "0.0") & " total) RAM" & vbCrLf & _
                         "Snarl " & App.Major & "." & App.Revision & " (" & App.Comments & ")" & vbCrLf & "melon " & IIf(szMelon <> "", szMelon, "??"), _
                         -1, _
@@ -2022,11 +2011,22 @@ Private Sub uSetNotificationHotkey(ByVal Register As Boolean)
 
 End Sub
 
-Public Sub SubscribersChanged()
+Friend Sub bForwardersChanged()
 Dim pc As BControl
 
     If Not (mPanel Is Nothing) Then
-        If mPanel.Find("subscriber_list", pc) Then _
+        If mPanel.Find("net_forward_list", pc) Then _
+            pc.Notify "refresh", Nothing
+
+    End If
+
+End Sub
+
+Friend Sub bSubsChanged()
+Dim pc As BControl
+
+    If Not (mPanel Is Nothing) Then
+        If mPanel.Find("net_subscriber_list", pc) Then _
             pc.Notify "refresh", Nothing
 
     End If
@@ -2268,11 +2268,11 @@ Private Sub uFileDropped(ByVal Path As String, ByRef Text As String)
     Select Case g_GetExtension(Path, True)
     Case "webforward"
         If g_CopyToAppData(Path, "styles\webforward") Then _
-            Text = Text & g_RemoveExtension(g_FilenameFromPath(Path)) & " webforwarder installed" & vbCrLf
+            Text = Text & g_Quote(g_RemoveExtension(g_FilenameFromPath(Path))) & " webforwarder installed" & vbCrLf
 
     Case "rsz"
         If g_ExtractToAppData(Path, "styles\runnable") Then _
-            Text = Text & g_RemoveExtension(g_FilenameFromPath(Path)) & " runnable style installed" & vbCrLf
+            Text = Text & g_Quote(g_RemoveExtension(g_FilenameFromPath(Path))) & " runnable style installed" & vbCrLf
 
     End Select
 
@@ -2295,6 +2295,14 @@ Dim i As Long
         uFileDropped g_TrimStr(sz), szText
 
     Next i
+
+    If szText <> "" Then
+        g_PrivateNotify , "Installation complete", szText, , "!system-yes"
+
+    Else
+        g_PrivateNotify , "Installation failed", "There was a problem installing the selected file" & IIf(c > 1, "s", ""), , "!system-no"
+
+    End If
 
     g_StyleRoster.Restart
 

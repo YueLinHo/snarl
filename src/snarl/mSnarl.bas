@@ -102,6 +102,7 @@ Public Enum SN_NOTIFICATION_FLAGS
     SN_NF_SECURE = &H40000000
     SN_NF_IS_GNTP = &H20000000         ' // R2.4.2: GNTP-based notification
     SN_NF_IS_SNP3 = &H10000000         '// R2.4.2 DR3: SNP3
+    SN_NF_FORWARD = &H8000000           ' // R2.5 Beta 2: notification has been forwarded
 
     SN_NF_MERGE = &H1000
 
@@ -113,7 +114,7 @@ End Enum
     ' /* master notification structure, as used by the notification roster */
 
 Public Type T_NOTIFICATION_INFO
-    Pid As Long
+    PID As Long
     Title As String
     Text As String
     Timeout As SN_NOTIFICATION_DURATION
@@ -183,7 +184,7 @@ Public Type T_SNARL_APP
     Name As String
     hWnd As Long
     uMsg As Long
-    Pid As Long                 ' // V38 (for V39)
+    PID As Long                 ' // V38 (for V39)
     Icon As String              ' // R1.6 - path to application icon (if empty we use window icon)
 '    LargeIcon As String         ' // V38 (private for now) - path to large icon
     Token As Long               ' // V41
@@ -242,6 +243,7 @@ Public bm_Remote As MImage
 Public bm_Secure As MImage
 Public bm_IsSticky As MImage
 Public bm_Priority As MImage
+Public bm_Forward As MImage
 
 Public Enum SN_START_POSITIONS
     ' /* IMPORTANT!! These have now changed under V41 */
@@ -392,6 +394,8 @@ Public Enum SN_THREE_STATE
 
 End Enum
 
+    ' /* R2.5 Beta 2 */
+Dim mFlags As SNARL_SYSTEM_FLAGS
 
     ' /* requesters */
 Dim mReq() As TRequester
@@ -605,13 +609,12 @@ Dim pName As String
 
     ' /* R2.31: set our flags */
 
-Dim dwFlags As Long
+Dim dwFlags As SNARL_SYSTEM_FLAGS
 
     If gDebugMode Then _
-        dwFlags = dwFlags Or &H80000000
-    
+        dwFlags = dwFlags Or SNARL_SF_DEBUG_MODE
 
-    SetProp ghWndMain, "_flags", dwFlags
+    g_SetSystemFlags dwFlags
 
     ' /* R2.31: init last notification timestamp */
     
@@ -1012,6 +1015,10 @@ Public Function g_ConfigInit() As Boolean
         .Add "auth_password", ""
         .Add "default_screen", "1"
 
+        ' /* R2.5 Beta 2 */
+        .Add "allow_subs", "1"
+        .Add "include_icon_when_forwarding", "1"
+
     End With
 
     ' /* attempt to load the config file */
@@ -1169,6 +1176,8 @@ Dim dw As Long
         If Not (g_AppRoster Is Nothing) Then _
             g_AppRoster.SendToAll SNARL_BROADCAST_LAUNCHED
 
+        SetWindowText ghWndMain, "Snarl"
+
         ' /* R2.4: broadcast a started message */
 
         PostMessage HWND_BROADCAST, snSysMsg(), SNARL_BROADCAST_STARTED, ByVal 0&
@@ -1190,8 +1199,9 @@ Dim dw As Long
 '
 '        End If
 
-        ' /* R2.4: broadcast a stopped message */
-        PostMessage HWND_BROADCAST, snSysMsg(), SNARL_BROADCAST_STOPPED, ByVal 0&
+        ' /* set master flag */
+        g_IsRunning = False
+        SetWindowText ghWndMain, "Snarl-stopped"
 
         ' /* close all notifications */
         If Not (g_NotificationRoster Is Nothing) Then _
@@ -1205,8 +1215,8 @@ Dim dw As Long
         If Not (g_AppRoster Is Nothing) Then _
             g_AppRoster.SendToAll SNARL_BROADCAST_QUIT
 
-        ' /* set master flag last */
-        g_IsRunning = False
+        ' /* R2.4: broadcast a stopped message */
+        PostMessage HWND_BROADCAST, snSysMsg(), SNARL_BROADCAST_STOPPED, ByVal 0&
 
     End If
 
@@ -1251,14 +1261,14 @@ Dim pa As TApp
 
 End Function
 
-Public Function gfAddClass(ByVal Pid As Long, ByVal Class As String, ByVal Flags As Long, ByVal Description As String) As M_RESULT
+Public Function gfAddClass(ByVal PID As Long, ByVal Class As String, ByVal Flags As Long, ByVal Description As String) As M_RESULT
 Dim pa As TApp
 
-    g_Debug "gfAddClass('" & CStr(Pid) & "' '" & Class & "' #" & g_HexStr(Flags) & ")", LEMON_LEVEL_PROC
+    g_Debug "gfAddClass('" & CStr(PID) & "' '" & Class & "' #" & g_HexStr(Flags) & ")", LEMON_LEVEL_PROC
 
     ' /* find the app */
 
-    If Not g_AppRoster.FindByPid(Pid, pa) Then
+    If Not g_AppRoster.FindByPid(PID, pa) Then
         g_Debug "gfAddClass(): App not registered with Snarl", LEMON_LEVEL_CRITICAL
         gfAddClass = M_NOT_FOUND
         Exit Function
@@ -1384,11 +1394,11 @@ End Function
 '
 'End Function
 
-Public Function gfSetAlertDefault(ByVal Pid As Long, ByVal Class As String, ByVal Element As Long, ByVal Value As String) As M_RESULT
+Public Function gfSetAlertDefault(ByVal PID As Long, ByVal Class As String, ByVal Element As Long, ByVal Value As String) As M_RESULT
 Dim pa As TApp
 Dim pc As TAlert
 
-    g_Debug "gfSetAlertDefault('" & Pid & "' '" & Class & "' #" & CStr(Element) & " '" & Value & "')", LEMON_LEVEL_PROC
+    g_Debug "gfSetAlertDefault('" & PID & "' '" & Class & "' #" & CStr(Element) & " '" & Value & "')", LEMON_LEVEL_PROC
 
     If (g_AppRoster Is Nothing) Then
         g_Debug "gfSetAlertDefault(): App not registered with Snarl", LEMON_LEVEL_CRITICAL
@@ -1399,8 +1409,8 @@ Dim pc As TAlert
 
     ' /* find the app */
 
-    If Not g_AppRoster.FindByPid(Pid, pa) Then
-        g_Debug "gfSetAlertDefault(): App '" & Pid & "' not registered with Snarl", LEMON_LEVEL_CRITICAL
+    If Not g_AppRoster.FindByPid(PID, pa) Then
+        g_Debug "gfSetAlertDefault(): App '" & PID & "' not registered with Snarl", LEMON_LEVEL_CRITICAL
         gfSetAlertDefault = M_NOT_FOUND
         Exit Function
 
@@ -2562,18 +2572,14 @@ Dim pn As TNotification
 
     If pData.Exists("uid") Then
         ' /* if the specified uid (NOT token) exists, update this content with that one, otherwise create a new notificaton */
-        g_Debug "g_DoNotify(): looking for uid: " & pData.ValueOf("uid") & "..."
+        g_Debug "g_DoNotify(): looking for uid '" & pData.ValueOf("uid") & "' from app '" & pData.ValueOf("app-sig") & "'..."
 
         If g_NotificationRoster.Find(0, pData.ValueOf("uid"), pData.ValueOf("app-sig"), pData.ValueOf("password"), pn) Then
             pn.UpdateOrMerge pData, False
             g_DoNotify = pn.Info.Token
             Exit Function
 
-        Else
-            g_Debug "g_DoNotify(): uid " & pData.ValueOf("uid") & " not found"
-
         End If
-
     End If
 
     ' /* R2.4.2 DR3: now we've checked for updates and merges, we check to see if at least one of
@@ -2866,12 +2872,15 @@ Dim pApp As TApp
 
         Else
             g_Debug "g_DoAction(): <subscribe> from " & ReplySocket.RemoteHostIP & ":" & ReplySocket.RemotePort
-'            If g_SubsRoster.Add(SN_ST_SNP3_SUBSCRIBER, ReplySocket, Args) Then
-'                g_PrivateNotify "", "Subscriber added", ReplySocket.RemoteHostIP & " subscribed", , ".sub-add"
-'                frmAbout.SubscribersChanged
-'                g_DoAction = -1
-'
-'            End If
+            If g_SubsRoster.AddSubscriber(SN_ST_SNP3_SUBSCRIBER, ReplySocket, Args) Then
+'                g_PrivateNotify "", "Subscriber added", ReplySocket.RemoteHostIP & " subscribed using SNP", , ".sub-snp-add"
+                frmAbout.bSubsChanged
+                g_DoAction = -1
+
+            Else
+                g_Debug "g_DoAction(): failed to add subscriber from " & ReplySocket.RemoteHostIP
+
+            End If
 
         End If
 
@@ -2887,7 +2896,7 @@ Dim pApp As TApp
         Else
             g_Debug "g_DoAction(): <unsubscribe> from " & ReplySocket.RemoteHostIP & ":" & ReplySocket.RemotePort
             If g_SubsRoster.Remove(ReplySocket, SN_ST_SNP3_SUBSCRIBER, Args) Then
-                frmAbout.SubscribersChanged
+                frmAbout.bSubsChanged
                 g_DoAction = -1
 
             End If
@@ -3187,15 +3196,37 @@ Dim fWasAway As Boolean
 
     mPresFlags = mPresFlags Or Flags
 
+
+
+    ' /* R2.5 Beta 2: update system flags */
+
+Dim dw As SNARL_SYSTEM_FLAGS
+
+    dw = g_GetSystemFlags()
+
+    If g_IsAway() Then _
+        dw = dw Or SNARL_SF_USER_AWAY
+
+    If g_IsDND() Then _
+        dw = dw Or SNARL_SF_USER_BUSY
+
+    g_SetSystemFlags dw
+
+
+
     ' /* if we've gone from Active to non-Active, log the current missed count */
 
     If (fWasActive) And (mPresFlags <> 0) Then _
         g_NotificationRoster.SaveCurrentMissedCount
 
+
+
+
     ' /* if we've transitioned to Away, notify registered apps */
 
     If (Not fWasAway) And (g_IsAway()) Then _
         g_AppRoster.SendToAll SNARL_BROADCAST_USER_AWAY
+
 
     ' /* R2.4.2 DR3: change the tray icon */
     frmAbout.bSetTrayIcon
@@ -3218,6 +3249,27 @@ Dim fWasAway As Boolean
     mPresFlags = mPresFlags And (Not Flags)
     fIsAwayOrBusy = (mPresFlags <> 0)
 
+
+
+    ' /* R2.5 Beta 2: update system flags */
+
+Dim dw As SNARL_SYSTEM_FLAGS
+
+    dw = g_GetSystemFlags()
+
+    If Not g_IsAway() Then _
+        dw = dw And (Not SNARL_SF_USER_AWAY)
+
+    If Not g_IsDND() Then _
+        dw = dw And (Not SNARL_SF_USER_BUSY)
+
+    g_SetSystemFlags dw
+
+
+
+
+
+
     ' /* if we've transitioned from Away, notify registered apps */
 
     If (fWasAway) And (Not g_IsAway()) Then _
@@ -3227,6 +3279,8 @@ Dim fWasAway As Boolean
 
     If (fWasAwayOrBusy) And (mPresFlags = 0) Then _
         g_NotificationRoster.CheckMissed
+
+
 
     ' /* R2.4.2 DR3: change the tray icon */
 
@@ -3425,6 +3479,7 @@ Dim sz As String
     uSafeLoadImage sz, "emblem-secure.png", bm_Secure
     uSafeLoadImage sz, "emblem-sticky.png", bm_IsSticky
     uSafeLoadImage sz, "emblem-priority.png", bm_Priority
+    uSafeLoadImage sz, "emblem-forward.png", bm_Forward
 
 '    load_image sz & "menu.png", bm_Menu                 ' // no longer used
 
@@ -3832,3 +3887,31 @@ Dim sz As String
 
 End Function
 
+Public Sub g_SetSystemFlags(ByVal SystemFlags As SNARL_SYSTEM_FLAGS)
+
+    mFlags = SystemFlags
+    SetProp ghWndMain, "_flags", SystemFlags
+
+End Sub
+
+Public Function g_GetSystemFlags() As SNARL_SYSTEM_FLAGS
+
+    g_GetSystemFlags = mFlags
+
+End Function
+
+Public Function g_IsLocalAddress(ByVal IPAddress As String, Optional ByVal IgnoreDebugMode As Boolean = False) As Boolean
+
+    If (Not IgnoreDebugMode) And (gDebugMode) Then _
+        Exit Function
+
+    IPAddress = LCase$(IPAddress)
+    If (IPAddress = "localhost") Or (IPAddress = LCase$(g_GetComputerName())) Then
+        g_IsLocalAddress = True
+
+    Else
+        g_IsLocalAddress = (InStr(get_ip_address_table(), IPAddress) <> 0)
+
+    End If
+
+End Function

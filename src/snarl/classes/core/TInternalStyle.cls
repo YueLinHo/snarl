@@ -27,7 +27,7 @@ Option Explicit
     '/
     '*********************************************************************************************/
 
-Private Const ENG_DATE = "13-Jan-2011"
+Private Const ENG_DATE = "18-Oct-2011"
 
 Private Const STYLE_NAME = "Default"
 Private Const DEF_STYLE_DATE = "25-Jul-2011"
@@ -144,7 +144,7 @@ End Function
 
 Private Function IStyleEngine_Revision() As Long
 
-    IStyleEngine_Revision = 1
+    IStyleEngine_Revision = App.Minor
 
 End Function
 

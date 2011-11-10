@@ -45,8 +45,9 @@ Dim i As Long
                 prefskit_SetItem pc, 1, "enabled", IIf(mCurrentEngine.State = SN_SE_LOADED, 0&, 1&)     ' // "Start"
                 prefskit_SetItem pc, 2, "enabled", IIf((mCurrentEngine.State = SN_SE_LOADED) And (Not mCurrentEngine.IsSystem), 1&, 0&)     ' // "Stop"
                 prefskit_SetItem pc, 3, "enabled", IIf(mCurrentEngine.State = SN_SE_LOADED, 1&, 0&)     ' // "Details"
-                
-                prefskit_SetItem pc, 5, "enabled", IIf((mCurrentEngine.State = SN_SE_LOADED) And (Not mCurrentEngine.IsSystem), 1&, 0&)     ' // "Show in Explorer"
+                prefskit_SetItem pc, 4, "enabled", mCurrentEngine.IsConfigurable                        ' // "Configure..."
+
+                prefskit_SetItem pc, 6, "enabled", IIf((mCurrentEngine.State = SN_SE_LOADED) And (Not mCurrentEngine.IsSystem), 1&, 0&)     ' // "Show in Explorer"
 
             End If
 
@@ -77,7 +78,11 @@ Dim i As Long
             ' /* details */
             mCurrentEngine.DoDetailsNotification
 
-        Case 5
+        Case 4
+            ' /* configure... */
+            mCurrentEngine.Configure
+
+        Case 6
             ' /* show in Explorer */
             ShellExecute 0, "open", mCurrentEngine.Engine.Path, vbNullString, vbNullString, SW_SHOWNORMAL
 
@@ -181,9 +186,14 @@ Dim i As Long
 End Sub
 
 Private Sub KPrefsPage_ControlInvoked(Control As prefs_kit_d2.BControl)
-Dim sz As String
 
-'    Select Case Control.GetName()
+    Select Case Control.GetName()
+    Case "engine_list"
+        ' /* configure... */
+        mCurrentEngine.Configure
+
+    End Select
+
 '    Case "fb2>done"
 '        mPanel.Quit
 '
@@ -290,7 +300,7 @@ Dim pm As CTempMsg
             pc.SizeTo 0, 26
             .Add pc
         
-            .Add new_BPrefsControl("fancytoolbar", "style_engine_toolbar", "Start|Stop|Details||Show in Explorer")
+            .Add new_BPrefsControl("fancytoolbar", "style_engine_toolbar", "Start|Stop|Details|Configure...||Show in Explorer")
 '            .Add new_BPrefsControl("fancybutton2", "fb2>loadunload", "Unload")
             .Add new_BPrefsControl("fancybutton2", "fb2>install", "Install new Style Engine...")
     
@@ -400,3 +410,4 @@ Dim n As Integer
     Close #n
 
 End Sub
+

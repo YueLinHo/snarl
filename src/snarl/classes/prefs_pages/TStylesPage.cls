@@ -95,214 +95,214 @@ Dim szText As String
 
     Select Case Control.GetName()
 
-    Case "installed_styles"
-        Set mStyle = g_StyleRoster.StyleAt(Val(Value))
-        If (mStyle Is Nothing) Then _
-            Exit Sub
-
-        If Control.Page.Find("lbl>schemes", pc) Then _
-            pc.SetText "This style has " & CStr(mStyle.CountSchemes) & " scheme" & IIf(mStyle.CountSchemes = 1, "", "s") & ":"
-            
-'            pc.SetText "The " & mStyle.Name & " style has " & CStr(mStyle.CountSchemes) & " scheme" & IIf(mStyle.CountSchemes = 1, "", "s") & ":"
-
-'        If Control.Page.Find("fb>cfg", pc) Then _
-            pc.SetEnabled (mStyle.Flags And S_STYLE_IS_CONFIGURABLE)
-
-        If Control.Page.Find("ftb>style", pc) Then
-            Set pm = New CTempMsg
-            pm.Add "index", 1&
-            pm.Add "enabled", IIf((mStyle.Flags And S_STYLE_IS_CONFIGURABLE), 1&, 0&)
-            pc.DoExCmd B_SET_ITEM, pm
-
-        End If
-
+'    Case "installed_styles"
+'        Set mStyle = g_StyleRoster.StyleAt(Val(Value))
+'        If (mStyle Is Nothing) Then _
+'            Exit Sub
+'
+'        If Control.Page.Find("lbl>schemes", pc) Then _
+'            pc.SetText "This style has " & CStr(mStyle.CountSchemes) & " scheme" & IIf(mStyle.CountSchemes = 1, "", "s") & ":"
+'
+''            pc.SetText "The " & mStyle.Name & " style has " & CStr(mStyle.CountSchemes) & " scheme" & IIf(mStyle.CountSchemes = 1, "", "s") & ":"
+'
+''        If Control.Page.Find("fb>cfg", pc) Then _
 '            pc.SetEnabled (mStyle.Flags And S_STYLE_IS_CONFIGURABLE)
-
-
-
-        uUpdateSchemeList
-
-        If Control.Page.Find("lbl>desc", pc) Then _
-            pc.SetText mStyle.Description
-
-
-
-    Case "installed_schemes"
-
-'MsgBox "changed!"
-
-        If mStyle.Name = "" Then _
-            Exit Sub
-
-        Set pm = New CTempMsg
-        mScheme = mStyle.SchemeAt(Val(Value))
-        If mScheme = "<Default>" Then _
-            mScheme = ""
-
-        sz = g_MakePath(mStyle.Path) & mScheme & ".preview"
-        If Not g_Exists(sz) Then
-            If uCreatePreviewImage() Then
-                sz = uMakePreviewName()
-
-            Else
-                sz = g_MakePath(mStyle.Path) & "style.preview"
-
-            End If
-
-        End If
-
-        If Not g_Exists(sz) Then _
-            sz = g_MakePath(App.Path) & "etc\icons\blank.png"
-
-        pm.Add "image-file", sz
-        If Control.Page.Find("image_preview", pc) Then _
-            pc.DoExCmd B_SET_ITEM, pm
-
-
-    Case "ftb>style"
-        Select Case Val(Value)
-        Case 1
-            ' /* configure style */
-            uDoConfigureStyleWindow
-
-        Case 2, 3
-            ' /* preview or preview priority */
-            If (mStyle.Name = "") Or (Not mPage.Find("installed_schemes", pc)) Then _
-                Exit Sub
-
-            ' /* must have a selected scheme - this should *always* be the case, but... */
-
-            dw = Val(pc.GetValue())
-            If dw <> 0 Then _
-                g_DoSchemePreview2 mStyle.Name, mStyle.SchemeAt(dw), (Val(Value) = 3), 0
-
-        Case 4
-            ' /* make default */
-            If (mStyle.Name = "") Or (Not mPage.Find("installed_schemes", pc)) Then _
-                Exit Sub
-
-            ' /* must have a selected scheme - this should *always* be the case, but... */
-
-            dw = Val(pc.GetValue())
-            If dw = 0 Then _
-                Exit Sub
-
-            szScheme = LCase$(mStyle.Name)
-
-            ' /* if we have a scheme other than 'default' adjust the name accordingly... */
-
-            If mStyle.SchemeAt(dw) <> "" Then _
-                szScheme = szScheme & "/" & LCase$(mStyle.SchemeAt(dw))
-
-            g_ConfigSet "default_style", szScheme
-            g_Debug "TStylePage.ControlInvoked(): default style is now '" & g_ConfigGet("default_style") & "'"
-
-'            If Control.Page.Panel.Find("current_default_style", pc) Then _
-                pc.SetText "Default style is " & g_Capitalize(Replace$(g_ConfigGet("default_style"), "/", " (") & ")")
-
-
-        Case 6
-            ' /* style engine info */
-
-            With New TStyleEnginePanel
-                .Go mPage.Panel.hWnd
-
-            End With
-
-'Dim pEngineInfo As T_SNARL_STYLE_ENGINE_INFO
 '
-'            With g_StyleRoster
-'                For dw = 1 To .CountEngines
-'                    If .EngineAt(dw, pEngineInfo) Then
-'                        With pEngineInfo
-'                            sz = sz & IIf(.Name = "", "<unknown>", .Name) & " V" & CStr(.Version) & "." & CStr(.Revision) & " " & .Description & " " & .Path & vbCrLf
+'        If Control.Page.Find("ftb>style", pc) Then
+'            Set pm = New CTempMsg
+'            pm.Add "index", 1&
+'            pm.Add "enabled", IIf((mStyle.Flags And S_STYLE_IS_CONFIGURABLE), 1&, 0&)
+'            pc.DoExCmd B_SET_ITEM, pm
 '
-'                        End With
-'                    End If
-'                Next dw
+'        End If
+'
+''            pc.SetEnabled (mStyle.Flags And S_STYLE_IS_CONFIGURABLE)
+'
+'
+'
+'        uUpdateSchemeList
+'
+'        If Control.Page.Find("lbl>desc", pc) Then _
+'            pc.SetText mStyle.Description
+'
+'
+
+'    Case "installed_schemes"
+'
+''MsgBox "changed!"
+'
+'        If mStyle.Name = "" Then _
+'            Exit Sub
+'
+'        Set pm = New CTempMsg
+'        mScheme = mStyle.SchemeAt(Val(Value))
+'        If mScheme = "<Default>" Then _
+'            mScheme = ""
+'
+'        sz = g_MakePath(mStyle.Path) & mScheme & ".preview"
+'        If Not g_Exists(sz) Then
+'            If uCreatePreviewImage() Then
+'                sz = uMakePreviewName()
+'
+'            Else
+'                sz = g_MakePath(mStyle.Path) & "style.preview"
+'
+'            End If
+'
+'        End If
+'
+'        If Not g_Exists(sz) Then _
+'            sz = g_MakePath(App.Path) & "etc\icons\blank.png"
+'
+'        pm.Add "image-file", sz
+'        If Control.Page.Find("image_preview", pc) Then _
+'            pc.DoExCmd B_SET_ITEM, pm
+'
+'
+'    Case "ftb>style"
+'        Select Case Val(Value)
+'        Case 1
+'            ' /* configure style */
+'            uDoConfigureStyleWindow
+'
+'        Case 2, 3
+'            ' /* preview or preview priority */
+'            If (mStyle.Name = "") Or (Not mPage.Find("installed_schemes", pc)) Then _
+'                Exit Sub
+'
+'            ' /* must have a selected scheme - this should *always* be the case, but... */
+'
+'            dw = Val(pc.GetValue())
+'            If dw <> 0 Then _
+'                g_DoSchemePreview2 mStyle.Name, mStyle.SchemeAt(dw), (Val(Value) = 3), 0
+'
+'        Case 4
+'            ' /* make default */
+'            If (mStyle.Name = "") Or (Not mPage.Find("installed_schemes", pc)) Then _
+'                Exit Sub
+'
+'            ' /* must have a selected scheme - this should *always* be the case, but... */
+'
+'            dw = Val(pc.GetValue())
+'            If dw = 0 Then _
+'                Exit Sub
+'
+'            szScheme = LCase$(mStyle.Name)
+'
+'            ' /* if we have a scheme other than 'default' adjust the name accordingly... */
+'
+'            If mStyle.SchemeAt(dw) <> "" Then _
+'                szScheme = szScheme & "/" & LCase$(mStyle.SchemeAt(dw))
+'
+'            g_ConfigSet "default_style", szScheme
+'            g_Debug "TStylePage.ControlInvoked(): default style is now '" & g_ConfigGet("default_style") & "'"
+'
+''            If Control.Page.Panel.Find("current_default_style", pc) Then _
+'                pc.SetText "Default style is " & g_Capitalize(Replace$(g_ConfigGet("default_style"), "/", " (") & ")")
+'
+'
+'        Case 6
+'            ' /* style engine info */
+'
+'            With New TStyleEnginePanel
+'                .Go mPage.Panel.hWnd
 '
 '            End With
 '
-'            MsgBox sz, vbOKOnly Or vbInformation, App.Title
-
-        End Select
-
+''Dim pEngineInfo As T_SNARL_STYLE_ENGINE_INFO
+''
+''            With g_StyleRoster
+''                For dw = 1 To .CountEngines
+''                    If .EngineAt(dw, pEngineInfo) Then
+''                        With pEngineInfo
+''                            sz = sz & IIf(.Name = "", "<unknown>", .Name) & " V" & CStr(.Version) & "." & CStr(.Revision) & " " & .Description & " " & .Path & vbCrLf
+''
+''                        End With
+''                    End If
+''                Next dw
+''
+''            End With
+''
+''            MsgBox sz, vbOKOnly Or vbInformation, App.Title
+'
+'        End Select
+'
     End Select
 
 End Sub
 
 Private Sub KPrefsPage_ControlInvoked(Control As BControl)
-Dim pc As BControl
-
-    Debug.Print "[" & mPage.GetName() & "]: ControlInvoked '" & Control.GetName() & "'"
-
-    Select Case Control.GetName()
-
-    Case "fb>cfg"
-        ' /* configure style */
-        uDoConfigureStyleWindow
-
-
-'    Case "preview_style"
-'        If (mStyle.Info.Name = "") Or (Not mPage.Find("installed_schemes", pc)) Then _
-'            Exit Sub
+'Dim pc As BControl
 '
-'        ' /* must have a selected scheme - this should *always* be the case, but... */
+'    Debug.Print "[" & mPage.GetName() & "]: ControlInvoked '" & Control.GetName() & "'"
 '
-'        dw = Val(pc.GetValue())
-'        If dw = 0 Then _
-'            Exit Sub
+'    Select Case Control.GetName()
 '
-'        ' /* if we have a scheme other than 'default' adjust the text accordingly... */
-'
-'        If mStyle.Scheme(dw) <> "" Then
-'            szText = " using the " & mStyle.Scheme(dw) & " scheme"
-'            szScheme = "/" & LCase$(mStyle.Scheme(dw))
-'
-'        End If
-'
-'        szText = "This is a preview of the " & mStyle.Info.Name & " style" & szText
-'        szScheme = LCase$(mStyle.Info.Name) & szScheme
-'
-''        MsgBox "*****> " & mStyle.Info.Path
-'
-'        g_NotificationRoster.Add 0, "", "Scheme Preview", szText, E_DEFAULT_DURATION, _
-'                                 g_MakePath(App.Path) & "etc\icons\style_preview.png", 0, 0, "", szScheme, ""
+'    Case "fb>cfg"
+'        ' /* configure style */
+'        uDoConfigureStyleWindow
 '
 '
-'    Case "set_default_style"
-'        If (mStyle.Info.Name = "") Or (Not mPage.Find("installed_schemes", pc)) Then _
-'            Exit Sub
+''    Case "preview_style"
+''        If (mStyle.Info.Name = "") Or (Not mPage.Find("installed_schemes", pc)) Then _
+''            Exit Sub
+''
+''        ' /* must have a selected scheme - this should *always* be the case, but... */
+''
+''        dw = Val(pc.GetValue())
+''        If dw = 0 Then _
+''            Exit Sub
+''
+''        ' /* if we have a scheme other than 'default' adjust the text accordingly... */
+''
+''        If mStyle.Scheme(dw) <> "" Then
+''            szText = " using the " & mStyle.Scheme(dw) & " scheme"
+''            szScheme = "/" & LCase$(mStyle.Scheme(dw))
+''
+''        End If
+''
+''        szText = "This is a preview of the " & mStyle.Info.Name & " style" & szText
+''        szScheme = LCase$(mStyle.Info.Name) & szScheme
+''
+'''        MsgBox "*****> " & mStyle.Info.Path
+''
+''        g_NotificationRoster.Add 0, "", "Scheme Preview", szText, E_DEFAULT_DURATION, _
+''                                 g_MakePath(App.Path) & "etc\icons\style_preview.png", 0, 0, "", szScheme, ""
+''
+''
+''    Case "set_default_style"
+''        If (mStyle.Info.Name = "") Or (Not mPage.Find("installed_schemes", pc)) Then _
+''            Exit Sub
+''
+''        ' /* must have a selected scheme - this should *always* be the case, but... */
+''
+''        dw = Val(pc.GetValue())
+''        If dw = 0 Then _
+''            Exit Sub
+''
+''        szScheme = LCase$(mStyle.Info.Name)
+''
+''        ' /* if we have a scheme other than 'default' adjust the name accordingly... */
+''
+''        If mStyle.Scheme(dw) <> "" Then _
+''            szScheme = szScheme & "/" & LCase$(mStyle.Scheme(dw))
+''
+''
+''        gPrefs.default_style = szScheme
+''        g_Debug "TStylePage.ControlInvoked(): default style is now '" & gPrefs.default_style & "'"
+''        g_WriteConfig
 '
-'        ' /* must have a selected scheme - this should *always* be the case, but... */
+''    Case "restart_style_roster"
+''        If Not (g_StyleRoster Is Nothing) Then
+''            melonLibClose g_StyleRoster
+''            Sleep 500
+'''            MsgBox "Click OK when you're ready for the Style Roster to start up", vbInformation Or vbOKOnly, App.Title
+''            melonLibOpen g_StyleRoster
+''            uUpdateStyleList
+''
+''        End If
 '
-'        dw = Val(pc.GetValue())
-'        If dw = 0 Then _
-'            Exit Sub
-'
-'        szScheme = LCase$(mStyle.Info.Name)
-'
-'        ' /* if we have a scheme other than 'default' adjust the name accordingly... */
-'
-'        If mStyle.Scheme(dw) <> "" Then _
-'            szScheme = szScheme & "/" & LCase$(mStyle.Scheme(dw))
-'
-'
-'        gPrefs.default_style = szScheme
-'        g_Debug "TStylePage.ControlInvoked(): default style is now '" & gPrefs.default_style & "'"
-'        g_WriteConfig
-
-'    Case "restart_style_roster"
-'        If Not (g_StyleRoster Is Nothing) Then
-'            melonLibClose g_StyleRoster
-'            Sleep 500
-''            MsgBox "Click OK when you're ready for the Style Roster to start up", vbInformation Or vbOKOnly, App.Title
-'            melonLibOpen g_StyleRoster
-'            uUpdateStyleList
-'
-'        End If
-
-    End Select
+'    End Select
 
 End Sub
 
@@ -466,125 +466,125 @@ Dim i As Long
 End Sub
 
 Private Function MWndProcSink_WndProc(ByVal hWnd As Long, ByVal uMsg As Long, ByVal wParam As Long, ByVal lParam As Long, ByVal PrevWndProc As Long, ReturnValue As Long) As Boolean
-Dim ps As TStyle
-
-    On Error Resume Next
-
-    If uMsg = WM_DESTROY Then
-
-        ' /* config window has gone */
-
-        RemoveSubClass hWnd                     ' // really necessary?
-        EnableWindow mPage.Panel.hWnd, -1
-
-        ' /* it's likely that the schemes will have changes so refresh them now.  This
-        '    is _really_ ugly code and needs to be sorted out once a better style
-        '    type library has been developed */
-
-'        If Not (g_StyleRoster Is Nothing) Then
-'            If g_StyleRoster.RefreshStyle(mStyle.Info.Name, ps) Then _
-'                LSet mStyle = ps
+'Dim ps As TStyle
 '
-'        End If
-
-        uUpdateSchemeList
-        g_ShowWindow mPage.Panel.hWnd, True, True
-
-Dim pc As BControl
-
-        If mPage.Find("installed_schemes", pc) Then _
-            KPrefsPage_ControlChanged pc, pc.GetValue
-
-    End If
-
-End Function
-
-Private Function uCreatePreviewImage() As Boolean
-
-    If (mStyle Is Nothing) Then _
-        Exit Function
-
-    If (mStyle.Flags And S_STYLE_IS_WINDOWLESS) Then _
-        Exit Function
-
-    DeleteFile uMakePreviewName()
-
-Dim pInfo As T_NOTIFICATION_INFO
-
-    With pInfo
-        .Title = "Scheme Preview"
-        .Text = "Lorem ipsum dolor sit amet, consectetur adipisicing elit, sed do..." ' mScheme
-        .Timeout = 10
-        .IconPath = mStyle.IconPath
-        .StyleName = mStyle.Name
-        .SchemeName = LCase$(mScheme)
-        ' /* R2.4 DR7 */
-        Set .ClassObj = New TAlert
-        ' /* R2.4 DR8 */
-        Set .Actions = new_BTagList()
-
-    End With
-
-    If (mStyle.Flags And S_STYLE_V42_CONTENT) Then _
-        g_KludgeNotificationInfo pInfo
-
-Dim pw As CSnarlWindow
-
-    Set pw = New CSnarlWindow
-    If pw.Create(pInfo, mStyle.CreateInstance(), mStyle.Flags, g_GetStylePath(mStyle.Name)) = M_OK Then
-        pw.CaptureToFile uMakePreviewName()
-        pw.Remove
-        uCreatePreviewImage = True
-
-    Else
-        Debug.Print "create failed"
-
-    End If
+'    On Error Resume Next
+'
+'    If uMsg = WM_DESTROY Then
+'
+'        ' /* config window has gone */
+'
+'        RemoveSubClass hWnd                     ' // really necessary?
+'        EnableWindow mPage.Panel.hWnd, -1
+'
+'        ' /* it's likely that the schemes will have changes so refresh them now.  This
+'        '    is _really_ ugly code and needs to be sorted out once a better style
+'        '    type library has been developed */
+'
+''        If Not (g_StyleRoster Is Nothing) Then
+''            If g_StyleRoster.RefreshStyle(mStyle.Info.Name, ps) Then _
+''                LSet mStyle = ps
+''
+''        End If
+'
+'        uUpdateSchemeList
+'        g_ShowWindow mPage.Panel.hWnd, True, True
+'
+'Dim pc As BControl
+'
+'        If mPage.Find("installed_schemes", pc) Then _
+'            KPrefsPage_ControlChanged pc, pc.GetValue
+'
+'    End If
 
 End Function
 
-Private Function uMakePreviewName() As String
+'Private Function uCreatePreviewImage() As Boolean
+'
+'    If (mStyle Is Nothing) Then _
+'        Exit Function
+'
+'    If (mStyle.Flags And S_STYLE_IS_WINDOWLESS) Then _
+'        Exit Function
+'
+'    DeleteFile uMakePreviewName()
+'
+'Dim pInfo As T_NOTIFICATION_INFO
+'
+'    With pInfo
+'        .Title = "Scheme Preview"
+'        .Text = "Lorem ipsum dolor sit amet, consectetur adipisicing elit, sed do..." ' mScheme
+'        .Timeout = 10
+'        .IconPath = mStyle.IconPath
+'        .StyleName = mStyle.Name
+'        .SchemeName = LCase$(mScheme)
+'        ' /* R2.4 DR7 */
+'        Set .ClassObj = New TAlert
+'        ' /* R2.4 DR8 */
+'        Set .Actions = new_BTagList()
+'
+'    End With
+'
+'    If (mStyle.Flags And S_STYLE_V42_CONTENT) Then _
+'        g_KludgeNotificationInfo pInfo
+'
+'Dim pw As CSnarlWindow
+'
+'    Set pw = New CSnarlWindow
+'    If pw.Create(pInfo, mStyle.CreateInstance(), mStyle.Flags, g_GetStylePath(mStyle.Name)) = M_OK Then
+'        pw.CaptureToFile uMakePreviewName()
+'        pw.Remove
+'        uCreatePreviewImage = True
+'
+'    Else
+'        Debug.Print "create failed"
+'
+'    End If
+'
+'End Function
+'
+'Private Function uMakePreviewName() As String
+'
+'    If (mStyle Is Nothing) Then _
+'        Exit Function
+'
+'    uMakePreviewName = g_MakeValidPath(g_MakePath(mStyle.Path) & mStyle.Name & "-" & mScheme & ".prvw")
+'
+'End Function
 
-    If (mStyle Is Nothing) Then _
-        Exit Function
-
-    uMakePreviewName = g_MakeValidPath(g_MakePath(mStyle.Path) & mStyle.Name & "-" & mScheme & ".prvw")
- 
-End Function
-
-Private Function uDoConfigureStyleWindow() As Boolean
-
-    If (mStyle.Engine Is Nothing) Then _
-        Exit Function
-
-Dim hWndConfig As Long
-
-    hWndConfig = mStyle.Engine.GetConfigWindow(mStyle.Name)
-    If IsWindow(hWndConfig) = 0 Then
-        g_Debug "TStylePage.ControlChanged(): ConfigRequested() failed (" & g_HexStr(hWndConfig) & ")"
-'        MsgBox "This style cannot be configured.", vbInformation Or vbOKOnly, App.Title
-        Exit Function
-
-    End If
-
-    ' /* valid window */
-
-Dim rcConfig As RECT
-Dim rc As RECT
-
-    AddSubClass hWndConfig, Me
-    SetWindowLong hWndConfig, GWL_HWNDPARENT, mPage.Panel.hWnd
-    EnableWindow mPage.Panel.hWnd, 0
-
-    GetWindowRect mPage.Panel.hWnd, rc
-    GetWindowRect hWndConfig, rcConfig
-    g_RectNormalise rcConfig
-
-    g_MoveWindow hWndConfig, _
-                 rc.Left + Fix(((rc.Right - rc.Left) - rcConfig.Right) / 2), _
-                 rc.Top + Fix(((rc.Bottom - rc.Top) - rcConfig.Bottom) / 2)
-
-    g_ShowWindow hWndConfig, True, True
-    uDoConfigureStyleWindow = True
-
-End Function
+'Private Function uDoConfigureStyleWindow() As Boolean
+'
+'    If (mStyle.Engine Is Nothing) Then _
+'        Exit Function
+'
+'Dim hWndConfig As Long
+'
+'    hWndConfig = mStyle.Engine.GetConfigWindow(mStyle.Name)
+'    If IsWindow(hWndConfig) = 0 Then
+'        g_Debug "TStylePage.ControlChanged(): ConfigRequested() failed (" & g_HexStr(hWndConfig) & ")"
+''        MsgBox "This style cannot be configured.", vbInformation Or vbOKOnly, App.Title
+'        Exit Function
+'
+'    End If
+'
+'    ' /* valid window */
+'
+'Dim rcConfig As RECT
+'Dim rc As RECT
+'
+'    AddSubClass hWndConfig, Me
+'    SetWindowLong hWndConfig, GWL_HWNDPARENT, mPage.Panel.hWnd
+'    EnableWindow mPage.Panel.hWnd, 0
+'
+'    GetWindowRect mPage.Panel.hWnd, rc
+'    GetWindowRect hWndConfig, rcConfig
+'    g_RectNormalise rcConfig
+'
+'    g_MoveWindow hWndConfig, _
+'                 rc.Left + Fix(((rc.Right - rc.Left) - rcConfig.Right) / 2), _
+'                 rc.Top + Fix(((rc.Bottom - rc.Top) - rcConfig.Bottom) / 2)
+'
+'    g_ShowWindow hWndConfig, True, True
+'    uDoConfigureStyleWindow = True
+'
+'End Function

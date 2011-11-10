@@ -102,7 +102,10 @@ Dim i As Long
             .Add new_BPrefsControl("fancycycle", "style.overflow_limit", "5 lines|7 lines|15 lines", "Limit text to:", uOverflowLimit())
             .Add new_BPrefsControl("fancytoggle2", "use_style_icons", "Use style-provided icons (where possible) over Snarl icons?", "Other:", g_ConfigGet("use_style_icons"))
             .Add new_BPrefsControl("fancytoggle2", "auto_detect_url", "Automatically detect URLs in a notification?", "", g_ConfigGet("auto_detect_url"))
-            .Add new_BPrefsControl("fancybutton2", "show_style_defaults", "Style Defaults...")
+            
+            .Add new_BPrefsControl("banner", "", "Style Defaults")
+'            .Add new_BPrefsControl("label", "", "Certain styles (such as the built-in Snarl display)")
+            .Add new_BPrefsControl("fancybutton2", "show_style_defaults", "Configure...")
 
             ' /* heads-up display */
 

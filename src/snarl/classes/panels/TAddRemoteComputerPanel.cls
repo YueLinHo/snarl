@@ -44,7 +44,7 @@ Private Sub KPrefsPage_ControlChanged(Control As prefs_kit_d2.BControl, ByVal Va
 
 
     Case "url", "desc"
-        If mType2 = SN_ST_WEB_LISTENER Then _
+        If mType2 = SN_ST_COMET Then _
             prefskit_SafeEnable mPanel, "save_button", (prefskit_SafeGetText(mPanel, "desc") <> "") And (prefskit_SafeGetText(mPanel, "url") <> "")
 
     End Select
@@ -53,6 +53,7 @@ End Sub
 
 Private Sub KPrefsPage_ControlInvoked(Control As prefs_kit_d2.BControl)
 Dim pc As BControl
+Dim szErr As String
 Dim sz As String
 
     Select Case Control.GetName()
@@ -60,7 +61,7 @@ Dim sz As String
         If mPanel.Find("host", pc) Then
             Control.SetEnabled False
             Set theSocket = New CSocket
-            If theSocket.Connect(pc.GetText(), IIf((mType2 And SN_ST_PROTOCOL_MASK) = 0, SNP_DEFAULT_PORT, GNTP_DEFAULT_PORT)) Then
+            If theSocket.Connect(pc.GetText(), IIf((mType2 And SN_ST_TYPE_MASK) = SN_ST_GNTP, GNTP_DEFAULT_PORT, SNP_DEFAULT_PORT)) Then
                 Debug.Print "connecting..."
                 Set theTimer = new_BTimer(5000, True, True)
 
@@ -77,12 +78,13 @@ Dim sz As String
 
     Case "save_button"
 
-        If mType2 = SN_ST_WEB_LISTENER Then
+        If mType2 = SN_ST_COMET Then
             ' /* web listener */
-            If (prefskit_SafeGetText(mPanel, "desc") = "") Or (prefskit_SafeGetText(mPanel, "url") = "") Then
+            sz = prefskit_SafeGetText(mPanel, "url")
+            If (prefskit_SafeGetText(mPanel, "desc") = "") Or (sz = "") Or (Not g_IsURL(sz)) Then
                 MsgBox "Must provide a name and URL", vbExclamation Or vbOKOnly, App.Title
 
-            ElseIf g_SubsRoster.AddWebListener(prefskit_SafeGetText(mPanel, "desc"), prefskit_SafeGetText(mPanel, "url")) Then
+            ElseIf g_SubsRoster.AddWebListener(prefskit_SafeGetText(mPanel, "desc"), sz) Then
                 RaiseEvent Refresh
                 mPanel.Quit
 
@@ -94,17 +96,19 @@ Dim sz As String
             If sz = "" Then _
                 Exit Sub
 
-            If (LCase$(sz) = "localhost") Or (LCase$(sz) = LCase$(g_GetComputerName)) Or (InStr(get_ip_address_table(), sz) <> 0) Then
+            If (Not gDebugMode) And (g_IsLocalAddress(sz)) Then
                 MsgBox "Cannot forward notifications to local computer.", vbExclamation Or vbOKOnly, App.Title
 
             Else
-                If g_SubsRoster.Add(mType2, prefskit_SafeGetText(mPanel, "desc"), sz, "") Then _
-                    frmAbout.SubscribersChanged
+                If g_SubsRoster.Add(mType2, prefskit_SafeGetText(mPanel, "desc"), sz, "", szErr) Then
+                    frmAbout.bForwardersChanged
+                    mPanel.Quit
 
-                mPanel.Quit
+                Else
+                    MsgBox szErr, vbOKOnly Or vbExclamation, g_WindowText(mPanel.hWnd)
 
+                End If
             End If
-
         End If
 
     End Select
@@ -164,18 +168,18 @@ Dim pp As BPrefsPage
         .SetHandler Me
         Select Case PanelType
         Case SN_ST_SNP3_FORWARD
-            szTitle = "Forward Notifications"
-            sza = "forward notifications to."
+            szTitle = "Forward to Remote Computer"
+            sza = "forward notifications to"
 
         Case SN_ST_SNP3_SUBSCRIPTION
-            szTitle = "SNP Subscription"
-            sza = "subscribe to."
+            szTitle = "Subscribe to Remote Server"
+            sza = "subscribe to"
 
 '        Case "subg"
 '            szTitle = "GNTP Subscription"
 '            sza = "subscribe to."
 
-        Case SN_ST_WEB_LISTENER
+        Case SN_ST_COMET
             szTitle = "Web Listener"
 
         End Select
@@ -190,7 +194,7 @@ Dim pp As BPrefsPage
         With pp
             .SetMargin 90
 
-            If mType2 = SN_ST_WEB_LISTENER Then
+            If mType2 = SN_ST_COMET Then
             
                 .Add new_BPrefsControl("fancyedit", "desc", , "Description:")
                 .Add new_BPrefsControl("fancyedit", "url", , "URL:")
@@ -202,28 +206,30 @@ Dim pp As BPrefsPage
 '            .Add new_BPrefsSeparator
 
                 .Add new_BPrefsBanner("", "Destination", "")
-                .Add new_BPrefsControl("fancyedit", "desc", , "Description:")
-                .Add new_BPrefsControl("label", "", "This can be used to describe the remote computer (e.g. ""Tom's Computer"", ""Office Server"", etc.)")
-    
-                .Add new_BPrefsControl("fancyedit", "host", , "Host name:")
-                .Add new_BPrefsControl("label", "", "Enter the host name or IP address of the computer you wish to " & sza)
+                .Add new_BPrefsControl("fancyedit", "host", , "Host:")
+                .Add new_BPrefsControl("label", "", "Enter the IP address of the computer to " & sza)
                 .Add new_BPrefsControl("fancybutton2", "test_button", "Check", , , , False)
     
-    '            .Add new_BPrefsBanner("", "Applications", "")
-    '            .Add new_BPrefsControl("fancybutton2", "pick_apps", "Select Applications...")
+                .Add new_BPrefsControl("fancyedit", "desc", , "Description:")
+                .Add new_BPrefsControl("label", "", "This can be used to describe the connection (e.g. ""Tom's Computer"", ""Office Server"", etc.)")
     
-                .Add new_BPrefsControl("fancyedit", "apps", , "Apps:")
-                .Add new_BPrefsControl("label", "", "Enter the signatures of the applications you wish to " & _
-                                       IIf(mType2 = SN_ST_SNP3_FORWARD, "forward from", "subscribe to") & _
-                                       ".  Multiple entries should be separated with a semi-colon.  Refer to the user guide for more information.")
-    
-    '            If PanelType = "frwd" Then
-    '                .Add new_BPrefsControl("label", "", "Enter the signatures of the applications you wish to forward (separate multiple entries with "";"").  To forward from all applications, leave this field empty.")
-    '
-    '            Else
-    '                .Add new_BPrefsControl("label", "", "Enter the signatures of the applications you wish to subscribe (separating multiple entries with "";"") to.  To subscribe to all applications, leave this field empty.")
-    '
-    '            End If
+'    '            .Add new_BPrefsBanner("", "Applications", "")
+'    '            .Add new_BPrefsControl("fancybutton2", "pick_apps", "Select Applications...")
+'
+'                .Add new_BPrefsControl("fancyedit", "apps", , "Apps:")
+'                .Add new_BPrefsControl("label", "", "Enter the signatures of the applications you wish to " & _
+'                                       IIf(mType2 = SN_ST_SNP3_FORWARD, "forward from", "subscribe to") & _
+'                                       ".  Multiple entries should be separated with a semi-colon.  Refer to the user guide for more information.")
+'
+'    '            If PanelType = "frwd" Then
+'    '                .Add new_BPrefsControl("label", "", "Enter the signatures of the applications you wish to forward (separate multiple entries with "";"").  To forward from all applications, leave this field empty.")
+'    '
+'    '            Else
+'    '                .Add new_BPrefsControl("label", "", "Enter the signatures of the applications you wish to subscribe (separating multiple entries with "";"") to.  To subscribe to all applications, leave this field empty.")
+'    '
+'    '            End If
+
+                .Add new_BPrefsControl("fancycycle", "protocol_type", "SNP 3.0|GNTP", "Protocol:", , , False)
 
             End If
 

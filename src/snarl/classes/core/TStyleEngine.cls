@@ -27,6 +27,8 @@ Dim mFlags As Long
 
 Dim mError As String
 
+Dim mSupportsEngineConfig As Boolean
+
 Implements BTagItem
 
 Private Function BTagItem_Name() As String
@@ -90,6 +92,16 @@ Dim hr As M_RESULT
         Exit Function
 
     End If
+
+    ' /* R2.5 Beta 2: ask the style engine for information about itself
+    '    by calling IStyleEngine::StyleAt(0) */
+
+Dim psi As style_info
+
+    pse.StyleAt 0, psi
+    If (psi.Flags And S_STYLE_IS_CONFIGURABLE) Then _
+        mSupportsEngineConfig = True
+
 
     If pse.CountStyles < 1 Then
         g_Debug "TStyleRoster.uAddStyleEngine(): style engine has no styles", LEMON_LEVEL_WARNING
@@ -236,3 +248,25 @@ Public Function Description() As String
         Description = mObject.Description
 
 End Function
+
+Public Function IsConfigurable() As Boolean
+
+    IsConfigurable = mSupportsEngineConfig
+
+End Function
+
+Public Sub Configure()
+
+    If (mState <> SN_SE_LOADED) Or (Not mSupportsEngineConfig) Then _
+        Exit Sub
+
+Dim hWnd As Long
+
+    hWnd = mObject.GetConfigWindow(".global")
+    If IsWindow(hWnd) <> 0 Then
+        ' /* display it */
+            
+    End If
+
+End Sub
+

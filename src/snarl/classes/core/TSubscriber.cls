@@ -26,29 +26,74 @@ Option Explicit
     '*********************************************************************************************/
 
 Public Enum SN_SUBSCRIBER_TYPE
-    ' /* these are dynamic and thus not recorded in network.snarl */
-    SN_ST_SNP3_SUBSCRIBER = &H7         ' // subscription made to this computer from a remote computer
-    SN_ST_GNTP_SUBSCRIBER = &HE         ' // GNTP subscription made to this computer from a remote computer
 
-    ' /* these are persistent and thus are recorded in network.snarl */
-    SN_ST_SNP3_FORWARD = &H100          ' // persistent forward from this computer to a remote computer via SNP3
-    SN_ST_GNTP_FORWARD = &H115
-    SN_ST_SNP3_SUBSCRIPTION = &H10A     ' // persistent subscription from this computer to a remote computer via SNP3
-    SN_ST_GNTP_SUBSCRIPTION = &H11E
+    ' /* - - - - | P D M M | T T T T | V V V V
+    '   ---------+---------+---------+---------
+    '
+    '   P = Persistence (1 = persistent, 0 = transient)
+    '       persistent connections are recorded in network.snarl and are loaded/managed
+    '       by the subscription roster
+    '   D = Direction (1 = outbound, 0 = inbound)
+    '       this indicates the direction of travel of the notification packets
+    '   M = Medium (00 = TCP, 01 = HTTP, 10 = reserved, 11 = reserved)
+    '   T = Type (00 = SNP, 01 = GNTP, 10 = reserved, 11 = reserved)
+    '   V = Version (based Type), currently defined:
+    '            T     V
+    '         ------+---------------
+    '          SNP  | 1, 2 or 3
+    '          GNTP | 1
+    '
+    ' */
 
-    SN_ST_PROTOCOL_MASK = &H10
-    SN_ST_DIRECTION_MASK = &HC          ' // <>0=subscription, 0=forward
+    SN_ST_TRANSIENT = 0                 ' // can't use as mask - use SN_ST_PERSISTENT instead
+    SN_ST_PERSISTENT = &H800&
+    SN_ST_INBOUND = 0                   ' // can't use as mask - use SN_ST_OUTBOUND instead
+    SN_ST_OUTBOUND = &H400&
+
+    ' /* medium */
+    
+    SN_ST_MEDIUM_MASK = &H300&
+    SN_ST_TCP = 0                       ' // direct TCP socket
+    SN_ST_HTTP = &H100&                 ' // HTTP transfer
+
+    ' /* type */
+
+    SN_ST_TYPE_MASK = &HF0&
+    SN_ST_SNP = 0                       ' // Snarl Network Protocol
+    SN_ST_GNTP = &H10&                  ' // Growl Network Transport Protocol
+
+    ' /* version */
+    
+    SN_ST_VERSION_MASK = &HF&
+
+    ' /*
+    '   non-persistent types (not recorded in network.snarl)
+    ' */
+
+    ' // subscriptions made *to* this computer from a remote computer
+    SN_ST_SUBSCRIBER = SN_ST_TRANSIENT Or SN_ST_INBOUND Or SN_ST_TCP
+    SN_ST_SNP3_SUBSCRIBER = SN_ST_SUBSCRIBER Or SN_ST_SNP Or 3
+    SN_ST_GNTP_SUBSCRIBER = SN_ST_SUBSCRIBER Or SN_ST_GNTP Or 1
+
+    ' /*
+    '   persistent types (recorded in network.snarl)
+    ' */
+    SN_ST_FORWARD = SN_ST_PERSISTENT Or SN_ST_OUTBOUND Or SN_ST_TCP
+    SN_ST_SNP3_FORWARD = SN_ST_FORWARD Or SN_ST_SNP Or 3
+    SN_ST_GNTP_FORWARD = SN_ST_FORWARD Or SN_ST_GNTP Or 1
+
+    SN_ST_SUBSCRIPTION = SN_ST_PERSISTENT Or SN_ST_INBOUND Or SN_ST_TCP
+    SN_ST_SNP3_SUBSCRIPTION = SN_ST_SUBSCRIPTION Or SN_ST_SNP Or 3
+    SN_ST_GNTP_SUBSCRIPTION = SN_ST_SUBSCRIPTION Or SN_ST_GNTP Or 1
 
     ' /* special types */
-    
-    SN_ST_WEB_LISTENER = &H3FFE
+
+    SN_ST_COMET = SN_ST_PERSISTENT Or SN_ST_INBOUND Or SN_ST_HTTP
 
 End Enum
 
 Dim WithEvents theSocket As CSocket
 Attribute theSocket.VB_VarHelpID = -1
-Dim WithEvents theTimer As BTimer
-Attribute theTimer.VB_VarHelpID = -1
 
 Dim mType As SN_SUBSCRIBER_TYPE
 Dim mApps As BTagList               ' // which app(s) we're subscribed to - an empty list means "all"
@@ -70,7 +115,6 @@ Implements BTagItem
 
 Private Function BTagItem_Name() As String
 
-'    BTagItem_Name = theSocket.RemoteHostIP & ":" & CStr(theSocket.RemotePort)
     BTagItem_Name = mGuid
 
 End Function
@@ -84,6 +128,7 @@ End Function
 Private Sub Class_Initialize()
 
     Set mCache = new_BTagList()
+    Set mApps = new_BTagList()
 
     mEnabled = True     ' // temp
 
@@ -91,11 +136,22 @@ End Sub
 
 Private Sub theSocket_OnClose()
 
-    Set theSocket = Nothing
-    MsgBox "Closed"
+    g_Debug "TSubscriber.OnClose(): remote computer '" & mRemoteAddr & "' closed the connection", LEMON_LEVEL_INFO
 
-'    g_SubsRoster.Remove theSocket, mType, mData
-'    frmAbout.SubscribersChanged
+    Select Case mType
+
+    Case SN_ST_SNP3_FORWARD, SN_ST_GNTP_FORWARD, SN_ST_SNP3_SUBSCRIPTION, SN_ST_GNTP_SUBSCRIPTION
+        g_Debug "TSubscriber.OnClose(): was a forward/subscription"
+        frmAbout.bForwardersChanged
+    
+    Case SN_ST_SNP3_SUBSCRIBER, SN_ST_GNTP_SUBSCRIBER
+        g_Debug "TSubscriber.OnClose(): removing remote subscription"
+        g_SubsRoster.RemoveByGuid mGuid
+        frmAbout.bSubsChanged
+
+    End Select
+
+    uReset
 
 End Sub
 
@@ -109,7 +165,7 @@ Public Function SetFrom(ByRef Config As ConfigSection) As Boolean
     ' /* provided IP cannot be same as this computer (or NULL) */
     mRemoteAddr = Config.GetValueWithDefault("remotehost", "")
 
-    If (mRemoteAddr = "") Or (InStr(get_ip_address_table(), mRemoteAddr) <> 0) Then
+    If g_IsLocalAddress(mRemoteAddr) Then
         g_Debug "TSubscriber.SetFrom(): invalid IP address '" & mRemoteAddr & "'", LEMON_LEVEL_CRITICAL
         Exit Function
 
@@ -134,79 +190,44 @@ Public Function SetFrom(ByRef Config As ConfigSection) As Boolean
     mEnabled = (Config.GetValueWithDefault("enabled", "0") = "1")
 
     ' /* TO-DO: allow forwarding or subscribing to named apps */
-    Set mApps = new_BTagList()
     '// Config.GetValueWithDefault("apps", "")
 
     ' /* create the socket */
 
-    Select Case mType
-
-    Case SN_ST_SNP3_FORWARD
-        g_Debug "TSubscriber.SetFrom(): creating as SNP3 forwarder to '" & mRemoteAddr & "'..."
-        Set theSocket = New CSocket
-        theSocket.Connect mRemoteAddr, SNP_DEFAULT_PORT
-
-    Case SN_ST_GNTP_FORWARD
-        g_Debug "TSubscriber.SetFrom(): GNTP forwarder not currently implemented", LEMON_LEVEL_WARNING
-        Exit Function
-'        Set theSocket = New CSocket
-'        theSocket.Connect mRemoteAddr, GNTP_DEFAULT_PORT
-
-    Case SN_ST_SNP3_SUBSCRIPTION
-        g_Debug "TSubscriber.SetFrom(): subscribing as SNP3 to '" & mRemoteAddr & "'..."
-        Set theSocket = New CSocket
-        theSocket.Connect mRemoteAddr, SNP_DEFAULT_PORT
-
-    Case SN_ST_GNTP_SUBSCRIPTION
-        g_Debug "TSubscriber.SetFrom(): GNTP subscriber not currently implemented", LEMON_LEVEL_WARNING
-        Exit Function
-'        Set theSocket = New CSocket
-'        theSocket.Connect mRemoteAddr, GNTP_DEFAULT_PORT
-
-    End Select
+    uReset
 
     SetFrom = True
 
 End Function
 
-Public Function SetTo(ByVal Guid As String, ByVal SubType As SN_SUBSCRIBER_TYPE, ByVal Description As String, ByVal RemoteHost As String, ByVal Apps As String, ByRef Settings As ConfigSection, Optional ByRef ProvidedSocket As CSocket) As Boolean
+Public Function SetTo(ByVal SubscriberType As SN_SUBSCRIBER_TYPE, ByRef RemoteSocket As CSocket, ByRef Data As BPackedData) As Boolean
 
     ' /* configure from the provided information.  This implies transiency and thus
     '    means we're recording a subscription received from a remote computer */
 
     ' /* error checking */
 
-    If (SubType <> SN_ST_GNTP_SUBSCRIBER) Or (SubType <> SN_ST_SNP3_SUBSCRIBER) Then
+    If (SubscriberType <> SN_ST_GNTP_SUBSCRIBER) And (SubscriberType <> SN_ST_SNP3_SUBSCRIBER) Then
         g_Debug "TSubscriber.SetTo(): SubType can only be SN_ST_GNTP_SUBSCRIBER or SN_ST_SNP3_SUBSCRIBER", LEMON_LEVEL_CRITICAL
         Exit Function
 
     End If
 
-    SetTo = uInit(Guid, SubType, Description, RemoteHost, Apps, Nothing, ProvidedSocket)
+    mType = SubscriberType
+    mGuid = g_CreateGUID(True)          ' // we'll create our own...
+    mRemoteAddr = RemoteSocket.RemoteHostIP
+    Set theSocket = RemoteSocket
+
+'    mDescription = Description
+
+    g_Debug "TSubscriber.SetTo(): subscribed to from " & mRemoteAddr, LEMON_LEVEL_INFO
+
+
+    SetTo = True
 
 End Function
 
-Public Function uInit(ByVal Guid As String, ByVal SubType As SN_SUBSCRIBER_TYPE, ByVal Description As String, ByVal RemoteHost As String, ByVal Apps As String, ByRef Settings As ConfigSection, Optional ByRef Socket As CSocket) As Boolean
-
-    ' /* error checking */
-
-    If (Guid = "") Or (SubType = 0) Or (RemoteHost = "") Or (InStr(get_ip_address_table(), RemoteHost) <> 0) Then _
-        Exit Function
-
-    mGuid = Guid
-    mType = SubType
-    mDescription = Description
-    mRemoteAddr = RemoteHost
-    Set mConfig = Settings
-
-    Set theSocket = Socket
-    Set mApps = new_BTagList()
-
-    uInit = True
-
-End Function
-
-Public Function Send(ByVal Content As String) As Boolean
+Public Function send(ByVal Content As String) As Boolean
 
     If ISNULL(theSocket) Then _
         Exit Function
@@ -215,22 +236,24 @@ Public Function Send(ByVal Content As String) As Boolean
     '    otherwise cache content */
 
     Select Case mType
-    Case SN_ST_SNP3_FORWARD
-        If theSocket.State = sckConnected Then
-            Debug.Print "TSubscriber.Forward(): sending content..."
+    Case SN_ST_SNP3_FORWARD, SN_ST_SNP3_SUBSCRIBER
+        If g_IsLocalAddress(theSocket.RemoteHostIP, True) Then
+            Debug.Print "TSubscriber.Send(): invalid or local address '" & Me.RemoteHost & "' (" & Me.Description & ")"
+
+        ElseIf theSocket.State = sckConnected Then
+            Debug.Print "TSubscriber.Send(): sending content to '" & Me.RemoteHost & "'..."
             theSocket.SendData Content
 
         Else
-            Debug.Print "TSubscriber.Forward(): caching content..."
+            Debug.Print "TSubscriber.Send(): caching content..."
             mCache.Add new_BTagItem(Content, "")
             If mCache.CountItems > 32 Then
-                g_Debug "TSubscriber.Forward(): pruning cache..."
+                g_Debug "TSubscriber.Send(): pruning cache..."
                 mCache.Remove 1
         
             End If
 
         End If
-
 
     Case SN_ST_GNTP_FORWARD
         ' /* need to create a REGISTRATION packet and a NOTIFY
@@ -239,16 +262,16 @@ Public Function Send(ByVal Content As String) As Boolean
 '        sz = uCreateGNTPForward(Content)
 '        szn = uCreateGNTPNotify(Content)
 '        If theSocket.State = sckConnected Then
-'            Debug.Print "TSubscriber.Forward(): sending registration..."
+'            Debug.Print "TSubscriber.Send(): sending registration..."
 '            theSocket.SendData sz
 '            theSocket.SendData szn
 '
 '        Else
-'            Debug.Print "TSubscriber.Forward(): caching content..."
+'            Debug.Print "TSubscriber.Send(): caching content..."
 '            mCache.Add new_BTagItem(sz, "")
 '            mCache.Add new_BTagItem(szn, "")
 '            If mCache.CountItems > 64 Then
-'                g_Debug "TSubscriber.Forward(): pruning cache..."
+'                g_Debug "TSubscriber.Send(): pruning cache..."
 '                mCache.Remove 1
 '                mCache.Remove 1
 '
@@ -263,16 +286,6 @@ Public Function Send(ByVal Content As String) As Boolean
 
 
 
-'
-'    Case SN_ST_SNP3_SUBSCRIBER
-'
-''        If theSocket.State <> sckConnected Then
-''            g_Debug "TSubscriber.Forward(): no longer connected to subscriber", LEMON_LEVEL_CRITICAL
-''            ' /* TO DO: remove subscriber */
-''            Exit Function
-''
-''        End If
-''
 ''        ' /* SNP 3.0 subscription (sent as FORWARD) */
 ''
 ''        sz = "SNP/3.0 FORWARD" & vbCrLf
@@ -399,8 +412,13 @@ Dim i As Long
 
     End If
 
-    Detail = Detail & IIf((mType And SN_ST_DIRECTION_MASK) = 0, " to ", " from ") & mRemoteAddr _
-                    & " via " & IIf((mType And SN_ST_PROTOCOL_MASK) = 0, "SNP", "GNTP")
+
+    If (mType <> SN_ST_GNTP_SUBSCRIBER) And (mType <> SN_ST_SNP3_SUBSCRIBER) Then _
+        Detail = Detail & IIf((mType And SN_ST_OUTBOUND), " to ", " from ") & mRemoteAddr
+
+
+    If (mType And SN_ST_TYPE_MASK) = SN_ST_GNTP Then _
+        Detail = Detail & " (using GNTP)"
 
 End Function
 
@@ -512,7 +530,11 @@ Dim pt As BTagItem
 
     Select Case mType
     Case SN_ST_SNP3_SUBSCRIPTION
-        g_Debug "TSubscriber.OnConnect(): SNP3 subscriptions are not currently implemented", LEMON_LEVEL_WARNING
+        ' /* subscription from this computer to a remote one */
+        g_Debug "TSubscriber.OnConnect(SN_ST_SNP3_SUBSCRIPTION): now connected to '" & theSocket.RemoteHost & "'"
+        theSocket.SendData snp3_CreateSubscribeRequest()
+        g_Debug "TSubscriber.OnConnect(SN_ST_SNP3_SUBSCRIPTION): sent subscription request"
+        frmAbout.bForwardersChanged
 
     Case SN_ST_GNTP_SUBSCRIPTION
         g_Debug "TSubscriber.OnConnect(): GNTP subscriptions are not currently implemented", LEMON_LEVEL_WARNING
@@ -520,51 +542,99 @@ Dim pt As BTagItem
 
     Case SN_ST_SNP3_FORWARD, SN_ST_GNTP_FORWARD
         g_Debug "TSubscriber.OnConnect(): [SN_ST_x_FORWARD] now connected to '" & theSocket.RemoteHost & "'"
-
         With mCache
             .Rewind
             Do While .GetNextTag(pt) = B_OK
                 theSocket.SendData pt.Name
 
             Loop
-
             .MakeEmpty
 
         End With
+        frmAbout.bForwardersChanged
 
     Case Else
         g_Debug "TSubscriber.OnConnect(): spurious connection (dest=" & mRemoteAddr & " type=" & g_HexStr(mType, 2) & ")", LEMON_LEVEL_WARNING
 
     End Select
     
-    Set theTimer = Nothing
+'    Set theTimer = Nothing
+
+End Sub
+
+Private Sub theSocket_OnDataArrival(ByVal bytesTotal As Long)
+Dim sz As String
+
+    On Error GoTo er
+
+    Select Case mType
+    
+    Case SN_ST_SNP3_SUBSCRIPTION
+        ' /* subscription from this computer to a remote one so this should be incoming
+        '    registrations and notifications */
+
+        theSocket.PeekData sz
+
+'        Debug.Print "()"
+'        Debug.Print sz
+'        Debug.Print "() " & InStr(sz, "SNP/") & " " & InStr(sz, vbCrLf & "END" & vbCrLf)
+
+        If (InStr(sz, "SNP/") > 0) And (InStr(sz, vbCrLf & "END" & vbCrLf) > 0) Then
+            theSocket.GetData sz
+            snp3_Translate sz, theSocket, SN_NF_IS_SNP3 Or SN_NF_FORWARD Or SN_NF_REMOTE
+
+        Else
+            g_Debug "TSubscriber.OnDataArrival(SN_ST_SNP3_SUBSCRIPTION): waiting for complete packet..."
+
+        End If
+
+    End Select
+
+    Exit Sub
+
+er:
+    g_Debug "TSubscriber.OnDataArrival(): " & err.Description, LEMON_LEVEL_CRITICAL
+    theSocket.CloseSocket
 
 End Sub
 
 Private Sub theSocket_OnSendComplete()
-
-'///
-
+'//
 End Sub
 
-Private Sub theTimer_Pulse()
-
-    g_Debug "TSubscriber.Pulse(): timed out connecting to '" & mRemoteAddr & "' (type=" & g_HexStr(mType, 2) & ")", LEMON_LEVEL_CRITICAL
-    theSocket.CloseSocket
-    Set theSocket = Nothing
-
-End Sub
+'Private Sub theTimer_Pulse()
+'
+'    g_Debug "TSubscriber.Pulse(): timed out connecting to '" & mRemoteAddr & "' (type=" & g_HexStr(mType, 2) & ")", LEMON_LEVEL_CRITICAL
+'    theSocket.CloseSocket
+'    Set theSocket = Nothing
+'
+'End Sub
 
 Public Sub SetEnabled(ByVal Enabled As Boolean)
 
     mEnabled = Enabled
-    Debug.Print mDescription & " enabled: " & mEnabled
+    g_Debug "TSubscriber.SetEnabled(): setting '" & mDescription & "' to " & mEnabled & "..."
 
     If Not (mConfig Is Nothing) Then
         mConfig.Update "enabled", IIf(Enabled, "1", "0")
         g_SubsRoster.WriteConfig
 
     End If
+
+    Select Case mType
+    Case SN_ST_SNP3_FORWARD, SN_ST_SNP3_SUBSCRIPTION
+        If mEnabled Then
+            uReset
+
+        Else
+            If NOTNULL(theSocket) Then
+                theSocket.CloseSocket
+                Set theSocket = Nothing
+
+            End If
+        End If
+
+    End Select
 
 End Sub
 
@@ -581,6 +651,78 @@ Public Function IsConnected() As Boolean
 
 End Function
 
+Public Sub Quit()
 
+    If NOTNULL(theSocket) Then
+        theSocket.CloseSocket
+        Set theSocket = Nothing
 
+    End If
+
+End Sub
+
+Private Sub uReset()
+
+    Select Case mType
+
+    Case SN_ST_SNP3_FORWARD
+        If mEnabled Then
+            g_Debug "TSubscriber.uReset(): SN_ST_SNP3_FORWARD: connecting to '" & mRemoteAddr & "'..."
+            Set theSocket = New CSocket
+            theSocket.Connect mRemoteAddr, SNP_DEFAULT_PORT
+
+        End If
+
+    Case SN_ST_GNTP_FORWARD
+        g_Debug "TSubscriber.uReset(): GNTP forwarder not currently implemented", LEMON_LEVEL_WARNING
+'        Set theSocket = New CSocket
+'        theSocket.Connect mRemoteAddr, GNTP_DEFAULT_PORT
+
+    Case SN_ST_SNP3_SUBSCRIPTION
+        If mEnabled Then
+            g_Debug "TSubscriber.uReset(): SN_ST_SNP3_SUBSCRIPTION: subscribing to '" & mRemoteAddr & "'..."
+            Set theSocket = New CSocket
+            theSocket.Connect mRemoteAddr, SNP_DEFAULT_PORT
+
+        End If
+
+    Case SN_ST_GNTP_SUBSCRIPTION
+        g_Debug "TSubscriber.uReset(): GNTP subscriber not currently implemented", LEMON_LEVEL_WARNING
+'        Set theSocket = New CSocket
+'        theSocket.Connect mRemoteAddr, GNTP_DEFAULT_PORT
+
+    Case SN_ST_GNTP_SUBSCRIBER, SN_ST_SNP3_SUBSCRIBER
+        Set theSocket = Nothing
+
+    End Select
+
+End Sub
+
+Private Function uGetFirstLine(ByVal str As String) As String
+Dim i As Long
+
+    i = InStr(str, vbCrLf)
+    If i Then _
+        uGetFirstLine = g_SafeLeftStr(str, i - 1)
+
+End Function
+
+Public Function RemoteHostEx() As String
+
+    If NOTNULL(theSocket) Then _
+        RemoteHostEx = theSocket.RemoteHostIP & ":" & CStr(theSocket.RemotePort)
+
+End Function
+
+Public Function RemoteHost() As String
+
+    If NOTNULL(theSocket) Then
+        RemoteHost = theSocket.RemoteHostIP
+
+    Else
+        RemoteHost = mRemoteAddr
+
+    End If
+
+End Function
 

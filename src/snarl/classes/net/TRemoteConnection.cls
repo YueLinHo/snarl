@@ -81,7 +81,7 @@ End Sub
 
 Public Sub Accept(ByVal Id As Long, ByVal PortNumber As Long) '// IsGNTP As Boolean)
 
-    g_Debug "TRemoteConnection.Accept(): Id=0x" & g_HexStr(Id) & " Type=" & CStr(PortNumber), LEMON_LEVEL_PROC
+    g_Debug "TRemoteConnection.Accept(): Id=0x" & g_HexStr(Id) & " Port=" & CStr(PortNumber), LEMON_LEVEL_PROC
 
     mId = Id
     mType = PortNumber
@@ -96,9 +96,9 @@ Private Sub theSocket_OnClose()
 
     g_Debug "TRemoteConnection.OnClose(): id=0x" & g_HexStr(mId), LEMON_LEVEL_PROC
 
-    Debug.Print "!!!!!!!!!!!!!!!!!!!!!!!!"
-    Debug.Print "!! connection dropped !!"
-    Debug.Print "!!!!!!!!!!!!!!!!!!!!!!!!"
+'    Debug.Print "!!!!!!!!!!!!!!!!!!!!!!!!"
+    Debug.Print "* connection dropped *"
+'    Debug.Print "!!!!!!!!!!!!!!!!!!!!!!!!"
 
 End Sub
 
@@ -116,6 +116,8 @@ End Sub
 
 Private Sub theSocket_OnDataArrival(ByVal bytesTotal As Long)
 
+    Debug.Print "TRemoteConnection::OnDataArrival()"
+
     Select Case mType
     Case GNTP_DEFAULT_PORT
         uDoGNTP bytesTotal
@@ -123,7 +125,7 @@ Private Sub theSocket_OnDataArrival(ByVal bytesTotal As Long)
     Case SNP_DEFAULT_PORT, MELON_DEFAULT_PORT
         If g_ConfigGet("listen_for_snarl") = "0" Then
             g_Debug "TRemoteConnection.OnDataArrival(): ignored (user disabled incoming notifications)"
-            theSocket.SendData uSNPCreateReply(SNP_ERROR_NOT_RUNNING)
+            theSocket.SendData uSNPCreateReply(SNARL_ERROR_NOT_RUNNING)
             theSocket.CloseSocket           ' // R2.4.2
 
         Else
@@ -163,7 +165,7 @@ End Sub
 '
 '    If g_ConfigGet("listen_for_snarl") = "0" Then
 '        g_Debug "TRemoteConnection.uProcessSNP(): ignored (user disabled incoming notifications)"
-'        theSocket.SendData uSNPCreateReply(SNP_ERROR_NOT_RUNNING)
+'        theSocket.SendData uSNPCreateReply(SNARL_ERROR_NOT_RUNNING)
 '        Exit Sub
 '
 '    End If
@@ -182,6 +184,8 @@ Private Sub uSNP2Translate(ByVal Request As String)
 
     ' /* syntax is: snp://<action>[?arg=value[&arg=value]] CRLF
     '    on entry the 'snp://' prefix will have been stripped */
+
+'    Request = g_UTF8(Request)
 
 Dim sCommand As String
 Dim ppd As BPackedData
@@ -239,7 +243,7 @@ Dim hr As Long
 
     ' /* process the command (note the hard-coding to V42 of the API) */
 
-    hr = g_DoAction(sCommand, Val(ppd.ValueOf("token")), ppd, 42, theSocket)
+    hr = g_DoAction(sCommand, Val(ppd.ValueOf("token")), ppd, SN_NF_REMOTE Or 42, theSocket)
     If hr <> 0 Then
         ' /* success */
         uSNP2Reply SNARL_SUCCESS, IIf(hr <> -1, CStr(hr), "")
@@ -337,7 +341,7 @@ Dim pa As TApp
     ' /* check here that the packet is valid (i.e. version, type, etc.) */
 
     If Not pPacket.Valid Then
-        theSocket.SendData uSNPCreateReply(SNP_ERROR_BAD_PACKET)
+        theSocket.SendData uSNPCreateReply(SNARL_ERROR_BAD_PACKET)
         theSocket.CloseSocket
         Exit Sub
 
@@ -349,7 +353,7 @@ Dim pa As TApp
 
     If (g_AppRoster Is Nothing) Or (g_NotificationRoster Is Nothing) Then
         g_Debug "TRemoteConnection.uSNPTranslate(): action '" & pPacket.action & "': app_roster or notification_roster not found", LEMON_LEVEL_CRITICAL
-        theSocket.SendData uSNPCreateReply(SNP_ERROR_FAILED)
+        theSocket.SendData uSNPCreateReply(SNARL_ERROR_FAILED)
         theSocket.CloseSocket
         Exit Sub
 
@@ -368,14 +372,14 @@ Dim dw As Long
             If dw <> 0 Then
                 ' /* already registered */
                 g_Debug "TRemoteConnection.uSNPTranslate(): remote app '" & .App & "' is already registered", LEMON_LEVEL_CRITICAL
-                theSocket.SendData uSNPCreateReply(SNP_ERROR_ALREADY_REGISTERED)
+                theSocket.SendData uSNPCreateReply(SNARL_ERROR_ALREADY_REGISTERED)
 
             Else
                 ' /* use the special "Add2()" method which allows us to register multiple apps using the same PID - in
                 '    this case -1, which represents remote apps */
                 g_AppRoster.OldAdd .App, 0, 0, g_MakePath(App.Path) & "etc\icons\remote_app.png", g_MakePath(App.Path) & "etc\icons\remote.png", -1
                 g_Debug "TRemoteConnection.uSNPTranslate(): remote app '" & .App & "' registered"
-                theSocket.SendData uSNPCreateReply(SNP_SUCCESS)
+                theSocket.SendData uSNPCreateReply(SNARL_SUCCESS)
 
             End If
 
@@ -385,14 +389,14 @@ Dim dw As Long
             If dw = 0 Then
                 ' /* not registered */
                 g_Debug "TRemoteConnection.uSNPTranslate(): remote app '" & .App & "' is not registered", LEMON_LEVEL_CRITICAL
-                theSocket.SendData uSNPCreateReply(SNP_ERROR_NOT_REGISTERED)
+                theSocket.SendData uSNPCreateReply(SNARL_ERROR_NOT_REGISTERED)
 
             Else
                 ' /* remove safely */
                 g_AppRoster.Remove dw
                 frmAbout.bUpdateAppList
                 g_Debug "TRemoteConnection.uSNPTranslate(): remote app '" & .App & "' unregistered"
-                theSocket.SendData uSNPCreateReply(SNP_SUCCESS)
+                theSocket.SendData uSNPCreateReply(SNARL_SUCCESS)
 
             End If
 
@@ -402,7 +406,7 @@ Dim dw As Long
             If dw = 0 Then
                 ' /* not registered */
                 g_Debug "TRemoteConnection.uSNPTranslate(): remote app '" & .App & "' is not registered", LEMON_LEVEL_CRITICAL
-                theSocket.SendData uSNPCreateReply(SNP_ERROR_NOT_REGISTERED)
+                theSocket.SendData uSNPCreateReply(SNARL_ERROR_NOT_REGISTERED)
 
             Else
                 ' /* found the app */
@@ -414,12 +418,12 @@ Dim dw As Long
 
                     frmAbout.bUpdateAppList
                     g_Debug "TRemoteConnection.uSNPTranslate(): class '" & .Class & "' add"
-                    theSocket.SendData uSNPCreateReply(SNP_SUCCESS)
+                    theSocket.SendData uSNPCreateReply(SNARL_SUCCESS)
 
                 Else
                     ' /* class already exists */
                     g_Debug "TRemoteConnection.uSNPTranslate(): class '" & .Class & "' is already registered", LEMON_LEVEL_CRITICAL
-                    theSocket.SendData uSNPCreateReply(SNP_ERROR_CLASS_ALREADY_EXISTS)
+                    theSocket.SendData uSNPCreateReply(SNARL_ERROR_CLASS_ALREADY_EXISTS)
 
                 End If
 
@@ -453,27 +457,27 @@ Dim dw As Long
             End If
 
             If dw > 0 Then
-                theSocket.SendData uSNPCreateReply(SNP_SUCCESS, CStr(dw))
+                theSocket.SendData uSNPCreateReply(SNARL_SUCCESS, CStr(dw))
 '                frmAbout.AddRemoteNotification dw, Me
 
             Else
-                theSocket.SendData uSNPCreateReply(SNP_ERROR_FAILED)
+                theSocket.SendData uSNPCreateReply(SNARL_ERROR_FAILED)
 
             End If
 
 
         Case T_ACTION_HELLO
             ' /* send release back */
-            theSocket.SendData uSNPCreateReply(SNP_SUCCESS, App.Title & " " & App.Comments)
+            theSocket.SendData uSNPCreateReply(SNARL_SUCCESS, App.Title & " " & App.Comments)
 
         Case T_ACTION_VERSION
             ' /* send version back */
-            theSocket.SendData uSNPCreateReply(SNP_SUCCESS, CStr(App.Major) & "." & CStr(App.Revision))
+            theSocket.SendData uSNPCreateReply(SNARL_SUCCESS, CStr(App.Major) & "." & CStr(App.Revision))
 
         Case Else
             ' /* unknown action */
             g_Debug "TRemoteConnection.uSNPTranslate(): action '" & .action & "' is unknown", LEMON_LEVEL_CRITICAL
-            theSocket.SendData uSNPCreateReply(SNP_ERROR_UNKNOWN_COMMAND)
+            theSocket.SendData uSNPCreateReply(SNARL_ERROR_UNKNOWN_COMMAND)
 
         End Select
 
@@ -483,7 +487,7 @@ Dim dw As Long
 
 er:
     g_Debug "TRemoteConnection.uSNPTranslate(): " & err.Description, LEMON_LEVEL_CRITICAL
-    theSocket.SendData uSNPCreateReply(SNP_ERROR_FAILED)
+    theSocket.SendData uSNPCreateReply(SNARL_ERROR_FAILED)
     theSocket.CloseSocket
 
 End Sub
@@ -509,69 +513,71 @@ End Sub
 Private Function uSNPCreateReply(ByVal ReturnCode As Long, Optional ByVal Data As String) As String
 Dim sz As String
 
-    Select Case ReturnCode
+'    Select Case ReturnCode
+'
+'    ' /* 0xx - Success code */
+'
+'    Case SNARL_SUCCESS
+'        sz = "OK"
+'
+'    ' /* 1xx - Protocol errors */
+'
+'    Case SNARL_ERROR_FAILED
+'        sz = "Internal error"
+'
+'    Case SNARL_ERROR_UNKNOWN_COMMAND
+'        sz = "Unknown command"
+'
+'    Case SNARL_ERROR_TIMED_OUT
+'        sz = "Timed out"
+'
+'    Case SNARL_ERROR_BUSY
+'        sz = "Server too busy"
+'
+'    Case SNARL_ERROR_BAD_PACKET
+'        sz = "Bad packet"
+'
+'    Case SNARL_ERROR_ACCESS_DENIED
+'        sz = "Access denied"
+'
+'    ' /* 2xx - Server errors */
+'
+'    Case SNARL_ERROR_NOT_RUNNING
+'        sz = "Not running"
+'
+'    Case SNARL_ERROR_NOT_REGISTERED
+'        sz = "Application is not registered"
+'
+'    Case SNARL_ERROR_ALREADY_REGISTERED
+'        sz = "Application is already registered"
+'
+'    Case SNARL_ERROR_CLASS_ALREADY_EXISTS
+'        sz = "Class is already registered"
+'
+'
+'    ' /* 3xx - Notifications */
+'
+'    Case SNP_NOTIFY_CANCELLED
+'        sz = "Notification cancelled"
+'
+'    Case SNP_NOTIFY_TIMED_OUT
+'        sz = "Notification timed out"
+'
+'    Case SNP_NOTIFY_ACK
+'        sz = "Notification acknowledged"
+'
+'    Case SNP_NOTIFY_MENU
+'        sz = "Notification menu selected"
+'
+'    Case SNP_NOTIFY_MIDDLE_BUTTON
+'        sz = "Notification middle button clicked"
+'
+'    Case SNP_NOTIFY_CLOSED
+'        sz = "Notification closed"
+'
+'    End Select
 
-    ' /* 0xx - Success code */
-
-    Case SNP_SUCCESS
-        sz = "OK"
-
-    ' /* 1xx - Protocol errors */
-
-    Case SNP_ERROR_FAILED
-        sz = "Internal error"
-
-    Case SNP_ERROR_UNKNOWN_COMMAND
-        sz = "Unknown command"
-
-    Case SNP_ERROR_TIMED_OUT
-        sz = "Timed out"
-
-    Case SNP_ERROR_IS_BUSY
-        sz = "Server too busy"
-
-    Case SNP_ERROR_BAD_PACKET
-        sz = "Bad packet"
-
-
-    ' /* 2xx - Server errors */
-
-    Case SNP_ERROR_NOT_RUNNING
-        sz = "Not running"
-
-    Case SNP_ERROR_NOT_REGISTERED
-        sz = "Application is not registered"
-
-    Case SNP_ERROR_ALREADY_REGISTERED
-        sz = "Application is already registered"
-
-    Case SNP_ERROR_CLASS_ALREADY_EXISTS
-        sz = "Class is already registered"
-
-
-    ' /* 3xx - Notifications */
-
-    Case SNP_NOTIFY_CANCELLED
-        sz = "Notification cancelled"
-
-    Case SNP_NOTIFY_TIMED_OUT
-        sz = "Notification timed out"
-
-    Case SNP_NOTIFY_ACK
-        sz = "Notification acknowledged"
-
-    Case SNP_NOTIFY_MENU
-        sz = "Notification menu selected"
-
-    Case SNP_NOTIFY_MIDDLE_BUTTON
-        sz = "Notification middle button clicked"
-
-    Case SNP_NOTIFY_CLOSED
-        sz = "Notification closed"
-
-    End Select
-
-    uSNPCreateReply = "SNP/" & SNP_VERSION & "/" & CStr(ReturnCode) & "/" & sz & IIf(Data <> "", "/" & Data, "") & vbCrLf
+    uSNPCreateReply = "SNP/" & SNP_VERSION & "/" & CStr(ReturnCode) & "/" & snp3_StatusName(ReturnCode) & IIf(Data <> "", "/" & Data, "") & vbCrLf
 
 End Function
 
@@ -582,65 +588,65 @@ Private Sub uSNP2Reply(ByVal StatusCode As Long, Optional ByVal Data As String)
 
 Dim sz As String
 
-    Select Case StatusCode
+'    Select Case StatusCode
+'
+'    Case SNARL_SUCCESS
+'        sz = "OK"
+'
+'    Case SNARL_ERROR_FAILED
+'        sz = "Unspecified failure"
+'
+'    Case SNARL_ERROR_UNKNOWN_COMMAND
+'        sz = "Unknown command"
+'
+'    Case SNARL_ERROR_TIMED_OUT
+'        sz = "Timed out"
+'
+'    Case SNARL_ERROR_ARG_MISSING
+'        sz = "Required argument missing"
+'
+'    Case SNARL_ERROR_SYSTEM
+'        sz = "System error"
+'
+'    Case SNARL_ERROR_NOT_RUNNING
+'        sz = "Not running"
+'
+'    Case SNARL_ERROR_NOT_REGISTERED
+'        sz = "App is not registered"
+'
+'    Case SNARL_ERROR_ALREADY_REGISTERED
+'        sz = "App is already registered"
+'
+'    Case SNARL_ERROR_CLASS_ALREADY_EXISTS
+'        sz = "Class already exists"
+'
+'    Case SNARL_ERROR_CLASS_BLOCKED
+'        sz = "Class blocked"
+'
+'    Case SNARL_ERROR_CLASS_NOT_FOUND
+'        sz = "Class not found"
+'
+'    Case SNARL_ERROR_NOTIFICATION_NOT_FOUND
+'        sz = "Notification not found"
+'
+'    Case SNARL_ERROR_FLOODING
+'        sz = "Flooding detect"
+'
+'    Case SNARL_ERROR_DO_NOT_DISTURB
+'        sz = "Do Not Disturb"
+'
+'    Case SNARL_ERROR_COULD_NOT_DISPLAY
+'        sz = "Could not display"
+'
+'    Case SNARL_ERROR_AUTH_FAILURE
+'        sz = "Authentication failure"
+'
+'    Case Else
+'        sz = "Undefined error"
+'
+'    End Select
 
-    Case SNARL_SUCCESS
-        sz = "OK"
-
-    Case SNARL_ERROR_FAILED
-        sz = "Unspecified failure"
-
-    Case SNARL_ERROR_UNKNOWN_COMMAND
-        sz = "Unknown command"
-
-    Case SNARL_ERROR_TIMED_OUT
-        sz = "Timed out"
-
-    Case SNARL_ERROR_ARG_MISSING
-        sz = "Required argument missing"
-
-    Case SNARL_ERROR_SYSTEM
-        sz = "System error"
-
-    Case SNARL_ERROR_NOT_RUNNING
-        sz = "Not running"
-
-    Case SNARL_ERROR_NOT_REGISTERED
-        sz = "App is not registered"
-
-    Case SNARL_ERROR_ALREADY_REGISTERED
-        sz = "App is already registered"
-
-    Case SNARL_ERROR_CLASS_ALREADY_EXISTS
-        sz = "Class already exists"
-
-    Case SNARL_ERROR_CLASS_BLOCKED
-        sz = "Class blocked"
-
-    Case SNARL_ERROR_CLASS_NOT_FOUND
-        sz = "Class not found"
-
-    Case SNARL_ERROR_NOTIFICATION_NOT_FOUND
-        sz = "Notification not found"
-
-    Case SNARL_ERROR_FLOODING
-        sz = "Flooding detect"
-
-    Case SNARL_ERROR_DO_NOT_DISTURB
-        sz = "Do Not Disturb"
-
-    Case SNARL_ERROR_COULD_NOT_DISPLAY
-        sz = "Could not display"
-
-    Case SNARL_ERROR_AUTH_FAILURE
-        sz = "Authentication failure"
-
-    Case Else
-        sz = "Undefined error"
-
-    End Select
-
-    sz = "SNP/" & SNP_VERSION & "/" & CStr(StatusCode) & "/" & sz & IIf(Data <> "", "/" & Data, "") & vbCrLf
+    sz = "SNP/" & SNP_VERSION & "/" & CStr(StatusCode) & "/" & snp3_StatusName(StatusCode) & IIf(Data <> "", "/" & Data, "") & vbCrLf
     Debug.Print "uSNPReply(): replying with '" & sz & "'"
     theSocket.SendData sz
 
@@ -919,7 +925,7 @@ Dim sz As String
 
     Request.EntryAt 1, sz, ""
     If g_SafeLeftStr(sz, 7) <> "SNP/3.0" Then
-        Response = uSNP3BuildResponse(SNARL_ERROR_UNSUPPORTED_VERSION, "Invalid version in header")
+        Response = snp3_BuildResponse(SNARL_ERROR_UNSUPPORTED_VERSION, "Invalid version in header")
         Exit Function
 
     End If
@@ -949,7 +955,7 @@ Dim n As Long
     End With
 
     If n = 0 Then
-        Response = uSNP3BuildResponse(SNARL_ERROR_NO_ACTIONS_PROVIDED, "Must supply at least one action")
+        Response = snp3_BuildResponse(SNARL_ERROR_NO_ACTIONS_PROVIDED, "Must supply at least one action")
         Exit Function
 
     End If
@@ -973,7 +979,7 @@ Dim szHashType As String
 
         If Not uGetSalt(szProvidedKey, szProvidedKey, szProvidedSalt) Then
             ' /* key and/or salt invalid */
-            Response = uSNP3BuildResponse(SNARL_ERROR_UNSUPPORTED_HASHING)
+            Response = snp3_BuildResponse(SNARL_ERROR_UNSUPPORTED_HASHING)
             Exit Function
 
         End If
@@ -987,7 +993,7 @@ Dim szHashType As String
     If (szExpectedKey = "") And (szProvidedKey <> "") Then
         ' /* invalid case: no password set but one provided by sender (we don't tell the sender this, however) */
         Debug.Print "uSNP3Translate(): no system password set but request contained one"
-        Response = uSNP3BuildResponse(SNARL_ERROR_AUTH_FAILURE)
+        Response = snp3_BuildResponse(SNARL_ERROR_AUTH_FAILURE)
         Exit Function
 
     End If
@@ -995,7 +1001,7 @@ Dim szHashType As String
     If (szExpectedKey <> "") And (szProvidedKey = "") Then
         ' /* invalid case: password set but none provided by sender (we don't tell the sender this, however) */
         Debug.Print "uSNP3Translate(): password required"
-        Response = uSNP3BuildResponse(SNARL_ERROR_AUTH_FAILURE)
+        Response = snp3_BuildResponse(SNARL_ERROR_AUTH_FAILURE)
         Exit Function
 
     End If
@@ -1019,12 +1025,12 @@ Dim szHashType As String
             szExpectedKey = SHA256DigestStrToHexStr(szExpectedKey)
 
         Case "SHA384", "SHA512"
-            Response = uSNP3BuildResponse(SNARL_ERROR_UNSUPPORTED_HASHING, "")
+            Response = snp3_BuildResponse(SNARL_ERROR_UNSUPPORTED_HASHING, "")
             Exit Function
 
         Case Else
             ' /* unknown hashing algorithm */
-            Response = uSNP3BuildResponse(SNARL_ERROR_UNSUPPORTED_HASHING, "")
+            Response = snp3_BuildResponse(SNARL_ERROR_UNSUPPORTED_HASHING, "")
             Exit Function
 
         End Select
@@ -1042,19 +1048,19 @@ Dim szHashType As String
 '
 '            Select Case szEncType
 '            Case "AES"
-'                Response = uSNP3BuildResponse(SNARL_ERROR_UNSUPPORTED_ENCRYPTION, "AES not currently implemented")
+'                Response = snp3_BuildResponse(SNARL_ERROR_UNSUPPORTED_ENCRYPTION, "AES not currently implemented")
 '                Exit Function
 '
 '            Case "DES"
-'                Response = uSNP3BuildResponse(SNARL_ERROR_UNSUPPORTED_ENCRYPTION, "DES not currently implemented")
+'                Response = snp3_BuildResponse(SNARL_ERROR_UNSUPPORTED_ENCRYPTION, "DES not currently implemented")
 '                Exit Function
 '
 '            Case "3DES"
-'                Response = uSNP3BuildResponse(SNARL_ERROR_UNSUPPORTED_ENCRYPTION, "Triple-DES not currently implemented")
+'                Response = snp3_BuildResponse(SNARL_ERROR_UNSUPPORTED_ENCRYPTION, "Triple-DES not currently implemented")
 '                Exit Function
 '
 '            Case Else
-'                Response = uSNP3BuildResponse(SNARL_ERROR_UNSUPPORTED_ENCRYPTION, "")
+'                Response = snp3_BuildResponse(SNARL_ERROR_UNSUPPORTED_ENCRYPTION, "")
 '                Exit Function
 '
 '            End Select
@@ -1069,7 +1075,7 @@ Dim szHashType As String
     Debug.Print "expected key: " & szExpectedKey
 
     If szExpectedKey <> szProvidedKey Then
-        Response = uSNP3BuildResponse(SNARL_ERROR_AUTH_FAILURE, "Authorization failure")
+        Response = snp3_BuildResponse(SNARL_ERROR_AUTH_FAILURE, "Authorization failure")
         Exit Function
 
     End If
@@ -1083,7 +1089,7 @@ Dim szHashType As String
             .EntryAt i, sz, ""
 
             If (g_SafeLeftStr(sz, 1) <> "#") Then
-                n = g_DoV42Request(sz, GetCurrentProcessId(), theSocket, SN_NF_IS_SNP3)
+                n = g_DoV42Request(sz, GetCurrentProcessId(), theSocket, SN_NF_REMOTE Or SN_NF_IS_SNP3)
                 If n < 0 Then
 '                        bErr = True     ' // set overall response flag
                     n = Abs(n)      ' // convert to SNP code
@@ -1093,13 +1099,13 @@ Dim szHashType As String
 
                 End If
 
-                szr = szr & uGetAction(sz) & ": " & CStr(n) & " " & uSNP3StatusName(n) & vbCrLf
+                szr = szr & "result: " & uGetAction(sz) & " " & CStr(n) & " " & snp3_StatusName(n) & vbCrLf
 
             End If
         Next i
     End With
 
-    Response = uSNP3BuildResponse(IIf(bErr, SNARL_ERROR_FAILED, SNARL_SUCCESS), , szr)
+    Response = snp3_BuildResponse(IIf(bErr, SNARL_ERROR_FAILED, SNARL_SUCCESS), , szr)
 
     ' /* leave connected irrespective of individual action success/failure */
 
@@ -1107,127 +1113,137 @@ Dim szHashType As String
 
 End Function
 
-Private Function uSNP3BuildResponse(ByVal StatusCode As SNARL_STATUS_CODE, Optional ByVal Hint As String, Optional ByVal Actions As String) As String
-Dim sz As String
-
-    sz = "SNP/" & SNP_VERSION & " " & IIf(StatusCode = SNARL_SUCCESS, "OK", "FAILED") & vbCrLf
-
-    ' /* only if StatusCode indicates error */
-
-    If (StatusCode <> SNARL_SUCCESS) And (Actions = "") Then _
-        sz = sz & "error-code: " & CStr(StatusCode) & vbCrLf & _
-                  "error-name: " & uSNP3StatusName(StatusCode) & vbCrLf
-
-    If Hint <> "" Then _
-        sz = sz & "error-hint: " & Hint & vbCrLf
-
-    If Actions <> "" Then _
-        sz = sz & Actions
-
-    ' /* standard headers */
-
-    sz = sz & "x-timestamp: " & Format$(Now(), "d mmm yyyy hh:mm:ss") & vbCrLf
-    sz = sz & "x-daemon: " & "Snarl " & CStr(APP_VER) & "." & CStr(APP_SUB_VER) & IIf(APP_SUB_SUB_VER <> 0, "." & CStr(APP_SUB_SUB_VER), "") & vbCrLf
-    sz = sz & "x-host: " & LCase$(g_GetComputerName()) & vbCrLf
-    sz = sz & "END" & vbCrLf
-
-    uSNP3BuildResponse = sz
-
-End Function
-
-Private Function uSNP3StatusName(ByVal StatusCode As SNARL_STATUS_CODE) As String
-Dim sz As String
-
-    Select Case StatusCode
-
-    Case SNARL_SUCCESS
-        sz = "Ok"
-
-    Case SNARL_ERROR_FAILED                      '// miscellaneous failure
-        sz = "Failed"
-
-    Case SNARL_ERROR_UNKNOWN_COMMAND             '// specified command not recognised
-        sz = "BadCommand"
-
-    Case SNARL_ERROR_TIMED_OUT                   '// Snarl took too long to respond
-        sz = "TimedOut"
-
-    Case SNARL_ERROR_BAD_SOCKET                  '// invalid socket (or some other socket-related error)
-        sz = "BadSocket"
-
-    Case SNARL_ERROR_BAD_PACKET                  '// badly formed request
-        sz = "BadPacket"
-
-    Case SNARL_ERROR_INVALID_ARG                 '// R2.4B4: arg supplied was invalid
-        sz = "InvalidArg"
-
-    Case SNARL_ERROR_ARG_MISSING                 '// required argument missing
-        sz = "ArgMissing"
-
-    Case SNARL_ERROR_SYSTEM                      '// internal system error
-        sz = "InternalError"
-
-    Case SNARL_ERROR_ACCESS_DENIED               '// libsnarl only
-        sz = "AccessDenied"
-
-    Case SNARL_ERROR_UNSUPPORTED_VERSION
-        sz = "UnsupportedVersion"
-
-    Case SNARL_ERROR_NO_ACTIONS_PROVIDED
-        sz = "NothingToDo"
-
-    Case SNARL_ERROR_UNSUPPORTED_ENCRYPTION
-        sz = "UnsupportedEncryption"
-
-    Case SNARL_ERROR_UNSUPPORTED_HASHING
-        sz = "UnsupportedHashing"
-
-
-
-    Case SNARL_ERROR_NOT_RUNNING                 '// Snarl handling window not found
-        sz = "NotRunning"
-
-    Case SNARL_ERROR_NOT_REGISTERED
-        sz = "NotRegistered"
-
-    Case SNARL_ERROR_ALREADY_REGISTERED          '// not used yet; sn41RegisterApp() returns existing token
-        sz = "SpuriousRegister"
-
-    Case SNARL_ERROR_CLASS_ALREADY_EXISTS        '// not used yet
-        sz = "SpuriousClass"
-
-    Case SNARL_ERROR_CLASS_BLOCKED
-        sz = "ClassBlocked"
-
-    Case SNARL_ERROR_CLASS_NOT_FOUND
-        sz = "InvalidClass"
-
-    Case SNARL_ERROR_NOTIFICATION_NOT_FOUND
-        sz = "InvalidNotification"
-
-    Case SNARL_ERROR_FLOODING                    '// notification generated by same class within quantum
-        sz = "FloodingAlert"
-
-    Case SNARL_ERROR_DO_NOT_DISTURB              '// DnD mode is in effect was not logged as missed
-        sz = "DoNotDisturb"
-
-    Case SNARL_ERROR_COULD_NOT_DISPLAY           '// not enough space on-screen to display notification
-        sz = "DisplayFailed"
-
-    Case SNARL_ERROR_AUTH_FAILURE                '// password mismatch
-        sz = "AuthenticationFailure"
-
-    Case SNARL_ERROR_DISCARDED                   '// discarded for some reason, e.g. foreground app match
-        sz = "WasDiscarded"
-
-    Case Else
-        sz = "(Unknown)"
-
-    End Select
-
-    uSNP3StatusName = sz
-
-End Function
+'Private Function snp3_BuildResponse(ByVal StatusCode As SNARL_STATUS_CODE, Optional ByVal Hint As String, Optional ByVal Actions As String) As String
+'Dim sz As String
+'
+'    sz = "SNP/" & SNP_VERSION & " " & IIf(StatusCode = SNARL_SUCCESS, "OK", "FAILED") & vbCrLf
+'
+'    ' /* only if StatusCode indicates error */
+'
+'    If (StatusCode <> SNARL_SUCCESS) And (Actions = "") Then
+'        sz = sz & "error-code: " & CStr(StatusCode) & vbCrLf & _
+'                  "error-name: " & snp3_StatusName(StatusCode) & vbCrLf
+'
+'        If Hint <> "" Then _
+'            sz = sz & "error-hint: " & Hint & vbCrLf
+'
+'    End If
+'
+'    If Actions <> "" Then _
+'        sz = sz & Actions
+'
+'    ' /* standard headers */
+'
+'    sz = sz & "--" & vbCrLf
+'    sz = sz & "x-timestamp: " & Format$(Now(), "d mmm yyyy hh:mm:ss") & vbCrLf
+'    sz = sz & "x-daemon: " & "Snarl " & CStr(APP_VER) & "." & CStr(APP_SUB_VER) & IIf(APP_SUB_SUB_VER <> 0, "." & CStr(APP_SUB_SUB_VER), "") & vbCrLf
+'    sz = sz & "x-host: " & LCase$(g_GetComputerName()) & vbCrLf
+'    sz = sz & "END" & vbCrLf
+'
+'    snp3_BuildResponse = sz
+'
+'End Function
+'
+'Private Function snp3_StatusName(ByVal StatusCode As SNARL_STATUS_CODE) As String
+'Dim sz As String
+'
+'    Select Case StatusCode
+'
+'    Case SNARL_SUCCESS
+'        sz = "Ok"
+'
+'    Case SNARL_ERROR_FAILED                      '// miscellaneous failure
+'        sz = "Failed"
+'
+'    Case SNARL_ERROR_UNKNOWN_COMMAND             '// specified command not recognised
+'        sz = "BadCommand"
+'
+'    Case SNARL_ERROR_TIMED_OUT                   '// Snarl took too long to respond
+'        sz = "TimedOut"
+'
+'    Case SNARL_ERROR_BAD_SOCKET                  '// invalid socket (or some other socket-related error)
+'        sz = "BadSocket"
+'
+'    Case SNARL_ERROR_BAD_PACKET                  '// badly formed request
+'        sz = "BadPacket"
+'
+'    Case SNARL_ERROR_INVALID_ARG                 '// R2.4B4: arg supplied was invalid
+'        sz = "InvalidArg"
+'
+'    Case SNARL_ERROR_ARG_MISSING                 '// required argument missing
+'        sz = "ArgMissing"
+'
+'    Case SNARL_ERROR_SYSTEM                      '// internal system error
+'        sz = "InternalError"
+'
+'    Case SNARL_ERROR_ACCESS_DENIED               '// libsnarl only
+'        sz = "AccessDenied"
+'
+'    Case SNARL_ERROR_UNSUPPORTED_VERSION
+'        sz = "UnsupportedVersion"
+'
+'    Case SNARL_ERROR_NO_ACTIONS_PROVIDED
+'        sz = "NothingToDo"
+'
+'    Case SNARL_ERROR_UNSUPPORTED_ENCRYPTION
+'        sz = "UnsupportedEncryption"
+'
+'    Case SNARL_ERROR_UNSUPPORTED_HASHING
+'        sz = "UnsupportedHashing"
+'
+'
+'
+'    Case SNARL_ERROR_NOT_RUNNING                 '// Snarl handling window not found
+'        sz = "NotRunning"
+'
+'    Case SNARL_ERROR_NOT_REGISTERED
+'        sz = "NotRegistered"
+'
+'    Case SNARL_ERROR_ALREADY_REGISTERED          '// not used yet; sn41RegisterApp() returns existing token
+'        sz = "SpuriousRegister"
+'
+'    Case SNARL_ERROR_CLASS_ALREADY_EXISTS        '// not used yet
+'        sz = "SpuriousClass"
+'
+'    Case SNARL_ERROR_CLASS_BLOCKED
+'        sz = "ClassBlocked"
+'
+'    Case SNARL_ERROR_CLASS_NOT_FOUND
+'        sz = "InvalidClass"
+'
+'    Case SNARL_ERROR_NOTIFICATION_NOT_FOUND
+'        sz = "InvalidNotification"
+'
+'    Case SNARL_ERROR_FLOODING                    '// notification generated by same class within quantum
+'        sz = "FloodingAlert"
+'
+'    Case SNARL_ERROR_DO_NOT_DISTURB              '// DnD mode is in effect was not logged as missed
+'        sz = "DoNotDisturb"
+'
+'    Case SNARL_ERROR_COULD_NOT_DISPLAY           '// not enough space on-screen to display notification
+'        sz = "DisplayFailed"
+'
+'    Case SNARL_ERROR_AUTH_FAILURE                '// password mismatch
+'        sz = "AuthenticationFailure"
+'
+'    Case SNARL_ERROR_DISCARDED                   '// discarded for some reason, e.g. foreground app match
+'        sz = "WasDiscarded"
+'
+'    Case SNARL_ERROR_NOT_SUBSCRIBED                 '// 2.4.2 DR3: subscriber not found
+'        sz = "NotSubscribed"
+'
+'    Case SNARL_ERROR_ALREADY_SUBSCRIBED
+'        sz = "AlreadySubscribed"
+'
+'
+'    Case Else
+'        sz = "(Unknown)"
+'
+'    End Select
+'
+'    snp3_StatusName = sz
+'
+'End Function
 
 Private Sub uSNP3Parse(ByRef Data As BPackedData)
 Dim sx As String

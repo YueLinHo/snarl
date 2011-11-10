@@ -105,11 +105,12 @@ Dim pc As BControl
         With pp
             .SetMargin 0
             Set pm = New CTempMsg
-            pm.Add "height", 260
+            pm.Add "height", 210
             Set pc = new_BPrefsControl("tabstrip", "", , , , pm)
             BTabStrip_AddPage pc, "General", new_BPrefsPage("defs-general", , New TNetSubPage)
             BTabStrip_AddPage pc, "Title", new_BPrefsPage("defs-title", , New TNetSubPage)
             BTabStrip_AddPage pc, "Text", new_BPrefsPage("defs-text", , New TNetSubPage)
+            BTabStrip_AddPage pc, "Advanced", new_BPrefsPage("defs-adv", , New TNetSubPage)
             .Add pc
 
             .Add new_BPrefsControl("fancytoolbar", "toolbar", "Test Settings||Restore Defaults")

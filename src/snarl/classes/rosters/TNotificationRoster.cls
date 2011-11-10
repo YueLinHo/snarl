@@ -686,11 +686,13 @@ Static i As Long
             If pn.Info.ClassObj.App.Password = Password Then
                 ' /* password ok */
                 Set Notification = pn
+                g_Debug "TNotificationRoster.Find(): token found"
                 gSetLastError SNARL_SUCCESS
                 Find = True
 
             Else
                 ' /* password failure */
+                g_Debug "TNotificationRoster.Find(): token found but auth failure", LEMON_LEVEL_CRITICAL
                 gSetLastError SNARL_ERROR_AUTH_FAILURE
 
             End If
@@ -747,12 +749,14 @@ Static i As Long
                 If pn.AppSigAndUID = UID Then
                     If pn.Info.ClassObj.App.Password = Password Then
                         ' /* password ok */
+                        g_Debug "TNotificationRoster.Find(): uid/app found"
                         Set Notification = pn
                         gSetLastError SNARL_SUCCESS
                         Find = True
 
                     Else
                         ' /* password failure */
+                        g_Debug "TNotificationRoster.Find(): uid/app found but auth failure", LEMON_LEVEL_CRITICAL
                         gSetLastError SNARL_ERROR_AUTH_FAILURE
 
                     End If
@@ -1390,9 +1394,7 @@ Dim sTitle As String
 Dim sText As String
 
     If (pStyle.Flags And S_STYLE_V42_CONTENT) Then
-
         ' /* title becomes sender name, text is set to the original packed string */
-
         sTitle = Info.ClassObj.App.Name
         sText = Info.OriginalContent
 
@@ -1402,9 +1404,7 @@ Dim sText As String
             sTitle = sTitle & " on " & g_GetComputerName()
 
     Else
-
         ' /* pre-V42 model: <title> is either title or app/title pair, <text> is text */
-
         sText = Info.Text
 
         ' /* if S_STYLE_WANT_APP_NAME is set, prefix title with the sending app name */
@@ -1423,11 +1423,14 @@ Dim sText As String
         Else
             ' /* R2.4 Beta 4 - make the title component "<title> (from <computer>)" */
 
-            If g_ConfigGet("include_host_name_when_forwarding") = "1" Then _
+            If g_ConfigGet("include_host_name_when_forwarding") = "1" Then
                 sTitle = Info.Title & " (from " & g_GetComputerName() & ")"
 
-        End If
+            Else
+                sTitle = Info.Title
 
+            End If
+        End If
     End If
 
 Dim pContent As notification_info

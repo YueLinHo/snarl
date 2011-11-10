@@ -37,10 +37,19 @@ Implements MRoster
 Implements MVersionInfo
 
 Private Function MLibrary_Close() As melon.M_RESULT
+Dim ps As TSubscriber
 
     mRefs = mRefs - 1
     If mRefs = 0 Then
         ' /* run tidyup code */
+
+        With mSubscribers
+            .Rewind
+            Do While .GetNextTag(ps) = B_OK
+                ps.Quit
+
+            Loop
+        End With
 
     End If
 
@@ -215,7 +224,7 @@ Private Property Get MVersionInfo_Version() As Long
 End Property
 
 'Public Function Add(ByVal SubscriberType As SN_SUBSCRIBER_TYPE, ByRef Socket As CSocket, ByRef Data As BPackedData) As Boolean
-Public Function Add(ByVal SubType As SN_SUBSCRIBER_TYPE, ByVal Description As String, ByVal RemoteHost As String, ByVal Apps As String) As Boolean
+Public Function Add(ByVal SubType As SN_SUBSCRIBER_TYPE, ByVal Description As String, ByVal RemoteHost As String, ByVal Apps As String, ByRef Error As String) As Boolean
 Dim pc As ConfigSection
 Dim ps As TSubscriber
 
@@ -236,8 +245,9 @@ Dim ps As TSubscriber
 
         ' /* error checking */
 
-        If (RemoteHost = "") Or (InStr(get_ip_address_table(), RemoteHost) <> 0) Then
+        If g_IsLocalAddress(RemoteHost) Then
             g_Debug "TSubscriberRoster.Add(): RemoteHost cannot be ourself", LEMON_LEVEL_CRITICAL
+            Error = "The specified IP address is assigned to this computer"
             Exit Function
     
         End If
@@ -246,6 +256,7 @@ Dim ps As TSubscriber
 
         If uFindByTypeAndDestination(SubType, RemoteHost, Nothing) Then
             g_Debug "TSubscriberRoster.Add(): already exists", LEMON_LEVEL_CRITICAL
+            Error = "A " & IIf(SubType = SN_ST_SNP3_FORWARD, "forward", "subscription") & " to this computer already exists"
             Exit Function
     
         End If
@@ -284,17 +295,41 @@ Dim ps As TSubscriber
 
 End Function
 
-Private Function uAddNewSubscriber(ByVal SubscriberType As SN_SUBSCRIBER_TYPE, ByRef Socket As CSocket, ByRef Data As BPackedData) As Boolean
+Public Function AddSubscriber(ByVal SubscriberType As SN_SUBSCRIBER_TYPE, ByRef RemoteSocket As CSocket, ByRef Data As BPackedData) As Boolean
 
-'    If (Socket Is Nothing) Or (Data Is Nothing) Then _
-'        Exit Function
-'
-'Dim ps As TSubscriber
-'
-'    If mSubscribers.Find(Socket.RemoteHostIP & ":" & CStr(Socket.RemotePort), ps) Then
-'        ' /* already subscribed */
-'        g_Debug "TSubscriberRoster.uAddNewSubscriber(): '" & Socket.RemoteHostIP & ":" & CStr(Socket.RemotePort) & "' is already subscribed", LEMON_LEVEL_INFO
-'
+    ' /* called in response to an incoming {subscribe} command */
+
+    If (RemoteSocket Is Nothing) Or (Data Is Nothing) Then
+        gSetLastError SNARL_ERROR_SYSTEM
+        Exit Function
+
+    End If
+
+    If g_ConfigGet("allow_subs") = "0" Then
+        g_Debug "TSubscriberRoster.AddSubscriber(): not accepting subscriptions", LEMON_LEVEL_WARNING
+        gSetLastError SNARL_ERROR_ACCESS_DENIED
+        Exit Function
+
+    End If
+
+    If (Not gDebugMode) And (g_IsLocalAddress(RemoteSocket.RemoteHostIP)) Then
+        g_Debug "TSubscriberRoster.AddSubscriber(): local subscriptions are not allowed", LEMON_LEVEL_CRITICAL
+        gSetLastError SNARL_ERROR_ACCESS_DENIED
+        Exit Function
+
+    End If
+
+
+Dim ps As TSubscriber
+
+    If uIndexOf(RemoteSocket.RemoteHostIP & ":" & CStr(RemoteSocket.RemotePort)) <> 0 Then
+        ' /* already subscribed */
+        g_Debug "TSubscriberRoster.AddSubscriber(): '" & RemoteSocket.RemoteHostIP & "' is already subscribed", LEMON_LEVEL_CRITICAL
+        gSetLastError SNARL_ERROR_ALREADY_SUBSCRIBED
+        Exit Function
+
+    End If
+
 '        ' /* check password */
 '        If ps.Password <> Data.ValueOf("password") Then
 '            g_Debug "TSubscriberRoster.uAddNewSubscriber(): password mismatch", LEMON_LEVEL_CRITICAL
@@ -312,13 +347,19 @@ Private Function uAddNewSubscriber(ByVal SubscriberType As SN_SUBSCRIBER_TYPE, B
 '        End If
 '
 '    Else
-'        ' /* not already subscribed */
-'        Set ps = New TSubscriber
-'        ps.SetTo Socket, SubscriberType, Data
-'        mSubscribers.Add ps
-'        uAddNewSubscriber = True
-'
-'    End If
+
+    ' /* not already subscribed */
+    Set ps = New TSubscriber
+    If ps.SetTo(SubscriberType, RemoteSocket, Data) Then
+        mSubscribers.Add ps
+        gSetLastError SNARL_SUCCESS
+        AddSubscriber = True
+
+    Else
+        g_Debug "TSubscriberRoster.AddSubscriber(): failed to add subscriber from " & RemoteSocket.RemoteHostIP, LEMON_LEVEL_CRITICAL
+        gSetLastError SNARL_ERROR_FAILED
+
+    End If
 
 End Function
 
@@ -330,7 +371,7 @@ Public Function Remove(ByRef Socket As CSocket, ByVal SubscriberType As SN_SUBSC
 Dim ps As TSubscriber
 Dim i As Long
 
-    i = mSubscribers.IndexOf(Socket.RemoteHostIP & ":" & CStr(Socket.RemotePort))
+    i = uIndexOf(Socket.RemoteHostIP & ":" & CStr(Socket.RemotePort))
     If i Then
         Debug.Print "TSubscriberRoster.Remove(): subscriber '" & Socket.RemoteHostIP & ":" & CStr(Socket.RemotePort) & "' found"
 
@@ -348,7 +389,7 @@ Dim i As Long
 
         Else
             ' /* remove */
-            mSubscribers.Remove i
+            uRemove i
             Remove = True
 
         End If
@@ -359,6 +400,23 @@ Dim i As Long
 
     End If
 
+End Function
+
+Private Function uIndexOf(ByVal IPAddressAndPort As String) As Long
+Dim ps As TSubscriber
+Static i As Long
+
+    If mSubscribers.CountItems Then
+        For i = 1 To mSubscribers.CountItems
+            Set ps = mSubscribers.TagAt(i)
+            If ps.RemoteHostEx = IPAddressAndPort Then
+                uIndexOf = i
+                Exit Function
+            
+            End If
+        Next i
+    End If
+ 
 End Function
 
 Friend Sub Broadcast(ByRef Content As T_NOTIFICATION_INFO)
@@ -376,9 +434,8 @@ Dim pa As TApp
                 ' /* TO-DO: if the subscriber uses GNTP we will need to do
                 '    a two-pass process.  Step 1 will do the REGISTER;
                 '    STEP 2 will do the NOTIFY */
-
                 If ps.IsSubscribedTo(pa.Signature) Then _
-                    ps.Send szRequest
+                    ps.send szRequest
 
             End If
         Loop
@@ -394,33 +451,48 @@ Public Function List() As BTagList
 End Function
 
 Public Function RemoveByGuid(ByVal Guid As String) As Boolean
-Dim f As Boolean
 Dim i As Long
 
     i = mSubscribers.IndexOf(Guid)
     If i <> 0 Then
-        mSubscribers.Remove i
-        f = True
+        uRemove i
+        RemoveByGuid = True
 
     Else
         g_Debug "TSubscriberRoster.RemoveByGuid(): '" & Guid & "' not in roster", LEMON_LEVEL_WARNING
 
     End If
 
+    ' /* only persistent forwarders and subscriptions will have a config entry */
+
     i = mSubscriberConfig.FindSection(Guid)
     If i <> 0 Then
+        g_Debug "TSubscriberRoster.RemoveByGuid(): updating settings..."
         mSubscriberConfig.RemoveSection i
         mSubscriberConfig.Save
 
     Else
         g_Debug "TSubscriberRoster.RemoveByGuid(): '" & Guid & "' not in config", LEMON_LEVEL_WARNING
-        f = False
+'        f = False
 
     End If
 
-    RemoveByGuid = f
-
 End Function
+
+Private Sub uRemove(ByVal Index As Long)
+Dim ps As TSubscriber
+
+    Set ps = mSubscribers.TagAt(Index)
+    If ISNULL(ps) Then _
+        Exit Sub
+
+'    If (ps.SubscriptionType = SN_ST_GNTP_SUBSCRIBER) Or (ps.SubscriptionType = SN_ST_SNP3_SUBSCRIBER) Then _
+        g_PrivateNotify "", "Subscriber removed", ps.RemoteHost & " unsubscribed", , ".sub-snp-rem"
+
+    g_Debug "TSubscriberRoster.uRemove(): '" & ps.RemoteHost & "' removed"
+    mSubscribers.Remove Index
+
+End Sub
 
 Public Sub WriteConfig()
 
@@ -456,13 +528,9 @@ Private Function uTranslateIcon(ByVal Icon As String) As String
 Dim sz As String
 Dim b As String
 
-'    If (LCase$(g_SafeLeftStr(Icon, 7)) = "http://") Or _
-'       (LCase$(g_SafeLeftStr(Icon, 8)) = "https://") Or _
-
-       
-    If g_SafeLeftStr(Icon, 1) = "!" Then
-'        ' /* add verbatim */
-'        sz = sz & "&icon=" & Icon
+    If (g_SafeLeftStr(Icon, 1) = "!") Or (g_IsURL(Icon)) Then
+        ' /* add verbatim */
+        sz = sz & "&icon=" & Icon
 
     Else
         ' /* encode it in a slightly modified Base64 format (CRLF's are replaced with #'s) */
@@ -565,7 +633,7 @@ Dim pl As TWebListener
 
     Set pc = mListenerConfig.AddSectionObj(pl.Guid)
     With pc
-        .Add "type", CStr(SN_ST_WEB_LISTENER)               ' // for now, in case we support other models in the future
+        .Add "type", CStr(SN_ST_COMET)                  ' // for now, in case we support other models in the future
         .Add "name", Description
         .Add "url", URL
         .Add "enabled", "1"
@@ -579,13 +647,6 @@ End Function
 
 Private Function uCreateSNP3Forward(ByRef Content As T_NOTIFICATION_INFO) As String
 Dim szc As String
-Dim sz As String
-
-    sz = Content.OriginalContent
-    sz = Replace$(sz, "::", "=")
-    sz = Replace$(sz, "#?", "&")
-    sz = Replace$(sz, vbCrLf, "\n")
-
 Dim pa As TApp
 
     Set pa = Content.ClassObj.App
@@ -610,14 +671,42 @@ Dim i As Long
         End If
     End With
 
-    ' /* add notification content and footer */
+    ' /* build notification content */
 
-    szc = szc & "notify?app-sig=" & pa.Signature & uTranslateIcon(Content.IconPath) & "&" & sz & vbCrLf & _
-                "END" & vbCrLf
+    szc = szc & "notify?app-sig=" & pa.Signature
 
-'        Debug.Print "---"
-'        Debug.Print szc
-'        Debug.Print "---"
+Dim szn As String
+Dim szv As String
+Dim sz As String
+
+    With New BPackedData
+        If .SetTo(Content.OriginalContent) Then
+            .Rewind
+            Do While .GetNextItem(szn, szv)
+                Select Case szn
+                Case "icon"
+                    sz = sz & "&" & uTranslateIcon(szv)
+
+                Case Else
+                    sz = sz & "&" & szn & "=" & szv
+
+                End Select
+            Loop
+        End If
+    End With
+
+    If sz <> "" Then
+        ' /* add notification content and footer */
+        sz = Replace$(sz, vbCrLf, "\n")
+        szc = szc & sz
+
+    End If
+
+    szc = szc & vbCrLf & "END" & vbCrLf
+
+        Debug.Print "---"
+        Debug.Print szc
+        Debug.Print "---"
 
     uCreateSNP3Forward = szc
 

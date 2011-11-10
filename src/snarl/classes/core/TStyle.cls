@@ -299,5 +299,10 @@ Public Function SafeSchemeAt(ByVal Index As Long) As String
 
 End Function
 
+Public Function IsRedirect() As Boolean
+
+    IsRedirect = ((mContent.Info.Flags And S_STYLE_IS_WINDOWLESS) <> 0)
+
+End Function
 
 

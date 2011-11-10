@@ -72,6 +72,8 @@ Private Sub Class_Initialize()
 
     End With
 
+    Me.DefaultTimeout = -1
+
 End Sub
 
 Private Property Get MObject_Type() As String
@@ -371,10 +373,19 @@ Dim lDur As SN_NOTIFICATION_DURATION
     Select Case lDur
     Case SN_ND_APP_DECIDES
         ' /* V39: app can modify duration via class default */
-        If Me.DefaultTimeout > 0 Then _
+
+        Debug.Print "TIMEOUT: APP_DECIDES: " & Info.Timeout & " -> " & Me.DefaultTimeout
+
+        If Info.Timeout = -1 Then _
+            Info.Timeout = Me.DefaultTimeout
+
+'        If Me.DefaultTimeout > 0 Then _
             Info.Timeout = Me.DefaultTimeout
 
     Case SN_ND_CUSTOM
+
+        Debug.Print "TIMEOUT: CUSTOM"
+
         Info.Timeout = Val(Me.GetValue("custom_timeout"))
 
 '    Case SN_ND_DEFAULT

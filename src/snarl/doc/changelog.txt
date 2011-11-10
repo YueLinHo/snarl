@@ -1,6 +1,30 @@
 
 	Snarl Change Log
 
+	- Fixed bug to do with class default timeout.  Credit to Pako for this.  (43.50)
+
+	- Fixed bug which caused notification_info->title to be empty if S_STYLE_IS_
+	  WINDOWLESS is specified but neither of S_STYLE_V42_CONTENT nor S_STYLE_WANT_
+	  APP_NAME are and "Include host name when forwarding" is disabled.  Credit to
+	  Pako for spotting this.  (43.35)
+
+	- Style Engines can now support their own configuration interfaces.  To do this,
+	  the style engine should respond to a call to IStyleEngine.StyleAt() where the
+	  index provided is zero by setting style_info->flags to S_STYLE_IS_CONFIGURABLE.
+	  Snarl will then call IStyleEngine.GetConfigWindow() with StyleName set to
+	  ".global".  At this time, the engine should provide its own UI and return zero.
+	  Returning a non-zero value is not permitted and will break in future releases
+	  of Snarl. (43.34)
+
+	- "Remove Selected" in the missed/history lists now correctly removes the
+	  selected items.  (43.34)
+
+	- External apps can now query Snarl's state using the new snGetSystemFlags()
+	  API.  This currently returns the debug state, user away state and user busy
+	  state in the new SNARL_SYSTEM_FLAGS enum.  (43.33)
+
+	- Snarl now notifies on style drag-drop.  (43.32)
+
 	- Notification details menu now includes the source computer in the application
 	  name.  (43.32)
 
