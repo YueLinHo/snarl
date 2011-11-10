@@ -81,7 +81,7 @@ Public Enum SNARL_STATUS_CODE
     SNARL_ERROR_UNKNOWN_COMMAND             '// specified command not recognised
     SNARL_ERROR_TIMED_OUT                   '// Snarl took too long to respond
     '//104 gen critical #4
-    '//105 gen critical #5
+    SNARL_ERROR_BUSY = 105
     SNARL_ERROR_BAD_SOCKET = 106            '// invalid socket (or some other socket-related error)
     SNARL_ERROR_BAD_PACKET = 107            '// badly formed request
     SNARL_ERROR_INVALID_ARG = 108           '// R2.4B4: arg supplied was invalid
@@ -111,6 +111,7 @@ Public Enum SNARL_STATUS_CODE
     ' /* R2.4.2 */
     SNARL_ERROR_DISCARDED                   '// discarded for some reason, e.g. foreground app match
     SNARL_ERROR_NOT_SUBSCRIBED              '// 2.4.2 DR3: subscriber not found
+    SNARL_ERROR_ALREADY_SUBSCRIBED          '//
 
     ' /* informational */
 
@@ -171,6 +172,16 @@ Public Enum SNARLAPP_FLAGS
     SNARLAPP_HAS_PREFS = 1                      '// application has a UI which Snarl can display
     SNARLAPP_HAS_ABOUT = 2                      '// application has its own About... dialog
     SNARLAPP_IS_WINDOWLESS = &H8000&            '// deprecated
+
+End Enum
+
+    ' /* system flags - introduced in V43 - use with snGetSystemFlags() */
+
+Public Enum SNARL_SYSTEM_FLAGS
+    SNARL_SF_USER_AWAY = 1
+    SNARL_SF_USER_BUSY = 2
+
+    SNARL_SF_DEBUG_MODE = &H80000000
 
 End Enum
 
@@ -314,6 +325,25 @@ Dim sz As String
 End Function
 
 ' /*
+'   snGetSystemFlags() -- Returns system information  (V43)
+'
+'   Inputs
+'       None
+'
+'   Results
+'       Series of flags from the SNARL_SYSTEM_FLAGS enum or zero if Snarl isn't running.
+'
+' */
+Public Function snGetSystemFlags() As SNARL_SYSTEM_FLAGS
+Dim hWnd As Long
+
+    hWnd = FindWindow("w>Snarl", "Snarl")
+    If IsWindow(hWnd) <> 0 Then _
+        snGetSystemFlags = GetProp(hWnd, "_flags")
+
+End Function
+
+' /*
 '   snIsSnarlRunning() -- Determines Snarl state  (V41)
 '
 '   Inputs
@@ -371,12 +401,31 @@ End Function
 '       Wraps the "addclass" command
 '
 ' */
-Public Function snarl_add_class(ByVal Signature As String, ByVal Id As String, ByVal Name As String, Optional ByVal Enabled As Boolean = True, Optional ByVal Password As String) As Long
+Public Function snarl_add_class(ByVal Signature As String, ByVal Id As String, ByVal Name As String, Optional ByVal Enabled As Boolean = True, Optional ByVal Password As String, Optional ByVal Title As String, Optional ByVal Text As String, Optional ByVal Icon As String, Optional ByVal Duration As Long = -1, Optional ByVal Sound As String, Optional ByVal Callback As String) As Long
 Dim sz As String
 
     sz = "addclass?app-sig=" & Signature & "&id=" & Id & "&name=" & Name & "&enabled=" & IIf(Enabled, "1", "0")
+
     If Password <> "" Then _
         sz = sz & "&password=" & Password
+
+    If Title <> "" Then _
+        sz = sz & "&title=" & Title
+
+    If Text <> "" Then _
+        sz = sz & "&text=" & Text
+
+    If Icon <> "" Then _
+        sz = sz & "&icon=" & Icon
+
+    If Duration <> -1 Then _
+        sz = sz & "&duration=" & CStr(Duration)
+
+    If Sound <> "" Then _
+        sz = sz & "&sound=" & Sound
+
+    If Callback <> "" Then _
+        sz = sz & "&callback=" & Callback
 
     snarl_add_class = snDoRequest(sz)
 
@@ -400,6 +449,42 @@ End Function
 Public Function snarl_hide_notification(ByVal Signature As String, ByVal UID As String, Optional ByVal Password As String) As Long
 
     snarl_hide_notification = snDoRequest("hide?app-sig=" & Signature & "&uid=" & UID & IIf(Password <> "", "&password=" & Password, ""))
+
+End Function
+
+' /*
+'   snarl_is_user_away() -- Determines if user is away
+'
+'   Inputs
+'       None
+'
+'   Result
+'       TRUE if user is away, FALSE otherwise
+'
+'   Notes
+'
+' */
+Public Function snarl_is_user_away() As Boolean
+
+    snarl_is_user_away = ((snGetSystemFlags() And SNARL_SF_USER_AWAY) <> 0)
+
+End Function
+
+' /*
+'   snarl_is_user_busy() -- Determines if user is busy
+'
+'   Inputs
+'       None
+'
+'   Result
+'       TRUE if user is busy, FALSE otherwise
+'
+'   Notes
+'
+' */
+Public Function snarl_is_user_busy() As Boolean
+
+    snarl_is_user_busy = ((snGetSystemFlags() And SNARL_SF_USER_BUSY) <> 0)
 
 End Function
 
@@ -429,6 +514,12 @@ End Function
 ' */
 Public Function snarl_notify(ByVal Signature As String, ByVal Class As String, ByVal UID As String, Optional ByVal Password As String, Optional ByVal Title As String, Optional ByVal Text As String, Optional ByVal Icon As String, Optional ByVal Priority As Long, Optional ByVal Duration As Long = -1, Optional ByVal Callback As String, Optional ByVal PercentValue As Long = -1, Optional ByVal CustomData As String) As Long
 Dim sz As String
+
+    Title = Replace$(Title, "&", "&&")
+    Title = Replace$(Title, "=", "==")
+
+    Text = Replace$(Text, "&", "&&")
+    Text = Replace$(Text, "=", "==")
 
     sz = "notify?app-sig=" & Signature & _
          "&id=" & Class & _
@@ -482,7 +573,35 @@ Public Function snarl_register(ByVal Signature As String, ByVal Name As String, 
 End Function
 
 ' /*
-'   snarl_register() -- Registers an application
+'   snarl_rem_class() -- Removes a notification class
+'
+'   Inputs
+'       Signature
+'       Id
+'       Name
+'       Enabled
+'       Password
+'
+'   Results
+'       Status code
+'
+'   Notes
+'       Wraps the "addclass" command
+'
+' */
+Public Function snarl_rem_class(ByVal Signature As String, ByVal Id As String, Optional ByVal Password As String) As Long
+Dim sz As String
+
+    sz = "remclass?app-sig=" & Signature & "&id=" & Id
+    If Password <> "" Then _
+        sz = sz & "&password=" & Password
+
+    snarl_rem_class = snDoRequest(sz)
+
+End Function
+
+' /*
+'   snarl_unregister() -- Unregisters an application
 '
 '   Inputs
 '       TokenOrSignature
