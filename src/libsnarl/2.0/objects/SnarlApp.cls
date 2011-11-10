@@ -79,21 +79,41 @@ Dim mCache As Collection
 Public Event NotificationInvoked(ByVal UID As String)
 Public Event NotificationExpired(ByVal UID As String)
 Public Event NotificationActionSelected(ByVal UID As String, ByVal Identifier As String)
+Public Event NotificationClosed(ByVal UID As String)
 Public Event ShowAbout()
 Public Event ShowConfig()
 Public Event Activated()
 Public Event Quit()
 Public Event SnarlQuit()
 Public Event SnarlLaunched()
+Public Event SnarlStarted()
+Public Event SnarlStopped()
+Public Event UserAway()
+Public Event UserReturned()
+
+Dim WithEvents theSimpleWindow As TSimpleNotificationWindow
+Attribute theSimpleWindow.VB_VarHelpID = -1
+
+Implements IWndProc
 
 Private Sub Class_Initialize()
 
     Set mTokens = New Collection
     Set mCache = New Collection
-    mInfo.Password = snCreatePassword()
+    mInfo.Password = create_password()
     Randomize Timer
     mMsg = &H400 + (Rnd * 255)
     Debug.Print "SnarlApp.SetTo(): callback msg=0x" & g_HexStr(mMsg, 4)
+
+    ' /* create our callback window */
+
+    EZRegisterClass CLASS_NAME
+    mhWnd = EZ4AddWindow(CLASS_NAME, Me)
+
+    ' /* did window create ok? */
+
+    If mhWnd = 0 Then _
+        Debug.Print "SnarlApp.uRegisterLocal(): couldn't create callback window"
 
 End Sub
 
@@ -101,83 +121,9 @@ Private Sub Class_Terminate()
 
     Debug.Print "SnarlApp.Terminate"
 
-    If mInfo.Signature <> "" Then
-        If mInfo.RemoteHost = "" Then
-            ' /* unregister locally */
-            snDoRequest "unreg?app-sig=" & mInfo.Signature & "&password=" & mInfo.Password
-
-        ElseIf Me.IsConnected() Then
-            theSocket.SendData "unregister?app-sig=" & mInfo.Signature & "&password=" & mInfo.Password
-
-        End If
-
-    End If
-
-    If mhWnd <> 0 Then
-        EZ4RemoveWindow mhWnd
-        EZUnregisterClass CLASS_NAME
-
-    End If
-
     Debug.Print "SnarlApp.Terminate complete"
 
 End Sub
-
-Friend Function bWndProc(ByVal hWnd As Long, ByVal uMsg As Long, ByVal wParam As Long, ByVal lParam As Long, ByVal PrevWndProc As Long, ReturnValue As Long) As Boolean
-Dim pn As Notification
-
-    If uMsg = snAppMsg() Then
-        Select Case wParam
-
-        Case SNARLAPP_DO_ABOUT
-            RaiseEvent ShowAbout
-
-        Case SNARLAPP_DO_PREFS
-            RaiseEvent ShowConfig
-
-        Case SNARLAPP_ACTIVATED
-            RaiseEvent Activated
-
-        Case SNARLAPP_QUIT_REQUESTED
-            RaiseEvent Quit
-
-        End Select
-    
-    ElseIf uMsg = mMsg Then
-        Select Case LoWord(wParam)
-        Case SNARL_CALLBACK_MENU_SELECTED
-            Debug.Print "menu selected"
-'            RaiseEvent MenuSelected(lParam, HiWord(wParam))
-
-        Case SNARL_CALLBACK_M_CLICK
-            Debug.Print "middle button"
-
-        Case SNARL_CALLBACK_INVOKED
-            Set pn = mTokens.Item(CStr(lParam))
-            RaiseEvent NotificationInvoked(pn.UID)
-            mTokens.Remove CStr(lParam)
-
-        Case SNARL_CALLBACK_R_CLICK
-            Debug.Print "right click"
-
-        Case SNARL_CALLBACK_TIMED_OUT
-            Set pn = mTokens.Item(CStr(lParam))
-            RaiseEvent NotificationExpired(pn.UID)
-            mTokens.Remove CStr(lParam)
-
-        Case SNARL_NOTIFY_ACTION
-            Set pn = mTokens.Item(CStr(lParam))
-            Debug.Print "action '" & CStr(HiWord(wParam)) & "' (" & pn.Actions.bLookUp(HiWord(wParam)) & ") from " & pn.UID
-            RaiseEvent NotificationActionSelected(pn.UID, pn.Actions.bLookUp(HiWord(wParam)))
-
-        Case Else
-            Debug.Print g_HexStr(wParam)
-
-        End Select
-
-    End If
-
-End Function
 
 Public Property Get Signature() As String
 
@@ -283,29 +229,49 @@ Public Function Show(ByRef Notification As Notification) As STATUS_CODE
 
     End If
 
+    If NOTNULL(theSimpleWindow) Then
+        theSimpleWindow.Quit
+        Set theSimpleWindow = Nothing
+
+    End If
+
 Dim szReq As String
 Dim hr As STATUS_CODE
 
     ' /* send locally (via Win32 API)? */
 
     If mInfo.RemoteHost = "" Then
-        hr = uRegisterLocal()
-        If hr >= SUCCESS Then
-            ' /* registered ok */
-            hr = snDoRequest(Notification.bAsRequest(mInfo.Signature, mInfo.Password))
-            If hr > SUCCESS Then
-                uAddToken Notification, CStr(hr)
-                Debug.Print "SnarlApp.Show(): logged uid '" & Notification.UID & "' against token " & CStr(hr)
+
+        If Not Me.IsSnarlRunning Then
+            Set theSimpleWindow = New TSimpleNotificationWindow
+            If theSimpleWindow.Go(Notification) Then
                 hr = SUCCESS
 
             Else
-                Debug.Print "SnarlApp.Show(): notify failed: " & CStr(hr)
+                hr = ERROR_NOT_RUNNING
 
             End If
 
         Else
-            Debug.Print "SnarlApp.Show(): registration failed: " & CStr(hr)
+            hr = uRegisterLocal()
+            If hr >= SUCCESS Then
+                ' /* registered ok */
+                hr = snDoRequest(Notification.bAsRequest(mInfo.Signature, mInfo.Password))
+                If hr > SUCCESS Then
+                    uAddToken Notification, CStr(hr)
+                    Debug.Print "SnarlApp.Show(): logged uid '" & Notification.UID & "' against token " & CStr(hr)
+                    hr = SUCCESS
     
+                Else
+                    Debug.Print "SnarlApp.Show(): notify failed: " & CStr(hr)
+    
+                End If
+    
+            Else
+                Debug.Print "SnarlApp.Show(): registration failed: " & CStr(hr)
+        
+            End If
+
         End If
 
         Show = Abs(hr)
@@ -315,13 +281,19 @@ Dim hr As STATUS_CODE
 
         szReq = "SNP/3.0" & vbCrLf & uAsRequest(False) & Notification.bAsRequest(mInfo.Signature, mInfo.Password) & vbCrLf & "END" & vbCrLf
 
-        If NOTNULL(theSocket) Then
+        If Me.IsConnected() Then
             ' /* send to remote computer */
             Debug.Print "sending '" & Replace$(szReq, vbCrLf, "+") & "' to " & mInfo.RemoteHost & "..."
             theSocket.SendData szReq
 
         Else
             ' /* cache the request and initiate a connection to the remote computer */
+            Debug.Print "caching '" & Replace$(szReq, vbCrLf, "+") & "' and connecting to " & mInfo.RemoteHost & "..."
+            
+            Do While mCache.Count > 0
+                mCache.Remove 1
+
+            Loop
 
             mCache.Add szReq
 
@@ -345,34 +317,10 @@ Private Function uRegisterLocal() As STATUS_CODE
 
     End If
 
-    If IsWindow(mhWnd) = 0 Then
-        ' /* create our callback window */
-        EZRegisterClass CLASS_NAME
-        mhWnd = EZ4AddWindow(CLASS_NAME, Me)
-
-    End If
-
-    ' /* did window create ok? */
-
-    If mhWnd = 0 Then
-        Debug.Print "SnarlApp.uRegisterLocal(): couldn't create callback window"
-        uRegisterLocal = ERROR_FAILED
-        Exit Function
-
-    End If
-
     uRegisterLocal = snDoRequest(uAsRequest(True))
 
-    If uRegisterLocal < 0 Then
-        ' /* failed */
-        uRegisterLocal = Abs(uRegisterLocal)
-        Debug.Print "SnarlApp.uRegisterLocal(): failed: " & CStr(uRegisterLocal)
-        EZ4RemoveWindow mhWnd
-        EZUnregisterClass CLASS_NAME
-        mhWnd = 0
+    If uRegisterLocal < 0 Then _
         Exit Function
-
-    End If
 
     ' /* success */
 
@@ -541,7 +489,7 @@ Public Property Get IsConnected() As Boolean
         IsConnected = snIsSnarlRunning()
 
     ElseIf NOTNULL(theSocket) Then
-        IsConnected = theSocket.State = sckConnected
+        IsConnected = (theSocket.State = sckConnected)
 
     End If
 
@@ -559,11 +507,119 @@ Public Property Get LibRevision() As Integer
 
 End Property
 
+Private Function IWndProc_WndProc(ByVal hWnd As Long, ByVal uMsg As Long, ByVal wParam As Long, ByVal lParam As Long, ByVal PrevWndProc As Long, ReturnValue As Long) As Boolean
+Dim pn As Notification
+
+    On Error Resume Next
+
+    Select Case uMsg
+    Case snSysMsg()
+    
+        Debug.Print "system message " & wParam
+    
+        Select Case wParam
+        Case SNARL_BROADCAST_LAUNCHED
+            RaiseEvent SnarlLaunched
+
+        Case SNARL_BROADCAST_QUIT
+            RaiseEvent SnarlQuit
+
+        Case SNARL_BROADCAST_STARTED
+            RaiseEvent SnarlStarted
+
+        Case SNARL_BROADCAST_STOPPED
+            RaiseEvent SnarlStopped
+
+        Case SNARL_BROADCAST_USER_AWAY
+            RaiseEvent UserAway
+        
+        Case SNARL_BROADCAST_USER_BACK
+            RaiseEvent UserReturned
+
+        End Select
+
+    Case snAppMsg()
+        Select Case wParam
+        Case SNARLAPP_DO_ABOUT
+            RaiseEvent ShowAbout
+
+        Case SNARLAPP_DO_PREFS
+            RaiseEvent ShowConfig
+
+        Case SNARLAPP_ACTIVATED
+            RaiseEvent Activated
+
+        Case SNARLAPP_QUIT_REQUESTED
+            RaiseEvent Quit
+
+        End Select
+
+    Case mMsg
+
+        Set pn = mTokens.Item(CStr(lParam))
+        mTokens.Remove CStr(lParam)
+
+        Select Case LoWord(wParam)
+        Case SNARL_CALLBACK_MENU_SELECTED
+            Debug.Print "menu selected"
+'            RaiseEvent MenuSelected(lParam, HiWord(wParam))
+
+        Case SNARL_CALLBACK_M_CLICK
+            Debug.Print "middle button"
+
+        Case SNARL_CALLBACK_INVOKED
+            If NOTNULL(pn) Then _
+                RaiseEvent NotificationInvoked(pn.UID)
+
+        Case SNARL_CALLBACK_R_CLICK
+            Debug.Print "right click"
+
+        Case SNARL_CALLBACK_TIMED_OUT
+            If NOTNULL(pn) Then _
+                RaiseEvent NotificationExpired(pn.UID)
+
+        Case SNARL_NOTIFY_ACTION
+            If NOTNULL(pn) Then
+                Debug.Print "action '" & CStr(HiWord(wParam)) & "' (" & pn.Actions.bLookUp(HiWord(wParam)) & ") from " & pn.UID
+                RaiseEvent NotificationActionSelected(pn.UID, pn.Actions.bLookUp(HiWord(wParam)))
+
+            End If
+
+        Case SNARL_NOTIFY_CLOSED, SNARL_CALLBACK_CLOSED
+            If NOTNULL(pn) Then _
+                RaiseEvent NotificationClosed(pn.UID)
+
+        Case Else
+            Debug.Print g_HexStr(wParam)
+
+        End Select
+
+    End Select
+
+End Function
+
+Private Sub theSimpleWindow_Clicked(ByVal UID As String)
+
+    RaiseEvent NotificationInvoked(UID)
+    Set theSimpleWindow = Nothing
+
+End Sub
+
+Private Sub theSimpleWindow_TimedOut(ByVal UID As String)
+
+    RaiseEvent NotificationExpired(UID)
+    Set theSimpleWindow = Nothing
+
+End Sub
+
 Private Sub theSocket_OnClose()
 
     Debug.Print "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
     Debug.Print "!! Snarl dropped connection !!"
     Debug.Print "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+
+    theSocket.CloseSocket
+    Set theSocket = Nothing         ' // will try to connect on next Show()
 
 End Sub
 
@@ -599,4 +655,75 @@ Dim sz As String
     End If
 
 End Function
+
+Public Function Register() As STATUS_CODE
+Dim szReq As String
+
+    If mInfo.RemoteHost = "" Then
+        ' /* local */
+        Register = Abs(uRegisterLocal())
+
+    Else
+        ' /* build the SNP3 request */
+        szReq = "SNP/3.0" & vbCrLf & uAsRequest(False) & "END" & vbCrLf
+        If NOTNULL(theSocket) Then
+            ' /* send to remote computer */
+            Debug.Print "sending '" & Replace$(szReq, vbCrLf, "+") & "' to " & mInfo.RemoteHost & "..."
+            theSocket.SendData szReq
+
+        Else
+            ' /* cache the request and initiate a connection to the remote computer */
+            mCache.Add szReq
+            Set theSocket = New CSocket
+            theSocket.Connect mInfo.RemoteHost, 9887
+
+        End If
+    End If
+
+End Function
+
+Public Function Unregister() As STATUS_CODE
+Dim hr As STATUS_CODE
+
+    If mInfo.Signature <> "" Then
+        If mInfo.RemoteHost = "" Then
+            ' /* unregister locally */
+            Debug.Print "SnarlApp.TidyUp(): local"
+            Unregister = snDoRequest("unreg?app-sig=" & mInfo.Signature & "&password=" & mInfo.Password)
+
+        ElseIf Me.IsConnected() Then
+            Debug.Print "SnarlApp.TidyUp(): connected"
+            theSocket.SendData "SNP/3.0" & vbCrLf & "unregister?app-sig=" & mInfo.Signature & "&password=" & mInfo.Password & vbCrLf & "END" & vbCrLf
+            Unregister = SUCCESS
+
+        Else
+            Debug.Print "SnarlApp.TidyUp(): not connected"
+            Unregister = ERROR_BAD_SOCKET
+
+        End If
+
+    Else
+        Unregister = ERROR_FAILED
+
+    End If
+
+End Function
+
+Public Sub TidyUp()
+
+    Unregister
+
+    If mhWnd <> 0 Then
+        EZ4RemoveWindow mhWnd
+        EZUnregisterClass CLASS_NAME
+
+    End If
+
+    If NOTNULL(theSimpleWindow) Then
+        theSimpleWindow.Quit
+        Set theSimpleWindow = Nothing
+
+    End If
+
+End Sub
 

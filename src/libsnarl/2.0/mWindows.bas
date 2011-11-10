@@ -29,10 +29,10 @@ Private Declare Function UnregisterClass Lib "user32" Alias "UnregisterClassA" (
 Private Const WM_NCCREATE = &H81
 
 Private Declare Function CreateWindowEx Lib "user32" Alias "CreateWindowExA" (ByVal dwExStyle As Long, ByVal lpClassName As String, ByVal lpWindowName As String, ByVal dwStyle As Long, ByVal x As Long, ByVal y As Long, ByVal nWidth As Long, ByVal nHeight As Long, ByVal hWndParent As Long, ByVal g_hMenu As Long, ByVal hInstance As Long, lpParam As Long) As Long
-Private Declare Function DestroyWindow Lib "user32" (ByVal hwnd As Long) As Long
-Private Declare Function DefWindowProc Lib "user32" Alias "DefWindowProcA" (ByVal hwnd As Long, ByVal uMsg As Long, ByVal wParam As Long, ByVal lParam As Long) As Long
+Private Declare Function DestroyWindow Lib "user32" (ByVal hWnd As Long) As Long
+Private Declare Function DefWindowProc Lib "user32" Alias "DefWindowProcA" (ByVal hWnd As Long, ByVal uMsg As Long, ByVal wParam As Long, ByVal lParam As Long) As Long
 
-Private Declare Function IsWindow Lib "user32" (ByVal hwnd As Long) As Long
+Private Declare Function IsWindow Lib "user32" (ByVal hWnd As Long) As Long
 'Private Declare Function FindWindow Lib "user32" Alias "FindWindowA" (ByVal lpClassName As String, ByVal lpWindowName As String) As Long
 'Private Declare Function SetProp Lib "user32" Alias "SetPropA" (ByVal hWnd As Long, ByVal lpString As String, ByVal hData As Long) As Long
 'Private Declare Function SetTimer Lib "user32" (ByVal hWnd As Long, ByVal nIDEvent As Long, ByVal uElapse As Long, ByVal lpTimerFunc As Long) As Long
@@ -47,8 +47,8 @@ Dim mClass() As String
 Dim mClasses As Long
 
 Private Type T_WINDOW
-    hwnd As Long
-    Handler As SnarlApp
+    hWnd As Long
+    Handler As IWndProc
 
 End Type
 
@@ -134,42 +134,42 @@ Dim i As Long
 
 End Function
 
-Private Function uEZClassWndProc(ByVal hwnd As Long, ByVal uMsg As Long, ByVal wParam As Long, ByVal lParam As Long) As Long
+Private Function uEZClassWndProc(ByVal hWnd As Long, ByVal uMsg As Long, ByVal wParam As Long, ByVal lParam As Long) As Long
 
 'Debug.Print g_HexStr(uMsg)
 
     If uMsg = WM_NCCREATE Then _
-        mWindow(mWindows).hwnd = hwnd           ' // fix the reference
+        mWindow(mWindows).hWnd = hWnd           ' // fix the reference
 
 Static i As Long
 Dim r As Long
 
-    i = uFindWindow(hwnd)
+    i = uFindWindow(hWnd)
     If i = 0 Then
-        Debug.Print "uEZClassWndProc(): " & g_HexStr(hwnd) & " was not found"
-        uEZClassWndProc = DefWindowProc(hwnd, uMsg, wParam, lParam)
+        Debug.Print "uEZClassWndProc(): " & g_HexStr(hWnd) & " was not found"
+        uEZClassWndProc = DefWindowProc(hWnd, uMsg, wParam, lParam)
         Exit Function
 
     End If
 
     If (mWindow(i).Handler Is Nothing) Then
-        Debug.Print "uEZClassWndProc(): " & g_HexStr(hwnd) & " has no handler"
-        uEZClassWndProc = DefWindowProc(hwnd, uMsg, wParam, lParam)
+        Debug.Print "uEZClassWndProc(): " & g_HexStr(hWnd) & " has no handler"
+        uEZClassWndProc = DefWindowProc(hWnd, uMsg, wParam, lParam)
         Exit Function
 
     End If
 
-    If mWindow(i).Handler.bWndProc(hwnd, uMsg, wParam, lParam, 0, r) Then
+    If mWindow(i).Handler.WndProc(hWnd, uMsg, wParam, lParam, 0, r) Then
         uEZClassWndProc = r
 
     Else
-        uEZClassWndProc = DefWindowProc(hwnd, uMsg, wParam, lParam)
+        uEZClassWndProc = DefWindowProc(hWnd, uMsg, wParam, lParam)
     
     End If
 
 End Function
 
-Public Function EZ4AddWindow(ByVal Class As String, ByRef Handler As SnarlApp, Optional ByVal Title As String, Optional ByVal Styles As Long = &H80000000, Optional ByVal ExStyles As Long = &H80, Optional ByVal hWndParent As Long) As Long
+Public Function EZ4AddWindow(ByVal Class As String, ByRef Handler As IWndProc, Optional ByVal Title As String, Optional ByVal Styles As Long = &H80000000, Optional ByVal ExStyles As Long = &H80, Optional ByVal hWndParent As Long) As Long
 Static hr As Long
 
 '    If (Handler Is Nothing) Or (Class = "") Then
@@ -196,23 +196,23 @@ Static hr As Long
 
     End If
 
-    mWindow(mWindows).hwnd = hr
+    mWindow(mWindows).hWnd = hr
     EZ4AddWindow = hr
 
 End Function
 
-Public Function EZ4RemoveWindow(ByVal hwnd As Long) As Boolean
+Public Function EZ4RemoveWindow(ByVal hWnd As Long) As Boolean
 Static i As Long
 Static j As Long
 
-    i = uFindWindow(hwnd)
+    i = uFindWindow(hWnd)
     If i = 0 Then
-        g_Debug "EZ4RemoveWindow(): '" & g_HexStr(hwnd) & "' not found", LEMON_LEVEL_CRITICAL
+        g_Debug "EZ4RemoveWindow(): '" & g_HexStr(hWnd) & "' not found", LEMON_LEVEL_CRITICAL
         Exit Function
 
     End If
 
-    j = DestroyWindow(hwnd)
+    j = DestroyWindow(hWnd)
     If j = 0 Then
         g_Debug "EZ4RemoveWindow(): _DestoryWindow() failed (" & Err.LastDllError & ")", LEMON_LEVEL_CRITICAL
         Exit Function
@@ -231,17 +231,17 @@ Static j As Long
 
     mWindows = mWindows - 1
     ReDim Preserve mWindow(mWindows)
-    g_Debug "EZ4RemoveWindow(): '" & g_HexStr(hwnd) & "' removed ok"
+    g_Debug "EZ4RemoveWindow(): '" & g_HexStr(hWnd) & "' removed ok"
     EZ4RemoveWindow = True
 
 End Function
 
-Private Function uFindWindow(ByVal hwnd As Long) As Long
+Private Function uFindWindow(ByVal hWnd As Long) As Long
 Static i As Long
 
     If mWindows Then
         For i = 1 To mWindows
-            If mWindow(i).hwnd = hwnd Then
+            If mWindow(i).hWnd = hWnd Then
                 uFindWindow = i
                 Exit Function
 
