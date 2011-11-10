@@ -6,19 +6,11 @@ Option Explicit
     '
     ' */
 
-Private Declare Function FindWindow Lib "user32" Alias "FindWindowA" (ByVal lpClassName As String, ByVal lpWindowName As String) As Long
-Private Declare Function IsWindow Lib "user32" (ByVal hwnd As Long) As Long
-
-Private Const WM_CLOSE = &H10
-'Public Const WM_TEST = &H400 + 1
-'Public Const WM_NOTIFICATION = &H400 + 2
-'Public Const WM_RELOAD = &H400 + 3
-Public Declare Function SendMessage Lib "user32" Alias "SendMessageA" (ByVal hwnd As Long, ByVal wMsg As Long, ByVal wParam As Long, lParam As Any) As Long
-
 Public Type T_CONFIG
     RefreshInterval As Long
     UseDefaultCallback As Boolean
     SuperSensitive As Boolean
+    HeadlineLength As Long          ' // R2.0: 1=short, 2=medium, 3=long
 
 '    UseFeedIcon As Boolean
 '    FeedRefresh As Long
@@ -26,90 +18,5 @@ Public Type T_CONFIG
 End Type
 
 Public gConfig As T_CONFIG
-
-Public gDebugMode As Boolean
-Public gToken As Long
-
-Public gPanel As BPrefsPanel
-
-Public Const CLASS_NAME = "w>snarss"
-
-Public Sub Main()
-Dim hWndExisting As Long
-
-    hWndExisting = FindWindow(CLASS_NAME, CLASS_NAME)
-
-    If InStr(Command$, "-quit") Then
-        ' /* quit any existing instance (but don't run this one) */
-        If IsWindow(hWndExisting) <> 0 Then _
-            SendMessage hWndExisting, WM_CLOSE, 0, ByVal 0&
-
-        Exit Sub
-
-'    ElseIf InStr(Command$, "-reload") Then
-'        ' /* if an existing instance is running, tell it to reload tasks */
-'        If IsWindow(hWndExisting) <> 0 Then
-'            SendMessage hWndExisting, WM_RELOAD, 0, ByVal 0&
-'
-'        End If
-    End If
-
-    If hWndExisting <> 0 Then _
-        Exit Sub
-
-    If Not uGotMiscResource() Then
-        MsgBox "misc.resource missing or damaged" & vbCrLf & vbCrLf & "This can happen if melon is uninstalled - try reinstalling melon in the first instance", vbCritical Or vbOKOnly, App.Title
-        Exit Sub
-
-    End If
-
-    l3OpenLog "%APPDATA%\snaRSS.log", True
-    g_Debug "Main()", LEMON_LEVEL_PROC_ENTER
-
-    gDebugMode = (InStr(Command$, "-debug") <> 0)
-
-    If gDebugMode Then _
-        frmMain.Show
-
-Dim hwnd As Long
-
-    EZRegisterClass CLASS_NAME
-    hwnd = EZAddWindow(CLASS_NAME, New TWindow, CLASS_NAME)
-
-    frmMain.List1.AddItem "window: " & g_HexStr(hwnd)
-    frmMain.Tag = CStr(hwnd)
-
-    g_Debug "startup complete"
-
-    With New BMsgLooper
-        .Run
-
-    End With
-
-    g_Debug "stopping..."
-
-    If Not (gPanel Is Nothing) Then _
-        gPanel.Quit
-
-    EZRemoveWindow hwnd
-    EZUnregisterClass CLASS_NAME
-    Unload frmMain
-
-    g_Debug "", LEMON_LEVEL_PROC_EXIT
-    g_Debug "ended"
-
-End Sub
-
-Private Function uGotMiscResource() As Boolean
-
-    On Error Resume Next
-
-Dim i As Long
-
-    Err.Clear
-    i = processor_count()
-    uGotMiscResource = (Err.Number = 0)
-
-End Function
 
 

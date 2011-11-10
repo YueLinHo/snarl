@@ -153,13 +153,9 @@ Dim pList As BControl
 '    Debug.Print "imgurl: " & theFeed.Channel.ImageUrl
 '    Debug.Print "imglink: " & theFeed.Channel.ImageLink
 
-    ' /* if the prefs panel is open, tell the feed list to refresh */
+    ' /* will need to update the feed list */
 
-    If Not (gPanel Is Nothing) Then
-        If gPanel.Find("feed_list", pList) Then _
-            pList.Notify "update", Nothing
-
-    End If
+    frmMain.UpdateFeedList
 
 'Static szLastEntry As String
 Static szEntry As String
@@ -292,19 +288,27 @@ Static i As Long
 
     g_Debug "TFeed.ShowHeadline()", LEMON_LEVEL_PROC_ENTER
 
-    If (Not (theFeed Is Nothing)) And (gToken <> 0) Then
+    If NOTNULL(theFeed) Then
         If theFeed.CountItems > 0 Then
 
             With theFeed.ItemAt(1)
-                i = sn41EZNotify(gToken, mGuid, _
-                                 .Title, _
-                                 IIf(.Description <> "", .Description, "<no entry>") & vbCrLf & vbCrLf & theFeed.Channel.Title, _
-                                 , _
-                                 theFeed.Channel.ImageUrl, , _
-                                 IIf(gConfig.UseDefaultCallback, .Link, ""), , _
-                                 IIf(Not gConfig.UseDefaultCallback, "action::Open Item," & .Link, ""))
+                snarl_notify App.ProductName, mGuid, "", frmMain.Password, _
+                             .Title, _
+                             IIf(.Description <> "", uTidyup(.Description), "<no entry>") & vbCrLf & vbCrLf & theFeed.Channel.Title, _
+                             theFeed.Channel.ImageUrl, _
+                             , , _
+                             IIf(gConfig.UseDefaultCallback, .Link, ""), , _
+                             "action=Open Item," & .Link & "&action=Settings...,!snarl manage " & App.ProductName
 
-                g_Debug "sz41EZNotify() returned " & CStr(i) & " (lasterror=" & sn41GetLastError() & ")"
+'                i = sn41EZNotify(gToken, mGuid, _
+'                                 .Title, _
+'                                 IIf(.Description <> "", .Description, "<no entry>") & vbCrLf & vbCrLf & theFeed.Channel.Title, _
+'                                 , _
+'                                 theFeed.Channel.ImageUrl, , _
+'                                 IIf(gConfig.UseDefaultCallback, .Link, ""), , _
+'                                 IIf(Not gConfig.UseDefaultCallback, "action::Open Item," & .Link, ""))
+'
+'                g_Debug "sz41EZNotify() returned " & CStr(i) & " (lasterror=" & sn41GetLastError() & ")"
 
             End With
 
@@ -329,7 +333,7 @@ Public Sub ShowSummary()
 Static sz As String
 Static i As Long
 
-    If (Not (theFeed Is Nothing)) And (gToken <> 0) Then
+    If NOTNULL(theFeed) Then
         If theFeed.CountItems > 0 Then
 
             sz = ""
@@ -340,7 +344,15 @@ Static i As Long
 
                 Next i
 
-                i = sn41EZNotify(gToken, mGuid, _
+                snarl_notify App.ProductName, mGuid, "", frmMain.Password, _
+                             .Channel.Title, _
+                             sz, _
+                             .Channel.ImageUrl, , , _
+                             IIf(gConfig.UseDefaultCallback, .Channel.Link, ""), , _
+                             IIf(Not gConfig.UseDefaultCallback, "action::Open Feed," & .Channel.Link, "")
+
+
+'                i = sn41EZNotify(gToken, mGuid, _
                                  .Channel.Title, _
                                  sz, _
                                  , _
@@ -382,12 +394,6 @@ Public Function Refresh() As Boolean
 
 End Function
 
-'Public Function IsRefreshing() As Boolean
-'
-'    IsRefreshing = mRefreshing
-'
-'End Function
-
 Public Sub FeedInfo()
 
     On Error Resume Next
@@ -397,15 +403,25 @@ Public Sub FeedInfo()
 Static sz As String
 Static i As Long
 
-    If (Not (theFeed Is Nothing)) And (gToken <> 0) Then
+    If NOTNULL(theFeed) Then
         If Not theFeed.IsValid Then
-            i = sn41EZNotify(gToken, "", _
+            snarl_notify App.ProductName, mGuid, mGuid, frmMain.Password, _
+                         "Could not retrieve feed", _
+                         "There may be a problem with your Internet connection, or the server providing the feed may be off-line - try accessing the feed from a browser", _
+                         g_MakePath(App.Path) & IIf(g_IsIDE, "bin\", "") & "failed.png"
+
+'            i = sn41EZNotify(gToken, "", _
                              "Could not retrieve feed", _
                              "There may be a problem with your Internet connection, or the server providing the feed may be off-line - try accessing the feed from a browser", , _
                              g_MakePath(App.Path) & "failed.png")
 
         ElseIf (theFeed.Channel Is Nothing) Then
-            i = sn41EZNotify(gToken, "", _
+            snarl_notify App.ProductName, mGuid, mGuid, frmMain.Password, _
+                         "Invalid RSS Feed", _
+                         "Invalid RSS Feed", _
+                         g_MakePath(App.Path) & IIf(g_IsIDE, "bin\", "") & "failed.png"
+
+'            i = sn41EZNotify(gToken, "", _
                              "Invalid RSS Feed", _
                              "Data was returned but it does not appear to be a valid RSS feed", , _
                              g_MakePath(App.Path) & "failed.png")
@@ -420,7 +436,13 @@ Static i As Long
                      IIf(.FeedVersion <> "", "Version " & .FeedVersion, "")
 
                 If sz <> "" Then _
-                    i = sn41EZNotify(gToken, "", _
+                    snarl_notify App.ProductName, mGuid, mGuid, frmMain.Password, _
+                                 .Channel.Title, _
+                                 sz, _
+                                 .Channel.ImageUrl, , , _
+                                 .Channel.Link
+
+'                    i = sn41EZNotify(gToken, "", _
                                      .Channel.Title, _
                                      sz, _
                                      , _
@@ -456,7 +478,7 @@ End Function
 
 Public Function Status() As String
 
-    If Not (theFeed Is Nothing) Then
+    If NOTNULL(theFeed) Then
         If theFeed.IsValid Then
             If mRefreshing Then
                 Status = "Refreshing..."
@@ -481,5 +503,51 @@ End Function
 Public Function Guid() As String
 
     Guid = mGuid
+
+End Function
+
+Public Function CountEntries() As Long
+
+    If NOTNULL(theFeed) Then _
+        CountEntries = theFeed.CountItems
+
+End Function
+
+Private Function uTidyup(ByVal html As String) As String
+Dim pDoc As HTMLDocument
+
+    On Error Resume Next
+
+    Err.Clear
+    Set pDoc = New HTMLDocument
+    If (Err.Number <> 0) Or (ISNULL(pDoc)) Then
+        uTidyup = html
+
+    Else
+        pDoc.body.innerHTML = html
+        uTidyup = pDoc.body.innerText
+
+    End If
+
+Dim i As Integer
+
+    Select Case gConfig.HeadlineLength
+    Case 2
+        ' /* short */
+        i = 128
+
+    Case 3
+        ' /* long */
+        i = 512
+
+    Case Else
+        ' /* medium */
+        i = 256
+
+    End Select
+
+    uTidyup = trim(g_SafeLeftStr(uTidyup, i, True))
+    If g_BeginsWith(uTidyup, vbCrLf) Then _
+        uTidyup = g_SafeRightStr(uTidyup, Len(uTidyup) - 2)
 
 End Function

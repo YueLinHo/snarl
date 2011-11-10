@@ -86,10 +86,7 @@ Dim pf As TFeed
         ReDim Preserve mFeed(mFeeds)
         Set mFeed(mFeeds) = pf
         g_Debug "TFeedRoster.AddFeed(): added ok"
-
-        If gToken Then _
-            sn41AddClass gToken, Guid, IIf(Title = "", URL, Title)
-
+        snarl_add_class App.ProductName, Guid, IIf(Title = "", URL, Title)
         AddFeed = True
 
     Else
@@ -105,9 +102,9 @@ Public Function CountFeeds() As Long
 
 End Function
 
-Public Function FindFeed(ByVal uid As Long) As Long
+Public Function FindFeed(ByVal UID As Long) As Long
 
-    FindFeed = MRoster_FindItem(CStr(uid))
+    FindFeed = MRoster_FindItem(CStr(UID))
 
 End Function
 
@@ -140,8 +137,7 @@ Static i As Long
     If (Index < 1) Or (Index > mFeeds) Then _
         Exit Sub
 
-    If gToken Then _
-        sn41RemoveClass gToken, mFeed(Index).Guid
+    snarl_rem_class App.ProductName, mFeed(Index).Guid, frmMain.Password
 
     If Index < mFeeds Then
         For i = Index To (mFeeds - 1)
@@ -160,7 +156,7 @@ Static i As Long
 
     If mFeeds Then
         For i = 1 To mFeeds
-            sn41AddClass gToken, mFeed(i).Guid, mFeed(i).TitleOrURL
+            snarl_add_class App.ProductName, mFeed(i).Guid, mFeed(i).TitleOrURL, , frmMain.Password
 
         Next i
     End If
