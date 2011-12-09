@@ -33,6 +33,7 @@ Dim mToken As Long
 Dim mRefs As Long
 'Dim mActualMissed As Long                       ' // number that appeared since DnD enabled
 Dim mMissedCount As Long
+Dim mHaveMissed As Boolean
 
     ' /* lists - a notification should only ever be in one of them */
 Dim mActive As BTagList
@@ -1048,18 +1049,24 @@ Public Function RealMissedCount() As Long
 
 '    ActualMissedCount = mActualMissed
 
-    RealMissedCount = mMissedX.CountItems - mMissedCount
+    RealMissedCount = MAX(0, mMissedX.CountItems - mMissedCount)
 
 End Function
 
-'Public Sub ClearMissedList()
-'
-'    ' /* clear the missed list and reset counters */
-'
-'    mMissedX.MakeEmpty
-'    ResetMissedList
-'
-'End Sub
+Public Function HaveMissedNotifications() As Boolean
+
+    HaveMissedNotifications = mHaveMissed
+
+End Function
+
+Public Sub ResetMissed()
+
+    ' /* only reset the flag */
+
+    mHaveMissed = False
+    frmAbout.bSetTrayIcon
+
+End Sub
 
 'Private Sub uResetMissedList()
 '
@@ -1575,10 +1582,17 @@ Dim n As Long
     If n < 1 Then _
         Exit Sub
 
+    ' /* we have some missed notifications, so... */
+
+    mHaveMissed = True              ' // set our flag
+    frmAbout.bSetTrayIcon           ' // update the tray icon
+
 Static iToken As Long
 
     If iToken Then _
         Me.Hide iToken, "", "", gSnarlPassword
+
+    ' /* and notify... */
 
     iToken = g_PrivateNotify(SNARL_CLASS_GENERAL, "While you were away...", _
                              "You missed " & CStr(n) & " notification" & IIf(n > 1, "s", ""), _
@@ -1586,8 +1600,6 @@ Static iToken As Long
                              g_MakePath(App.Path) & "etc\icons\snarl.png", _
                              , _
                              "!snarl show_missed_panel")
-
-'    uResetMissedList
 
 End Sub
 

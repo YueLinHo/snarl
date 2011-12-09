@@ -1159,6 +1159,9 @@ Dim pasp As TAdvSubPage
             g_SetWindowIconToAppResourceIcon .hWnd
             g_ShowWindow .hWnd, True, True
             SetForegroundWindow .hWnd
+
+            g_NotificationRoster.ResetMissed
+
             g_Debug "frmAbout.NewDoPrefs(): done"
 
         End With
@@ -2070,7 +2073,7 @@ Dim n As Long
     ElseIf g_IsAway() Then
         n = SN_II_AWAY
 
-    ElseIf g_NotificationRoster.RealMissedCount > 0 Then
+    ElseIf g_NotificationRoster.HaveMissedNotifications Then
         sz = sz & " - " & CStr(g_NotificationRoster.RealMissedCount) & " missed notification" & IIf(g_NotificationRoster.RealMissedCount = 1, "", "s")
         n = SN_II_MISSED
 

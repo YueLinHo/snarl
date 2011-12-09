@@ -1,6 +1,12 @@
 
 	Snarl Change Log
 
+	- Released as Snarl 2.5.  (43.51)
+
+	- Released as Snarl 2.5 Beta 3.  (43.51)
+
+	- Released as Snarl 2.5 Beta 2.  (43.50)
+
 	- Fixed bug to do with class default timeout.  Credit to Pako for this.  (43.50)
 
 	- Fixed bug which caused notification_info->title to be empty if S_STYLE_IS_
@@ -38,7 +44,7 @@
 	- Snarl no longer creates an empty file when an invalid icon path is
 	  provided.  (43.31)
 
-	- Notifications can now be replyed even while DnD mode is enabled.  (43.31)
+	- Notifications can now be replayed even while DnD mode is enabled.  (43.31)
 
 	- Changed "Missed Notifications..." menu item to a menu parent which will
 	  open a submenu of (at most) the last 10 missed notifications.  Selecting
@@ -79,7 +85,7 @@
 
 	- Listen for JSON and SNP/GNTP now enabled by default.  (43.15)
 
-	- Now listen on 5233 as well.  (43.15)
+	- Now listens on Port 5233 as well.  (43.15)
 
 	- Moved Missed Notifications into [History] page under new "Missed"
 	  tab.  Suggested by Shawn.  (43.14)
