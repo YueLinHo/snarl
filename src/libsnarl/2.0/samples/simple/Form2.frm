@@ -1,10 +1,11 @@
 VERSION 5.00
 Begin VB.Form Form2 
-   Caption         =   "Form2"
+   BorderStyle     =   1  'Fixed Single
+   Caption         =   "Snarl Framework Demo"
    ClientHeight    =   3090
-   ClientLeft      =   60
-   ClientTop       =   450
-   ClientWidth     =   4680
+   ClientLeft      =   45
+   ClientTop       =   435
+   ClientWidth     =   4635
    BeginProperty Font 
       Name            =   "Tahoma"
       Size            =   8.25
@@ -14,33 +15,53 @@ Begin VB.Form Form2
       Italic          =   0   'False
       Strikethrough   =   0   'False
    EndProperty
+   Icon            =   "Form2.frx":0000
    LinkTopic       =   "Form2"
+   MaxButton       =   0   'False
    ScaleHeight     =   3090
-   ScaleWidth      =   4680
+   ScaleWidth      =   4635
    StartUpPosition =   3  'Windows Default
+   Begin VB.CommandButton Command1 
+      Caption         =   "Test"
+      Height          =   555
+      Left            =   60
+      TabIndex        =   0
+      Top             =   1980
+      Width           =   2175
+   End
+   Begin VB.TextBox Text2 
+      Height          =   1035
+      Left            =   60
+      MultiLine       =   -1  'True
+      TabIndex        =   3
+      Text            =   "Form2.frx":000C
+      Top             =   840
+      Width           =   4515
+   End
+   Begin VB.TextBox Text1 
+      Height          =   315
+      Left            =   60
+      TabIndex        =   2
+      Text            =   "Your notification title here"
+      Top             =   480
+      Width           =   4515
+   End
    Begin VB.CheckBox Check1 
       Caption         =   "Use Win32 API"
       Height          =   255
-      Left            =   300
-      TabIndex        =   2
-      Top             =   120
-      Width           =   2175
-   End
-   Begin VB.CommandButton Command2 
-      Caption         =   "Command2"
-      Height          =   495
-      Left            =   300
+      Left            =   60
       TabIndex        =   1
-      Top             =   1500
-      Width           =   2175
+      Top             =   120
+      Value           =   1  'Checked
+      Width           =   1395
    End
-   Begin VB.CommandButton Command1 
-      Caption         =   "Register"
-      Height          =   555
-      Left            =   300
-      TabIndex        =   0
-      Top             =   540
-      Width           =   2175
+   Begin VB.Label Label1 
+      Caption         =   "Label1"
+      Height          =   255
+      Left            =   60
+      TabIndex        =   4
+      Top             =   2700
+      Width           =   4515
    End
 End
 Attribute VB_Name = "Form2"
@@ -70,10 +91,16 @@ Dim pn As Notification
 
     Set pn = New Notification
     With pn
-        .Title = "Hello, world!"
-        .Text = "This is a test..."
+        .Title = Text1.Text
+        .Text = Text2.Text
         .UID = "123456"
         .Actions = pa
+        .Class = "1"
+
+        .Add "value-percent", "100"
+        .Add "foo-bar", "!"
+        .Add "value-percent", "50", True
+        .Remove "foo-bar"
 
     End With
 
@@ -81,14 +108,10 @@ Dim pn As Notification
         myApp.RemoteComputer = "127.0.0.1"
 
     ' /* go */
-    
+
     myApp.Show pn
 
-End Sub
-
-Private Sub Command2_Click()
-
-'    myApp.TidyUp
+    Debug.Print myApp.IsVisible(pn.UID) & " - " & myApp.IsVisible("?")
 
 End Sub
 
@@ -100,17 +123,28 @@ Private Sub Form_Load()
 
     Debug.Print myApp.IsSnarlInstalled()
 
-
     With myApp
         .Signature = "test/libmsnarl2"
         .Title = "snarl.library 2 test"
         .Icon = .MakePath(App.Path) & "icon.png"
-        .Hint = "Acme Products Present"
+'        .Hint = "Acme Products Present"
         .IsDaemon = True
 
     End With
 
-    Me.Caption = "Snarl: " & myApp.IsSnarlRunning()
+Dim pClasses As Classes
+
+    Set pClasses = New Classes
+    pClasses.Add "1", "My class"
+    myApp.Classes = pClasses
+
+    uUpdateStatus
+
+End Sub
+
+Private Sub Form_Unload(Cancel As Integer)
+
+    myApp.TidyUp
 
 End Sub
 
@@ -129,9 +163,15 @@ Private Sub myApp_NotificationActionSelected(ByVal UID As String, ByVal Identifi
 
 End Sub
 
+Private Sub myApp_NotificationClosed(ByVal UID As String)
+
+    Debug.Print "## CLOSED: " & UID
+
+End Sub
+
 Private Sub myApp_NotificationInvoked(ByVal UID As String)
 
-    Debug.Print "## " & UID & " invoked ##"
+    Debug.Print "## INVOKED: " & UID
 
 End Sub
 
@@ -141,3 +181,44 @@ Private Sub myApp_Quit()
 
 End Sub
 
+Private Sub myApp_ShowAbout()
+
+    MsgBox "About..."
+
+End Sub
+
+Private Sub myApp_ShowConfig()
+
+    MsgBox "Config..."
+    
+End Sub
+
+Private Sub myApp_SnarlLaunched()
+
+    uUpdateStatus
+
+End Sub
+
+Private Sub myApp_SnarlQuit()
+
+    uUpdateStatus
+
+End Sub
+
+Private Sub myApp_SnarlStarted()
+
+    uUpdateStatus
+
+End Sub
+
+Private Sub myApp_SnarlStopped()
+
+    uUpdateStatus
+
+End Sub
+
+Private Sub uUpdateStatus()
+
+    Label1.Caption = "Snarl is " & IIf(myApp.IsSnarlRunning(), "", "not ") & "running"
+
+End Sub

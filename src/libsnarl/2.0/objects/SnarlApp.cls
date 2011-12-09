@@ -169,7 +169,13 @@ End Property
 
 Public Property Let Classes(ByVal vNewValue As Classes)
 
+    If NOTNULL(mInfo.Classes) Then _
+        mInfo.Classes.bUnSet
+
     Set mInfo.Classes = vNewValue
+
+    If NOTNULL(mInfo.Classes) Then _
+        mInfo.Classes.bSet Me
 
 End Property
 
@@ -413,7 +419,7 @@ Dim sz As String
     If mInfo.Hint <> "" Then _
         sz = sz & "&hint=" & mInfo.Hint
 
-    If (mInfo.IsAppDaemon) And (Not ForLocalInstance) Then _
+    If (mInfo.IsAppDaemon) And (ForLocalInstance) Then _
         sz = sz & "&app-daemon=1"
 
 
@@ -557,7 +563,6 @@ Dim pn As Notification
     Case mMsg
 
         Set pn = mTokens.Item(CStr(lParam))
-        mTokens.Remove CStr(lParam)
 
         Select Case LoWord(wParam)
         Case SNARL_CALLBACK_MENU_SELECTED
@@ -585,6 +590,8 @@ Dim pn As Notification
 
             End If
 
+            Exit Function
+
         Case SNARL_NOTIFY_CLOSED, SNARL_CALLBACK_CLOSED
             If NOTNULL(pn) Then _
                 RaiseEvent NotificationClosed(pn.UID)
@@ -593,6 +600,8 @@ Dim pn As Notification
             Debug.Print g_HexStr(wParam)
 
         End Select
+
+        mTokens.Remove CStr(lParam)
 
     End Select
 
@@ -713,6 +722,8 @@ Public Sub TidyUp()
 
     Unregister
 
+    Me.Classes = Nothing                    ' // should release our handle from the Classes object
+
     If mhWnd <> 0 Then
         EZ4RemoveWindow mhWnd
         EZUnregisterClass CLASS_NAME
@@ -727,3 +738,53 @@ Public Sub TidyUp()
 
 End Sub
 
+Public Function IsVisible(ByVal UID As String) As STATUS_CODE
+
+    IsVisible = Abs(snDoRequest("isvisible?app-sig=" & mInfo.Signature & "&password=" & mInfo.Password & "&uid=" & UID))
+
+End Function
+
+Friend Sub bRemoveClass(ByVal Name As String)
+Dim hr As STATUS_CODE
+
+    hr = Me.bDoRequest("remclass?app-sig=" & mInfo.Signature & "&password=" & mInfo.Password & "&id=" & Name)
+    Debug.Print "SnarlApp.bRemoveClass(): '" & Name & "': " & CStr(Abs(hr))
+
+End Sub
+
+Friend Function bDoRequest(ByVal Request As String) As SNARL_STATUS_CODE
+
+    If mInfo.RemoteHost = "" Then
+        ' /* send using Win32 API */
+        bDoRequest = snDoRequest(Request)
+
+    Else
+        ' /* build the SNP3 request */
+
+        Request = "SNP/3.0" & vbCrLf & _
+                  Request & vbCrLf & _
+                  "END" & vbCrLf
+
+        If Me.IsConnected() Then
+            ' /* send to remote computer */
+            Debug.Print "sending '" & Replace$(Request, vbCrLf, "+") & "' to " & mInfo.RemoteHost & "..."
+            theSocket.SendData Request
+
+        Else
+            ' /* cache the request and initiate a connection to the remote computer */
+            Debug.Print "caching '" & Replace$(Request, vbCrLf, "+") & "' and connecting to " & mInfo.RemoteHost & "..."
+
+            Do While mCache.Count > 0
+                mCache.Remove 1
+
+            Loop
+
+            mCache.Add Request
+
+            Set theSocket = New CSocket
+            theSocket.Connect mInfo.RemoteHost, 9887
+
+        End If
+    End If
+
+End Function

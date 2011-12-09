@@ -39,18 +39,38 @@ End Type
 
 Dim mInfo As T_INFO
 
+Private Type T_ARG
+    Name As String
+    Value As String
+    
+End Type
+
+Dim mArg() As T_ARG
+Dim mArgs As Long
+
 Private Sub Class_Initialize()
 
     mInfo.Duration = -1
+    ReDim mArg(0)
 
 End Sub
 
 Friend Function bAsRequest(ByVal AppSignature As String, ByVal Password As String) As String
 
     bAsRequest = "notify?app-sig=" & AppSignature & "&password=" & Password & _
-                 "&class=" & mInfo.Class & "&uid=" & mInfo.UID & _
-                 "&title=" & mInfo.Title & "&text=" & mInfo.Text & _
-                 "&priority=" & CStr(mInfo.Priority) & "&timeout=" & CStr(mInfo.Duration)
+                 "&class=" & mInfo.Class & "&uid=" & mInfo.UID
+
+    If mInfo.Title <> "" Then _
+        bAsRequest = bAsRequest & "&title=" & uFixUp(mInfo.Title)
+
+    If mInfo.Text <> "" Then _
+        bAsRequest = bAsRequest & "&text=" & uFixUp(mInfo.Text)
+
+    If mInfo.Priority <> NORMAL_PRIORITY Then _
+        bAsRequest = bAsRequest & "&priority=" & CStr(mInfo.Priority)
+        
+    If mInfo.Duration <> -1 Then _
+        bAsRequest = bAsRequest & "&timeout=" & CStr(mInfo.Duration)
 
     If mInfo.Icon <> "" Then _
         bAsRequest = bAsRequest & "&icon=" & mInfo.Icon
@@ -69,10 +89,23 @@ Friend Function bAsRequest(ByVal AppSignature As String, ByVal Password As Strin
     If (mInfo.CallbackScript <> "") And (mInfo.CallbackScriptType <> "") Then _
         bAsRequest = bAsRequest & "&callback-script=" & mInfo.CallbackScript & "&callback-script-type=" & mInfo.CallbackScriptType
 
+    ' /* add custom arguments */
+
+Dim i As Long
+
+    If mArgs > 0 Then
+        For i = 1 To mArgs
+            bAsRequest = bAsRequest & "&" & mArg(i).Name & "=" & mArg(i).Value
+
+        Next i
+    End If
+
     ' /* add the actions */
 
     If Not (mInfo.Actions Is Nothing) Then _
         bAsRequest = bAsRequest & mInfo.Actions.bAsWin32Request
+
+    Debug.Print bAsRequest
 
 End Function
 
@@ -231,3 +264,65 @@ Public Property Let MergeUID(ByVal vNewValue As String)
     mInfo.MergeUID = vNewValue
 
 End Property
+
+Public Sub Add(ByVal Name As String, ByVal Value As String, Optional ByVal UpdateIfExists As Boolean = False)
+Dim i As Long
+
+    i = uFindArg(Name)
+    If (i) And (UpdateIfExists) Then
+        mArg(i).Value = Value
+
+    Else
+        mArgs = mArgs + 1
+        ReDim Preserve mArg(mArgs)
+        mArg(mArgs).Name = Name
+        mArg(mArgs).Value = Value
+
+    End If
+
+End Sub
+
+Public Function Remove(ByVal Name As String) As Boolean
+Dim i As Long
+Dim j As Long
+
+    i = uFindArg(Name)
+    If i = 0 Then _
+        Exit Function
+
+    If i < mArgs Then
+        For j = i To (mArgs - 1)
+            LSet mArg(j) = mArg(j + 1)
+
+        Next j
+    End If
+
+    mArgs = mArgs - 1
+    ReDim Preserve mArg(mArgs)
+    Remove = True
+
+End Function
+
+Private Function uFindArg(ByVal Name As String) As Long
+Static i As Long
+
+    If mArgs Then
+        For i = 1 To mArgs
+            If mArg(i).Name = Name Then
+                uFindArg = i
+                Exit Function
+
+            End If
+        Next i
+    End If
+
+End Function
+
+Private Function uFixUp(ByVal str As String) As String
+
+    str = Replace$(str, "&", "&&")
+    str = Replace$(str, "=", "==")
+
+    uFixUp = str
+
+End Function

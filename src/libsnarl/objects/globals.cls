@@ -19,7 +19,7 @@ Option Explicit
 '$$
 Private Const OBJ_DATE = "9-Mar-2011"
 
-Public Enum S_STATUS_CODE
+Public Enum STATUS_CODE
     S_SUCCESS = 0
 
     ' /* Win32 callbacks (renamed under V42) */
@@ -84,37 +84,7 @@ Public Enum S_STATUS_CODE
 
 End Enum
 
-Implements BObject
-Implements MVersionInfo
 
-Private Function BObject_Duplicate() As melon4.BObject
-End Function
-
-Private Function BObject_Init(Args As String) As melon4.B_STATUS
-End Function
-
-Private Function BObject_Name() As String
-
-    BObject_Name = App.ProductName
-
-End Function
-
-Private Function BObject_Ptr() As Long
-
-    BObject_Ptr = M_LIBRARY_MAGIC
-
-End Function
-
-Private Sub BObject_Tidyup()
-End Sub
-
-Private Function BObject_Type() As String
-
-    ' /* R4 distinguishes between libraries (which need to be
-    '    Open()ed and Close()d) and kits (which don't) */
-'    BObject_Type = B_KIT_TYPE
-
-End Function
 
 'Public Function get_setting(ByVal Name As String, ByRef Value As String) As B_STATUS
 'Dim pFile As ConfigFile
@@ -204,30 +174,6 @@ End Function
 '
 'End Function
 
-Private Property Get MVersionInfo_Date() As String
-
-    MVersionInfo_Date = OBJ_DATE
-
-End Property
-
-Private Property Get MVersionInfo_Name() As String
-
-    MVersionInfo_Name = App.ProductName
-
-End Property
-
-Private Property Get MVersionInfo_Revision() As Long
-
-    MVersionInfo_Revision = App.Revision
-
-End Property
-
-Private Property Get MVersionInfo_Version() As Long
-
-    MVersionInfo_Version = App.Major
-
-End Property
-
 Public Function is_snarl_running() As Boolean
 
     is_snarl_running = snIsSnarlRunning()
@@ -254,24 +200,10 @@ Dim sz As String
 
 End Function
 
-'Public Function last_error() As Long
-'
-'    last_error = snGetLastError()
-'
-'End Function
+Public Function make_path(ByVal Path As String) As String
 
-Public Function get_snarl() As Snarl
-
-    Set get_snarl = gSnarl
+    make_path = g_MakePath(Path)
 
 End Function
-
-'Public Function new_SnarlApp(Optional ByVal RemoteIP As String) As SnarlApp
-'
-'    Set new_SnarlApp = New SnarlApp
-'    If RemoteIP <> "" Then _
-'        new_SnarlApp.bConnectTo RemoteIP
-'
-'End Function
 
 
