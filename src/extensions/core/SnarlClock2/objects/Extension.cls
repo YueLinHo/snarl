@@ -29,7 +29,7 @@ Option Explicit
 
     ' /* our constants */
 
-Const EXT_DATE = "14-Sep-2011"
+Const EXT_DATE = "29-Nov-2011"
 Const EXT_REL = "3.0"
 
 Const UID_HOURLY = "_clock+_hourly"
@@ -1185,15 +1185,15 @@ Dim a As Long
 
     ' /* R2.06: suppress in-line cookie if using the packed time format */
 
-'    If (Config.show_cookie) And (mCookies > 0) And (Config.format_type <> 2) Then
-'        Randomize Timer
-'        a = Rnd * mCookies
-'        txt = txt & vbCrLf & vbCrLf & mCookie(a)
-'
-'    ElseIf Config.show_cookie Then
-'        g_Debug "uGetTimeString(): show_cookie option set but no cookies available", LEMON_LEVEL_WARNING
-'
-'    End If
+    If (mConfigFile.ValueOf("show_cookie") = "1") And (mCookies > 0) And (lType <> CFT_SPECIAL) Then
+        Randomize Timer
+        a = Rnd * mCookies
+        txt = txt & vbCrLf & vbCrLf & mCookie(a)
+
+    ElseIf (mConfigFile.ValueOf("show_cookie") = "1") And (mCookies = 0) Then
+        g_Debug "uGetTimeString(): show_cookie option set but no cookies available", LEMON_LEVEL_WARNING
+
+    End If
 
     uGetTimeString = txt
 
