@@ -1,14 +1,14 @@
 VERSION 5.00
 Begin {AC0714F6-3D04-11D1-AE7D-00A0C90F26F4} Connect 
-   ClientHeight    =   6870
+   ClientHeight    =   7005
    ClientLeft      =   1740
    ClientTop       =   1545
-   ClientWidth     =   15210
-   _ExtentX        =   26829
-   _ExtentY        =   12118
+   ClientWidth     =   15270
+   _ExtentX        =   26935
+   _ExtentY        =   12356
    _Version        =   393216
    Description     =   "Displays incoming emails as a Snarl notification."
-   DisplayName     =   "Snarl Notifier 1.04"
+   DisplayName     =   "Snarl Notifier 1.2"
    AppName         =   "Microsoft Outlook"
    AppVer          =   "Microsoft Outlook 12.0"
    LoadName        =   "Startup"
@@ -281,12 +281,13 @@ Dim hr As Long
                     "&icon=" & szIcon & _
                     "&action=Open,@9&action=Reply,@2&action=Reply All,@3&action=Forward,@4" & _
                     "&priority=" & CStr(Mail.Importance - 1) & _
+                    "&sensitivity=" & CStr(Mail.Sensitivity * 16) & _
                     "&password=" & mPassword)
 
 Dim pm As TItem
 
     Set pm = New TItem
-    pm.SetTo Mail, hr
+    pm.SetTo Mail, hr, mPassword
     mMail.Add pm
 
 End Function
@@ -400,12 +401,13 @@ Dim hr As Long
                      "&icon=" & szIcon & _
                      "&action=" & szActions & _
                      "&priority=" & CStr(Meeting.Importance - 1) & _
+                     "&sensitivity=" & CStr(Meeting.Sensitivity * 16) & _
                      "&password=" & mPassword)
 
 Dim pm As TItem
 
     Set pm = New TItem
-    pm.SetTo Meeting, hr
+    pm.SetTo Meeting, hr, mPassword
     mMail.Add pm
 
 End Function
@@ -725,15 +727,20 @@ Dim sz As String
 
     On Error Resume Next
 
-    Err.Clear
-    Set pDoc = New HTMLDocument
-    If (Err.Number <> 0) Or (ISNULL(pDoc)) Then
+    If Mail.BodyFormat <> olFormatHTML Then
         sz = Mail.Body
 
     Else
-        pDoc.Body.innerHTML = Mail.Body
-        sz = pDoc.Body.innerText
+        Err.Clear
+        Set pDoc = New HTMLDocument
+        If (Err.Number <> 0) Or (ISNULL(pDoc)) Then
+            sz = Mail.Body
 
+        Else
+            pDoc.Body.innerHTML = Mail.Body
+            sz = pDoc.Body.innerText
+
+        End If
     End If
 
     sz = g_SafeLeftStr(sz, 128, True)
@@ -741,5 +748,91 @@ Dim sz As String
     sz = Replace$(sz, vbCrLf & vbCrLf, " ")
 
     uGetBodyText = sz
+
+End Function
+
+Private Sub pOLApp_Reminder(ByVal Item As Object)
+Dim pa As AppointmentItem
+
+    If TypeOf Item Is AppointmentItem Then
+        Set pa = Item
+
+    Else
+'        List1.AddItem TypeName(Item)
+        Exit Sub
+
+    End If
+
+Dim szSubject As String
+Dim szClass As String
+
+    szSubject = "<REDACTED>"
+
+    Select Case pa.Sensitivity
+    Case olPersonal
+        szClass = CLASS_PERSONAL
+
+    Case olPrivate
+        szClass = CLASS_PRIVATE
+
+    Case olConfidential
+        szClass = CLASS_CONFIDENTIAL
+
+    Case Else
+        szClass = CLASS_NORMAL
+        szSubject = pa.Subject
+        If szSubject = "" Then _
+            szSubject = "<subject>"
+
+        If pa.Location <> "" Then _
+            szSubject = szSubject & vbCrLf & pa.Location
+
+    End Select
+
+Dim hr As Long
+
+    hr = snDoRequest("notify?app-sig=" & App.ProductName & _
+                     "&id=" & szClass & _
+                     "&uid=" & pa.EntryID & _
+                     "&title=Reminder" & _
+                     "&text=" & szSubject & vbCrLf & uTime(pa.Start) & " (" & uGetMinutes(pa.Start) & ")" & _
+                     "&action=Open,@99" & _
+                     "&priority=" & CStr(pa.Importance - 1) & _
+                     "&password=" & mPassword)
+
+Dim pm As TItem
+
+    Set pm = New TItem
+    pm.SetTo pa, hr, mPassword
+    mMail.Add pm
+
+End Sub
+
+Private Function uTime(ByVal dTime As Date) As String
+
+    If (Day(dTime) = Day(Now)) And (Month(dTime) = Month(Now)) And (Year(dTime) = Year(Now)) Then
+        uTime = Format$(dTime, "Short Time")
+
+    Else
+        uTime = CStr(dTime)
+        
+    End If
+
+End Function
+
+Private Function uGetMinutes(ByVal dTime As Date) As String
+Dim i As Long
+
+    i = DateDiff("n", Now, dTime)
+    If i = 0 Then
+        uGetMinutes = "now"
+
+    ElseIf i < 0 Then
+        uGetMinutes = "overdue by " & CStr(Abs(i)) & " min" & IIf(i = -1, "", "s")
+
+    Else
+        uGetMinutes = "in " & CStr(i) & " min" & IIf(i = 1, "", "s")
+
+    End If
 
 End Function

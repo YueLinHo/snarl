@@ -15,6 +15,7 @@ Option Explicit
 
 Dim mObj As Object
 Dim mToken As Long
+Dim mPassword As String
 
 Implements BTagItem
 
@@ -27,10 +28,11 @@ End Function
 Private Function BTagItem_Value() As String
 End Function
 
-Public Sub SetTo(ByRef Item As Object, ByVal Token As Long)
+Public Sub SetTo(ByRef Item As Object, ByVal Token As Long, ByVal Password As String)
 
     Set mObj = Item
     mToken = Token
+    mPassword = Password
 
 End Sub
 
@@ -80,12 +82,17 @@ Dim pt As MeetingItem
         pa.Respond(olMeetingDeclined).Display
         mObj.Delete
 
+    Case 99
+        ' /* open appointment */
+        Set pa = mObj
+        pa.Display
+
     End Select
 
     If MarkAsRead Then _
         mObj.UnRead = False
 
-    snDoRequest "hide?token=" & mToken
+    snDoRequest "hide?token=" & mToken & "&password=" & mPassword
     Exit Sub
 
 eh:
