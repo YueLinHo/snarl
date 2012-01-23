@@ -11,7 +11,8 @@
 	Runnable		0x2f280000
 				0x2f300000
 	Prowl			0x2f380000
-
+	Script			0x2f400000
+	Speech			0x2f480000
 
 	Change Log
 	==========
@@ -24,6 +25,7 @@
 	  colours.  (39.84)
 
 
+	======================================================================================================
 
 	meter.styleengine
 
@@ -78,6 +80,8 @@
 	- Added (Bar) schemes to the iPhoney style.  (39.23)
 
 
+	======================================================================================================
+
 	mobile.styleengine
 
 	- Added Outlook Logger 0.1 style.  (41.17)
@@ -112,8 +116,31 @@
 	- Initial cut.  (41.1)
 
 
+	======================================================================================================
 
 	prowl.styleengine
+
+	- Fixed a number of bugs which prevented the "Test Settings" button
+	  from actually sending a valid notification to the Prowl service.  (39.48)
+
+	- Added debug logging.  (39.48)
+
+	- Now displays a message box indicating test notification was sent
+	  when use clicks "Test Settings".  (39.47)
+
+	- Fixed incorrect "%COMPUTERNAME%" text in preferences panel.  (39.46)
+
+	- Bumped to 2.1.  (39.45)
+
+	- Added new "RedactSensitive" setting which uses the new Snarl 2.5.1
+	  "sensitivity" param.  If the sensitivity of a notification is non-zero
+	  and this flag is set, the notification text will be replaced with
+	  "REDACTED".  (39.45)
+
+	- Added new "AppText" setting which allows the user to customise the
+	  "application" component.  (39.45)
+
+	- Now supports the S_STYLE_V42_CONTENT flag.  (39.45)
 
 	- We now URL-encode the sending app name as well, just to be sure.  (39.44)
 
@@ -130,8 +157,19 @@
 	- Code compiles again.  (39.43)
 
 
+	======================================================================================================
 
 	runnable.styleengine
+
+	- Will load engine-wide settings from USERDIR\styles\runnable\settings.conf, if
+	  it exists.  (41.17)
+
+	- Now loads styles from ALLUSERDIR\styles\runnable and USERDIR\styles\runnable.
+	  (41.17)
+
+	- Default timeout is now 750ms.  (41.17)
+
+	- Better debug info.  (41.17)
 
 	- Now supports {copyright} and {release_date} optional entries in config.  (41.15)
 
@@ -155,5 +193,51 @@
 	- First pass.  (41.1)
 
 
+	======================================================================================================
 
+	script.styleengine
+
+	- No longer adds duplicates.  (43.2)
+
+	- Included in Snarl 2.5.1 Beta 2.  (43.1)
+
+	- First go.  (43.1)
+
+
+	======================================================================================================
+
+	scroller.styleengine
+
+	- Improved look of the FPS style.  (43.1)
+
+	- Bumped to V43.  (43.1)
+
+	- Improved colour of priority notifications in FPS style.  (39.11)
+
+	- FPS window now now fades out when disappearing.  (39.11)
+
+	- News Ticker now fades out when disappearing.  (39.11)
+
+	- Fixed bug in News Ticker which stopped the mouse-over pause from working.  (39.11)
+
+	- Included in Snarl 2.5.1 Beta 2.  (39.10)
+
+	- Now uses new graphics.library 2.1.  (39.9)
+
+
+	======================================================================================================
+
+	speech.styleengine
+
+	- Scheme configuration is now loaded from %APPDATA%\styles\speech\<voice>.conf
+	  each time a notification is played.  Currently, the only defined value is
+	  "rate" which can range from -10 to +10.  (39.4)
+
+	- Priority notifications now interrupt normal notifications.  (39.4)
+
+	- Bumped "Speech" to version 1.0 Beta.  (39.4)
+
+	- Fixed load location.  (39.4)
+
+	- Added Lemon debug output.  (39.4)
 
