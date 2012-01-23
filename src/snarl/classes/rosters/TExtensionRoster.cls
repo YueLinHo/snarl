@@ -23,6 +23,8 @@ Dim mRefs As Long
 Dim mExcluded As CConfFile          ' // list of extensions *not* to start  (R2.31, now a CConfFile)
 Dim mVersions As CConfFile          ' // R2.2: list of extensions and the installed version
 
+Dim mNoStartExtensions As Boolean
+
 Dim WithEvents thePulseTimer As BTimer
 Attribute thePulseTimer.VB_VarHelpID = -1
 
@@ -85,6 +87,8 @@ Private Function MLibrary_Open() As melon.M_RESULT
     If mRefs = 1 Then
         ' /* run startup code */
 
+        mNoStartExtensions = g_IsPressed(vbKeyE)
+
 '        If (g_IsPressed(VK_LCONTROL)) Or (g_IsPressed(VK_RCONTROL)) Then
 '            g_Debug "TExtensionRoster.Open(): not opening: CTRL key pressed", LEMON_LEVEL_INFO
 '            Exit Function
@@ -125,6 +129,11 @@ Dim i As Long
 
         uGetExcludeList
         uGetVersionList         ' // R2.2: keep a record of which versions are installed
+
+        ' /* R2.5.1: extension link files now in %PROGRAMFILES% */
+
+        g_GetAppFolderNode pFolder, "extensions"
+        uGetExtensions pFolder, True
 
         ' /* get all-user extensions first */
 
@@ -294,7 +303,7 @@ Dim t As Long
 
     ElseIf LCase$(Node.Extension) = "extension" Then
         ' /* new style extension - installed elsewhere */
-        szClassId = g_RemoveExtension(Node.FileName)
+        szClassId = g_RemoveExtension(Node.Filename)
         fLinked = True
 
     Else
@@ -324,7 +333,7 @@ Dim px As TExtension
 
     ' /* set enabled state */
 
-    If (Not (mExcluded Is Nothing)) Or (Not gDebugMode) Then
+    If (Not (mExcluded Is Nothing)) And (Not mNoStartExtensions) Then
         px.SetEnabled Not mExcluded.Exists(szClassId)
         uGetExtension = True
 
@@ -416,8 +425,11 @@ Public Sub WriteExcludeList()
 
     ' /* R2.31: only if not blocked */
 
-    If (gDebugMode) Or (gSysAdmin.TreatSettingsAsReadOnly) Then _
+    If (gDebugMode) Or (gSysAdmin.TreatSettingsAsReadOnly) Then
+        g_Debug "TExtensionRoster.WriteExcludeList(): not writing as debug mode enabled or settings are read-only", LEMON_LEVEL_INFO
         Exit Sub
+
+    End If
 
 Dim i As Long
 
@@ -434,6 +446,7 @@ Dim i As Long
             Next i
         End If
 
+        g_Debug "TExtensionRoster.WriteExcludeList(): writing to '" & .Filename & "'", LEMON_LEVEL_INFO
         .Save
 
     End With
@@ -537,23 +550,28 @@ Dim i As Long
                 Exit Function
 
             End If
-
         Next i
     End If
 
 End Function
 
-Private Sub uGetExtensions(ByRef Folder As storage_kit.Node)
+Private Sub uGetExtensions(ByRef Folder As storage_kit.Node, Optional ByVal AbsolutePath As Boolean = False)
 
     If (Folder Is Nothing) Then _
         Exit Sub
 
 Dim pf As storage_kit.Node
 
-    Set pf = New storage_kit.Node
-    If Not pf.SetTo(g_MakePath(Folder.File) & "full phat\snarl\extensions") Then
-        g_Debug "TExtensionRoster.uGetExtensions(): path '" & g_MakePath(Folder.File) & "full phat\snarl\extensions' doesn't exist", LEMON_LEVEL_WARNING
-        Exit Sub
+    If AbsolutePath Then
+        Set pf = Folder
+
+    Else
+        Set pf = New storage_kit.Node
+        If Not pf.SetTo(g_MakePath(Folder.File) & "full phat\snarl\extensions") Then
+            g_Debug "TExtensionRoster.uGetExtensions(): path '" & g_MakePath(Folder.File) & "full phat\snarl\extensions' doesn't exist", LEMON_LEVEL_WARNING
+            Exit Sub
+
+        End If
 
     End If
 

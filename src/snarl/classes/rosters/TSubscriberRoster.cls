@@ -420,6 +420,10 @@ Static i As Long
 End Function
 
 Friend Sub Broadcast(ByRef Content As T_NOTIFICATION_INFO)
+
+    If mSubscribers.CountItems = 0 Then _
+        Exit Sub
+
 Dim szRequest As String
 Dim ps As TSubscriber
 Dim pa As TApp
@@ -430,6 +434,8 @@ Dim pa As TApp
     With mSubscribers
         .Rewind
         Do While .GetNextTag(ps) = B_OK
+            Debug.Print "TSubscriberRoster.Broadcast(): '" & ps.Destination & "' enabled=" & ps.IsEnabled
+            
             If ps.IsEnabled Then
                 ' /* TO-DO: if the subscriber uses GNTP we will need to do
                 '    a two-pass process.  Step 1 will do the REGISTER;
@@ -704,7 +710,7 @@ Dim sz As String
 
     szc = szc & vbCrLf & "END" & vbCrLf
 
-        Debug.Print "---"
+        Debug.Print "---uCreateSNP3Forward--- (" & mSubscribers.CountItems & ")"
         Debug.Print szc
         Debug.Print "---"
 

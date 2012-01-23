@@ -235,6 +235,10 @@ Private Const SN_II_STOPPED = 40&
 Private Const SN_II_MISSED = 50&
 Private Const SN_II_AWAY = 60&
 
+    ' /* R2.5.1 */
+Dim WithEvents theGarbageTimer As BTimer
+Attribute theGarbageTimer.VB_VarHelpID = -1
+
 Implements MMessageSink
 Implements KPrefsPanel
 Implements KPrefsPage
@@ -265,12 +269,16 @@ Dim n As Integer
 
     ' /* R2.4 DR8: register for TS session events */
 
+    g_Debug "registering for terminal server session events..."
     WTSRegisterSessionNotification Me.hWnd, NOTIFY_FOR_ALL_SESSIONS
 
     ' /* register the hotkeys */
 
+    g_Debug "setting hotkeys..."
     Me.bSetHotkeys
-    uSetNotificationHotkey True
+
+    If g_ConfigGet("use_notification_hotkey") = "1" Then _
+        uSetNotificationHotkey True
 
     ' /* pre-load our 'About' text */
 
@@ -312,8 +320,11 @@ Dim n As Integer
 
     ' /* create the idle input timer */
 
-    Set theIdleTimer = New BTimer
-    theIdleTimer.SetTo 250
+    Set theIdleTimer = new_BTimer(250)
+
+    ' /* create the garbage collection timer */
+
+    Set theGarbageTimer = new_BTimer(10000)
 
 End Sub
 
@@ -449,14 +460,15 @@ Private Sub KPrefsPage_Attached()
 End Sub
 
 Private Sub KPrefsPage_ControlChanged(Control As prefs_kit_d2.BControl, ByVal Value As String)
-Dim sz() As String
-Dim pc As BControl
-Dim i As Long
+
+    If Control.GetName = "" Then _
+        Exit Sub
+
+'Dim sz() As String
+'Dim pc As BControl
+'Dim i As Long
 
     Select Case Control.GetName
-
-    Case ""
-        Exit Sub
 
 '    Case "use_hotkey"
 '        ' /* R2.2: we have a separate config entry now */
@@ -530,6 +542,9 @@ Dim i As Long
     Case "run_on_logon"
         g_SetAutoRun2
 
+    Case "use_notification_hotkey"
+        uSetNotificationHotkey (Value = "1")
+
     End Select
 
 End Sub
@@ -598,7 +613,7 @@ Dim dw As Long
             Me.NewDoPrefs
 
         Case mSysKeyTest
-            uDoSysInfoNotification
+            bDoSysInfoNotification
 
         Case mKeyClose
             g_NotificationRoster.CloseMostRecent
@@ -633,13 +648,13 @@ Dim dw As Long
             End If
 
         Case WM_LBUTTONDBLCLK
-'            If g_NotificationRoster.ActualMissedCount > 0 Then
-'                g_NotificationRoster.ShowMissedPanel
-'
-'            Else
+            If g_NotificationRoster.HaveMissedNotifications Then
+                Me.bShowMissedPanel
+
+            Else
                 Me.NewDoPrefs
-'
-'            End If
+
+            End If
 
         End Select
 
@@ -722,7 +737,7 @@ Dim pi As OMMenuItem
         .AddSeparator
         .AddItem .CreateItem("prefs", "Settings...", , Not gSysAdmin.InhibitPrefs)
         .AddItem .CreateItem("missed", "Missed Notifications", , (g_NotificationRoster.RealMissedCount > 0), , , , uMissedNotificationsSubmenu())
-        .AddItem .CreateItem("app_list", "Snarl Daemons...", , (g_AppRoster.CountSnarlApps > 0))
+        .AddItem .CreateItem("app_list", "Snarl Apps...", , (g_AppRoster.CountSnarlApps > 0))
 '        .AddItem .CreateItem("", "Snarl Apps", , , , , , g_AppRoster.SnarlAppsMenu())
         .AddSeparator
         .AddItem .CreateItem("about", "About Snarl...")
@@ -871,7 +886,7 @@ Dim pm As CTempMsg
             Set pp = new_BPrefsPage("General", load_image_obj(g_MakePath(App.Path) & "etc\icons\general.png"), Me)
 
             With pp
-                .SetMargin 96
+                .SetMargin 48
 
                 ' /* launch options */
 
@@ -888,10 +903,11 @@ Dim pm As CTempMsg
 '                .Add new_BPrefsControl("fancytoggle2", "only_allow_secure_apps", "Only allow password-protected applications?", "", g_ConfigGet("only_allow_secure_apps"))
 '                .Add new_BPrefsControl("fancytoggle2", "apps_must_register", "Applications must register before creating notifications?", "", g_ConfigGet("apps_must_register"))
 
-                ' /* forwarding */
+                ' /* notifications */
 
-'                .Add new_BPrefsControl("banner", "", "Forwarding")
-'                .Add new_BPrefsControl("fancytoggle2", "include_host_name_when_forwarding", "Include computer name when forwarding notifications?", , g_ConfigGet("include_host_name_when_forwarding"))
+                .Add new_BPrefsControl("banner", "", "Notifications")
+                .Add new_BPrefsControl("fancytoggle2", "use_notification_hotkey", "Use Windows+Esc key combination to close notifications?", , g_ConfigGet("use_notification_hotkey"))
+                .Add new_BPrefsControl("label", "", "If enabled, Windows+Esc will close the most recent notification; Windows+Ctrl+Esc will close all notifications.")
 
                 ' /* misc */
 
@@ -1464,7 +1480,8 @@ End Sub
 '
 'End Sub
 
-Private Sub uDoSysInfoNotification()
+Friend Sub bDoSysInfoNotification()
+Static wreec As Long
 Dim szMetric As String
 Dim szMelon As String
 Dim dFreq As Double
@@ -1489,10 +1506,26 @@ Dim cb As Long
         End If
     End If
 
+    If g_IsPressed(vbKeyTab) Then
+        wreec = wreec + 1
+        If wreec = 10 Then
+            g_PrivateNotify , Decode64("V2UgbWFkZSBpdC4uLg==", False), Decode64("Q29yZTogQ2hyaXMsIFRvbWFzDQpBUEk6IENocmlzLCBUb2tlLCBTdmVuDQpPdGhlcjogSmV0b24gQWxpamksIEpvbnVzIENvbnJhZCwgSWNlYm9iLCBMdWlzIExhdmVuYSwgU2FtIExpc3RvcGFkIElJLCBTaGF3biBNY1RlYXIsIE1eMywgTWF4IE5vcnJpcywgUGFrbywgRGFuaWVsIFBlbmtpbiwgUHN5DQpUaGFua3MgdG86IEtlbiBCZXJyeSwgUGF1bCBEYXZleQ==", False), 0, , , , , SN_NF_SECURE
+            Exit Sub
+
+        End If
+
+        wreec = MIN(wreec, 675)
+
+    End If
+
 Dim pci As B_CPU_INFO
 
     get_cpu_info 1, pci
     dw = processor_count()
+
+Dim pmi As T_MONITOR_INFO
+Dim szAddr As String
+Dim szScr As String
 
     With pci
 
@@ -1508,9 +1541,21 @@ Dim pci As B_CPU_INFO
 
 '                        IIf(dw > 1, CStr(dw) & " x ", "") & Format$(dFreq, "0.0#") & " " & szMetric & " CPU" & vbCrLf & _
 
+        szAddr = get_ip_address_table()
+        szAddr = Replace$(szAddr, "0.0.0.0", "")
+        szAddr = Replace$(szAddr, "127.0.0.1", "")
+        szAddr = Replace$(szAddr, "  ", "")
+        szAddr = Replace$(szAddr, " ", "; ")
+
+        g_CountMonitors
+        If g_GetPrimaryMonitorInfo(pmi) Then _
+            szScr = "Screen: " & CStr(pmi.rcPhysical.Right - pmi.rcPhysical.Left) & "x" & CStr(pmi.rcPhysical.Bottom - pmi.rcPhysical.Top)
+
         g_PrivateNotify "", g_GetUserName() & " on " & g_GetComputerName(), _
                         g_GetOSName() & " " & g_GetServicePackName() & vbCrLf & _
                         g_FileSizeToStringEx2(g_GetPhysMem(True), "GB", " ", "0.0") & " (" & g_FileSizeToStringEx2(g_GetPageMem(True) + g_GetPhysMem(True), "GB", " ", "0.0") & " total) RAM" & vbCrLf & _
+                        szScr & vbCrLf & _
+                        "IP: " & szAddr & vbCrLf & _
                         "Snarl " & App.Major & "." & App.Revision & " (" & App.Comments & ")" & vbCrLf & "melon " & IIf(szMelon <> "", szMelon, "??"), _
                         -1, _
                         g_MakePath(App.Path) & "etc\icons\snarl.png", , , , , , _
@@ -1531,6 +1576,43 @@ Dim pa As TApp
 
     If g_AppRoster.PrivateFindBySignature(Signature, pa) Then _
         pa.Activated
+
+End Sub
+
+Private Sub theGarbageTimer_Pulse()
+
+    If ISNULL(g_AppRoster) Then _
+        Exit Sub
+
+Dim t As Long
+
+    t = GetTickCount()
+
+Dim pa As TApp
+Dim i As Long
+
+    Debug.Print "--running garbage collection--"
+
+    With g_AppRoster
+        If .CountApps Then
+            For i = .CountApps To 1 Step -1
+                Set pa = .AppAt(i)
+                If Not pa.KeepAlive Then
+                    ' /* app shouldn't remain registered if it disappears */
+                    If pa.Pid <> 0 Then
+                        ' /* win32 */
+                        If Not g_IsProcessRunning(pa.Pid) Then
+                            g_Debug "GarbageCollection: '" & pa.Name & "' (" & CStr(pa.Pid) & ") has gone"
+                            .Remove i
+
+                        End If
+                    End If
+                End If
+            Next i
+        End If
+    End With
+
+    Debug.Print "--garbage collection took " & GetTickCount() - t & " ms--"
 
 End Sub
 
@@ -1981,25 +2063,25 @@ Static Style As Long
 
 End Function
 
-Private Sub uSetNotificationHotkey(ByVal Register As Boolean)
+Friend Sub uSetNotificationHotkey(ByVal Register As Boolean)
+
+    g_Debug "frmAbout.uSetNotificationHotkey()", LEMON_LEVEL_PROC_ENTER
 
     If Register Then
         ' /* R2.4.2: registers Win+Esc and Win+Ctrl+Esc.  Win+Esc will close the most recent notification; Win+Ctrl+Esc closes all */
-
-        g_Debug "frmAbout.uSetNotificationHotkey(): registering hotkeys..."
-        
+        g_Debug "registering hotkeys..."
         mKeyClose = register_system_key(Me.hWnd, vbKeyEscape, B_SYSTEM_KEY_WINDOWS)
         If mKeyClose = 0 Then _
-            g_Debug "frmAbout.uSetNotificationHotkey(): couldn't register Win+Esc system key", LEMON_LEVEL_WARNING
+            g_Debug "couldn't register Win+Esc system key", LEMON_LEVEL_WARNING
 
         mKeyCloseAll = register_system_key(Me.hWnd, vbKeyEscape, B_SYSTEM_KEY_WINDOWS Or B_SYSTEM_KEY_CONTROL)
         If mKeyCloseAll = 0 Then _
-            g_Debug "frmAbout.uSetNotificationHotkey(): couldn't register Win+Ctrl+Esc system key", LEMON_LEVEL_WARNING
+            g_Debug "couldn't register Win+Ctrl+Esc system key", LEMON_LEVEL_WARNING
 
     Else
         ' /* R2.4.2: unregisters Win+Esc and Win+Ctrl+Esc */
 
-        g_Debug "frmAbout.uSetNotificationHotkey(): unregistering hotkeys..."
+        g_Debug "unregistering hotkeys..."
 
         If mKeyClose Then _
             unregister_system_key Me.hWnd, mKeyClose
@@ -2011,6 +2093,10 @@ Private Sub uSetNotificationHotkey(ByVal Register As Boolean)
         mKeyCloseAll = 0
 
     End If
+
+    g_Debug "done"
+
+    g_Debug "", LEMON_LEVEL_PROC_EXIT
 
 End Sub
 
@@ -2339,3 +2425,4 @@ Dim j As Integer
     Set uMissedNotificationsSubmenu = pm
 
 End Function
+

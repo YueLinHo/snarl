@@ -117,7 +117,7 @@ Dim bEnabled As Boolean
                         "override-normal::1#?override-away::1#?override-busy::1#?" & _
                         "block_if_foreground::0#?" & _
                         "use_custom_ations::0#?custom_actions::#?" & _
-                        "log_in_history::1"
+                        "log_in_history::3"
 
         Set .Forward = new_BTagList()
 
@@ -453,15 +453,16 @@ Dim lDur As SN_NOTIFICATION_DURATION
     ' /* the notification roster takes care of the global sound settings; we
     '    just need to provide our preferred sound which, as of R2.4, is as follows:
     '       1. user-defined sound
-    '       2. class-defined sound
-    '       3. notification-defined sound
+    '       2. notification-defined sound
+    '       3. class-defined sound
     '
     ' */
 
     If Me.GetValue("use_custom_sound") = "1" Then
         Info.SndFile = Me.GetValue("custom_sound")
 
-    ElseIf Me.DefaultSound <> "" Then
+    ElseIf Info.SndFile = "" Then
+        ' /* R2.5.1: fixed logic */
         Info.SndFile = Me.DefaultSound
 
     End If
@@ -540,6 +541,16 @@ Dim bLog As Boolean
 '            bLog = False
 '
 '    End If
+
+    ' /* R2.5.1: if, after processing, the title, text and icon are all (still) NULL, fail */
+
+    If (Info.Title = "") And (Info.Text = "") And (Info.IconPath = "") Then
+        g_Debug "TAlert.ShowNotification(): must supply at least a title, some text or any icon", LEMON_LEVEL_CRITICAL
+        gSetLastError SNARL_ERROR_ARG_MISSING
+        Exit Function
+
+    End If
+
 
     ' /* send it to the notification roster */
 

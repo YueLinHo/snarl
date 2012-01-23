@@ -31,9 +31,7 @@ Private Declare Function GetTempPath Lib "kernel32" Alias "GetTempPathA" (ByVal 
 
 Dim mToken As Long
 Dim mRefs As Long
-'Dim mActualMissed As Long                       ' // number that appeared since DnD enabled
-Dim mMissedCount As Long
-Dim mHaveMissed As Boolean
+Dim mMissedCount2 As Long
 
     ' /* lists - a notification should only ever be in one of them */
 Dim mActive As BTagList
@@ -48,8 +46,6 @@ Enum SN_STYLE_FORWARD_FLAGS
     SN_SFF_WHEN_NOT_AWAY_OR_BUSY = 4
 
 End Enum
-
-'Dim mMonitorCount As Long
 
 Implements MLibrary
 Implements MVersionInfo
@@ -171,9 +167,22 @@ Friend Function Add(ByRef Info As T_NOTIFICATION_INFO, ByRef Args As BPackedData
     ' /* for anything else, the class must be valid */
 
     If (Info.ClassObj Is Nothing) Then
-        g_Debug "TNotificationRoster.Add(): Class is null for '" & Info.Title & "/" & Info.Text & "'", LEMON_LEVEL_CRITICAL
+        g_Debug "TNotificationRoster.Add(): missing class object", LEMON_LEVEL_CRITICAL
         Exit Function
 
+    End If
+
+    ' /* R2.5.1: can direct notifications to the current user */
+
+    If NOTNULL(Args) Then
+        If Args.Exists("recipient") Then
+            If LCase$(Args.ValueOf("recipient")) <> LCase$(g_GetUserName()) Then
+                g_Debug "TNotificationRoster.Add(): notification not intended for this user", LEMON_LEVEL_INFO
+                gSetLastError SNARL_ERROR_DISCARDED
+                Exit Function
+
+            End If
+        End If
     End If
 
     ' /* R2.31: log last time a notification was generated */
@@ -1036,34 +1045,21 @@ Dim pn As TNotification
 
 End Function
 
-'Public Sub ShowMissedPanel()
-'
-''    If (mMissedPanel Is Nothing) Then _
-''        Set mMissedPanel = New TMissedNotificationsPanel
-''
-''    mMissedPanel.Go
-'
-'End Sub
-
 Public Function RealMissedCount() As Long
 
-'    ActualMissedCount = mActualMissed
-
-    RealMissedCount = MAX(0, mMissedX.CountItems - mMissedCount)
+    RealMissedCount = mMissedCount2
 
 End Function
 
 Public Function HaveMissedNotifications() As Boolean
 
-    HaveMissedNotifications = mHaveMissed
+    HaveMissedNotifications = (mMissedCount2 > 0)
 
 End Function
 
 Public Sub ResetMissed()
 
-    ' /* only reset the flag */
-
-    mHaveMissed = False
+    mMissedCount2 = 0
     frmAbout.bSetTrayIcon
 
 End Sub
@@ -1407,7 +1403,7 @@ Dim sText As String
 
         ' /* R2.4 Beta 4 - if we should include the hostname, add it here */
 
-        If g_ConfigGet("include_host_name_when_forwarding") = "1" Then _
+'        If g_ConfigGet("include_host_name_when_forwarding") = "1" Then _
             sTitle = sTitle & " on " & g_GetComputerName()
 
     Else
@@ -1422,7 +1418,7 @@ Dim sText As String
 
             ' /* R2.4 Beta 4 - if app name is requested, make it "<app> on <computer>" */
 
-            If g_ConfigGet("include_host_name_when_forwarding") = "1" Then _
+'            If g_ConfigGet("include_host_name_when_forwarding") = "1" Then _
                 sTitle = sTitle & " on " & g_GetComputerName()
 
             sTitle = sTitle & "#?" & Info.Title
@@ -1430,13 +1426,13 @@ Dim sText As String
         Else
             ' /* R2.4 Beta 4 - make the title component "<title> (from <computer>)" */
 
-            If g_ConfigGet("include_host_name_when_forwarding") = "1" Then
-                sTitle = Info.Title & " (from " & g_GetComputerName() & ")"
-
-            Else
+'            If g_ConfigGet("include_host_name_when_forwarding") = "1" Then
+'                sTitle = Info.Title & " (from " & g_GetComputerName() & ")"
+'
+'            Else
                 sTitle = Info.Title
 
-            End If
+'            End If
         End If
     End If
 
@@ -1546,6 +1542,7 @@ Dim pn As TNotification
     pn.SetTo SN_NS_MISSED, Info
     mMissedX.Add pn
 
+    mMissedCount2 = mMissedCount2 + 1
 '    mActualMissed = mActualMissed + 1
     frmAbout.bUpdateMissedList
 
@@ -1576,15 +1573,18 @@ Public Sub CheckMissed()
 '    If mActualMissed < 1 Then _
         Exit Sub
 
-Dim n As Long
-
-    n = mMissedX.CountItems - mMissedCount
-    If n < 1 Then _
+    If mMissedCount2 < 1 Then _
         Exit Sub
+
+'Dim n As Long
+'
+'    n = mMissedX.CountItems - mMissedCount
+'    If n < 1 Then _
+'        Exit Sub
 
     ' /* we have some missed notifications, so... */
 
-    mHaveMissed = True              ' // set our flag
+'    mHaveMissed = True              ' // set our flag
     frmAbout.bSetTrayIcon           ' // update the tray icon
 
 Static iToken As Long
@@ -1595,7 +1595,7 @@ Static iToken As Long
     ' /* and notify... */
 
     iToken = g_PrivateNotify(SNARL_CLASS_GENERAL, "While you were away...", _
-                             "You missed " & CStr(n) & " notification" & IIf(n > 1, "s", ""), _
+                             "You missed " & CStr(mMissedCount2) & " notification" & IIf(mMissedCount2 > 1, "s", ""), _
                              -1, _
                              g_MakePath(App.Path) & "etc\icons\snarl.png", _
                              , _
@@ -1858,7 +1858,7 @@ End Function
 
 Public Sub SaveCurrentMissedCount()
 
-    mMissedCount = mMissedX.CountItems
+'    mMissedCount = mMissedX.CountItems
 
 End Sub
 

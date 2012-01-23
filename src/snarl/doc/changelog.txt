@@ -1,6 +1,104 @@
 
 	Snarl Change Log
 
+	- Added option on [General] page to enable/disable the close notification key
+	  combo.  (43.73)
+
+	- Released as 2.5.1 Beta 2.  (43.72)
+
+	- Minor cosmetic changes to scheme preview notification and Snarl Apps pop-up
+	  window.  (43.72)
+
+	- Added an undocumented S_STYLE_REDIRECT_TO_SCREEN (0x1000) flag which a
+	  redirect style can use to indicate it generates on-screen content.  Snarl
+	  doesn't generate a "A notification using <style> was created" notification
+	  for styles which implement this value.  (43.72)
+
+	- Minor cosmetic changes to the [Presence] sub-pages.  (43.72)
+
+	- Removed non-functional "Install Extension..." button from the [Extensions]
+	  page.  (43.72)
+
+	- Renamed "Snarl Daemons" menu entry to "Snarl Specific Apps".  (43.72)
+
+	- Added undocumented "away" and "back" commands to SOS.  These set and clear a
+	  new SN_PF_AWAY_SOS flag which is used purely for testing the user presence
+	  code.  (43.71)
+
+	- Holding down 'E' while starting Snarl prevents all extensions from starting;
+	  'D' enables debug mode and 'S' prevents startup-sequence files from being
+	  launched.  Holding down either CTRL key no longer enables debug mode.  (43.71)
+
+	- Snarl now launches links from USERDIR/startup-sequence and ALLUSERDIR/startup-
+	  sequence on startup.  These are SSL2 links which follow are standard INI file
+	  format.  See the end of this document for more information.  Thanks to Arioch
+	  for suggesting this.  (43.71)
+
+	- Reworded inaccurate text on [Extensions] page.  (43.71)
+
+	- Added "keep-alive" to {register} command.  Default is zero.  Setting to "1"
+	  ensures the application is not removed during garbage collection if the creator
+	  has disappeared (useful for scripts and command prompt-launched stuff).  (43.71)
+
+	- Snarl now runs a garbage collection every 10 seconds looking for applications
+	  whose process is no longer running.  Any orphans are then gracefully
+	  unregistered.  (43.71)
+
+	- Now looks in user folder for style engine links *after* loading links from
+	  INSTDIR\styles.  (43.71)
+
+	- Released as 2.5.1 Beta 1.  (43.65)
+
+	- New "sensitivity" argument added to {notify} command.  Defined values are as
+	  follows: 0 - Normal; 16  - Personal; 32  - Private; 48  - Confidential.  Note
+	  that Snarl simply passes the value on.  (43.62)
+
+	- Removed the "include_host_name_when_forwarding" option.  Styles now need to
+	  include the computer name themselves.  (43.62)
+
+	- Can now send "recipient=/S" in {notify} request.  Snarl will compare the value
+	  against the logged-on user's username and will discard any which don't match.
+	  (43.61)
+
+	- Double-clicking the tray icon when there are missed notifications now opens
+	  the missed notifications panel.  (43.60)
+
+	- Fixed bug which caused all notification classes to default to "log always".  (43.60)
+
+	- Extensions and style engines are now stored (and loaded from) INSTDIR/extensions/
+	  and INSTDIR/styles/ respectively.  (43.59)
+
+	- User-specific data folders are now created during start-up.  (43.58)
+
+	- Applications which register via TCP/IP on the local computer no longer get
+	  treated as remote applications.  Specifically: there's no "... on <ip>" text
+	  and the registration notification say "Application registered".  (43.57)
+
+	- Fixed bug which broke SNP2.  Credit to the G+ Notifier guys for spotting this.
+	  (43.55)
+
+	- Added new "BlockUnknownApps" admin setting.  If this is enabled ("1"), only
+	  applications which have existing .class files will be allowed to register with
+	  Snarl.  (43.53)
+
+	- Fixed a bug introduced in R2.4.2 which meant that if no notification title or
+	  text is supplied for {notify} you'll always receive an ERROR_ARG_MISSING, even
+	  if the notification class has a default title or text.  Credit to Pako for
+	  spotting this.  (43.53)
+
+	- Changed the way missed notifications are counted.  (43.52)
+
+	- Extension icon loader now uses same code as notification icon loader.  (43.52)
+
+	- Better parsing of icon paths so filenames which contain commas should no longer
+	  be misunderstood as resource indicies.  Credit to Toke for this.  (43.52)
+
+	- System info notification now displays local IP addresses and screen resolution.
+	  (43.52)
+
+	- Fixed bug which caused the class default sound to play even if a notification
+	  provided its own specific sound.  Credit to Pako for spotting this.  (43.52)
+
 	- Released as Snarl 2.5.  (43.51)
 
 	- Released as Snarl 2.5 Beta 3.  (43.51)
@@ -2032,6 +2130,15 @@ During g_RemDNDLock()...
 	- clicking notification displays missed notification window
 
 
+SSL2 File Format
+----------------
+
+An SSL2 file is a standard text file which follows the INI file format.  It doesn't include [section] blocks however.  Defined entries are:
+
+target=<path to launch> REQUIRED
+args=<command line parameters>
+pwd=<working directory>
+show=<normal|maximised|minimised>
 
 
 

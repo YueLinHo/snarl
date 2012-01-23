@@ -34,7 +34,6 @@ Dim mAppToken As Long       ' // V41
 Dim mSnarlAppMsg As Long
 Dim mRegLock As Long        ' // R2.4.2: was global
 
-
 Dim mRemoteAppList As BTagList
 
 Implements MLibrary
@@ -96,7 +95,7 @@ Dim pSnarlApp As TApp
 '            .LargeIcon = .Icon
             .Name = App.Title
             .Password = gSnarlPassword
-            .PID = GetCurrentProcessId()
+            .Pid = GetCurrentProcessId()
             .Signature = App.ProductName
             .uMsg = &H555
 
@@ -319,7 +318,7 @@ Dim pInfo As T_SNARL_APP
 
         End If
 
-        .PID = SenderPID                        ' // R2.4.2: added
+        .Pid = SenderPID                        ' // R2.4.2: added
         .RemoteHostName = RemoteHostName        ' // R2.4.2 DR3
 
         If (.Icon = "") And (Data.Exists("icon-base64")) Then
@@ -462,6 +461,12 @@ Dim pi As BIcon
 
         g_Debug "name='" & .Name & "' signature='" & .Signature & "' flags=0x" & g_HexStr(.Flags)
 
+
+        ' /* R2.5.1 */
+
+        If Data.Exists("keep-alive") Then _
+            .KeepAlive = (Data.ValueOf("keep-alive") = "1")
+
     End With
 
     Add41 = uAddByStruct(pInfo)
@@ -542,7 +547,7 @@ Dim i As Long
 
 End Function
 
-Public Function OldAdd(ByVal Name As String, ByVal hWnd As Long, ByVal uMsg As Long, ByVal Icon As String, ByVal LargeIcon As String, ByVal PID As Long) As M_RESULT
+Public Function OldAdd(ByVal Name As String, ByVal hWnd As Long, ByVal uMsg As Long, ByVal Icon As String, ByVal LargeIcon As String, ByVal Pid As Long) As M_RESULT
 
     g_Debug "TApplicationRoster.OldAdd()", LEMON_LEVEL_PROC_ENTER
 
@@ -566,7 +571,7 @@ Dim pa As TApp
 '        .LargeIcon = LargeIcon
         .Signature = Name
         ' /* V38.119 - for V39: can unregister an app using it's name and pid */
-        .PID = PID
+        .Pid = Pid
 
     End With
 
@@ -692,23 +697,23 @@ Static j As Long
 
 End Sub
 
-Public Function Register(ByVal Name As String, ByVal hWnd As Long, ByVal uMsg As Long, ByVal Icon As String, ByVal LargeIcon As String, ByVal PID As Long) As M_RESULT
+Public Function Register(ByVal Name As String, ByVal hWnd As Long, ByVal uMsg As Long, ByVal Icon As String, ByVal LargeIcon As String, ByVal Pid As Long) As M_RESULT
 
     ' /* for snRegisterApp() - to be introduced in V39 */
     g_Debug "TApplicationRoster.Register()", LEMON_LEVEL_PROC_ENTER
-    g_Debug "Name='" & Name & "' pid=" & CStr(PID) & " hWnd=0x" & g_HexStr(hWnd) & " ReplyMsg=0x" & g_HexStr(uMsg)
+    g_Debug "Name='" & Name & "' pid=" & CStr(Pid) & " hWnd=0x" & g_HexStr(hWnd) & " ReplyMsg=0x" & g_HexStr(uMsg)
 
-    If PID = 0 Then
+    If Pid = 0 Then
         Register = M_INVALID_ARGS
         g_Debug "pid can't be null", LEMON_LEVEL_CRITICAL
 
-    ElseIf uFindByPid(PID) <> 0 Then
+    ElseIf uFindByPid(Pid) <> 0 Then
         Register = M_ALREADY_EXISTS
-        g_Debug "app with pid " & CStr(PID) & " already registered", LEMON_LEVEL_CRITICAL
+        g_Debug "app with pid " & CStr(Pid) & " already registered", LEMON_LEVEL_CRITICAL
 
     Else
         ' /* carry on from here */
-        Register = OldAdd(Name, hWnd, uMsg, Icon, LargeIcon, PID)
+        Register = OldAdd(Name, hWnd, uMsg, Icon, LargeIcon, Pid)
 
     End If
 
@@ -900,9 +905,9 @@ Dim i As Long
 
 End Sub
 
-Public Function OldUnregister(ByVal PID As Long) As M_RESULT
+Public Function OldUnregister(ByVal Pid As Long) As M_RESULT
 
-    If PID = 0 Then
+    If Pid = 0 Then
         g_Debug "TApplicationRoster.OldUnregister(): invalid arg", LEMON_LEVEL_CRITICAL
         OldUnregister = M_INVALID_ARGS
         Exit Function
@@ -919,15 +924,15 @@ Public Function OldUnregister(ByVal PID As Long) As M_RESULT
 Dim sz As String
 Dim i As Long
 
-    i = uFindByPid(PID)
+    i = uFindByPid(Pid)
     If i Then
         sz = mApp(i).Name
         OldUnregister = Remove(i)
-        g_Debug "TApplicationRoster.OldUnregister(): app " & CStr(PID) & " (" & sz & ") unregistered okay"
+        g_Debug "TApplicationRoster.OldUnregister(): app " & CStr(Pid) & " (" & sz & ") unregistered okay"
 
     Else
 
-        g_Debug "TApplicationRoster.OldUnregister(): app #" & CStr(PID) & " not found", LEMON_LEVEL_CRITICAL
+        g_Debug "TApplicationRoster.OldUnregister(): app #" & CStr(Pid) & " not found", LEMON_LEVEL_CRITICAL
         OldUnregister = M_NOT_FOUND
 
     End If
@@ -973,12 +978,12 @@ Dim i As Long
 
 End Function
 
-Private Function uFindByPid(ByVal PID As Long) As Long
+Private Function uFindByPid(ByVal Pid As Long) As Long
 Dim i As Long
 
     If mCount Then
         For i = 1 To mCount
-            If (mApp(i).PID = PID) Then
+            If (mApp(i).Pid = Pid) Then
                 uFindByPid = i
                 Exit Function
 
@@ -988,10 +993,10 @@ Dim i As Long
 
 End Function
 
-Public Function FindByPid(ByVal PID As Long, ByRef App As TApp) As Boolean
+Public Function FindByPid(ByVal Pid As Long, ByRef App As TApp) As Boolean
 Dim i As Long
 
-    i = uFindByPid(PID)
+    i = uFindByPid(Pid)
     If i Then
         Set App = mApp(i)
         FindByPid = True
@@ -1000,12 +1005,12 @@ Dim i As Long
 
 End Function
 
-Public Function IndexOfPidAndName(ByVal PID As Long, ByVal Name As String) As Long
+Public Function IndexOfPidAndName(ByVal Pid As Long, ByVal Name As String) As Long
 Dim i As Long
 
     If mCount Then
         For i = 1 To mCount
-            If (mApp(i).PID = PID) And (mApp(i).Name = Name) Then
+            If (mApp(i).Pid = Pid) And (mApp(i).Name = Name) Then
                 IndexOfPidAndName = i
                 Exit Function
 
@@ -1260,8 +1265,8 @@ Dim rt As Long
             If (sz = "") And (.IsRemote) Then
                 sz = g_MakePath(App.Path) & "etc\icons\no_icon-remote.png"
 
-            ElseIf (sz = "") And (.PID <> 0) Then
-                szPath = g_GetExeFullPath(.PID)
+            ElseIf (sz = "") And (.Pid <> 0) Then
+                szPath = g_GetExeFullPath(.Pid)
                 If szPath <> "" Then
                     With new_BIconContent(szPath)
                         If .GetIcon(B_GET_ICON_BIGGEST Or B_GET_ICON_MOST_COLOURS, pi) Then
@@ -1322,11 +1327,11 @@ Public Sub UnlockRegister()
 End Sub
 
 Private Sub uStartRemoteIconDownload(ByVal URL As String, ByVal Path As String)
-Dim PID As TIconDownloader
+Dim Pid As TIconDownloader
 
-    Set PID = New TIconDownloader
-    PID.Go URL, Path
-    mRemoteAppList.Add PID
+    Set Pid = New TIconDownloader
+    Pid.Go URL, Path
+    mRemoteAppList.Add Pid
 
 End Sub
 

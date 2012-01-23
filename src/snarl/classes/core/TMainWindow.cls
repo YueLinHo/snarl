@@ -178,6 +178,12 @@ Private Function BWndProcSink_WndProc(ByVal hWnd As Long, ByVal uMsg As Long, By
             If Not (g_StyleRoster Is Nothing) Then _
                 g_StyleRoster.Restart
 
+        Case SN_DP_SHOW_ABOUT
+            frmAbout.Show
+
+        Case SN_DP_SHOW_INFO
+            frmAbout.bDoSysInfoNotification
+
         Case Else
             frmAbout.NewDoPrefs
 

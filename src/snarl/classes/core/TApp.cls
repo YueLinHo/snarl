@@ -44,6 +44,9 @@ Public PopupFrame As BRect
 
 Dim mCachedIcon As mfxBitmap
 
+    ' /* R2.5.1 */
+
+
 Implements mObject
 Implements BTagItem
 
@@ -84,6 +87,15 @@ Dim f As Boolean
     mIsUnknown = False
 
     Set mCachedIcon = load_image_obj(mInfo.Icon)
+
+    ' /* R2.5.1: if admin setting "BlockUnknownApps" is set, check that the class file exists and fail if it doesn't */
+
+    If (gSysAdmin.BlockUnknownApps) And (Not g_Exists(gPrefs.SnarlConfigPath & "etc\" & g_MakeFilename(Info.Signature) & ".class")) Then
+        gSetLastError SNARL_ERROR_ACCESS_DENIED
+        Exit Function
+
+    End If
+
 
     ' /* do we have a config file for this app? */
 
@@ -272,9 +284,9 @@ Public Function uMsg() As Long
 
 End Function
 
-Public Function PID() As Long
+Public Function Pid() As Long
 
-    PID = mInfo.PID
+    Pid = mInfo.Pid
 
 End Function
 
@@ -346,7 +358,7 @@ Dim pInfo As T_NOTIFICATION_INFO
         If .uReplyMsg = 0 Then _
             .uReplyMsg = mInfo.uMsg
 
-        .PID = mInfo.PID
+        .Pid = mInfo.Pid
         .Title = Title
         .Text = Text
         .Timeout = Timeout
@@ -412,7 +424,7 @@ Dim pClass As TAlert
     ' /* R2.4.2: if "Don't show if foreground app?" is set, check now */
 
     If pClass.GetValue("block_if_foreground") = "1" Then
-        If (mInfo.PID <> 0) And (uGetForegroundPID() = mInfo.PID) Then
+        If (mInfo.Pid <> 0) And (uGetForegroundPID() = mInfo.Pid) Then
             g_Debug "TApp.Show41(): discarded: application is foreground", LEMON_LEVEL_INFO
             gSetLastError SNARL_ERROR_DISCARDED
             Exit Function
@@ -974,7 +986,9 @@ End Function
 Public Function IsRemote() As Boolean
 
     ' /* returns TRUE if the remote application is _truly_ remote */
-    IsRemote = (mInfo.RemoteHostName <> "")
+    
+    If mInfo.RemoteHostName <> "" Then _
+        IsRemote = Not g_IsLocalAddress(mInfo.RemoteHostName)
 
 End Function
 
@@ -1116,7 +1130,11 @@ End Function
 Public Function NameEx() As String
 
     NameEx = mInfo.Name
-    If mInfo.RemoteHostName <> "" Then _
+
+    If mInfo.RemoteHostName = "" Then _
+        Exit Function
+
+    If Not g_IsLocalAddress(mInfo.RemoteHostName) Then _
         NameEx = NameEx & " on " & mInfo.RemoteHostName
 
 End Function
@@ -1141,3 +1159,9 @@ Friend Sub PrivateGetInfo(ByRef Info As T_SNARL_APP)
     LSet Info = mInfo
 
 End Sub
+
+Public Function KeepAlive() As Boolean
+
+    KeepAlive = mInfo.KeepAlive
+
+End Function

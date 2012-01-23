@@ -116,7 +116,7 @@ End Sub
 
 Private Sub theSocket_OnDataArrival(ByVal bytesTotal As Long)
 
-    Debug.Print "TRemoteConnection::OnDataArrival()"
+'    Debug.Print "TRemoteConnection::OnDataArrival()"
 
     Select Case mType
     Case GNTP_DEFAULT_PORT
@@ -730,18 +730,30 @@ Dim sz As String
 
 
     If g_SafeRightStr(sz, 1) = Chr$(0) Then
+        g_Debug "TRemoteConnection.uDoSNP(): NULL EOL received"
         ' /* is it a flash permission request? */
         If LCase$(g_TrimStr(sz)) = "<policy-file-request/>" Then
-            theSocket.SendData "<?xml version=""1.0""?><!DOCTYPE cross-domain-policy SYSTEM ""/xml/dtds/cross-domain-policy.dtd""><cross-domain-policy><site-control permitted-cross-domain-policies=""master-only""/><allow-access-from domain=""*"" to-ports=""*"" /></cross-domain-policy>" & Chr$(0)
-            theSocket.CloseSocket
-
+            g_Debug "TRemoteConnection.uDoSNP(): GNTP flash policy request"
+            With theSocket
+                .GetData sz
+                .SendData "<?xml version=""1.0""?><!DOCTYPE cross-domain-policy SYSTEM ""/xml/dtds/cross-domain-policy.dtd""><cross-domain-policy><site-control permitted-cross-domain-policies=""master-only""/><allow-access-from domain=""*"" to-ports=""*"" /></cross-domain-policy>" & Chr$(0)
+                .CloseSocket
+                
+            End With
         End If
+    
+        Exit Sub
+    
     End If
 
-    ' /* if it doesn't end with a least an LF, keep waiting */
+    ' /* if it doesn't end with a least a CR or LF, keep waiting */
 
-    If g_SafeRightStr(sz, 1) <> vbLf Then _
+'    Debug.Print Asc(g_SafeRightStr(sz, 1))
+
+    If (g_SafeRightStr(sz, 1) <> vbLf) And (g_SafeRightStr(sz, 1) <> vbCr) Then _
         Exit Sub
+
+    g_Debug "TRemoteConnection.uDoSNP(): EOL received"
 
     If mDoingSNP3 Then
         ' /* we're processing an incoming SNP3 packet... */

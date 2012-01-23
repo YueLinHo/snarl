@@ -51,7 +51,7 @@ Dim dw As Long
 
     Set mView = New mfxView
     With mView
-        .SetFont "Arial", 9, True
+        .SetFont "Tahoma", 9 ', True
         .TextMode = MFX_TEXT_ANTIALIAS
 
     End With
@@ -165,25 +165,21 @@ End Function
 
 Private Sub uRedraw()
 Dim pa As TApp
-Const RX = 14
-        
+Const RX = 6            ' // 14
+
     With mView
         .Clear
         .EnableSmoothing True
-        .SetHighColour rgba(24, 24, 24, 190)
-        .FillRoundRect .Bounds, RX, RX
-        .SetHighColour rgba(255, 255, 255, 190)
-        .StrokeRoundRect .Bounds.InsetByCopy(1, 1), RX, RX
 
-'        .SetHighColour rgba(244, 244, 244, 190)
-'        .FillRoundRect .Bounds, RX
-'        .SetHighColour rgba(0, 0, 0, 96)
-'        .StrokeRoundRect .Bounds, RX, RX
-        
-        .SetHighColour rgba(0, 0, 0, 64)
-        .SetLowColour rgba(0, 0, 0, 0)
+        .SetHighColour rgba(242, 242, 242)
+        .FillRoundRect .Bounds, RX, RX
+
+        .SetHighColour rgba(0, 0, 0, 0)
+        .SetLowColour rgba(0, 0, 0, 64)
         .FillRoundRect .Bounds, RX, RX, MFX_VERT_GRADIENT
 
+        .SetHighColour rgba(0, 0, 0, 156)
+        .StrokeRoundRect .Bounds, RX, RX
 
     End With
 
@@ -191,28 +187,15 @@ Const RX = 14
         .Rewind
         Do While .GetNextTag(pa) = B_OK
             If pa.Signature = mSelected Then
-''                mView.SetHighColour rgba(255, 255, 255, 60)
-''                mView.EnableSmoothing False
-'                mView.SetHighColour rgba(0, 192, 255, 190)
-'                mView.SetLowColour rgba(0, 192, 255, 90)
-'                mView.SetHighColour rgba(128, 128, 128, 64)
-
-                mView.SetHighColour rgba(255, 255, 255, 96)
+                ' /* selected item */
+                mView.SetHighColour rgba(0, 0, 0, 24)
                 mView.FillRoundRect pa.PopupFrame.InsetByCopy(-1, -1), RX, RX ', MFX_VERT_GRADIENT
-'                mView.SetHighColour rgba(0, 0, 0, 90)
-'                mView.SetLowColour rgba(255, 255, 255, 90)
-'                mView.StrokeFancyRect pa.PopupFrame
-
-''                mView.SetHighColour rgba(, 192, 255, 90)
-''                mView.SetLowColour rgba(, 192, 255, 0)
-''                mView.EnableSmoothing True
-                mView.SetHighColour rgba(0, 0, 0, 90)
+                mView.SetHighColour rgba(0, 0, 0, 48)
                 mView.StrokeRoundRect pa.PopupFrame.InsetByCopy(-1, -1), RX, RX
 
             End If
 
-            mView.SetHighColour rgba(255, 255, 255)
-'            mView.SetHighColour rgba(0, 0, 0, 250)
+            mView.SetHighColour rgba(0, 0, 0, 250)
             mView.DrawString pa.Name, pa.PopupFrame.OffsetByCopy(CXICON + 4, 0), MFX_ALIGN_LEFT Or MFX_ALIGN_V_CENTER
             mView.DrawScaledImage pa.CachedIcon, pa.PopupFrame.TopLeft.OffsetByCopy(0, Fix((CYITEM - CXICON) / 2)), new_BPoint(CXICON, CXICON)
 

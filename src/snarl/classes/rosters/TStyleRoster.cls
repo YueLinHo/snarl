@@ -113,28 +113,35 @@ Dim i As Long
         uGetVersionList
         uGetStyleEngine "<internal>.styleengine", &H80000000
 
-        If g_GetUserFolder(pFolder) Then
-            If pFolder.SetTo(g_MakePath(pFolder.File) & "styles") Then
-                If pFolder.IsFolder() Then
-                    pFolder.ReadContents
-                    For i = 1 To pFolder.CountNodes
-                        If LCase$(pFolder.NodeAt(i).Extension = "styleengine") Then _
-                            uGetStyleEngine pFolder.NodeAt(i).Filename
+        ' /* R2.5.1: style link files are now in the installation folder... */
 
-                    Next i
+        g_GetAppFolderNode pFolder, "styles"
+        If pFolder.IsFolder() Then
+            pFolder.ReadContents
+            For i = 1 To pFolder.CountNodes
+                If LCase$(pFolder.NodeAt(i).Extension = "styleengine") Then _
+                    uGetStyleEngine pFolder.NodeAt(i).Filename
 
-                Else
-                    g_Debug "TStyleRoster.Open(): '" & g_MakePath(pFolder.File) & "full phat\snarl\styles' is not a folder", LEMON_LEVEL_WARNING
-
-                End If
-
-            Else
-                g_Debug "TStyleRoster.Open(): '" & g_MakePath(pFolder.File) & "full phat\snarl\styles' does not exist", LEMON_LEVEL_WARNING
-
-            End If
+            Next i
 
         Else
-            g_Debug "TStyleRoster.Open(): Snarl user folder does not exist", LEMON_LEVEL_WARNING
+            g_Debug "TStyleRoster.Open(): '" & g_MakePath(pFolder.File) & "' is not a folder", LEMON_LEVEL_WARNING
+
+        End If
+
+        ' /* ...but we also look in the user folder as well for compatability reasons */
+
+        g_GetUserFolder pFolder, False, "styles"
+        If pFolder.IsFolder() Then
+            pFolder.ReadContents
+            For i = 1 To pFolder.CountNodes
+                If LCase$(pFolder.NodeAt(i).Extension = "styleengine") Then _
+                    uGetStyleEngine pFolder.NodeAt(i).Filename
+
+            Next i
+
+        Else
+            g_Debug "TStyleRoster.Open(): '" & g_MakePath(pFolder.File) & "' is not a folder", LEMON_LEVEL_WARNING
 
         End If
     End If
@@ -206,6 +213,13 @@ Private Property Get MVersionInfo_Version() As Long
 End Property
 
 Public Function uGetStyleEngine(ByVal ClassId As String, Optional ByVal Flags As Long) As Boolean
+
+    If mList.IndexOf(ClassId, False) <> 0 Then
+        g_Debug "TStyleRoster.uGetStyleEngine(): '" & ClassId & "' is already in roster", LEMON_LEVEL_CRITICAL
+        Exit Function
+
+    End If
+
 Dim pse As TStyleEngine
 
     Set pse = New TStyleEngine

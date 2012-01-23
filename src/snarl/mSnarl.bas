@@ -16,7 +16,7 @@ Option Explicit
     ' /* these are used by the deprecated SNARL_GET_VERSION and for GNTP responses */
 Public Const APP_VER = 2
 Public Const APP_SUB_VER = 5
-Public Const APP_SUB_SUB_VER = 0
+Public Const APP_SUB_SUB_VER = 1
 
 Public Const SNP_VERSION = "3.0"
 
@@ -78,6 +78,9 @@ Public Enum SN_DO_PREFS
     SN_DP_UNLOAD
     SN_DP_LOAD
     SN_DP_RESTART_STYLE_ROSTER
+    ' /* R2.5.1 */
+    SN_DP_SHOW_ABOUT
+    SN_DP_SHOW_INFO
 
 End Enum
 
@@ -114,7 +117,7 @@ End Enum
     ' /* master notification structure, as used by the notification roster */
 
 Public Type T_NOTIFICATION_INFO
-    PID As Long
+    Pid As Long
     Title As String
     Text As String
     Timeout As SN_NOTIFICATION_DURATION
@@ -184,7 +187,7 @@ Public Type T_SNARL_APP
     Name As String
     hWnd As Long
     uMsg As Long
-    PID As Long                 ' // V38 (for V39)
+    Pid As Long                 ' // V38 (for V39)
     Icon As String              ' // R1.6 - path to application icon (if empty we use window icon)
 '    LargeIcon As String         ' // V38 (private for now) - path to large icon
     Token As Long               ' // V41
@@ -199,6 +202,8 @@ Public Type T_SNARL_APP
     IncludeInMenu As Boolean    ' // R2.4.2 DR3: should be included in "Apps" submenu
     AppType As SN_APP_TYPES     ' // R2.4.2 DR3: set during init()
     RemoteHostName As String    ' // R2.4.2 DR3: static, used by NameEx()
+    ' /* R2.5.1 */
+    KeepAlive As Boolean        ' // for Win32, don't kill if PID disappears; for SNP, don't kill if socket unregisters
 
 End Type
 
@@ -210,6 +215,9 @@ Public Type T_SNARL_ADMIN
     InhibitQuit As Boolean              ' // can't quit Snarl using menu
     InhibitMenu As Boolean              ' // right-click tray icon does nothing
     TreatSettingsAsReadOnly As Boolean  ' // don't write settings
+    BlockUnknownApps As Boolean         ' // don't allow new apps to register
+    NoRunStartupSequence As Boolean
+    NoDebugMode As Boolean
 
 End Type
 
@@ -352,6 +360,7 @@ Public Enum SN_PRESENCE_FLAGS
     SN_PF_AWAY_USER_IDLE = 1
     SN_PF_AWAY_COMPUTER_LOCKED = 2
     SN_PF_AWAY_SCREENSAVER_ACTIVE = 8
+    SN_PF_AWAY_SOS = &H10
     SN_PF_AWAY_MASK = &HFFFF&
 
     ' /* DnD flags occupy top 16 bits */
@@ -413,13 +422,28 @@ Dim l As Long
 
     l = FindWindow(WINDOW_CLASS, "Snarl")
 
-Dim szArg() As String
-Dim n As SN_DO_PREFS
+'    MsgBox Command$
 
-    szArg = Split(Command$, " ")
-    If UBound(szArg) > -1 Then
+Dim szArgs As String
+Dim szCmd As String
+Dim n As SN_DO_PREFS
+Dim i As Long
+
+    If Command$ <> "" Then
         ' /* command specified, but which? */
-        Select Case LCase$(szArg(0))
+        Debug.Print "command line: " & Command$
+        szCmd = g_RemoveQuotes(Command$)
+        i = InStr(szCmd, " ")                   ' // find first space
+        If i > 0 Then
+            ' /* split into command and args */
+            szArgs = g_SafeRightStr(szCmd, Len(szCmd) - i)
+            szCmd = g_SafeLeftStr(szCmd, i - 1)
+
+            MsgBox "Command: '" & szCmd & "' Args: '" & szArgs & "'"
+
+        End If
+
+        Select Case LCase$(szCmd)
         Case "-quit"
             If l <> 0 Then _
                 SendMessage l, WM_CLOSE, 0, ByVal 0&
@@ -429,27 +453,26 @@ Dim n As SN_DO_PREFS
         Case "-debug"
             gDebugMode = True
 
-
         Case "-install"
             ' /* must have one further arg: style engine or extension to install */
-            If (UBound(szArg()) = 1) And (l <> 0) Then
-                PostMessage l, WM_SNARL_COMMAND, 1, ByVal RegisterClipboardFormat(szArg(1))
+            If (szArgs <> "") And (l <> 0) Then
+                PostMessage l, WM_SNARL_COMMAND, 1, ByVal RegisterClipboardFormat(szArgs)
                 Exit Sub
 
             End If
 
         Case "-configure"
             ' /* must have one further arg: style or extension to install */
-            If (UBound(szArg()) = 1) And (l <> 0) Then
-                PostMessage l, WM_SNARL_COMMAND, 2, ByVal RegisterClipboardFormat(szArg(1))
+            If (szArgs <> "") And (l <> 0) Then
+                PostMessage l, WM_SNARL_COMMAND, 2, ByVal RegisterClipboardFormat(szArgs)
                 Exit Sub
 
             End If
 
         Case "-restart", "-unload", "-load"
             ' /* must have one further arg: style or extension to restart */
-            If (UBound(szArg()) = 1) And (l <> 0) Then
-                Select Case LCase$(szArg(0))
+            If (szArgs <> "") And (l <> 0) Then
+                Select Case LCase$(szCmd)
                 Case "-restart"
                     n = SN_DP_RESTART
 
@@ -461,10 +484,43 @@ Dim n As SN_DO_PREFS
                     
                 End Select
 
-                PostMessage l, WM_SNARL_COMMAND, n, ByVal RegisterClipboardFormat(szArg(1))
+                PostMessage l, WM_SNARL_COMMAND, n, ByVal RegisterClipboardFormat(szArgs)
                 Exit Sub
 
             End If
+
+        Case "-do"
+            ' /* from the URL handler */
+            If g_BeginsWith(szArgs, "snarl:", False) Then
+                szArgs = g_SafeRightStr(szArgs, Len(szArgs) - 6)
+                i = InStr(szArgs, "?")
+                If i Then
+                    szCmd = g_SafeLeftStr(szArgs, i - 1)
+                    szArgs = g_SafeRightStr(szArgs, Len(szArgs) - i)
+
+                Else
+                    szCmd = szArgs
+                    szArgs = ""
+                    
+                End If
+                
+                Select Case szCmd
+                Case "about"
+                    If l <> 0 Then _
+                        PostMessage l, WM_SNARL_COMMAND, SN_DP_SHOW_INFO, ByVal 0
+
+                Case Else
+                    MsgBox "Unknown command '" & szCmd & "' Args: '" & szArgs & "'", vbExclamation Or vbOKOnly, App.Title
+
+                End Select
+
+
+            Else
+                MsgBox "Incorrect URL format supplied", vbExclamation Or vbOKOnly, App.Title
+
+            End If
+
+            Exit Sub
 
         Case Else
 
@@ -503,12 +559,19 @@ Dim n As SN_DO_PREFS
     ' /* V38.133 - enable debug mode if switch present */
     ' /* V40.18 - or if either CTRL key is held down */
     ' /* V42.122 - if beta release */
+    ' /* V43.71 - if "D" pressed, not CTRL */
 
-    gDebugMode = gDebugMode Or (g_IsPressed(VK_LCONTROL)) Or (g_IsPressed(VK_RCONTROL)) Or (uIsDebugBuild())
+    gDebugMode = gDebugMode Or (g_IsPressed(vbKeyD)) Or (uIsDebugBuild())
+
+    ' /* reset debug mode if admin setting blocks it */
+
+    If gSysAdmin.NoDebugMode Then _
+        gDebugMode = False
+
 
     If gDebugMode Then
         ' /* start logging */
-        l3OpenLog "%APPDATA%\full phat\snarl\snarl.log"
+        l3OpenLog "%APPDATA%\full phat\snarl\snarl.log", True
         g_Debug "** Snarl " & App.Comments & " (V" & CStr(App.Major) & "." & CStr(App.Revision) & ") **"
         g_Debug "** " & App.LegalCopyright
         g_Debug ""
@@ -626,17 +689,9 @@ Dim dwFlags As SNARL_SYSTEM_FLAGS
 
     ' /* R2.31 - pre-set our config folder */
 
-    gPrefs.SnarlConfigPath = App.Path                ' // fail-safe
+'    gPrefs.SnarlConfigPath = App.Path                ' // fail-safe
 
 Dim sz As String
-
-    If g_GetUserFolderPath(sz) Then
-        gPrefs.SnarlConfigPath = sz                  ' // standard location
-
-    Else
-        g_Debug "uSetConfigFile(): %APP_DATA% path not found", LEMON_LEVEL_CRITICAL
-
-    End If
 
     ' /* R2.31 - look for a local sysconfig.ssl and get its target  */
 
@@ -658,7 +713,28 @@ Dim pSysConfig As CConfFile
 
             End If
         End If
+
     End With
+
+
+
+    If gPrefs.SnarlConfigPath = "" Then
+        g_Debug "Main(): no pre-defined configuration path"
+
+        If g_GetUserFolderPath(sz) Then
+            gPrefs.SnarlConfigPath = sz                  ' // standard location
+            uCreateUserSettings
+
+        Else
+            g_Debug "Main(): problem setting user-specific config path", LEMON_LEVEL_CRITICAL
+            gPrefs.SnarlConfigPath = App.Path
+    
+        End If
+
+    End If
+
+
+
 
     gPrefs.SnarlConfigPath = g_MakePath(gPrefs.SnarlConfigPath)
     g_Debug "Main: config path is '" & gPrefs.SnarlConfigPath & "'"
@@ -697,6 +773,10 @@ Dim szData As String
             .TreatSettingsAsReadOnly = (pSysConfig.ValueOf("TreatSettingsAsReadOnly") = "1")
             .InhibitMenu = (pSysConfig.ValueOf("InhibitMenu") = "1")
             .InhibitQuit = (pSysConfig.ValueOf("InhibitQuit") = "1")
+            ' /* R2.5.1 */
+            .BlockUnknownApps = (pSysConfig.ValueOf("BlockUnknownApps") = "1")
+            .NoRunStartupSequence = (pSysConfig.ValueOf("NoRunStartupSequence") = "1")
+            .NoDebugMode = (pSysConfig.ValueOf("NoDebugMode") = "1")
 
         End With
 
@@ -769,8 +849,6 @@ Dim szData As String
     g_SetRunning True, False
     gStartTime = Now()
 
-Dim i As Long
-
     ' /* display welcome message */
 
     If (g_ConfigGet("show_msg_on_start") = "1") Or (gDebugMode) Then
@@ -820,11 +898,24 @@ Dim i As Long
     End If
 
 
-    ' /* done */
+    ' /* notify ready to run */
 
     frmAbout.bReadyToRun
 
-    ' /* */
+    If Not g_IsPressed(vbKeyS) Then
+        ' /* launch startup-sequence apps */
+        g_Debug "Main(): processing startup-sequence...", LEMON_LEVEL_INFO
+
+        If g_GetUserFolderPath(sz, True) Then _
+            uRunStartupSequence sz
+
+        If g_GetUserFolderPath(sz) Then _
+            uRunStartupSequence sz
+
+    Else
+        g_Debug "Main(): skipping startup-sequence (key held)", LEMON_LEVEL_INFO
+
+    End If
 
 '    g_Debug "Main(): garbage collection"
 '    If g_IsWinXPOrBetter() Then _
@@ -1018,6 +1109,9 @@ Public Function g_ConfigInit() As Boolean
         ' /* R2.5 Beta 2 */
         .Add "allow_subs", "1"
         .Add "include_icon_when_forwarding", "1"
+
+        ' /* R2.5.1 */
+        .Add "use_notification_hotkey", "1"
 
     End With
 
@@ -1261,14 +1355,14 @@ Dim pa As TApp
 
 End Function
 
-Public Function gfAddClass(ByVal PID As Long, ByVal Class As String, ByVal Flags As Long, ByVal Description As String) As M_RESULT
+Public Function gfAddClass(ByVal Pid As Long, ByVal Class As String, ByVal Flags As Long, ByVal Description As String) As M_RESULT
 Dim pa As TApp
 
-    g_Debug "gfAddClass('" & CStr(PID) & "' '" & Class & "' #" & g_HexStr(Flags) & ")", LEMON_LEVEL_PROC
+    g_Debug "gfAddClass('" & CStr(Pid) & "' '" & Class & "' #" & g_HexStr(Flags) & ")", LEMON_LEVEL_PROC
 
     ' /* find the app */
 
-    If Not g_AppRoster.FindByPid(PID, pa) Then
+    If Not g_AppRoster.FindByPid(Pid, pa) Then
         g_Debug "gfAddClass(): App not registered with Snarl", LEMON_LEVEL_CRITICAL
         gfAddClass = M_NOT_FOUND
         Exit Function
@@ -1304,27 +1398,45 @@ Public Function g_UTF8(ByVal str As String) As String
 
 End Function
 
-Public Function g_GetUserFolderPath(ByRef Path As String) As Boolean
+Public Function g_GetUserFolderPath(ByRef Path As String, Optional ByVal AllUsers As Boolean = False) As Boolean
 Dim sz As String
 
-    If Not g_GetSystemFolder(CSIDL_APPDATA, sz) Then _
-        Exit Function
+    If AllUsers Then
+        If Not g_GetSystemFolder(CSIDL_COMMONAPPDATA, sz) Then _
+            Exit Function
+
+    Else
+        If Not g_GetSystemFolder(CSIDL_APPDATA, sz) Then _
+            Exit Function
+
+    End If
 
     Path = g_MakePath(sz) & "full phat\snarl"
     g_GetUserFolderPath = True
 
 End Function
 
-Public Function g_GetUserFolder(ByRef Folder As storage_kit.Node, Optional ByVal AllUsers As Boolean = False) As Boolean
+Public Function g_GetUserFolder(ByRef Folder As storage_kit.Node, Optional ByVal AllUsers As Boolean = False, Optional ByVal PathToAdd As String) As Boolean
 Dim sz As String
 
     If Not g_GetSystemFolder(IIf(AllUsers, CSIDL_COMMONAPPDATA, CSIDL_APPDATA), sz) Then _
         Exit Function
 
     Set Folder = New Node
-    g_GetUserFolder = Folder.SetTo(g_MakePath(sz) & "full phat\snarl")
+    g_GetUserFolder = Folder.SetTo(g_MakePath(sz) & "full phat\snarl" & IIf(PathToAdd <> "", "\" & PathToAdd, ""))
 
 End Function
+
+'Public Function g_GetUserStylesFolder(ByRef Folder As storage_kit.Node, Optional ByVal AllUsers As Boolean = False) As Boolean
+'Dim sz As String
+'
+'    If Not g_GetSystemFolder(IIf(AllUsers, CSIDL_COMMONAPPDATA, CSIDL_APPDATA), sz) Then _
+'        Exit Function
+'
+'    Set Folder = New Node
+'    g_GetUserStylesFolder = Folder.SetTo(g_MakePath(sz) & "full phat\snarl\styles")
+'
+'End Function
 
 Public Function g_GetSystemFolderNode(ByVal Path As CSIDL_VALUES, ByRef Folder As storage_kit.Node) As Boolean
 Dim sz As String
@@ -1337,6 +1449,12 @@ Dim sz As String
 
 End Function
 
+Public Function g_GetAppFolderNode(ByRef Folder As storage_kit.Node, Optional ByVal PathToAdd As String) As Boolean
+
+    Set Folder = New storage_kit.Node
+    g_GetAppFolderNode = Folder.SetTo(g_MakePath(App.Path) & PathToAdd)
+
+End Function
 
 'Public Function gSetUpFontSmoothing(ByRef aView As mfxView, ByVal TextColour As Long, ByVal SmoothingColour As Long) As MFX_DRAWSTRING_FLAGS
 'Dim dw As Long
@@ -1394,11 +1512,11 @@ End Function
 '
 'End Function
 
-Public Function gfSetAlertDefault(ByVal PID As Long, ByVal Class As String, ByVal Element As Long, ByVal Value As String) As M_RESULT
+Public Function gfSetAlertDefault(ByVal Pid As Long, ByVal Class As String, ByVal Element As Long, ByVal Value As String) As M_RESULT
 Dim pa As TApp
 Dim pc As TAlert
 
-    g_Debug "gfSetAlertDefault('" & PID & "' '" & Class & "' #" & CStr(Element) & " '" & Value & "')", LEMON_LEVEL_PROC
+    g_Debug "gfSetAlertDefault('" & Pid & "' '" & Class & "' #" & CStr(Element) & " '" & Value & "')", LEMON_LEVEL_PROC
 
     If (g_AppRoster Is Nothing) Then
         g_Debug "gfSetAlertDefault(): App not registered with Snarl", LEMON_LEVEL_CRITICAL
@@ -1409,8 +1527,8 @@ Dim pc As TAlert
 
     ' /* find the app */
 
-    If Not g_AppRoster.FindByPid(PID, pa) Then
-        g_Debug "gfSetAlertDefault(): App '" & PID & "' not registered with Snarl", LEMON_LEVEL_CRITICAL
+    If Not g_AppRoster.FindByPid(Pid, pa) Then
+        g_Debug "gfSetAlertDefault(): App '" & Pid & "' not registered with Snarl", LEMON_LEVEL_CRITICAL
         gfSetAlertDefault = M_NOT_FOUND
         Exit Function
 
@@ -1702,7 +1820,7 @@ Dim pInfo As T_NOTIFICATION_INFO
         .Title = pStyle.Name & IIf(Scheme = "<Default>", "", "/" & Scheme) & IIf(IsPriority, " (Priority)", "")
         .Text = szText
         .Timeout = -1
-        .IconPath = IIf(pStyle.IconPath = "", g_MakePath(App.Path) & "etc\icons\style_preview.png", pStyle.IconPath)
+        .IconPath = IIf(pStyle.IconPath = "", g_MakePath(App.Path) & "etc\icons\style.png", pStyle.IconPath)
         .StyleName = pStyle.Name
         .SchemeName = LCase$(Scheme)
         .Position = SN_SP_DEFAULT_POS
@@ -1710,6 +1828,7 @@ Dim pInfo As T_NOTIFICATION_INFO
         Set .ClassObj = New TAlert
         .CustomUID = "style-preview" & IIf(IsPriority, "-priority", "")
         .APIVersion = App.Major
+        .IntFlags = App.Major
 
         g_NotificationRoster.Hide 0, .CustomUID, App.ProductName, ""
 
@@ -1867,7 +1986,7 @@ Dim i As Long
         frmAbout.bShowMissedPanel
 
     Case "cfg"
-        ' /* show our prefs panel targetted on the app in arg(2) */
+        ' /* show our prefs panel targeted on the app in arg(2) */
         Set pti = Args.TagAt(2)
         If Not (pti Is Nothing) Then _
             frmAbout.DoAppConfigBySignature pti.Name
@@ -2184,9 +2303,16 @@ Dim szv As String
         If .SetTo(nInfo.OriginalContent) Then
             .Rewind
             Do While .GetNextItem(szn, szv)
-                If Not pPacked.Exists(LCase$(szn)) Then _
-                    pPacked.Add szn, szv
+                If Not pPacked.Exists(LCase$(szn)) Then
+                    Select Case LCase$(szn)
+                    Case "password"
+                        Debug.Print "password removed"
 
+                    Case Else
+                        pPacked.Add szn, szv
+
+                    End Select
+                End If
             Loop
         End If
     End With
@@ -2234,7 +2360,7 @@ Public Function g_TranslateIconPath(ByVal Icon As String, ByVal StylePath As Str
 Dim pbm As mfxBitmap
 Dim pIcon As BIcon
 Dim sz As String
-Dim dw As Long
+'Dim dw As Long
 Dim i As Long
 
     If g_SafeLeftStr(Icon, 1) = "!" Then
@@ -2259,36 +2385,39 @@ Dim i As Long
 
     ElseIf g_SafeLeftStr(Icon, 1) = "%" Then
         ' /* whatever is after the % should be a valid HICON */
-        dw = Val(g_SafeRightStr(Icon, Len(Icon) - 1))
-        If dw Then
-            Set pbm = uGetIcon(dw)
-            If Not (pbm Is Nothing) Then
-                g_TranslateIconPath = g_GetSafeTempIconPath()
-                pbm.Save g_TranslateIconPath, "image/png"
-
-            End If
+        Set pbm = uGetIcon(g_SafeLong(g_SafeRightStr(Icon, Len(Icon) - 1)))
+        If NOTNULL(pbm) Then
+            g_TranslateIconPath = g_GetSafeTempIconPath()
+            pbm.Save g_TranslateIconPath, "image/png"
 
         Else
             g_Debug "TNotificationRoster.g_TranslateIconPath(): bad HICON '" & Icon & "'", LEMON_LEVEL_WARNING
 
         End If
 
-    ElseIf LCase$(g_GetExtension(Icon)) = "ico" Then
-        g_TranslateIconPath = uLoadICO(Icon)
-
     Else
 
-        g_TranslateIconPath = Icon
+        sz = LCase$(Icon)
 
-        ' /* windows icon? */
+        If g_GetExtension(sz) = "ico" Then
+            ' /* icon */
+            g_TranslateIconPath = uLoadICO(Icon)
 
-        i = InStr(Icon, ",")
-        If i <> 0 Then
-            dw = Val(g_SafeRightStr(Icon, Len(Icon) - i))
-            Icon = g_SafeLeftStr(Icon, i - 1)
-            g_TranslateIconPath = uGetBestIcon(Icon, dw)
+        ElseIf InStr(sz, ".ico,") > 0 Then
+            ' /* icon (sometimes a ",0" can appear) */
+            i = InStr(Icon, ",")
+            g_TranslateIconPath = uLoadICO(g_SafeLeftStr(Icon, i - 1))
+
+        ElseIf (InStr(sz, ".dll,") > 0) Or (InStr(sz, ".exe,") > 0) Then
+            ' /* icon within a resource file */
+            i = InStr(Icon, ",")
+            g_TranslateIconPath = uGetBestIcon(g_SafeLeftStr(Icon, i - 1), g_SafeLong(g_SafeRightStr(Icon, Len(Icon) - i)))
+
+        Else
+            g_TranslateIconPath = Icon
 
         End If
+
     End If
 
 End Function
@@ -2338,6 +2467,9 @@ End Function
 Private Function uGetIcon(ByVal hIcon As Long) As mfxBitmap
 
     On Error Resume Next
+
+    If hIcon = 0 Then _
+        Exit Function
 
 Dim pi As BIcon
 
@@ -2585,12 +2717,12 @@ Dim pn As TNotification
     ' /* R2.4.2 DR3: now we've checked for updates and merges, we check to see if at least one of
     '    title, text or icon exists and fail with 109 if not */
 
-    If (Not pData.Exists("title")) And (Not pData.Exists("text")) And (Not pData.Exists("title")) Then
-        g_Debug "g_DoNotify(): must supply at least one of 'title', 'text' or 'icon'", LEMON_LEVEL_CRITICAL
-        gSetLastError SNARL_ERROR_ARG_MISSING
-        Exit Function
-
-    End If
+'    If (Not pData.Exists("title")) And (Not pData.Exists("text")) And (Not pData.Exists("title")) Then
+'        g_Debug "g_DoNotify(): must supply at least one of 'title', 'text' or 'icon'", LEMON_LEVEL_CRITICAL
+'        gSetLastError SNARL_ERROR_ARG_MISSING
+'        Exit Function
+'
+'    End If
 
 Dim szClass As String
 Dim pApp As TApp
@@ -3603,7 +3735,7 @@ Private Function uIsDebugBuild() As Boolean
 Dim sz As String
 
     sz = LCase$(App.Comments)
-    uIsDebugBuild = (InStr(sz, "b") <> 0) Or (InStr(sz, "dr") <> 0) Or (InStr(sz, "alpha") <> 0)
+    uIsDebugBuild = (InStr(sz, "debug") <> 0) 'Or (InStr(sz, "dr") <> 0) Or (InStr(sz, "alpha") <> 0)
 
 End Function
 
@@ -3915,3 +4047,121 @@ Public Function g_IsLocalAddress(ByVal IPAddress As String, Optional ByVal Ignor
     End If
 
 End Function
+
+Private Sub uCreateUserSettings()
+Dim sz As String
+
+    If Not g_GetSystemFolder(CSIDL_APPDATA, sz) Then _
+        Exit Sub
+
+    sz = g_MakePath(sz)
+    g_CreateDirectory sz & "full phat"
+
+    sz = sz & "full phat\snarl"
+    g_CreateDirectory sz
+
+    If Not g_Exists(sz & "\etc") Then _
+        g_CreateDirectory sz & "\etc"
+
+    If Not g_Exists(sz & "\styles") Then _
+        g_CreateDirectory sz & "\styles"
+
+    If Not g_Exists(sz & "\styles\runfile") Then _
+        g_CreateDirectory sz & "\styles\runfile"
+
+    If Not g_Exists(sz & "\startup-sequence") Then _
+        g_CreateDirectory sz & "\startup-sequence"
+
+'        uCreateLink sz & "\extensions\banner.styleengine"
+'        uCreateLink sz & "\extensions\ez.styleengine"
+'        uCreateLink sz & "\extensions\meter.styleengine"
+'        uCreateLink sz & "\extensions\mobile.styleengine"
+'        uCreateLink sz & "\extensions\prowl.styleengine"
+'        uCreateLink sz & "\extensions\runnable.styleengine"
+'        uCreateLink sz & "\extensions\sapi.styleengine"
+'
+'    End If
+
+    If Not g_Exists(sz & "\extensions") Then _
+        g_CreateDirectory sz & "\extensions"
+'        uCreateLink sz & "\extensions\AudioMon.extension"
+'        uCreateLink sz & "\extensions\SnarlClock2.extension"
+'        uCreateLink sz & "\extensions\SNPHTTP.extension"
+'        uCreateLink sz & "\extensions\SysInfo.extension"
+'        uCreateLink sz & "\extensions\TMinus.extension"
+'        uCreateLink sz & "\extensions\WLANMonitor.extension"
+'
+'    End If
+
+End Sub
+
+Private Sub uCreateLink(ByVal Path As String)
+Dim i As Integer
+
+    On Error Resume Next
+
+    i = FreeFile()
+    
+    Open Path For Output As #i
+    Close #i
+
+End Sub
+
+Private Sub uRunStartupSequence(ByVal Path As String)
+
+    If gSysAdmin.NoRunStartupSequence Then
+        g_Debug "uRunStartupSequence(): blocked by administrator", LEMON_LEVEL_INFO
+        Exit Sub
+
+    End If
+
+Dim pcf As CConfFile
+Dim szTarget As String
+Dim sz As String
+Dim n As Long
+
+    With New CFolderContent2
+        If .SetTo(g_MakePath(Path) & "startup-sequence") Then
+            .Rewind
+            Do While .GetNextFile(sz, True)
+                If g_GetExtension(sz) = "ssl2" Then
+                    Set pcf = New CConfFile
+                    pcf.SetFilename sz
+                    pcf.Reload
+                    
+                    szTarget = pcf.ValueOf("target")
+                    If szTarget <> "" Then
+
+                        n = SW_SHOW
+
+                        Select Case pcf.ValueOf("show")
+
+                        Case "minimised", "minimized"
+                            n = SW_MINIMIZE
+
+                        Case "maximised", "maximized", "zoomed"
+                            n = SW_MAXIMIZE
+
+'                        Case "hidden"
+'                            n = SW_HIDE
+
+                        End Select
+
+                        ShellExecute frmAbout.hWnd, "open", szTarget, pcf.ValueOf("args"), pcf.ValueOf("pwd"), n
+
+                    Else
+                        g_Debug "uRunStartupSequence(): '" & sz & "' has no target"
+
+                    End If
+                
+                Else
+                    Debug.Print "'" & sz & "' is not an ssl2"
+
+                End If
+            Loop
+        End If
+
+    End With
+
+End Sub
+

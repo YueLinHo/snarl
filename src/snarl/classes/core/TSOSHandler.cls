@@ -385,6 +385,14 @@ Dim i As Long
 
             End If
 
+        Case "away"
+            g_SetPresence SN_PF_AWAY_SOS
+            SOS_printline "Presence changed to away\n"
+
+        Case "back"
+            g_ClearPresence SN_PF_AWAY_SOS
+            SOS_printline "Presence changed to back\n"
+
         Case Else
             SOS_printline "unknown command; try ""help""\n"
 

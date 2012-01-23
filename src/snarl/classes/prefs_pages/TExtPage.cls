@@ -42,9 +42,8 @@ Dim i As Long
 
     With mPage
         .Add new_BPrefsControl("label", "", "Extensions are modules loaded by Snarl during startup; " & _
-                                            "they can register with Snarl and add alerts in exactly the " & _
-                                            "same way applications can.  To disable an extension, " & _
-                                            "untick it's entry in the list below:")
+                                            "they can register with Snarl and create notifications in exactly the " & _
+                                            "same way applications can.")
 
         Set pm = New CTempMsg
         pm.Add "item-height", 36&
@@ -54,12 +53,13 @@ Dim i As Long
 
         .Add new_BPrefsControl("fancytoolbar", "extension_toolbar", "Start|Stop|Details|Configure...||Show in Explorer")
         .Add new_BPrefsSeparator
-        .Add new_BPrefsControl("fancytoolbar", "toolbar-general", "Reload Extensions|Install Extension...")
+        .Add new_BPrefsControl("fancytoolbar", "toolbar-general", "Reload Extensions|")
+'        .Add new_BPrefsControl("fancytoolbar", "toolbar-general", "Reload Extensions|Install Extension...")
         .Add new_BPrefsSeparator
 
         Set pm = New CTempMsg
         pm.Add "image-file", g_MakePath(App.Path) & "etc\icons\info_emblem.png"
-        Set pc = new_BPrefsControl("labelex", "", "To prevent extensions from being loaded, hold down either Control (Ctrl) key while Snarl loads.", , , pm)
+        Set pc = new_BPrefsControl("labelex", "", "To prevent extensions from being loaded, hold down the 'E' key while Snarl loads.", , , pm)
         pc.SizeTo 0, 24
         .Add pc
 
@@ -173,7 +173,7 @@ Dim b As Boolean
 
         Case 2
             ' /* install */
-            uDoInstallExtension
+'            uDoInstallExtension
 
         End Select
 
@@ -346,38 +346,44 @@ Dim i As Long
 
     ' /* set the content */
 
-    pc.SetText g_SafeLeftStr(list_content, Len(list_content) - 1)
+    list_content = g_SafeLeftStr(list_content, Len(list_content) - 1)
+    pc.SetText list_content
 
-    ' /* set the checkboxes and icons */
+    prefskit_SafeEnable mPage.Panel, "extension_toolbar", (list_content <> "")
 
-'Dim sz As String
+    If list_content <> "" Then
 
-    i = 0
-    pr.Rewind
-    Do While pr.NextItem(px)
-        i = i + 1
+        ' /* set the checkboxes and icons */
 
-        Set pm = New CTempMsg
-        pm.Add "index", i
-'        pm.Add "checked", IIf(px.State = SN_ES_LOADED, 1&, 0&)
-        pm.Add "greyscale", IIf(px.State = SN_ES_NOT_LOADED, 1&, 0&)
+        i = 0
+        pr.Rewind
+        Do While pr.NextItem(px)
+            i = i + 1
 
-        If px.State = SN_ES_FAILED Then
-            pm.Add "image-file", g_MakePath(App.Path) & "etc\icons\bad.png"
-
-        ElseIf InStr(px.Icon, ",") Then
-            pm.Add "image-icon", px.Icon
-
-        Else
-            pm.Add "image-file", px.Icon
+            Set pm = New CTempMsg
+            pm.Add "index", i
+    '        pm.Add "checked", IIf(px.State = SN_ES_LOADED, 1&, 0&)
+            pm.Add "greyscale", IIf(px.State = SN_ES_NOT_LOADED, 1&, 0&)
     
-        End If
+            If px.State = SN_ES_FAILED Then
+                pm.Add "image-file", g_MakePath(App.Path) & "etc\icons\bad.png"
+    
+    '        ElseIf InStr(px.Icon, ",") Then
+    '            pm.Add "image-icon", px.Icon
+    
+            Else
+                pm.Add "image-file", g_TranslateIconPath(px.Icon, "")
+        
+            End If
+    
+            pc.DoExCmd B_SET_ITEM, pm
 
-        pc.DoExCmd B_SET_ITEM, pm
+        Loop
 
-    Loop
+        pc.SetValue z
 
-    pc.SetValue z
+    End If
+
     pc.DoExCmd "unlock"
 
 End Sub
@@ -415,11 +421,11 @@ Private Function uStr(ByVal str As String) As String
 
 End Function
 
-Private Sub uDoInstallExtension()
-Dim szError As String
-Dim szPath As String
-Dim sz As String
-
+'Private Sub uDoInstallExtension()
+'Dim szError As String
+'Dim szPath As String
+'Dim sz As String
+'
 '    sz = InputBox("Enter the name of the extension to install", "Install Extension")
 '    If sz = "" Then _
 '        Exit Sub
@@ -427,25 +433,25 @@ Dim sz As String
 ''    If LCase$(g_GetExtension(sz)) <> "extension" Then _
 '        sz = sz & ".extension"
 '
-'    If Not (g_ExtnRoster Is Nothing) Then
-'        If g_ExtnRoster.LoadExtensionByClass(sz, szError) Then
-'            If g_GetUserFolderPath(szPath) Then
-'                uCreateMarkerFile g_MakePath(szPath) & "extensions\" & sz & ".extension"
-'                If Not (g_ExtnRoster Is Nothing) Then _
-'                    g_ExtnRoster.WriteExcludeList
+''    If Not (g_ExtnRoster Is Nothing) Then
+''        If g_ExtnRoster.LoadExtensionByClass(sz, szError) Then
+''            If g_GetUserFolderPath(szPath) Then
+''                uCreateMarkerFile g_MakePath(szPath) & "extensions\" & sz & ".extension"
+''                If Not (g_ExtnRoster Is Nothing) Then _
+''                    g_ExtnRoster.WriteExcludeList
+''
+''            End If
+''
+''            uUpdateExtensions
+''
+''        Else
+''            MsgBox szError, vbOKOnly Or vbExclamation, "Error Installing Extension"
+''
+''        End If
+''
+''    End If
 '
-'            End If
-'
-'            uUpdateExtensions
-'
-'        Else
-'            MsgBox szError, vbOKOnly Or vbExclamation, "Error Installing Extension"
-'
-'        End If
-'
-'    End If
-
-End Sub
+'End Sub
 
 Private Sub uCreateMarkerFile(ByVal File As String)
 Dim n As Integer
