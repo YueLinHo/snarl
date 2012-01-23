@@ -37,8 +37,8 @@ Option Explicit
 Private Const WM_CREATE = &H1
 Private Const WM_TIMER = &H113
 Private Const WM_POWERBROADCAST = &H218
-Private Declare Function SetTimer Lib "user32" (ByVal hwnd As Long, ByVal nIDEvent As Long, ByVal uElapse As Long, ByVal lpTimerFunc As Long) As Long
-Private Declare Function KillTimer Lib "user32" (ByVal hwnd As Long, ByVal nIDEvent As Long) As Long
+Private Declare Function SetTimer Lib "user32" (ByVal hWnd As Long, ByVal nIDEvent As Long, ByVal uElapse As Long, ByVal lpTimerFunc As Long) As Long
+Private Declare Function KillTimer Lib "user32" (ByVal hWnd As Long, ByVal nIDEvent As Long) As Long
 Private Declare Function GetKeyState Lib "user32" (ByVal nVirtKey As Long) As Integer
 
 Dim mhWnd As Long
@@ -81,7 +81,13 @@ Public Event OnLockKeyPressed(ByVal Key As B_MODIFIER_KEYS, ByVal Enabled As Boo
 Dim mIP() As String
 Dim mIPCount As Long
 Public Event LocalIPAddressChanged(ByVal Details As String)
+Public Event ExternalIPAddressChanged(ByVal IPAddress As String)
+Dim mCurrentExternalIP As String
+Dim WithEvents theExternalIPRequest As CHTTPRequest3
+Attribute theExternalIPRequest.VB_VarHelpID = -1
+Dim mIgnoreFirstIPChange As Boolean
 
+Private Const TIMER_60SECS = 94
 Private Const TIMER_DISK_CAPACITY = 95
 Private Const TIMER_IE_DOWNLOAD = 96
 Private Const TIMER_FAST = 97
@@ -107,6 +113,9 @@ Private Sub Class_Initialize()
     mSclState = uGetKeyLockState(vbKeyScrollLock)
     mBlockClipboardChange = True
 
+    mIgnoreFirstIPChange = True
+    uCheckExternalIP
+
     uScanIPTable
 
     Set mIEWindowList = new_BTagList()
@@ -120,12 +129,12 @@ Private Sub Class_Terminate()
 
 End Sub
 
-Private Function MWndProcSink_WndProc(ByVal hwnd As Long, ByVal uMsg As Long, ByVal wParam As Long, ByVal lParam As Long, ByVal PrevWndProc As Long, ReturnValue As Long) As Boolean
+Private Function MWndProcSink_WndProc(ByVal hWnd As Long, ByVal uMsg As Long, ByVal wParam As Long, ByVal lParam As Long, ByVal PrevWndProc As Long, ReturnValue As Long) As Boolean
 Dim fClipboard As Boolean
 
     ' /* from the clipboard? */
 
-    If g_ClipboardHandle(hwnd, uMsg, wParam, lParam, fClipboard) Then
+    If g_ClipboardHandle(hWnd, uMsg, wParam, lParam, fClipboard) Then
         If fClipboard Then
             If mBlockClipboardChange Then
                 mBlockClipboardChange = False
@@ -235,6 +244,9 @@ Static m As Long
             ' /* slow timer - every 5 seconds */
             uCheckNoRAM
 
+        Case TIMER_60SECS
+            uCheckExternalIP
+
         End Select
 
     Case Else
@@ -255,6 +267,7 @@ Public Sub SetEnabled(ByVal Enabled As Boolean)
     If Enabled Then
         SetTimer mhWnd, TIMER_SLOW, 5000, 0
         SetTimer mhWnd, TIMER_FAST, 100, 0
+        SetTimer mhWnd, TIMER_60SECS, 60000, 0
 
     End If
 
@@ -755,3 +768,36 @@ Static p As Long
 
 End Sub
 
+Private Sub theExternalIPRequest_Completed(ByVal WasSuccessful As Boolean)
+Dim bNotify As Boolean
+Dim sz As String
+
+    g_Debug "theExternalIPRequest.Completed(): success=" & CStr(WasSuccessful)
+
+    If WasSuccessful Then
+        sz = theExternalIPRequest.ResponseBody()
+        g_Debug "theExternalIPRequest.Completed(): address is " & sz
+
+        If mCurrentExternalIP <> sz Then
+            mCurrentExternalIP = sz
+            If mIgnoreFirstIPChange Then
+                mIgnoreFirstIPChange = False
+
+            Else
+                g_Debug "theExternalIPRequest.Completed(): notifying change"
+                RaiseEvent ExternalIPAddressChanged(sz)
+
+            End If
+        End If
+    End If
+
+End Sub
+
+Private Sub uCheckExternalIP()
+
+    g_Debug "uCheckExternalIP(): checking external IP address..."
+
+    Set theExternalIPRequest = New CHTTPRequest3
+    theExternalIPRequest.GetContent "http://automation.whatismyip.com/n09230945.asp"
+
+End Sub

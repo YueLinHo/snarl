@@ -50,8 +50,8 @@ Option Explicit
     '
     ' */
 
-Private Const LIB_DATE = "20-Sep-2011"
-Private Const LIB_RELEASE = "3.1"
+Private Const LIB_DATE = "5-Jan-2012"
+Private Const LIB_RELEASE = "3.1.1"
 'Private Const EXT_NAME = "SysInfo"
 Private Const EXT_COMMENT = "Tracks events specific to this computer"
 
@@ -92,6 +92,7 @@ Dim WithEvents theDUNRoster As TDUNRoster
 Attribute theDUNRoster.VB_VarHelpID = -1
 Dim WithEvents theVolRoster As TSimpleVolRoster
 Attribute theVolRoster.VB_VarHelpID = -1
+Dim mNotifiedVolsList As BTagList
 
 Dim WithEvents theHandler As TWindow
 Attribute theHandler.VB_VarHelpID = -1
@@ -297,7 +298,7 @@ Dim pm As CTempMsg
             .AddPage pPage
 
             .Go
-'            g_SetWindowIconToAppResourceIcon .hWnd
+            g_SetWindowIconToAppResourceIcon .hWnd
 
         End With
 
@@ -345,7 +346,7 @@ Private Function ISnarlExtension_Initialize() As Long
 
 Dim sz As String
 
-    If Not snarl_config_path(sz) Then
+    If Not snGetConfigPath(sz) Then
         g_Debug "Can't find Snarl config path", LEMON_LEVEL_CRITICAL
         mLastErr = "Can't find Snarl config path"
         ISnarlExtension_Initialize = -1
@@ -364,6 +365,7 @@ Dim sz As String
     End If
 
     mPassword = create_password()
+    Set mNotifiedVolsList = new_BTagList()
 
     ' /* create window */
 
@@ -398,7 +400,7 @@ Dim i As Integer
 
     ' /* load config */
 
-    snarl_config_path szPath            ' // already checked this exists during Init()
+    snGetConfigPath szPath              ' // already checked this exists during Init()
 
     Set mConfig = New CConfFile
     mConfig.SetTo szPath & "sysinfo.config"
@@ -668,6 +670,15 @@ Dim pt As BTagItem
 
 End Sub
 
+Private Sub theHandler_ExternalIPAddressChanged(ByVal IPAddress As String)
+
+    snDoRequest "notify?app-sig=" & App.ProductName & "&password=" & mPassword & "&class=" & CLASS_IP_CHANGE & _
+                "&title=External IP address changed&text=" & IPAddress & _
+                "&icon=" & g_MakePath(App.Path) & IIf(g_IsIDE(), "bin\", "") & "ipaddrchange.png" & _
+                "&uid=extipaddrchange"
+
+End Sub
+
 Private Sub theHandler_IEDownloadCompleted()
 
     snarl_ez_notify App.ProductName, CLASS_IE_DOWNLOAD, "Download completed", , "!system-info", , , mPassword
@@ -677,7 +688,7 @@ End Sub
 Private Sub theHandler_LocalIPAddressChanged(ByVal Details As String)
 
     snDoRequest "notify?app-sig=" & App.ProductName & "&password=" & mPassword & "&class=" & CLASS_IP_CHANGE & _
-                "&title=IP address change&text=" & Replace$(Details, vbCrLf, "") & _
+                "&title=IP address change&text=" & Replace$(Details, vbCrLf, "; ") & _
                 "&icon=" & g_MakePath(App.Path) & IIf(g_IsIDE(), "bin\", "") & "ipaddrchange.png" & _
                 "&uid=ipaddrchange&merge-uid=ipaddrchange"
 
@@ -792,7 +803,7 @@ Private Sub theHandler_OnLockKeyPressed(ByVal Key As melon4.B_MODIFIER_KEYS, ByV
             snarl_ez_notify App.ProductName, CLASS_LOCK_KEY, "Caps lock on", , "!system-warning", , , mPassword, "capslock"
 
         ElseIf Not Enabled Then
-            snarl_hide App.ProductName, "capslock", mPassword
+            snarl_hide_notification App.ProductName, "capslock", mPassword
 
         End If
 
@@ -801,7 +812,7 @@ Private Sub theHandler_OnLockKeyPressed(ByVal Key As melon4.B_MODIFIER_KEYS, ByV
             snarl_ez_notify App.ProductName, CLASS_LOCK_KEY, "Num lock on", , "!system-warning", , , mPassword, "numlock"
 
         ElseIf Not Enabled Then
-            snarl_hide App.ProductName, "numlock", mPassword
+            snarl_hide_notification App.ProductName, "numlock", mPassword
 
         End If
 
@@ -810,7 +821,7 @@ Private Sub theHandler_OnLockKeyPressed(ByVal Key As melon4.B_MODIFIER_KEYS, ByV
             snarl_ez_notify App.ProductName, CLASS_LOCK_KEY, "Scroll lock on", , "!system-warning", , , mPassword, "scrllock"
 
         ElseIf Not Enabled Then
-            snarl_hide App.ProductName, "scrllock", mPassword
+            snarl_hide_notification App.ProductName, "scrllock", mPassword
 
         End If
 
@@ -871,7 +882,7 @@ Private Sub theHandler_OnPhysicalRAMGone()
 
     ' /* if the low RAM warning is still visible, remove it */
 
-    snarl_hide App.ProductName, "lowram", mPassword
+    snarl_hide_notification App.ProductName, "lowram", mPassword
 
 '    If sn41IsVisible(mLowRamId) Then _
         sn41Hide mLowRamId
@@ -945,7 +956,7 @@ Dim sz As String
 
     ' /* remove existing notification */
 
-    snarl_hide App.ProductName, "powerchange", mPassword
+    snarl_hide_notification App.ProductName, "powerchange", mPassword
 
 '    If sn41IsVisible(mPowerId) Then _
         sn41Hide mPowerId
@@ -954,7 +965,7 @@ Dim sz As String
 
         ' /* also remove low power warning if it's still on screen */
 
-        snarl_hide App.ProductName, "lowpower", mPassword
+        snarl_hide_notification App.ProductName, "lowpower", mPassword
 
 '        If sn41IsVisible(mLowPowerId) Then _
             sn41Hide mLowPowerId
@@ -1014,7 +1025,7 @@ Dim szText As String
 
     End Select
 
-    snarl_hide App.ProductName, "net-dis-" & Name, mPassword
+    snarl_hide_notification App.ProductName, "net-dis-" & Name, mPassword
 
     snDoRequest "notify?app-sig=" & App.ProductName & "&password=" & mPassword & "&class=" & CLASS_NIC_CONN & _
                 "&title=" & szTitle & "&text=" & szText & "&icon=!network-connected" & _
@@ -1047,7 +1058,7 @@ Dim szText As String
 
     End Select
 
-    snarl_hide App.ProductName, "net-con-" & Name, mPassword
+    snarl_hide_notification App.ProductName, "net-con-" & Name, mPassword
     snarl_ez_notify App.ProductName, CLASS_NIC_DISC, szTitle, szText, "!network-disconnected", , , mPassword, "net-dis-" & Name
 
 End Sub
@@ -1080,26 +1091,53 @@ End Function
 Private Sub theVolRoster_VolumeMounted(ByVal Path As String, ByVal Label As String, ByVal VolType As Long)
 
     ' /* remove any corresponding "Volume unmounted" notification */
-    snarl_hide App.ProductName, "unmounted-" & Path, mPassword
+    snarl_hide_notification App.ProductName, "vol-unmounted-" & Path, mPassword
 
 Dim nPercentUsed As Integer
 Dim sz As String
 
     sz = uCapacityInfo(Path, nPercentUsed)
-    snarl_ez_notify App.ProductName, CLASS_VOL_MNT, _
-                    "Disk inserted", uSmartenUpLabel(Label, Path) & sz, uIcon(Path), , , _
-                    mPassword, "mounted-" & Path, Path, nPercentUsed
+
+'shell:::{20D04FE0-3AEA-1069-A2D8-08002B30309D}
+
+    snarl_notify App.ProductName, CLASS_VOL_MNT, "vol-mounted", mPassword, _
+                 IIf(VolType = DRIVE_REMOTE, "Share connected", "Disk inserted"), _
+                 uSmartenUpLabel(Label, Path) & sz, uIcon(Path), , , , _
+                 nPercentUsed, "action=Open," & Path & "&action=My Computer,shell:::{20D04FE0-3AEA-1069-A2D8-08002B30309D}"
+
+'    snarl_ez_notify App.ProductName, CLASS_VOL_MNT, _
+                 IIf(VolType = DRIVE_REMOTE, "Share connected", "Disk inserted"), _
+                 uSmartenUpLabel(Label, Path) & sz, _
+                 uIcon(Path), , , _
+                 mPassword, _
+                 "vol-mounted-" & Path, _
+                 Path, _
+                 nPercentUsed
+
+
+'    snarl_notify App.ProductName, CLASS_VOL_MNT, "vol-mounted", mPassword, _
+                 IIf(VolType = DRIVE_REMOTE, "Share connected", "Disk inserted"), _
+                 uSmartenUpLabel(Label, Path) & sz, uIcon(Path), , , , _
+                 nPercentUsed, "merge-uid=vol-mounted"
 
 End Sub
 
 Private Sub theVolRoster_VolumeUnmounted(ByVal Path As String, ByVal Label As String, ByVal VolType As Long)
 
     ' /* remove any corresponding "Volume mounted" notification */
-    snarl_hide App.ProductName, "mounted-" & Path, mPassword
+    snarl_hide_notification App.ProductName, "vol-mounted-" & Path, mPassword
 
     snarl_ez_notify App.ProductName, CLASS_VOL_UMNT, _
-                    "Disk removed", uSmartenUpLabel(Label, Path), "!vol-unmounted", , , _
-                    mPassword, "unmounted-" & Path
+                    IIf(VolType = DRIVE_REMOTE, "Share disconnected", "Disk ejected"), _
+                    uSmartenUpLabel(Label, Path), _
+                    "!vol-unmounted", , , _
+                    mPassword, _
+                    "vol-unmounted-" & Path
+
+'    snarl_notify App.ProductName, CLASS_VOL_UMNT, "vol-unmounted", mPassword, _
+                 IIf(VolType = DRIVE_REMOTE, "Share disconnected", "Disk removed"), _
+                 uSmartenUpLabel(Label, Path), "!vol-unmounted", , , , , _
+                 "merge-uid=vol-unmounted"
 
 End Sub
 
@@ -1584,6 +1622,6 @@ End Sub
 
 Private Sub uAddClass(ByVal Id As String, ByVal Desc As String, Optional ByVal Enabled As Boolean = True)
 
-    snarl_addclass App.ProductName, Id, Desc, Enabled, mPassword
+    snarl_add_class App.ProductName, Id, Desc, Enabled, mPassword
 
 End Sub
