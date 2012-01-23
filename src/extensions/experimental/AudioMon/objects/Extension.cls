@@ -50,8 +50,8 @@ Option Explicit
     '
     ' */
 
-Private Const LIB_DATE = "11-Oct-2011"
-Private Const LIB_REL = "2.1"
+Private Const LIB_DATE = "23-Jan-2012"
+Private Const LIB_REL = "2.2"
 
 Private Const CLASS_AUDIO_CHANGE = "audx"
 Private Const CUSTOM_DURATION = 2
@@ -69,6 +69,7 @@ Private Declare Function WinExec Lib "kernel32" (ByVal lpCmdLine As String, ByVa
 Dim mMixer As Long
 
 Dim mVol As Long
+Dim mCurrentMute As Long
 Dim mCurrentId As Long
 
 Private Const CLASS_NAME = "w>audiomon"
@@ -127,44 +128,59 @@ Dim pPage As BPrefsPage
             .SetWidth 380
             .SetTitle App.Title & " Preferences"
 
-            Set pPage = new_BPrefsPage("", Nothing, Me)
+            Set pPage = new_BPrefsPage("General", load_image_obj(g_MakePath(App.Path) & IIf(g_IsIDE, "bin\", "") & "general.png"), Me)
+            With pPage
+                .SetMargin 8
+'                .Add new_BPrefsControl("banner", "", "General")
+'                .Add new_BPrefsControl("fancytoggle2", "MultiNotificationMode", "Use separate mute and volume change classes?", , mSettings.GetValueWithDefault("MultiNotificationMode", "1"))
+'                .Add new_BPrefsControl("fancytoggle2", "MeterStyleMode", "Include current volume level as a meter?", , mSettings.GetValueWithDefault("MeterStyleMode", "1"))
+                .Add new_BPrefsControl("fancytoggle2", "LegacyMeterSupport", "Enable legacy style meter support?", , mSettings.GetValueWithDefault("LegacyMeterSupport", "0"))
+                .Add new_BPrefsControl("label", "", "Some older styles do not support the 'value-percent' notification element, but can still show a meter if a numeric value is sent as the notification text.  Enable this setting if the style you're using works in this way.")
 
+            End With
+            .AddPage pPage
+
+            Set pPage = new_BPrefsPage("Mute/Unmute", load_image_obj(g_MakePath(App.Path) & IIf(g_IsIDE, "bin\", "") & "mute.png"), Me)
             With pPage
                 .SetMargin 68
-
-                .Add new_BPrefsControl("banner", "", "General")
-'                .Add new_BPrefsControl("fancytoggle2", "MultiNotificationMode", "Use separate mute and volume change classes?", , mSettings.GetValueWithDefault("MultiNotificationMode", "1"))
-                .Add new_BPrefsControl("fancytoggle2", "MeterStyleMode", "Display current volume level as a meter?", , mSettings.GetValueWithDefault("MeterStyleMode", "1"))
-                .Add new_BPrefsControl("fancytoggle2", "LegacyMeterSupport", "Enable legacy style support?", , mSettings.GetValueWithDefault("LegacyMeterSupport", "0"))
-                .Add new_BPrefsControl("label", "", "Enabling legacy style support sends the current volume level in the notification's text.")
-
-
-                .Add new_BPrefsControl("banner", "", "Volume Mute/Unmute")
+'                .Add new_BPrefsControl("banner", "", "Volume Mute/Unmute")
                 .Add new_BPrefsControl("fancytoggle2", "show_mute", "Notify when muted/unmuted?", , mSettings.GetValueWithDefault("show_mute", "1"))
-                .Add new_BPrefsControl("fancycycle", "mute_detail", "None (Icon Only)|Simple|Detailed", "Content:", mSettings.GetValueWithDefault("mute_detail", "2"))
+                .Add new_BPrefsControl("fancycycle", "mute_detail", "Icon|Simple|Detailed", "Content:", mSettings.GetValueWithDefault("mute_detail", "2"))
 
-                .Add new_BPrefsControl("banner", "", "Volume Level Change")
+            End With
+            .AddPage pPage
+
+            Set pPage = new_BPrefsPage("Level", load_image_obj(g_MakePath(App.Path) & IIf(g_IsIDE, "bin\", "") & "level.png"), Me)
+            With pPage
+                .SetMargin 68
+'                .Add new_BPrefsControl("banner", "", "Volume Level Change")
                 .Add new_BPrefsControl("fancytoggle2", "show_vol", "Notify when volume changes?", , mSettings.GetValueWithDefault("show_vol", "1"))
-                .Add new_BPrefsControl("fancycycle", "vol_detail", "None (Icon Only)|Simple|Detailed", "Content:", mSettings.GetValueWithDefault("vol_detail", "2"))
+                .Add new_BPrefsControl("fancycycle", "vol_detail", "Icon|Simple|Detailed", "Content:", mSettings.GetValueWithDefault("vol_detail", "2"))
 '                .Add new_BPrefsControl("fancytoggle2", "xxxxx", "Show title?", , mSettings.GetValueWithDefault("xxxx", "0"), , False)
 '                .Add new_BPrefsControl("fancytoggle2", "xxxxx", "Show current volume?", , mSettings.GetValueWithDefault("xxxx", "0"), , False)
 '                .Add new_BPrefsControl("fancytoggle2", "xxxxx", "Show volume as meter?", , mSettings.GetValueWithDefault("xxxx", "0"), , False)
 
-                .Add new_BPrefsControl("separator", "")
+            End With
+            .AddPage pPage
+
+            Set pPage = new_BPrefsPage("About", load_image_obj(g_MakePath(App.Path) & IIf(g_IsIDE, "bin\", "") & "about.png"), Me)
+            With pPage
+                .SetMargin 8
                 .Add new_BPrefsControl("label", "", App.Title & " " & LIB_REL)
                 .Add new_BPrefsControl("label", "", "V" & CStr(App.Major) & "." & CStr(App.Revision) & " (" & LIB_DATE & ")", "")
                 .Add new_BPrefsControl("label", "", App.LegalCopyright)
-                .Add new_BPrefsControl("fancybutton2", "go_website", "www.fullphat.net", "")
+                .Add new_BPrefsControl("fancybutton2", "go_website", "getsnarl.info", "")
         
         '        .Add new_BPrefsControl("label", "", App.FileDescription & " V" & CStr(App.Major) & "." & CStr(App.Revision), , , , False)
 
                 .Add new_BPrefsControl("label", "", "Windows Vista/7 helper process designed and developed by Toke Nøttrup and Jonus Conrad")
 
             End With
-
             .AddPage pPage
 
             .Go
+
+            g_SimpleSetWindowIcon .hWnd
 
         End With
 
@@ -205,7 +221,7 @@ End Sub
 
 Private Function ISnarlExtension_Initialize() As Long
 
-    l3OpenLog "%APPDATA%\full phat\snarl\" & App.Title & ".log"
+    l3OpenLog "%APPDATA%\full phat\snarl\" & App.Title & ".log", True
 
     g_Debug "ISnarlExtension.Initialize()", LEMON_LEVEL_PROC_ENTER
     g_Debug "pwd is '" & g_MakePath(App.Path) & "'"
@@ -278,7 +294,6 @@ Private Sub ISnarlExtension_Pulse()
 End Sub
 
 Private Sub ISnarlExtension_Start()
-Dim s As Single
 
     g_Debug "ISnarlExtension.Start()", LEMON_LEVEL_PROC_ENTER
 
@@ -288,13 +303,25 @@ Dim s As Single
     mhWnd = EZAddWindow(CLASS_NAME, Me, CLASS_NAME)
     g_Debug "messageport=" & g_HexStr(mhWnd)
 
+Dim l As Long
+Dim b As Boolean
+Dim s As Single
+
     If g_IsWinVistaOrBetter Then
-        g_Debug "Vista, Windows7 or better..."
+        g_Debug "Vista, Windows 7 or better..."
         ' /* launch volume spy daemon */
         mIgnoreDaemon = True
-        WinExec g_MakePath(App.Path) & "snarl-audiomon.exe", 0
-        mIgnoreDaemon = False
+        If g_Exists(g_MakePath(App.Path) & "snarl-audiomon.exe") Then
+            g_Debug "launching daemon...", LEMON_LEVEL_INFO
+            l = WinExec(g_MakePath(App.Path) & "snarl-audiomon.exe", 0)
+            g_Debug "WinExec() returned: " & CStr(l)
+            mIgnoreDaemon = False
 '        ShellExecute mhWnd, "open", g_MakePath(App.Path) & "snarl-audiomon.exe", vbNullString, vbNullString, 0      ' // SW_HIDE
+
+        Else
+            g_Debug "daemon not found", LEMON_LEVEL_WARNING
+
+        End If
 
     Else
         ' /* use win32mm */
@@ -303,6 +330,9 @@ Dim s As Single
             mm_CurrentMasterVolumePercent mMixer, s
             g_Debug "Mixer #0 opened okay, current master volume % is " & CStr(s)
             mVol = CLng(s)
+
+            mm_CurrentMasterMute mMixer, b
+            mCurrentMute = IIf(b, 1, 0)
 
         Else
             g_Debug "Failed to open mixer #0", LEMON_LEVEL_CRITICAL
@@ -313,6 +343,8 @@ Dim s As Single
 
     ' /* set up the config file */
 
+    g_Debug "setting up config..."
+
 Dim i As Long
 
     With mConfigFile
@@ -320,6 +352,7 @@ Dim i As Long
 
         i = .FindSection("general")
         If i = 0 Then
+            g_Debug "adding [general] section..."
             Set mSettings = .AddSectionObj("general")
 
         Else
@@ -330,7 +363,7 @@ Dim i As Long
         ' /* defaults */
 
         With mSettings
-            If .IndexOf("MeterStyleMode") = 0 Then _
+'            If .IndexOf("MeterStyleMode") = 0 Then _
                 .Add "MeterStyleMode", "1"
 
             If .IndexOf("mute_detail") = 0 Then _
@@ -345,17 +378,20 @@ Dim i As Long
 
     End With
 
+    g_Debug "creating password..."
     mPassword = create_password()
 
 Dim hr As SNARL_STATUS_CODE
 
     ' /* register */
 
-    hr = snarl_register(App.ProductName, App.Title, g_MakePath(App.Path) & "icon.png", mPassword)
+    g_Debug "registering..."
+    hr = snarl_register(App.ProductName, App.Title, g_MakePath(App.Path) & IIf(g_IsIDE, "bin\", "") & "icon.png", mPassword)
     If hr < SNARL_SUCCESS Then
         g_Debug "failed to register with Snarl (" & CStr(Abs(hr)) & ")", LEMON_LEVEL_CRITICAL
 
     Else
+        g_Debug "adding classes..."
         snarl_add_class App.ProductName, CLASS_AUDIO_CHANGE, "Master Volume", , mPassword
 
     End If
@@ -370,13 +406,21 @@ Private Sub ISnarlExtension_Stop()
 
     ' /* unregister */
 
+    g_Debug "unregistering from Snarl..."
     snarl_unregister App.ProductName, mPassword
 
     If g_IsWinVistaOrBetter() Then
         g_Debug "Vista, Windows7 or better..."
         ' /* kill audio monitoring daemon */
         mIgnoreDaemon = True
-        ShellExecute mhWnd, "open", g_MakePath(App.Path) & "snarl-audiomon.exe", "-quit", vbNullString, 0
+        If g_Exists(g_MakePath(App.Path) & "snarl-audiomon.exe") Then
+            g_Debug "stopping daemon..."
+            ShellExecute mhWnd, "open", g_MakePath(App.Path) & "snarl-audiomon.exe", "-quit", vbNullString, 0
+
+        Else
+            g_Debug "daemon not found", LEMON_LEVEL_WARNING
+
+        End If
 
     Else
         g_Debug "XP or earlier..."
@@ -447,7 +491,7 @@ Private Sub KPrefsPage_ControlInvoked(Control As BControl)
     Select Case Control.GetName()
 
     Case "go_website"
-        ShellExecute mPanel.hWnd, "open", "http://www.fullphat.net/", vbNullString, vbNullString, 5
+        ShellExecute mPanel.hWnd, "open", "http://www.getsnarl.info/", vbNullString, vbNullString, 5
 
     End Select
 
@@ -621,21 +665,26 @@ Dim s As Single
 End Function
 
 Private Sub uVolChanged(ByVal Value As Long) ', ByVal Detail As Long)
-Static lTick As Long
+
+    g_Debug "uVolChanged()", LEMON_LEVEL_PROC_ENTER
 
     On Error GoTo fail
 
-    ' /* bounds and arg checking */
-
-    If (Value = mVol) Or (Value < 0) Or (Value > 100) Then _
-        Exit Sub
+Static lTick As Long
 
     If (GetTickCount() - lTick) < 20 Then _
         Exit Sub
 
-    lTick = GetTickCount()
+    ' /* bounds and arg checking */
 
-    g_Debug "uVolChanged(): value=" & CStr(Value)
+    If (Value = mVol) Or (Value < 0) Or (Value > 100) Then
+        g_Debug "ignoring change from " & g_Quote(CStr(mVol)) & " to " & g_Quote(CStr(Value)), LEMON_LEVEL_WARNING Or LEMON_LEVEL_PROC_EXIT
+        Exit Sub
+
+    End If
+
+    lTick = GetTickCount()
+    g_Debug "now " & CStr(Value)
 
     mVol = Value
 
@@ -644,8 +693,11 @@ Static lTick As Long
 Dim b As Boolean
 
     mm_CurrentMasterMute mMixer, b
-    If (b) Or (mSettings.GetValueWithDefault("show_vol", "1") <> "1") Then _
+    If (b) Or (mSettings.GetValueWithDefault("show_vol", "1") <> "1") Then
+        g_Debug "uVolChanged(): ignoring: muted or not showing level changes", LEMON_LEVEL_INFO Or LEMON_LEVEL_PROC_EXIT
         Exit Sub
+
+    End If
 
     ' /* notify */
 
@@ -655,51 +707,68 @@ Dim iVol As Integer
 
     iVol = -1
 
-    g_Debug "uVolChanged(): vol_detail setting=" & mSettings.GetValueWithDefault("vol_detail", "2")
+    g_Debug "detail setting is " & mSettings.GetValueWithDefault("vol_detail", "2")
 
     Select Case g_SafeLong(mSettings.GetValueWithDefault("vol_detail", "2"))
     Case 1
         ' /* icon only */
 
     Case 2
-        ' /* simple */
-        If mSettings.GetValueWithDefault("MeterStyleMode", "0") = "1" Then
-            ' /* if legacy style support is required, send current volume % in text */
-            If mSettings.GetValueWithDefault("LegacyMeterSupport", "0") = "1" Then _
-                szText = CStr(mVol)
+        ' /* simple: icon and volume as a meter */
 
-            iVol = mVol
+        iVol = mVol
+        If mSettings.GetValueWithDefault("LegacyMeterSupport", "0") = "1" Then _
+            szText = CStr(mVol)
 
-        Else
-            szTitle = CStr(mVol) & "%"
-
-        End If
+'        If mSettings.GetValueWithDefault("MeterStyleMode", "0") = "1" Then
+'            ' /* if legacy style support is required, send current volume % in text */
+'            If mSettings.GetValueWithDefault("LegacyMeterSupport", "0") = "1" Then _
+'                szText = CStr(mVol)
+'
+'            iVol = mVol
+'
+'        Else
+'            szTitle = CStr(mVol) & "%"
+'
+'        End If
 
     Case 3
-        ' /* fancy */
+        ' /* detailed: icon + meter + title */
         szTitle = "Volume changed"
-
-        If mSettings.GetValueWithDefault("MeterStyleMode", "0") = "1" Then
-            If mSettings.GetValueWithDefault("LegacyMeterSupport", "0") = "1" Then
-                ' /* if legacy style support is required, send current volume % in text */
-                szText = CStr(mVol)
-
-            Else
-                ' /* otherwise send volume as text */
-                szText = "Current volume is " & CStr(mVol) & "%"
-
-            End If
-
-            iVol = mVol
+        iVol = mVol
+        If mSettings.GetValueWithDefault("LegacyMeterSupport", "0") = "1" Then
+            szText = CStr(mVol)
 
         Else
             szText = "Current volume is " & CStr(mVol) & "%"
 
         End If
 
+'        If mSettings.GetValueWithDefault("MeterStyleMode", "0") = "1" Then
+'            If mSettings.GetValueWithDefault("LegacyMeterSupport", "0") = "1" Then
+'                ' /* if legacy style support is required, send current volume % in text */
+'                szText = CStr(mVol)
+'
+'            Else
+'                ' /* otherwise send volume as text */
+'                szText = "Current volume is " & CStr(mVol) & "%"
+'
+'            End If
+'
+'            iVol = mVol
+'
+'        Else
+'            szText = "Current volume is " & CStr(mVol) & "%"
+'
+'        End If
+
     End Select
 
+    g_Debug "notifying..."
     snarl_notify App.ProductName, CLASS_AUDIO_CHANGE, CLASS_AUDIO_CHANGE, mPassword, szTitle, szText, uGetIcon(mVol), , , , iVol
+
+
+    g_Debug "", LEMON_LEVEL_PROC_EXIT
 
 '    If sn41IsVisible(mCurrentId) Then
 '        sn41EZUpdate mCurrentId, szTitle, szText, , uGetIcon(mVol), IIf(iVol > -1, "value-percent::" & CStr(iVol), "")
@@ -718,31 +787,59 @@ End Sub
 
 Private Sub uMuteChanged(ByVal Value As Long) ', ByVal Detail As Long)
 
+    g_Debug "uMuteChanged()", LEMON_LEVEL_PROC_ENTER
+
+    If (mSettings.GetValueWithDefault("show_mute", "1") <> "1") Then
+        g_Debug "ignoring: not showing mute changes" & g_Quote(Value), LEMON_LEVEL_INFO Or LEMON_LEVEL_PROC_EXIT
+        Exit Sub
+
+    End If
+
     ' /* bounds and arg checking */
 
-    If (Value < 0) Or (Value > 1) Or (mSettings.GetValueWithDefault("show_mute", "1") <> "1") Then _
+    If (Value < 0) Or (Value > 1) Then
+        g_Debug "invalid value: " & g_Quote(Value), LEMON_LEVEL_CRITICAL Or LEMON_LEVEL_PROC_EXIT
         Exit Sub
+
+    End If
+
+    If (Value = mCurrentMute) Then
+        g_Debug "ignoring: not changed", LEMON_LEVEL_INFO Or LEMON_LEVEL_PROC_EXIT
+        Exit Sub
+
+    End If
+
+    mCurrentMute = Value
 
 Dim szTitle As String
 Dim szText As String
+Dim iVol As Integer
+
+    iVol = -1
 
     Select Case g_SafeLong(mSettings.GetValueWithDefault("mute_detail", "2"))
     Case 1
         ' /* icon only */
 
     Case 2
-        If mSettings.GetValueWithDefault("MeterStyleMode", "0") = "1" Then
+        ' /* simple: icon + meter */
+        iVol = mVol
+        If mSettings.GetValueWithDefault("LegacyMeterSupport", "0") = "1" Then _
             szText = CStr(mVol)
 
-        Else
-            szTitle = IIf(Value = 1, "Muted", "Unmuted")
-
-        End If
+'        If mSettings.GetValueWithDefault("MeterStyleMode", "0") = "1" Then
+'            szText = CStr(mVol)
+'
+'        Else
+'            szTitle = IIf(Value = 1, "Muted", "Unmuted")
+'
+'        End If
 
     Case 3
+        ' /* detailed: icon + meter + title */
+        iVol = mVol
         szTitle = IIf(Value = 1, "Muted", "Unmuted")
-
-        If mSettings.GetValueWithDefault("MeterStyleMode", "0") = "1" Then
+        If mSettings.GetValueWithDefault("LegacyMeterSupport", "0") = "1" Then
             szText = CStr(mVol)
 
         Else
@@ -750,12 +847,23 @@ Dim szText As String
 
         End If
 
+'        If mSettings.GetValueWithDefault("MeterStyleMode", "0") = "1" Then
+'            szText = CStr(mVol)
+'
+'        Else
+'            szText = "Current volume is " & CStr(mVol) & "%"
+'
+'        End If
+
     End Select
 
     Debug.Print "uMuteChanged(): title=" & szTitle & " text=" & szText
 
+    g_Debug "notifying..."
     snarl_notify App.ProductName, CLASS_AUDIO_CHANGE, CLASS_AUDIO_CHANGE, mPassword, szTitle, szText, _
-                 IIf(Value = 1, "!audio-volume-mute", uGetIcon(mVol)), , , , IIf(Value = 0, mVol, -1)
+                 IIf(Value = 1, "!audio-volume-mute", uGetIcon(mVol)), , , , iVol
+
+    g_Debug "", LEMON_LEVEL_PROC_EXIT
 
 '    If sn41IsVisible(mCurrentId) Then
 '        sn41EZUpdate mCurrentId, szTitle, szText, , IIf(Value = 1, "!audio-volume-mute", uGetIcon(mVol))
