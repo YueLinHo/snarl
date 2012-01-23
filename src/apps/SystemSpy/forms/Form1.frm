@@ -59,12 +59,17 @@ Public WithEvents theFolderSpy As TFolderSpy
 Attribute theFolderSpy.VB_VarHelpID = -1
 Public WithEvents theProcessSpy As TProcessSpy
 Attribute theProcessSpy.VB_VarHelpID = -1
+Public WithEvents theAppSpy As TAppSpy
+Attribute theAppSpy.VB_VarHelpID = -1
 
 Private Const WINDOW_APPEARED = "windowappeared"
 Private Const WINDOW_DISAPPEARED = "windowdisappeared"
 
 Private Const PROCESS_STARTED = "processstarted"
 Private Const PROCESS_STOPPED = "processstopped"
+
+Private Const APP_LAUNCHED = "applaunched"
+Private Const APP_QUIT = "appquit"
 
 Private Const FOLDER_CREATED = "foldercreated"
 Private Const FOLDER_RENAMED = "folderrenamed"
@@ -127,6 +132,7 @@ Dim sz As String
     Set theWindowSpy = New TWindowSpy
     Set theFolderSpy = New TFolderSpy
     Set theProcessSpy = New TProcessSpy
+    Set theAppSpy = New TAppSpy
 
     Me.Add "subclassing..."
     window_subclass Me.hWnd, Me
@@ -159,6 +165,7 @@ Dim sz As String
     theWindowSpy.Go
     theFolderSpy.Go
     theProcessSpy.Go
+    theAppSpy.Go
 
     Me.Add "ready"
 
@@ -175,6 +182,7 @@ Private Sub Form_Unload(Cancel As Integer)
     Set theFolderSpy = Nothing
     Set theWindowSpy = Nothing
     Set theProcessSpy = Nothing
+    Set theAppSpy = Nothing
 
     Me.Add "unsubclassing..."
     window_subclass Me.hWnd, Nothing
@@ -433,6 +441,30 @@ Private Sub uNotifyFolderSpyEvent(ByVal Class As String, ByVal Title As String, 
                     "&title=" & Title & _
                     "&text=" & Text & _
                     "&icon=" & Icon
+
+End Sub
+
+Private Sub theAppSpy_AppLaunched(Process As TProcess)
+Dim sz As String
+
+    sz = Process.Description
+    If sz = "" Then _
+        sz = g_RemoveExtension(Process.Name)
+
+    uNotify APP_LAUNCHED, "app-" & CStr(Process.Pid), mPassword, _
+            "Application launched", sz, g_MakePath(App.Path) & "icons\app-launched.png"
+
+End Sub
+
+Private Sub theAppSpy_AppQuit(Process As TProcess)
+Dim sz As String
+
+    sz = Process.Description
+    If sz = "" Then _
+        sz = g_RemoveExtension(Process.Name)
+
+    uNotify APP_QUIT, "app-" & CStr(Process.Pid), mPassword, _
+            "Application quit", sz, g_MakePath(App.Path) & "icons\app-quit.png"
 
 End Sub
 

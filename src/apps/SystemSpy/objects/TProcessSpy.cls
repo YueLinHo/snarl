@@ -20,8 +20,6 @@ Dim mGeneral As CConfSection
 Dim mInclude2 As CConfSection
 Dim mExclude2 As CConfSection
 
-
-
 Dim mConfig As CConfFile3
 
 Dim WithEvents theTimer As BTimer
@@ -128,11 +126,11 @@ Dim sz As String
 
     End With
 
-    With frmSettings
-        .zUpdateExcludeProcessList
-        .zUpdateIncludeProcessList
-
-    End With
+'    With frmSettings
+'        .zUpdateExcludeProcessList
+'        .zUpdateIncludeProcessList
+'
+'    End With
 
     ' /* get current baseline */
 

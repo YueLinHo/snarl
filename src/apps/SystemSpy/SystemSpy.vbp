@@ -29,6 +29,7 @@ Module=mSnarl_i; ..\..\..\hdr\VB\current\mSnarl_i.bas
 Module=mWin32Process_i; ..\..\..\..\..\melon\trunk\src\hdr\win32\mWin32process_i.bas
 Class=TProcessSpy; objects\TProcessSpy.cls
 Class=TProcess; objects\TProcess.cls
+Class=TAppSpy; objects\TAppSpy.cls
 IconForm="Form1"
 Startup="Form1"
 HelpFile=""

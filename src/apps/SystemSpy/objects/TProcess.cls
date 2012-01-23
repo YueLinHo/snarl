@@ -15,12 +15,20 @@ Option Explicit
 
 Dim mInfo As GMPROCESSINFO
 Dim mDesc As String
+Dim mWindows As BTagList
 
 Implements BTagItem
 
 Private Function BTagItem_Name() As String
 
-    BTagItem_Name = CStr(mInfo.ProcessId)
+    If NOTNULL(mWindows) Then
+        ' /* is an app */
+        BTagItem_Name = mInfo.FullPath
+
+    Else
+        BTagItem_Name = CStr(mInfo.ProcessId)
+
+    End If
 
 End Function
 
@@ -41,9 +49,23 @@ Friend Sub bInit(ByRef Info As GMPROCESSINFO)
 
 End Sub
 
-Public Function PID() As Long
+Friend Sub bInitAsApp(ByVal Path As String, ByVal hWnd As Long)
 
-    PID = mInfo.ProcessId
+    With mInfo
+        .FullPath = Path
+        .ProcessName = g_FilenameFromPath(Path)
+
+    End With
+
+    mDesc = g_GetExeDescription(Path)
+    Set mWindows = new_BTagList()
+    AddWindow hWnd
+
+End Sub
+
+Public Function Pid() As Long
+
+    Pid = mInfo.ProcessId
 
 End Function
 
@@ -62,5 +84,32 @@ End Function
 Public Function Path() As String
 
     Path = mInfo.FullPath
+
+End Function
+
+Public Sub AddWindow(ByVal hWnd As Long)
+
+    mWindows.Add new_BTagItem(CStr(hWnd), "")
+
+End Sub
+
+Public Sub CheckWindows()
+Dim i As Long
+
+    With mWindows
+        If .CountItems Then
+            For i = .CountItems To 1 Step -1
+                If IsWindow(Val(.TagAt(i).Name)) = 0 Then _
+                    .Remove i
+
+            Next i
+        End If
+    End With
+
+End Sub
+
+Public Function WindowCount() As Long
+
+    WindowCount = mWindows.CountItems
 
 End Function
