@@ -34,7 +34,7 @@ Begin VB.Form Form2
       Left            =   60
       MultiLine       =   -1  'True
       TabIndex        =   3
-      Text            =   "Form2.frx":000C
+      Text            =   "Form2.frx":1042
       Top             =   840
       Width           =   4515
    End
@@ -109,7 +109,7 @@ Dim pn As Notification
 
     ' /* go */
 
-    myApp.Show pn
+    Debug.Print myApp.Show(pn)
 
     Debug.Print myApp.IsVisible(pn.UID) & " - " & myApp.IsVisible("?")
 
@@ -124,9 +124,9 @@ Private Sub Form_Load()
     Debug.Print myApp.IsSnarlInstalled()
 
     With myApp
-        .Signature = "test/libmsnarl2"
+        .Signature = "test/libmsnarl2xx023"
         .Title = "snarl.library 2 test"
-        .Icon = .MakePath(App.Path) & "icon.png"
+'        .Icon = .MakePath(App.Path) & "icon.png"
 '        .Hint = "Acme Products Present"
         .IsDaemon = True
 
@@ -135,7 +135,7 @@ Private Sub Form_Load()
 Dim pClasses As Classes
 
     Set pClasses = New Classes
-    pClasses.Add "1", "My class"
+    pClasses.Add "1", "My class" ', , "Default title", "Default text"
     myApp.Classes = pClasses
 
     uUpdateStatus
@@ -220,5 +220,17 @@ End Sub
 Private Sub uUpdateStatus()
 
     Label1.Caption = "Snarl is " & IIf(myApp.IsSnarlRunning(), "", "not ") & "running"
+
+End Sub
+
+Private Sub myApp_UserAway()
+
+    Me.Caption = "User went away"
+
+End Sub
+
+Private Sub myApp_UserReturned()
+
+    Me.Caption = "User came back"
 
 End Sub

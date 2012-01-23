@@ -536,11 +536,11 @@ Dim pn As Notification
         Case SNARL_BROADCAST_STOPPED
             RaiseEvent SnarlStopped
 
-        Case SNARL_BROADCAST_USER_AWAY
-            RaiseEvent UserAway
-        
-        Case SNARL_BROADCAST_USER_BACK
-            RaiseEvent UserReturned
+'        Case SNARL_BROADCAST_USER_AWAY
+'            RaiseEvent UserAway
+'
+'        Case SNARL_BROADCAST_USER_BACK
+'            RaiseEvent UserReturned
 
         End Select
 
@@ -595,6 +595,12 @@ Dim pn As Notification
         Case SNARL_NOTIFY_CLOSED, SNARL_CALLBACK_CLOSED
             If NOTNULL(pn) Then _
                 RaiseEvent NotificationClosed(pn.UID)
+
+        Case SNARL_BROADCAST_USER_AWAY
+            RaiseEvent UserAway
+        
+        Case SNARL_BROADCAST_USER_BACK
+            RaiseEvent UserReturned
 
         Case Else
             Debug.Print g_HexStr(wParam)
