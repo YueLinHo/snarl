@@ -29,8 +29,8 @@ Option Explicit
 
     ' /* our constants */
 
-Const EXT_DATE = "29-Nov-2011"
-Const EXT_REL = "3.0"
+Const EXT_DATE = "23-Dec-2011"
+Const EXT_REL = "3.01"
 
 Const UID_HOURLY = "_clock+_hourly"
 Const UID_TIMER = "_clock+_timer"
@@ -394,7 +394,7 @@ Private Sub ISnarlExtension_Pulse()
     If (Minute(Now()) = 0) And (Second(Now()) = 0) And (Hour(Now()) <> mLastHour) Then
         snDoRequest "notify?app-sig=" & App.ProductName & "&replace-uid=" & UID_HOURLY & "&uid=" & UID_HOURLY & _
                     "&class=" & CLASS_HOUR_CHIME & "&title=Hourly Reminder&text=" & uGetTimeString() & _
-                    "&icon=" & g_MakePath(App.Path) & "hourly.png" & "&password=" & mPassword
+                    "&icon=" & g_MakePath(App.Path) & "hourly.png" & "&password=" & mPassword & "&log=0"
 
         mLastHour = Hour(Now)
 
