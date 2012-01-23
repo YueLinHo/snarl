@@ -49,17 +49,25 @@ Dim myApp As SnarlApp
 Attribute myApp.VB_VarHelpID = -1
 
 Private Sub Command1_Click()
+Dim pa As Actions
 
     ' /* create notification */
 
 Dim pn As Notification
 
+    Set pa = New Actions
+    pa.Add "Open", "@1"
+    pa.Add "Run disk cleanup...", "@2"
+    
+
     Set pn = New Notification
     With pn
-        .Title = "Hello, world!"
-        .Text = "From the Super Simple Sample demo"
+        .Title = "Low disk space"
+        .Text = "MOVIES (g:\) is nearly out of space\nCapacity: 320.0GB, free: 15.1GB"
         .UID = "123456"
         .Class = "simpleclass"
+        .Actions = pa
+        .DefaultCallback = "!open"
 
     End With
 
@@ -77,8 +85,9 @@ Private Sub Form_Load()
 
     With myApp
         .Signature = "test/sfw_super_simple_sample"
-        .Title = "Super Simple Sample"
+        .Title = "DiskMonitor"
         .Hint = "A very simple (but super) sample of the Snarl Framework"
+        .Icon = "!disk-low_space"
 
 Dim pClasses As Classes
 
@@ -111,3 +120,4 @@ Private Sub uUpdateStatus()
     Label1.Caption = "Snarl is " & IIf(myApp.IsSnarlRunning(), "", "not ") & "running"
 
 End Sub
+

@@ -5,7 +5,7 @@ Begin VB.Form Form1
    ClientHeight    =   3570
    ClientLeft      =   45
    ClientTop       =   435
-   ClientWidth     =   4530
+   ClientWidth     =   5550
    BeginProperty Font 
       Name            =   "Tahoma"
       Size            =   8.25
@@ -20,23 +20,23 @@ Begin VB.Form Form1
    MaxButton       =   0   'False
    MinButton       =   0   'False
    ScaleHeight     =   3570
-   ScaleWidth      =   4530
+   ScaleWidth      =   5550
    StartUpPosition =   3  'Windows Default
    Begin VB.CommandButton Command2 
       Caption         =   "Pick Icon"
-      Height          =   735
-      Left            =   3720
+      Height          =   495
+      Left            =   1800
       TabIndex        =   8
-      Top             =   2160
-      Width           =   735
+      Top             =   3000
+      Width           =   1635
    End
    Begin VB.CommandButton Command1 
       Caption         =   "Pick Image"
-      Height          =   735
-      Left            =   2940
+      Height          =   495
+      Left            =   60
       TabIndex        =   7
-      Top             =   2160
-      Width           =   735
+      Top             =   3000
+      Width           =   1635
    End
    Begin VB.TextBox Text3 
       Height          =   615
@@ -44,7 +44,7 @@ Begin VB.Form Form1
       MultiLine       =   -1  'True
       TabIndex        =   5
       Top             =   2280
-      Width           =   2775
+      Width           =   5415
    End
    Begin VB.TextBox Text2 
       Height          =   975
@@ -53,7 +53,7 @@ Begin VB.Form Form1
       TabIndex        =   3
       Text            =   "Form1.frx":628A
       Top             =   960
-      Width           =   4395
+      Width           =   5415
    End
    Begin VB.TextBox Text1 
       Height          =   315
@@ -61,13 +61,13 @@ Begin VB.Form Form1
       TabIndex        =   1
       Text            =   "Notification Title"
       Top             =   300
-      Width           =   4395
+      Width           =   5415
    End
    Begin VB.CommandButton Command4 
       Caption         =   "Show"
       Default         =   -1  'True
       Height          =   495
-      Left            =   60
+      Left            =   4020
       TabIndex        =   0
       Top             =   3000
       Width           =   1455
@@ -115,6 +115,14 @@ Private Sub Command1_Click()
     With New CFileDialog
         .DialogType = E_DIALOG_OPEN
         .Title = "Pick image file..."
+
+        If Text3.Text = "" Then
+            .InitialPath = App.Path
+            
+        Else
+            .InitialPath = Text3.Text
+            
+        End If
 
         If .Go(False, E_FILE_DIALOG_CENTRE_SCREEN) Then
             Text3.Text = .SelectedFile
