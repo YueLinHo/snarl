@@ -13,7 +13,7 @@
 	SysInfo			0x3f400000
 	T-Minus			0x3f480000
 	WLANMonitor		0x3f500000
-
+	OCS			0x3f580000
 
 
 
