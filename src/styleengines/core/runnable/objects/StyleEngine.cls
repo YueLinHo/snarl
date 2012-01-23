@@ -25,10 +25,11 @@ Option Explicit
     '/
     '*********************************************************************************************/
 
-Private Const LIB_DATE = "31-Oct-2011"
+Private Const LIB_DATE = "19-Jan-2012"
+
 Dim mStyles As BTagList
 Dim mLastErr As String
-Dim mTimeout As Long
+Dim mConfig As CConfFile
 
 Implements IStyleEngine
 
@@ -47,7 +48,7 @@ Dim i As Long
     i = mStyles.IndexOf(StyleName)
     If i Then
         Set pri = New TRunnableInstance
-        pri.SetStyleX mStyles.TagAt(i), mTimeout
+        pri.Init mStyles.TagAt(i), g_SafeLong(mConfig.ValueOf("timeout"))
         Set IStyleEngine_CreateInstance = pri
 
     Else
@@ -76,7 +77,7 @@ Dim i As Long
     If StyleName = ".global" Then
         MsgBox "This style engine will support a user interface in a future release.  " & _
                "For now, configurable features can be modified directly via the settings " & _
-               "file (located at '" & uGetSettingsFilePath() & "').", _
+               "file (located at '" & g_MakePath(style_GetSnarlStylesPath(False)) & "runnable\runnable.conf').", _
                vbInformation Or vbOKOnly, "Runnable Style Engine"
 
     Else
@@ -93,42 +94,45 @@ End Function
 
 Private Function IStyleEngine_Initialize() As melon.M_RESULT
 
-    l3OpenLog "%APPDATA%\full phat\snarl\" & "runnable.log"
+    l3OpenLog "%APPDATA%\full phat\snarl\" & "runnable.log", True
+    g_Debug "IStyleEngine.Initialise()", LEMON_LEVEL_PROC_ENTER
 
-Dim pcs As CConfSection
-Dim pcf As CConfFile3
+    ' /* load up our global config */
+
+    Set mConfig = New CConfFile
+
 Dim sz As String
 
-    sz = style_GetSnarlStylesPath(False)
-    If sz <> "" Then
-        sz = g_MakePath(sz) & "runnable\runnable.conf"
-        g_Debug "Initialise(): looking for '" & sz & "'..."
-        Set pcf = New CConfFile3
-        pcf.SetFile sz
-        If pcf.Load() Then
-            g_Debug "Initialise(): loaded config"
-            If pcf.Find("general", pcs) Then
-                g_Debug "Initialise(): [general] section found"
-                sz = pcs.GetValueWithDefault("timeout", "500")
-                mTimeout = g_SafeLong(sz)
+    If style_GetSnarlStylesPath2(False, sz) Then
+        sz = g_MakePath(sz) & "runnable\settings.conf"
+        g_Debug "loading config from '" & sz & "'..."
+        mConfig.SetTo sz, False
 
-            Else
-                g_Debug "Initialise(): 'timeout' entry not found", LEMON_LEVEL_WARNING
+    Else
+        g_Debug "user style path missing", LEMON_LEVEL_WARNING
 
-            End If
-        
-        Else
-            g_Debug "Initialise(): config not found", LEMON_LEVEL_WARNING
-
-        End If
     End If
 
-    If mTimeout < 500 Then _
-        mTimeout = 500
+    With mConfig
+        .AddIfMissing "timeout", "750"
+        
+        
+    End With
 
-    g_Debug "Initialise(): using timeout of " & CStr(mTimeout) & "ms"
+    Select Case g_SafeLong(mConfig.ValueOf("timeout"))
+    Case 200 To 1500
+    
+    Case Else
+        g_Debug "timeout of " & mConfig.ValueOf("timeout") & " is invalid, resetting...", LEMON_LEVEL_WARNING
+        mConfig.Update "timeout", "750"
+
+    End Select
+
+    g_Debug "Initialise(): using timeout of " & mConfig.ValueOf("timeout") & "ms"
 
     IStyleEngine_Initialize = uGetStyles()
+
+    g_Debug "", LEMON_LEVEL_PROC_EXIT
 
 End Function
 
@@ -188,7 +192,9 @@ Private Function IStyleEngine_Version() As Long
 End Function
 
 Private Function uGetStyles() As M_RESULT
-Dim pr As TRunnableStyle
+
+    g_Debug "StyleEngine.uGetStyles()", LEMON_LEVEL_PROC_ENTER
+
 Dim sz As String
 
     Set mStyles = new_BTagList()
@@ -196,86 +202,91 @@ Dim sz As String
 
     ' /* load styles from All Users first */
 
-    sz = style_GetSnarlStylesPath(True)
-    If sz <> "" Then
-        With New CFolderContent2
-            If .SetTo(sz & "\runnable") Then
-                .Rewind
-                Do While .GetNextFile(sz)
-                    If g_IsFolder(sz) Then
-                        Set pr = New TRunnableStyle
-                        If pr.SetTo(sz) Then _
-                            mStyles.Add pr
-
-                    End If
-                Loop
-            Else
-                g_Debug "uGetStyles(): couldn't set to all user runnable path", LEMON_LEVEL_WARNING
-
-            End If
-
-        End With
-    Else
-        g_Debug "uGetStyles(): failed to get all user styles path", LEMON_LEVEL_WARNING
-
-    End If
+    g_Debug "all users..."
+    If style_GetSnarlStylesPath2(True, sz) Then _
+        uGetFromFolder g_MakePath(sz) & "runnable"
 
     ' /* load styles from user folder last */
 
-    sz = style_GetSnarlStylesPath()
-    If sz <> "" Then
-        With New CFolderContent2
-            If .SetTo(sz & "\runnable") Then
-                .Rewind
-                Do While .GetNextFile(sz)
-                    If g_IsFolder(sz) Then
-                        Set pr = New TRunnableStyle
-                        If (pr.SetTo(sz)) And (Not uStyleExists(g_FilenameFromPath(sz))) Then _
-                            mStyles.Add pr
+    g_Debug "this user..."
+    If style_GetSnarlStylesPath2(False, sz) Then _
+        uGetFromFolder g_MakePath(sz) & "runnable"
 
-                    End If
-                Loop
-            Else
-                g_Debug "uGetStyles(): couldn't set to user runnable path", LEMON_LEVEL_WARNING
+    If mStyles.CountItems = 0 Then
+        g_Debug "no styles found", LEMON_LEVEL_CRITICAL
+        mLastErr = "No suitable styles found"
+        uGetStyles = M_NOT_FOUND
 
-            End If
-
-        End With
     Else
-        g_Debug "uGetStyles(): failed to get user styles path", LEMON_LEVEL_WARNING
+        g_Debug CStr(mStyles.CountItems) & " style(s) loaded", LEMON_LEVEL_INFO
+        uGetStyles = M_OK
 
     End If
 
-    If mStyles.CountItems = 0 Then _
-        g_Debug "uGetStyles(): no styles found", LEMON_LEVEL_WARNING
-
-    uGetStyles = M_OK
+    g_Debug "", LEMON_LEVEL_PROC_EXIT
 
 End Function
 
-Private Function uStyleExists(ByVal ShortName As String) As Boolean
-Dim ps As TRunnableStyle
+Private Sub uGetFromFolder(ByRef Path As String)
 
-    With mStyles
-        .Rewind
-        Do While .GetNextTag(ps) = B_OK
-            If ps.ShortName = ShortName Then
-                g_Debug "uStyleExists(): can't add '" & ShortName & "': a style with this name already exists", LEMON_LEVEL_CRITICAL
-                uStyleExists = True
-                Exit Do
+    g_Debug "StyleEngine.uGetFromFolder()", LEMON_LEVEL_PROC_ENTER
 
-            End If
+    g_Debug "looking in '" & Path & "'..."
 
-        Loop
-    End With
+    If Not g_IsFolder(Path) Then
+        g_Debug "not a folder", LEMON_LEVEL_CRITICAL Or LEMON_LEVEL_PROC_EXIT
+        Exit Sub
 
-End Function
+    End If
 
-Private Function uGetSettingsFilePath() As String
+Dim pr As TRunnableStyle
 Dim sz As String
 
-    sz = style_GetSnarlStylesPath(False)
-    If sz <> "" Then _
-        uGetSettingsFilePath = g_MakePath(sz) & "runnable\runnable.conf"
+    With New CFolderContent2
+        If .SetTo(Path) Then
+            .Rewind
+            Do While .GetNextFile(sz)
+                If g_IsFolder(sz) Then
+                    Set pr = New TRunnableStyle
+                    If pr.SetTo(sz) Then
+                        If mStyles.IndexOf(pr.Name) = 0 Then
+                            mStyles.Add pr
+                            g_Debug "added " & IIf(pr.IsRedirect, "redirect", "display") & " " & g_Quote(pr.Name), LEMON_LEVEL_INFO
 
-End Function
+                        Else
+                            g_Debug "not added: a style called " & g_Quote(pr.Name) & " is already loaded", LEMON_LEVEL_WARNING
+                            
+                        End If
+                    End If
+                End If
+            Loop
+        Else
+            g_Debug "invalid path", LEMON_LEVEL_CRITICAL
+
+        End If
+
+    End With
+
+    g_Debug "", LEMON_LEVEL_PROC_EXIT
+
+End Sub
+
+'Private Function uStyleExists(ByVal ShortName As String) As Boolean
+'Dim ps As TRunnableStyle
+'
+'    With mStyles
+'        .Rewind
+'        Do While .GetNextTag(ps) = B_OK
+'            If ps.ShortName = ShortName Then
+'                g_Debug "uStyleExists(): can't add '" & ShortName & "': a style with this name already exists", LEMON_LEVEL_CRITICAL
+'                uStyleExists = True
+'                Exit Do
+'
+'            End If
+'
+'        Loop
+'    End With
+'
+'End Function
+
+

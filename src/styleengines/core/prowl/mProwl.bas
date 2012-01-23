@@ -13,6 +13,9 @@ Public Type T_CONFIG
     ProxyPassword As String
     Timeout As Long
 
+    AppText As String
+    RedactSensitive As Boolean
+
 End Type
 
 Public gConfig As T_CONFIG
@@ -25,6 +28,8 @@ Public Sub g_WriteConfig()
             .Add "UserKey", gConfig.UserKey
             .Add "OnlyShowPriorityNotifications", IIf(gConfig.OnlyShowPriorityNotifications, "1", "0")
             .Add "ReplaceCRLFs", IIf(gConfig.ReplaceCRLFs, "1", "0")
+            .Add "AppText", gConfig.AppText
+            .Add "RedactSensitive", IIf(gConfig.RedactSensitive, "1", "0")
 
         End With
 

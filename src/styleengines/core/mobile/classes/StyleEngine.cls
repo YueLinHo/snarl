@@ -203,6 +203,10 @@ Private Function IStyleEngine_Initialize() As melon.M_RESULT
 
     gID = 63
 
+    ' /* create the user folder */
+
+    create_directory_exists g_MakePath(style_GetSnarlStylesPath()) & "webforward"
+
     ' /* add our styles */
 
     uAdd STYLE_NAME_TOASTY, _

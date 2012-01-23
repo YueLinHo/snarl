@@ -72,22 +72,30 @@ Private Sub IStyleInstance_Show(ByVal Visible As Boolean)
 End Sub
 
 Private Sub IStyleInstance_UpdateContent(NotificationInfo As libSnarlStyles.notification_info)
-Dim szPath As String
-Dim lPid As Long
 
     On Error GoTo er
 
+    g_Debug "TRunnableInstance.UpdateContent()", LEMON_LEVEL_PROC_ENTER
+
+    g_Debug "deleting existing image..."
     DeleteFile mStyle.Path & "content.png"
+
+Dim szPath As String
+Dim lPid As Long
 
     ' /* launch the style provider passing the V42 args as a single param */
 
-Debug.Print "running '" & mStyle.Executable & "'..."
-'MsgBox Chr$(34) & mStyle.Executable & Chr$(34) & " " & Chr$(34) & NotificationInfo.Text & "#?scheme::" & NotificationInfo.Scheme & Chr$(34)
-Debug.Print "--"
-Debug.Print NotificationInfo.Text
-Debug.Print "--"
+'Debug.Print "running '" & mStyle.Executable & "'..."
+''MsgBox Chr$(34) & mStyle.Executable & Chr$(34) & " " & Chr$(34) & NotificationInfo.Text & "#?scheme::" & NotificationInfo.Scheme & Chr$(34)
+'Debug.Print "--"
+'Debug.Print NotificationInfo.Text
+'Debug.Print "--"
+
+    g_Debug "launching style process " & g_Quote(mStyle.Executable) & "..."
 
 Dim pei As SHELLEXECUTEINFO
+Dim hr As Long
+Dim t As Long
 
     With pei
         .cbSize = LenB(pei)
@@ -98,34 +106,54 @@ Dim pei As SHELLEXECUTEINFO
 
     End With
 
+    t = GetTickCount()
+
     If ShellExecuteEx(pei) = 0 Then
-        Debug.Print "FAILED: " & g_ApiError()
+        g_Debug "ShellExecuteEx() failed: " & g_ApiError(), LEMON_LEVEL_CRITICAL
 
     Else
         ' /* wait for it to finish */
-        WaitForSingleObject pei.hProcess, mTimeout
+        hr = WaitForSingleObject(pei.hProcess, mTimeout)
         CloseHandle pei.hProcess
+        
+        Select Case hr
+        Case WAIT_TIMEOUT
+            g_Debug "process didn't create content within time limit", LEMON_LEVEL_CRITICAL
+
+        Case WAIT_OBJECT_0
+            g_Debug "process completed", LEMON_LEVEL_INFO
+
+        Case Else
+            g_Debug "WaitForSingleObject: " & g_HexStr(hr)
+
+        End Select
 
     End If
 
-    ' /* style should have created a PNG for us... */
+    g_Debug "took " & CStr(GetTickCount() - t) & " ms"
 
 Dim pb As mfxBitmap
 
-Debug.Print "reading image..."
-
     If mStyle.IsRedirect Then
+        g_Debug "redirect style - assume completed ok"
 
     Else
+        ' /* style should have created a PNG for us... */
+        g_Debug "getting content..."
         Set pb = load_image_obj(mStyle.Path & "content.png")
-        If is_valid_image(pb) Then _
+        If is_valid_image(pb) Then
             Set mContent = pb
+
+        Else
+            g_Debug "style returned no/unusable content", LEMON_LEVEL_CRITICAL
+
+        End If
 
     End If
 
     ' /* zap it now we have it */
 
-Debug.Print "deleting..."
+    g_Debug "deleting content..."
     DeleteFile mStyle.Path & "content.png"
     Exit Sub
 
@@ -135,7 +163,7 @@ er:
 
 End Sub
 
-Public Sub SetStyleX(ByRef Style As TRunnableStyle, Optional ByVal Timeout As Long = 500)
+Public Sub Init(ByRef Style As TRunnableStyle, ByVal Timeout As Long)
 
     Set mStyle = Style
     mTimeout = Timeout

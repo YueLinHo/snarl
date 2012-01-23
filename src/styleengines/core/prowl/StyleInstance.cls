@@ -26,7 +26,7 @@ Option Explicit
 'Private Const URL_ESCAPE_SPACES_ONLY     As Long = &H4000000
 'Private Const URL_DONT_SIMPLIFY          As Long = &H8000000
 
-Dim mRequest As CHTTPRequest
+Dim WithEvents theRequest As CHTTPRequest
 
 Implements IStyleInstance
 
@@ -34,28 +34,52 @@ Private Sub IStyleInstance_AdjustPosition(x As Long, y As Long, Alpha As Integer
 End Sub
 
 Private Function IStyleInstance_GetContent() As melon.MImage
-
 End Function
 
 Private Function IStyleInstance_Pulse() As Boolean
-
 End Function
 
 Private Sub IStyleInstance_Show(ByVal Visible As Boolean)
-
 End Sub
 
 Private Sub IStyleInstance_UpdateContent(NotificationInfo As libSnarlStyles.notification_info)
 
+    g_Debug "StyleInstance.UpdateContent()", LEMON_LEVEL_PROC_ENTER
+
     If gConfig.UserKey = "" Then
-        g_Debug "StyleInstance.UpdateContent(): UserKey not set", LEMON_LEVEL_CRITICAL
+        g_Debug "UserKey not set", LEMON_LEVEL_CRITICAL Or LEMON_LEVEL_PROC_EXIT
         Exit Sub
 
     End If
 
     If (gConfig.OnlyShowPriorityNotifications) And ((NotificationInfo.Flags And S_NOTIFICATION_IS_PRIORITY) = 0) Then
-        g_Debug "StyleInstance.UpdateContent(): showing non-priority notifications disabled"
+        g_Debug "User has disabled forwarding non-priority notifications", LEMON_LEVEL_INFO Or LEMON_LEVEL_PROC_EXIT
         Exit Sub
+
+    End If
+
+Dim szText As String
+Dim pp As BPackedData
+Dim i As Long
+
+    Set pp = New BPackedData
+    pp.SetTo NotificationInfo.Text
+
+    ' /* apply RedactSensitive setting */
+
+    If (pp.Exists("sensitivity")) And (gConfig.RedactSensitive) Then
+        i = g_SafeLong(pp.ValueOf("sensitivity"))
+        If i > 0 Then
+            g_Debug "redacting..."
+            szText = "<REDACTED>"
+
+        Else
+            szText = uTidy(pp.ValueOf("text"))
+
+        End If
+
+    Else
+        szText = uTidy(pp.ValueOf("text"))
 
     End If
 
@@ -64,9 +88,13 @@ Dim sz As String
     sz = "https://prowl.weks.net/publicapi/add?" & _
          "apikey=" & gConfig.UserKey & _
          "&application=" & g_URLEncode(uGetAppName(NotificationInfo.Title)) & _
-         "&event=" & g_URLEncode(uGetTitle(NotificationInfo.Title)) & _
-         "&description=" & g_URLEncode(uTidy(NotificationInfo.Text)) & _
+         "&event=" & g_URLEncode(pp.ValueOf("title")) & _
+         "&description=" & g_URLEncode(szText) & _
          "&priority=" & IIf(NotificationInfo.Flags And S_NOTIFICATION_IS_PRIORITY, "1", "0")
+
+'    g_Debug "--"
+'    g_Debug sz
+'    g_Debug "--"
 
 'Dim szEscaped As String
 'Dim cb As Long
@@ -85,71 +113,31 @@ Dim sz As String
 
 '    MsgBox sz
 
-    Set mRequest = New CHTTPRequest
+    g_Debug "creating request..."
+    Set theRequest = New CHTTPRequest
 
-    If gConfig.UseProxyServer Then _
-        mRequest.SetProxyInfo gConfig.ProxyServer, gConfig.ProxyServerPort, , gConfig.ProxyUsername, gConfig.ProxyPassword
+    If gConfig.UseProxyServer Then
+        g_Debug "setting proxy info..."
+        theRequest.SetProxyInfo gConfig.ProxyServer, gConfig.ProxyServerPort, , gConfig.ProxyUsername, gConfig.ProxyPassword
 
-    mRequest.GetContent sz, gConfig.Timeout
+    End If
+
+    g_Debug "sending request to Prowl service..."
+    theRequest.GetContent sz, gConfig.Timeout
     
-'    mServer.Open "GET", " HTTP/1.0", -1
+    g_Debug "", LEMON_LEVEL_PROC_EXIT
 
 End Sub
 
-Private Function uGetAppName(ByVal Title As String) As String
-Dim i As Integer
+Private Function uGetAppName(ByVal Sender As String) As String
 
-    uGetAppName = "Snarl"
-
-    i = InStr(Title, "#?")
-    If i < 1 Then _
-        Exit Function
-
-    uGetAppName = g_SafeLeftStr(Title, i - 1)
+    uGetAppName = gConfig.AppText
+    uGetAppName = Replace$(uGetAppName, "%APP%", Sender)
+    uGetAppName = Replace$(uGetAppName, "%COMPUTER%", g_GetComputerName())
 
 End Function
-
-Private Function uGetTitle(ByVal Title As String) As String
-Dim i As Integer
-
-    i = InStr(Title, "#?")
-    If i < 1 Then _
-        Exit Function
-
-    uGetTitle = g_SafeRightStr(Title, Len(Title) - (i + 1))
-
-End Function
-
-'Private Function uReplacePercent(ByVal sz As String) As String
-'Dim i As Integer
-'Dim j As Integer
-'
-'    i = InStr(sz, "%")
-'    Do While i > 0
-'        j = Val("&H" & mId$(sz, i + 1, 2))
-'        uReplacePercent = uReplacePercent & g_SafeLeftStr(sz, i - 1) & Chr$(j)
-'        sz = g_SafeRightStr(sz, Len(sz) - (i + 2))
-'        i = InStr(sz, "%")
-'
-'    Loop
-'
-'    uReplacePercent = uReplacePercent & sz
-'
-'End Function
 
 Private Function uTidy(ByVal Text As String) As String
-'Dim sz As String
-'Dim a As String
-'Dim i As Integer
-
-'    For i = 1 To Len(Text)
-'        a = mId$(Text, i, 1)
-'        sz = sz & a & " " & g_HexStr(Asc(a), 2) & " "
-'
-'    Next i
-'
-'    MsgBox sz
-
 
     If gConfig.ReplaceCRLFs Then
         Text = Replace$(Text, Chr$(13), "")
@@ -160,3 +148,15 @@ Private Function uTidy(ByVal Text As String) As String
     uTidy = Text
 
 End Function
+
+Private Sub theRequest_Completed()
+
+    g_Debug "theRequest.Completed(): " & theRequest.Content()
+
+End Sub
+
+Private Sub theRequest_TimedOut()
+
+    g_Debug "theRequest.TimedOut()", LEMON_LEVEL_WARNING
+
+End Sub

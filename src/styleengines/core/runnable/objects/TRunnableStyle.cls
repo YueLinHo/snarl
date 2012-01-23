@@ -53,11 +53,14 @@ Public Function SetTo(ByVal Path As String) As Boolean
     '       2. a config file (runnable.conf)
     ' */
 
+    g_Debug "TRunnableStyle.SetTo()", LEMON_LEVEL_PROC_ENTER
+
 Dim pc As CConfFile3
 Dim ps As CConfSection
 Dim szSig As String
 
     szSig = g_FilenameFromPath(Path)
+    g_Debug "signature: " & g_Quote(szSig)
 
     With New CFolderContent2
         If .SetTo(Path) Then
@@ -81,32 +84,34 @@ Dim szSig As String
                                 Set mSchemes = ps
 
                             Else
-                                g_Debug "TRunnableStyle.SetTo(): style '" & mSig & "' has no schemes"
+                                g_Debug "style " & g_Quote(mSig) & " says it has no schemes", LEMON_LEVEL_WARNING
                                 Set mSchemes = New CConfSection
 
                             End If
                         Else
-                            g_Debug "TRunnableStyle.SetTo(): missing style exe '" & mExecutable & "'", LEMON_LEVEL_CRITICAL
+                            g_Debug "missing style exe " & g_Quote(mExecutable), LEMON_LEVEL_CRITICAL
                         
                         End If
                     Else
-                        g_Debug "TRunnableStyle.SetTo(): missing [general] section from '" & Path & "'", LEMON_LEVEL_CRITICAL
+                        g_Debug "missing [general] section from " & g_Quote(Path), LEMON_LEVEL_CRITICAL
 
                     End If
                 Else
-                    g_Debug "TRunnableStyle.SetTo(): failed to load runnable.conf from '" & Path & "'", LEMON_LEVEL_CRITICAL
+                    g_Debug "failed to load runnable.conf from " & g_Quote(Path), LEMON_LEVEL_CRITICAL
 
                 End If
             Else
-                g_Debug "TRunnableStyle.SetTo(): no runnable.conf in '" & Path & "'", LEMON_LEVEL_CRITICAL
+                g_Debug "no runnable.conf in " & g_Quote(Path), LEMON_LEVEL_CRITICAL
 
             End If
         Else
-            g_Debug "TRunnableStyle.SetTo(): bad path '" & Path & "'", LEMON_LEVEL_CRITICAL
+            g_Debug "bad path " & g_Quote(Path), LEMON_LEVEL_CRITICAL
 
         End If
 
     End With
+
+    g_Debug "", LEMON_LEVEL_PROC_EXIT
 
 End Function
 
@@ -132,7 +137,16 @@ Dim pe As CConfEntry
     With StyleInfo
         .Copyright = mConfig.GetValueWithDefault("copyright")
         .Date = mConfig.GetValueWithDefault("release_date")
+
         .Description = mConfig.GetValueWithDefault("description")
+        If .Description = "" Then _
+            .Description = "Runnable style"
+
+'        Else
+'            .Description = .Description & " (runnable style)"
+'
+'        End If
+
         .Flags = S_STYLE_MULTI_INSTANCE Or S_STYLE_V42_CONTENT
 
         If mConfig.GetValueWithDefault("dropshadow", "1") = "0" Then _
@@ -166,11 +180,11 @@ Public Function Executable() As String
 
 End Function
 
-Public Function ShortName() As String
-
-    ShortName = g_FilenameFromPath(mPath)
-
-End Function
+'Public Function ShortName() As String
+'
+'    ShortName = LCase$(g_FilenameFromPath(mPath))
+'
+'End Function
 
 Public Function Path() As String
 
@@ -185,3 +199,8 @@ Public Function IsRedirect() As Boolean
 
 End Function
 
+Public Function Name() As String
+
+    Name = BTagItem_Name()
+
+End Function
