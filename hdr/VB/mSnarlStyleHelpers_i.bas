@@ -21,6 +21,8 @@ Option Explicit
     '
     ' */
 
+Public Const S_STYLE_REDIRECT_TO_SCREEN = &H1000&
+
 Private Const CSIDL_APPDATA = &H1A
 Private Declare Function SHGetSpecialFolderPath Lib "SHELL32.DLL" Alias "SHGetSpecialFolderPathA" (ByVal hWndOwner As Long, ByVal lpszPath As String, ByVal nFolder As Long, ByVal fCreate As Boolean) As Long
 
@@ -162,4 +164,16 @@ Dim sz As String
     End If
 
 End Function
+
+Public Function style_GetSnarlStylesPath2(ByVal AllUsers As Boolean, ByRef Path As String) As Boolean
+
+    Path = String$(4096, 0)
+    If SHGetSpecialFolderPath(0, Path, IIf(AllUsers, CSIDL_COMMONAPPDATA, CSIDL_APPDATA), False) Then
+        Path = g_MakePath(uTrimStr(Path)) & "full phat\snarl\styles"
+        style_GetSnarlStylesPath2 = g_Exists(Path)
+
+    End If
+
+End Function
+
 
