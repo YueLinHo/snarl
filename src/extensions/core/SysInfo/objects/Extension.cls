@@ -50,8 +50,8 @@ Option Explicit
     '
     ' */
 
-Private Const LIB_DATE = "5-Jan-2012"
-Private Const LIB_RELEASE = "3.1.1"
+Private Const LIB_DATE = "25-Jan-2012"
+Private Const LIB_RELEASE = "3.2"
 'Private Const EXT_NAME = "SysInfo"
 Private Const EXT_COMMENT = "Tracks events specific to this computer"
 
@@ -74,17 +74,24 @@ Private Const CLASS_IE_DOWNLOAD = "iedl"
 Private Const CLASS_CLIPBOARD = "clip"
 
 Dim mLastErr As String
-Dim mhWndOwner As Long              ' // handle of the window which launched our config (typically Snarl's Prefs panel)
+Dim mhWnd As Long                   ' // message handling window
 Dim mPassword As String
 Dim mConfig As CConfFile
 
-Dim mAdapterList As BTagList
+Dim mhWndOwner As Long              ' // handle of the window which launched our config (typically Snarl's Prefs panel)
 Dim mPanel As BPrefsPanel
 
-Dim WithEvents theNICTimer As BTimer
-Attribute theNICTimer.VB_VarHelpID = -1
-Dim WithEvents theVolTimer As BTimer
-Attribute theVolTimer.VB_VarHelpID = -1
+    ' /* timers */
+Dim WithEvents theFastTimer As BTimer       ' // 250ms - always runs
+Attribute theFastTimer.VB_VarHelpID = -1
+Dim WithEvents theSlowTimer As BTimer       ' // 500ms - always runs
+Attribute theSlowTimer.VB_VarHelpID = -1
+Dim WithEvents the3SecondTimer As BTimer    ' // always runs
+Attribute the3SecondTimer.VB_VarHelpID = -1
+Dim WithEvents the10SecondTimer As BTimer   ' // always runs
+Attribute the10SecondTimer.VB_VarHelpID = -1
+Dim WithEvents the5MinuteTimer As BTimer
+Attribute the5MinuteTimer.VB_VarHelpID = -1
 
 Dim WithEvents theNetRoster As TNetRoster2
 Attribute theNetRoster.VB_VarHelpID = -1
@@ -93,14 +100,104 @@ Attribute theDUNRoster.VB_VarHelpID = -1
 Dim WithEvents theVolRoster As TSimpleVolRoster
 Attribute theVolRoster.VB_VarHelpID = -1
 Dim mNotifiedVolsList As BTagList
+Dim mAdapterList As BTagList
+Dim mIEWindowList As BTagList
+Dim mLocalIPList As BPackedData
 
-Dim WithEvents theHandler As TWindow
-Attribute theHandler.VB_VarHelpID = -1
+    ' /* lock key states */
+Dim mNumState As Boolean
+Dim mCapState As Boolean
+Dim mSclState As Boolean
+
+Private Const WM_POWERBROADCAST = &H218
+Private Const WM_DEVICECHANGE = &H219
+Private Declare Function GetKeyState Lib "user32" (ByVal nVirtKey As Long) As Integer
+
+Dim mCurrentPower As B_POWER_STATUS
+Dim mDoneLowPowerWarning As Boolean
+Dim mLowPowerThreshold As Long
+
+Dim mDoneLowRAMWarning As Boolean
+Dim mLowRAMThreshold As Long
+Dim mDoneNoRAMWarning As Boolean
+
+'Dim mMonitorCPULoad As Boolean
+Dim mHighCPUThreshold As Long           ' // percent
+Dim mHighCPUDuration As Long            ' // seconds
+Dim mCPUIsTracking As Boolean           ' // currently tracking high CPU
+Dim mCPUTrackingStarted As Long         ' // tick when tracking was started
+Dim mDoneHighCPUWarning As Boolean
+
+Dim mLowDiskThreshold As Long           ' // percent
+Dim mWatchRem As Boolean
+Dim mWatchOpt As Boolean
+Dim mDiskDoneList As BTagList
+
+Dim mCurrentExternalIP As String
+Dim WithEvents theExternalIPRequest As CHTTPRequest3
+Attribute theExternalIPRequest.VB_VarHelpID = -1
+'Dim mIgnoreFirstIPChange As Boolean
+
+Dim mBlockClipboardChange As Boolean
 
 'Implements MVersionInfo             ' // optional: allows the SDOS version command to query the object
 Implements ISnarlExtension
 Implements KPrefsPanel
 Implements KPrefsPage
+Implements BWndProcSink
+
+Private Function BWndProcSink_WndProc(ByVal hWnd As Long, ByVal uMsg As Long, ByVal wParam As Long, ByVal lParam As Long, ByVal PrevWndProc As Long, ReturnValue As Long) As Boolean
+
+Dim fClipboard As Boolean
+
+    ' /* from the clipboard? */
+
+    If g_ClipboardHandle(hWnd, uMsg, wParam, lParam, fClipboard) Then
+        If fClipboard Then
+            If mBlockClipboardChange Then
+                mBlockClipboardChange = False
+
+            Else
+                uOnClipboardChanged
+
+            End If
+        End If
+
+        BWndProcSink_WndProc = True
+        Exit Function
+
+    End If
+
+Static n As B_POWER_STATUS
+
+    Select Case uMsg
+    Case WM_DEVICECHANGE
+        g_Debug "##WM_DEVICECHANGE: refreshing volume roster...", LEMON_LEVEL_INFO
+
+        If (NOTNULL(theVolRoster)) And (mConfig.ValueOf("disk.monitor") = "1") Then _
+            theVolRoster.Refresh
+
+
+    Case WM_POWERBROADCAST
+        g_Debug "##WM_POWERBROADCAST", LEMON_LEVEL_INFO
+        n = get_power_status()
+        If n <> mCurrentPower Then
+            If n = B_POWER_STATE_CONNECTED Then
+                uOnPowerStatusChanged True, get_battery_charge_percent()
+
+            ElseIf n = B_POWER_STATE_DISCONNECTED Then
+                uOnPowerStatusChanged False, get_battery_charge_percent()
+
+            End If
+
+            mCurrentPower = n
+
+        End If
+
+
+    End Select
+
+End Function
 
 Private Function ISnarlExtension_GetConfigWindow() As Long
 Dim pPage As BPrefsPage
@@ -156,6 +253,8 @@ Dim pm As CTempMsg
             Set pPage = new_BPrefsPage("Memory", load_image_obj(g_MakePath(App.Path) & IIf(g_IsIDE, "bin\", "") & "memory.png"), Me)
             With pPage
                 .SetMargin 32
+
+                .Add new_BPrefsControl("banner", "", "Low Memory")
                 .Add new_BPrefsControl("label", "", "Warn when remaining physical RAM reaches:")
 
                 Set pm = New CTempMsg
@@ -166,14 +265,17 @@ Dim pm As CTempMsg
                 pm.Add "suffix", "%"
                 pm.Add "colour", rgba(255, 172, 172)
                 .Add new_BPrefsControl("fancyslider", "ram.low_mark", "", "", mConfig.ValueOf("ram.low_mark"), pm)
+                .Add new_BPrefsControl("fancytoggle2", "ram.show_extra", "Include memory information?", , mConfig.ValueOf("ram.show_extra"))
+'                .Add new_BPrefsControl("fancytoggle2", "ram.use_meter", "Display meter?", , mConfig.ValueOf("ram.use_meter"))
 
+                .Add new_BPrefsControl("banner", "", "Physical Memory Exhausted")
 '                .Add new_BPrefsControl("fancytoggle2", "ram.show_title", "Display title?", , mConfig.ValueOf("ram.show_title"))
                 .Add new_BPrefsControl("fancytoggle2", "ram.show_text", "Display hint text?", , mConfig.ValueOf("ram.show_text"))
-                .Add new_BPrefsControl("label", "", "Only applies to the Physical RAM Exhausted notification.")
+'                .Add new_BPrefsControl("label", "", "Only applies to the Physical RAM Exhausted notification.")
 
-                .Add new_BPrefsControl("fancytoggle2", "ram.use_meter", "Display meter?", , mConfig.ValueOf("ram.use_meter"))
-                .Add new_BPrefsControl("label", "", "Only applies to the Low Physical RAM notification.")
-                .Add new_BPrefsSeparator
+'                .Add new_BPrefsControl("label", "", "Only applies to the Low Physical RAM notification.")
+'                .Add new_BPrefsSeparator
+                .Add new_BPrefsControl("label", "", "")
                 .Add new_BPrefsControl("fancybutton2", "ram.test", "Test Settings")
 
             End With
@@ -205,7 +307,7 @@ Dim pm As CTempMsg
                 .Add new_BPrefsControl("fancytoggle2", "disk.watch_removable", "Watch removable media (excludes floppy drives)?", , mConfig.ValueOf("disk.watch_removable"), , (mConfig.ValueOf("disk.enabled") = "1"))
 '                .Add new_BPrefsControl("label", "", "Note that floppy drives are never scanned, even if the above setting is enabled.")
                 .Add new_BPrefsControl("label", "", "Information to include in notification:")
-                .Add new_BPrefsControl("fancycycle", "disk.verbosity", "Simple|Meter|Detailed", "", mConfig.ValueOf("disk.verbosity"), , (mConfig.ValueOf("disk.enabled") = "1"))
+                .Add new_BPrefsControl("fancycycle", "disk.verbosity", "Basic|Simple|Detailed", "", mConfig.ValueOf("disk.verbosity"), , (mConfig.ValueOf("disk.enabled") = "1"))
                 .Add new_BPrefsSeparator
                 .Add new_BPrefsControl("fancybutton2", "disk.test", "Test Settings", , , , (mConfig.ValueOf("disk.enabled") = "1"))
 
@@ -231,9 +333,13 @@ Dim pm As CTempMsg
                 .Add new_BPrefsControl("fancyslider", "power.low_mark", "", "", mConfig.ValueOf("power.low_mark"), pm)
                 .Add new_BPrefsControl("fancytoggle2", "power.warn_when_charging", "Show notification even if charging?", , mConfig.ValueOf("power.warn_when_charging"))
 
-                .Add new_BPrefsControl("fancytoggle2", "power.show_text", "Display text?", , mConfig.ValueOf("power.show_text"))
-                .Add new_BPrefsControl("fancytoggle2", "power.use_meter", "Display meter?", , mConfig.ValueOf("power.use_meter"))
-                .Add new_BPrefsSeparator
+                .Add new_BPrefsControl("label", "", "Information to include in notification:")
+                .Add new_BPrefsControl("fancycycle", "power.verbosity", "Basic|Simple|Detailed", "", mConfig.ValueOf("power.verbosity"))
+
+'                .Add new_BPrefsControl("fancytoggle2", "power.show_text", "Display text?", , mConfig.ValueOf("power.show_text"))
+'                .Add new_BPrefsControl("fancytoggle2", "power.use_meter", "Display meter?", , mConfig.ValueOf("power.use_meter"))
+'                .Add new_BPrefsSeparator
+                .Add new_BPrefsControl("label", "", "")
                 .Add new_BPrefsControl("fancybutton2", "power.test", "Test Settings")
 
             End With
@@ -246,10 +352,16 @@ Dim pm As CTempMsg
             Set pPage = new_BPrefsPage("Network", load_image_obj(g_MakePath(App.Path) & IIf(g_IsIDE, "bin\", "") & "network.png"), Me)
             With pPage
                 .SetMargin 32
+                
+                .Add new_BPrefsControl("banner", "", "External Address")
+                .Add new_BPrefsControl("fancytoggle2", "xip.enabled", "Monitor external IP address changes?", , mConfig.ValueOf("xip.enabled"))
+
+                .Add new_BPrefsControl("banner", "", "Local Addresses")
                 .Add new_BPrefsControl("fancytoggle2", "nic.enabled", "Monitor network and dial-up connections?", , mConfig.ValueOf("nic.enabled"))
                 .Add new_BPrefsControl("label", "", "Information to include in notification:")
                 .Add new_BPrefsControl("fancycycle", "nic.verbosity", "None (Icon Only)|Simple|Detailed", "", mConfig.ValueOf("nic.verbosity"), , (mConfig.ValueOf("nic.enabled") = "1"))
-                .Add new_BPrefsSeparator
+'                .Add new_BPrefsSeparator
+                .Add new_BPrefsControl("label", "", "")
                 .Add new_BPrefsControl("fancybutton2", "nic.test", "Test Settings (Network)", , , , (mConfig.ValueOf("nic.enabled") = "1"))
                 .Add new_BPrefsControl("fancybutton2", "dun.test", "Test Settings (Dial-up / VPN)", , , , (mConfig.ValueOf("nic.enabled") = "1"))
 
@@ -287,18 +399,22 @@ Dim pm As CTempMsg
             Set pPage = new_BPrefsPage("About", load_image_obj(g_MakePath(App.Path) & IIf(g_IsIDE, "bin\", "") & "about.png"), Me)
             With pPage
                 .SetMargin 32
+                .Add new_BPrefsControl("banner", "", "Version Information")
                 .Add new_BPrefsControl("label", "", "SysInfo Extension R" & LIB_RELEASE)
                 .Add new_BPrefsControl("label", "", "Version " & CStr(App.Major) & "." & CStr(App.Revision) & " (" & LIB_DATE & ")")
                 .Add new_BPrefsControl("label", "", App.LegalCopyright)
-                .Add new_BPrefsControl("label", "", "")
-                .Add new_BPrefsControl("fancybutton2", "go_website", "www.fullphat.net")
+'                .Add new_BPrefsControl("label", "", "")
+                .Add new_BPrefsControl("fancybutton2", "go_website", "www.getsnarl.info")
+
+                .Add new_BPrefsControl("banner", "", "Description")
+                .Add new_BPrefsControl("label", "", "This extension monitors your computer's hardware and operating system and generates notifications when particular events occur.")
 
             End With
 
             .AddPage pPage
 
             .Go
-            g_SetWindowIconToAppResourceIcon .hWnd
+            g_SimpleSetWindowIcon .hWnd
 
         End With
 
@@ -333,22 +449,13 @@ Private Function ISnarlExtension_Initialize() As Long
 
     On Error Resume Next
 
-    l3OpenLog "%APPDATA%\full phat\snarl\" & App.Title & ".log", True
-    g_Debug "pwd: " & g_MakePath(App.Path)
+    l3OpenLog "%APPDATA%\full phat\snarl\" & LCase$(App.Title) & ".log", True
+    g_Debug "ISnarlExtension.Initialise()", LEMON_LEVEL_PROC_ENTER
 
+    g_Debug "checking Snarl version..."
     If snarl_version() < 43 Then
-        g_Debug "Needs Snarl V43 or better", LEMON_LEVEL_CRITICAL
+        g_Debug "Needs Snarl V43 or better", LEMON_LEVEL_CRITICAL Or LEMON_LEVEL_PROC_EXIT
         mLastErr = "Requires Snarl V43 or greater"
-        ISnarlExtension_Initialize = -1
-        Exit Function
-
-    End If
-
-Dim sz As String
-
-    If Not snGetConfigPath(sz) Then
-        g_Debug "Can't find Snarl config path", LEMON_LEVEL_CRITICAL
-        mLastErr = "Can't find Snarl config path"
         ISnarlExtension_Initialize = -1
         Exit Function
 
@@ -357,29 +464,34 @@ Dim sz As String
     err.Clear
     get_host_name
     If err.Number <> 0 Then
-        g_Debug "misc.resource missing", LEMON_LEVEL_CRITICAL
-        mLastErr = "Requires misc.resource"
+        g_Debug "misc2.resource missing", LEMON_LEVEL_CRITICAL Or LEMON_LEVEL_PROC_EXIT
+        mLastErr = "Requires misc2.resource V49 or later"
         ISnarlExtension_Initialize = -1
         Exit Function
 
     End If
-
-    mPassword = create_password()
-    Set mNotifiedVolsList = new_BTagList()
 
     ' /* create window */
 
     g_Debug "creating window..."
+    EZRegisterClass App.ProductName
+    mhWnd = EZ4AddWindow(App.ProductName, Me)
 
-    Set theHandler = New TWindow
-    If Not theHandler.IsValid Then
-        ' /* no window */
-        Set theHandler = Nothing
-        mLastErr = "Couldn't create message looper"
+    If mhWnd = 0 Then
+        g_Debug "couldn't create window", LEMON_LEVEL_CRITICAL Or LEMON_LEVEL_PROC_EXIT
+        mLastErr = "Couldn't create handler window"
         ISnarlExtension_Initialize = -1
         Exit Function
 
+    Else
+        g_Debug "window is 0x" & g_HexStr(mhWnd)
+
     End If
+
+    g_Debug "creating password..."
+    mPassword = create_password()
+
+    g_Debug "done", LEMON_LEVEL_PROC_EXIT
 
 End Function
 
@@ -393,55 +505,69 @@ Private Sub ISnarlExtension_Pulse()
 End Sub
 
 Private Sub ISnarlExtension_Start()
+
+    g_Debug "ISnarlExtension.Start()", LEMON_LEVEL_PROC_ENTER
+
 Dim szPath As String
 Dim i As Integer
 
     On Error Resume Next
 
-    ' /* load config */
-
-    snGetConfigPath szPath              ' // already checked this exists during Init()
+    ' /* load config - doesn't matter if it's missing */
 
     Set mConfig = New CConfFile
-    mConfig.SetTo szPath & "sysinfo.config"
+    snGetConfigPath szPath
 
-    uCfgCheck "cpu.enabled", "1"        ' // R3.04
-    uCfgCheck "cpu.high_mark", "90"
-    uCfgCheck "cpu.duration", "10"
+    g_Debug "loading config from " & g_Quote(szPath & "sysinfo.config") & "..."
 
-    uCfgCheck "power.low_mark", "20"
-    uCfgCheck "power.warn_when_charging", "0"
-    uCfgCheck "power.show_text", "0"
-    uCfgCheck "power.use_meter", "1"
+    With mConfig
+        .SetTo szPath & "sysinfo.config", False
 
-    uCfgCheck "ram.low_mark", "20"
-'        uCfgCheck "ram.show_title", "1"     ' // include title
-    uCfgCheck "ram.show_text", "1"      ' // include help text
-    uCfgCheck "ram.use_meter", "1"      ' // meter instead of text (low RAM only)
+        .AddIfMissing "cpu.enabled", "1"        ' // R3.04
+        .AddIfMissing "cpu.high_mark", "90"
+        .AddIfMissing "cpu.duration", "10"
+    
+        .AddIfMissing "power.low_mark", "20"
+        .AddIfMissing "power.warn_when_charging", "0"
+'        .AddIfMissing "power.show_text", "0"
+'        .AddIfMissing "power.use_meter", "1"
+        .AddIfMissing "power.verbosity", "1"
+    
+        .AddIfMissing "ram.low_mark", "20"
+    '        .addifmissing "ram.show_title", "1"     ' // include title
+        .AddIfMissing "ram.show_text", "1"      ' // include help text
+'        .AddIfMissing "ram.use_meter", "1"      ' // meter instead of text (low RAM only)
+        .AddIfMissing "ram.show_extra", "0"
 
-    uCfgCheck "nic.enabled", "1"        ' // R3.04
-    uCfgCheck "nic.verbosity", "3"
+        .AddIfMissing "nic.enabled", "1"        ' // R3.04
+        .AddIfMissing "nic.verbosity", "3"
+    
+        .AddIfMissing "disk.enabled", "1"       ' // R3.04
+        .AddIfMissing "disk.low_mark", "10"
+        .AddIfMissing "disk.watch_removable", "1"
+        .AddIfMissing "disk.watch_optical", "0"
+        .AddIfMissing "disk.verbosity", "3"
+    
+        .AddIfMissing "keyb.watch_caps", "1"
+        .AddIfMissing "keyb.watch_numl", "0"
+        .AddIfMissing "keyb.watch_scrl", "0"
+    
+        .AddIfMissing "other.watch_ie", "0"
+        .AddIfMissing "other.watch_clipboard", "0"
 
-    uCfgCheck "disk.enabled", "1"       ' // R3.04
-    uCfgCheck "disk.low_mark", "10"
-    uCfgCheck "disk.watch_removable", "1"
-    uCfgCheck "disk.watch_optical", "0"
-    uCfgCheck "disk.verbosity", "3"
+        .AddIfMissing "disk.monitor", "1"
 
-    uCfgCheck "keyb.watch_caps", "1"
-    uCfgCheck "keyb.watch_numl", "0"
-    uCfgCheck "keyb.watch_scrl", "0"
+        .AddIfMissing "xip.enabled", "0"
 
-    uCfgCheck "other.watch_ie", "0"
-    uCfgCheck "other.watch_clipboard", "0"
-
-    uCfgCheck "disk.monitor", "1"
-
-    mConfig.Save
+    End With
 
     ' /* register */
 
+    g_Debug "registering with Snarl..."
+
     If snarl_register(App.ProductName, App.Title, g_MakePath(App.Path) & IIf(g_IsIDE(), "bin\", "") & "icon.png", mPassword) >= 0 Then
+
+        g_Debug "adding classes..."
 
         uAddClass CLASS_LOW_MEM, "Physical memory low", False
         uAddClass CLASS_NO_MEM, "Physical memory exhausted", False
@@ -462,64 +588,161 @@ Dim i As Integer
 
     End If
 
-    Set mAdapterList = new_BTagList()
-    Set theVolRoster = New TSimpleVolRoster
-
     ' /* call kernel info once to get baseline */
 
+    g_Debug "getting kernel info..."
     krnl_GetSystemInfo
-    g_Debug "[Start]: krnl_GetProcessorCount()=" & CStr(krnl_GetProcessorCount())
+    g_Debug "krnl_GetProcessorCount()=" & CStr(krnl_GetProcessorCount())
     krnl_GetCurrentTotalCPUPercent
 
-    ' /* configure the handler */
+    g_Debug "setting up lists and rosters..."
 
-    With theHandler
-        .SetLowPowerThreshold Val(mConfig.ValueOf("power.low_mark"))
-        .SetLowRAMThreshold Val(mConfig.ValueOf("ram.low_mark"))
-'        .SetHighCPUThreshold Val(mConfig.ValueOf("cpu.high_mark"))
-'        .SetHighCPUDuration Val(mConfig.ValueOf("cpu.duration"))
-'        .SetLowDiskThreshold Val(mConfig.ValueOf("disk.low_mark"))
-'        .SetWatchOptical (mConfig.ValueOf("disk.watch_optical") = "1")
-'        .SetWatchRemovable (mConfig.ValueOf("disk.watch_removable") = "1")
+    Set mAdapterList = new_BTagList()
+    Set theVolRoster = New TSimpleVolRoster
+    Set mNotifiedVolsList = new_BTagList()
+    Set mDiskDoneList = new_BTagList()
+    Set mIEWindowList = new_BTagList()
+    Set mLocalIPList = New BPackedData
+    mBlockClipboardChange = True
+'    mIgnoreFirstIPChange = True
 
-        .ConfigChanged "cpu.high_mark", mConfig.ValueOf("cpu.high_mark")
-        .ConfigChanged "cpu.duration", mConfig.ValueOf("cpu.duration")
-        .ConfigChanged "cpu.enabled", mConfig.ValueOf("cpu.enabled")            ' // set last
+    g_Debug "getting current lock key states..."
 
-        .ConfigChanged "disk.low_mark", mConfig.ValueOf("disk.low_mark")
-        .ConfigChanged "disk.watch_optical", mConfig.ValueOf("disk.watch_optical")
-        .ConfigChanged "disk.watch_removable", mConfig.ValueOf("disk.watch_removable")
-        .ConfigChanged "disk.enabled", mConfig.ValueOf("disk.enabled")            ' // set last
+    mCapState = uGetKeyLockState(vbKeyCapital)
+    mNumState = uGetKeyLockState(vbKeyNumlock)
+    mSclState = uGetKeyLockState(vbKeyScrollLock)
 
-        .ConfigChanged "other.watch_clipboard", mConfig.ValueOf("other.watch_clipboard")
+    g_Debug "getting current power state..."
 
-        .SetEnabled True
+    mCurrentPower = get_power_status()
 
-    End With
+    g_Debug "getting local IP info..."
+    uScanIPTable False
+
+    uConfigChanged "cpu.high_mark"
+    uConfigChanged "cpu.duration"
+    uConfigChanged "cpu.enabled"                ' // set last
 
     ' /* NIC/DUN and volume scanning is handled by this object */
 
-    uEnableNICScanning (mConfig.ValueOf("nic.enabled") = "1")
-    uEnableVolScanning (mConfig.ValueOf("disk.monitor") = "1")
+    g_Debug "enabling watchers..."
+    uConfigChanged "nic.enabled"
+    uConfigChanged "disk.monitor"
+
+    uConfigChanged "power.low_mark"
+    uConfigChanged "ram.low_mark"
+    uConfigChanged "other.watch_clipboard"
+
+    uConfigChanged "disk.low_mark"
+    uConfigChanged "disk.watch_optical"
+    uConfigChanged "disk.watch_removable"
+    uConfigChanged "disk.enabled"               ' // set last
+
+    uConfigChanged "xip.enabled"
+
+    Set theFastTimer = new_BTimer(250)
+    Set theSlowTimer = new_BTimer(500)
+    Set the3SecondTimer = new_BTimer(3000)
+    Set the10SecondTimer = new_BTimer(10000)
+    Set the5MinuteTimer = new_BTimer(300000)
+
+    g_Debug "", LEMON_LEVEL_PROC_EXIT
 
 End Sub
 
 Private Sub ISnarlExtension_Stop()
 
-    uEnableNICScanning False
-    uEnableVolScanning False
+    g_Debug "ISnarlExtension.Stop()", LEMON_LEVEL_PROC_ENTER
 
+    g_Debug "stopping watchers..."
+
+    Set theFastTimer = Nothing
+    Set theSlowTimer = Nothing
+    Set the3SecondTimer = Nothing
+    Set the10SecondTimer = Nothing
+    Set the5MinuteTimer = Nothing
+
+    g_Debug "unregistering..."
     snarl_unregister App.ProductName, mPassword
+
+    g_Debug "", LEMON_LEVEL_PROC_EXIT
 
 End Sub
 
 Private Sub ISnarlExtension_TidyUp()
 
-    Set theHandler = Nothing
+    g_Debug "ISnarlExtension.TidyUp()"
+
+    g_Debug "closing window..."
+    EZ4RemoveWindow mhWnd
+    EZUnregisterClass App.ProductName
+
+    g_Debug "done", LEMON_LEVEL_PROC_EXIT
+
+End Sub
+
+Private Sub the10SecondTimer_Pulse()
+
+    If mLowRAMThreshold > 0 Then _
+        uCheckRamUsage
+
+    ' /* check no physical ram */
+
+    If mDoneNoRAMWarning Then
+        ' /* see if it's back in the black... */
+        If g_PercentMemInUse(True) > 0 Then
+            g_Debug "(no ram check): returned above threshold", LEMON_LEVEL_INFO
+            mDoneNoRAMWarning = False
+
+        End If
+
+    Else
+        ' /* is it at or below zero */
+        If g_PercentMemInUse() <= 0 Then
+            g_Debug "(no ram check): below threshold", LEMON_LEVEL_INFO
+            uOnPhysicalRAMGone
+            mDoneNoRAMWarning = True
+
+        End If
+
+    End If
+
+    ' /* disk capacity */
+
+    If mConfig.ValueOf("disk.enabled") = "1" Then _
+        uScanDiskCapacities
+
+End Sub
+
+Private Sub the3SecondTimer_Pulse()
+
+    uScanIPTable True
+
+    If mLowPowerThreshold > 0 Then _
+        uCheckBatteryCharge
+
+    If mConfig.ValueOf("cpu.enabled") = "1" Then _
+        uCheckCPULoad
+
+    If mConfig.ValueOf("nic.enabled") = "1" Then
+        theNetRoster.Refresh
+        theDUNRoster.Refresh
+
+    End If
+
+End Sub
+
+Private Sub the5MinuteTimer_Pulse()
+
+    If mConfig.ValueOf("xip.enabled") = "1" Then _
+        uCheckExternalIP
 
 End Sub
 
 Private Sub theDUNRoster_Connected(ByVal Name As String, Details As melon4.BTagList)
+
+    g_Debug "##DUNRoster.Connected(): name=" & g_Quote(Name) & " device_type=" & g_Quote(Details.ValueOf("device_type")), LEMON_LEVEL_INFO
+
 Dim szTitle As String
 Dim szText As String
 
@@ -550,6 +773,9 @@ Dim szText As String
 End Sub
 
 Private Sub theDUNRoster_Disconnected(ByVal Name As String, Details As melon4.BTagList)
+
+    g_Debug "##DUNRoster.Connected(): name=" & g_Quote(Name) & " device_type=" & g_Quote(Details.ValueOf("device_type")), LEMON_LEVEL_INFO
+
 Dim szTitle As String
 Dim szText As String
 
@@ -579,7 +805,7 @@ Dim szText As String
 
 End Sub
 
-Private Sub theHandler_ClipboardChanged()
+Private Sub uOnClipboardChanged()
 Dim pContent As BTagList
 Dim bShow As Boolean
 Dim szcb As String
@@ -592,7 +818,7 @@ Dim pt As BTagItem
 
     On Error Resume Next
 
-    g_Debug "Extension/theHandler_ClipboardChanged()", LEMON_LEVEL_PROC_ENTER
+    g_Debug "uOnClipboardChanged()", LEMON_LEVEL_PROC_ENTER
 
     Set pContent = clipboard_GetContent()
 
@@ -670,58 +896,59 @@ Dim pt As BTagItem
 
 End Sub
 
-Private Sub theHandler_ExternalIPAddressChanged(ByVal IPAddress As String)
+'Private Sub uOnExternalIPAddressChanged(ByVal IPAddress As String)
+'
+'    snarl_ez_notify App.ProductName, CLASS_IP_CHANGE, _
+'                    "External IP address changed", "Now " & IPAddress, _
+'                    g_MakePath(App.Path) & IIf(g_IsIDE(), "bin\", "") & "ipaddrchange.png", , , mPassword, _
+'                    "extipaddrchange"
+'
+''    snDoRequest "notify?app-sig=" & App.ProductName & "&password=" & mPassword & "&class=" & CLASS_IP_CHANGE & _
+'                "&title=External IP address changed&text=" & IPAddress & _
+'                "&icon=" & g_MakePath(App.Path) & IIf(g_IsIDE(), "bin\", "") & "ipaddrchange.png" & _
+'                "&uid=extipaddrchange"
+'
+'End Sub
 
-    snDoRequest "notify?app-sig=" & App.ProductName & "&password=" & mPassword & "&class=" & CLASS_IP_CHANGE & _
-                "&title=External IP address changed&text=" & IPAddress & _
-                "&icon=" & g_MakePath(App.Path) & IIf(g_IsIDE(), "bin\", "") & "ipaddrchange.png" & _
-                "&uid=extipaddrchange"
-
-End Sub
-
-Private Sub theHandler_IEDownloadCompleted()
+Private Sub uOnIEDownloadCompleted()
 
     snarl_ez_notify App.ProductName, CLASS_IE_DOWNLOAD, "Download completed", , "!system-info", , , mPassword
 
 End Sub
 
-Private Sub theHandler_LocalIPAddressChanged(ByVal Details As String)
+Private Sub uOnLocalIPAddressChanged(ByVal Details As String)
 
     snDoRequest "notify?app-sig=" & App.ProductName & "&password=" & mPassword & "&class=" & CLASS_IP_CHANGE & _
-                "&title=IP address change&text=" & Replace$(Details, vbCrLf, "; ") & _
+                "&title=IP address change&text=" & Details & _
                 "&icon=" & g_MakePath(App.Path) & IIf(g_IsIDE(), "bin\", "") & "ipaddrchange.png" & _
                 "&uid=ipaddrchange&merge-uid=ipaddrchange"
 
 End Sub
 
-Private Sub theHandler_OnCPUMonitoringStarted()
+Private Sub uOnCPUMonitoringStarted()
 
-    Debug.Print "theHandler_OnCPUMonitoringStarted"
+    g_Debug "uOnCPUMonitoringStarted"
 
 '                l = sn41EZNotify(mtoken, CLASS_HIGH_CPU, "High processor utilisation", "Started monitoring" & vbCrLf & _
 '                                 "Current utilisation: " & CStr(dCurrentCPU) & "%", , "!system-info")
 
 End Sub
 
-Private Sub theHandler_OnCPUMonitoringStopped()
+Private Sub uOnCPUMonitoringStopped()
 
-    Debug.Print "theHandler_OnCPUMonitoringStopped"
+    g_Debug "uOnCPUMonitoringStopped"
 
 '            l = sn41EZNotify(mtoken, CLASS_HIGH_CPU, "High processor utilisation", "Stopped monitoring" & vbCrLf & _
 '                             "Current utilisation: " & CStr(dCurrentCPU) & "%", , "!system-info")
 
 End Sub
 
-Private Sub theHandler_OnCPUThresholdReached(ByVal LoadPercent As Integer, ByVal Duration As Integer)
-'Dim l As Long
-'
-'    l = sn41EZNotify(mToken, CLASS_HIGH_CPU, "High processor utilisation", _
-                     "The system has been at least " & CStr(LoadPercent) & "% busy for " & CStr(Duration) & " seconds", , _
-                     "!system-warning", , , , "action::Task Manager...,taskmgr.exe#?action::Run...,!system run_dialog#?action::Shutdown...,!system shutdown_dialog")
+Private Sub uOnCPUThresholdReached(ByVal LoadPercent As Integer, ByVal Duration As Long)
 
     snDoRequest "notify?app-sig=" & App.ProductName & "&password=" & mPassword & "&id=" & CLASS_HIGH_CPU & _
+                "&uid=high_cpu_load" & _
                 "&title=High processor utilisation" & _
-                "&text=The system has been at least " & CStr(LoadPercent) & "% busy for " & CStr(Duration) & " seconds" & _
+                "&text=The system has been " & CStr(LoadPercent) & "% busy for " & CStr(Duration) & " seconds" & _
                 "&icon=!system-warning" & _
                 "&action=Task Manager...,taskmgr.exe" & _
                 "&action=Run...,!system run_dialog" & _
@@ -729,42 +956,38 @@ Private Sub theHandler_OnCPUThresholdReached(ByVal LoadPercent As Integer, ByVal
 
 End Sub
 
-Private Sub theHandler_OnDiskThresholdReached(ByVal FreePercent As Integer, ByVal Path As String)
-Dim szTitle As String
+Private Sub uOnDiskThresholdReached(ByVal FreePercent As Integer, ByVal Path As String)
 Dim szText As String
-Dim szExtra As String
-
-    szTitle = Path
-
-'    With New TSimpleVolume
-'        If .SetTo(Path) Then
-'            If .Label <> "" Then _
-'                szTitle = Chr$(34) & .Label & Chr$(34)
-'
-'        End If
-'
-'    End With
-
-    szTitle = szTitle & " is nearly full"
 
     Select Case Val(mConfig.ValueOf("disk.verbosity"))
     Case 1
-        ' /* simple */
-        szText = FreePercent & "% remaining"
+        ' /* basic: text is "x% remaining" */
+        szText = Path & ": " & FreePercent & "% remaining"
 
     Case 2
-        ' /* meter */
-        szText = CStr(100 - FreePercent)
-
-    Case 3
-        ' /* detailed */
+        ' /* simple: text is "x of y (%) remaining" */
         With New TSimpleVolume
             If .SetTo(Path) Then
-                szText = g_FileSizeToStringEx2(.Available) & " of " & g_FileSizeToStringEx2(.Capacity) & " remaining"
-                szExtra = "&value-percent=" & CStr(100 - FreePercent)
+                szText = .SafeLabel & " (" & Path & ") is nearly out of space" & vbCrLf & "Capacity: " & g_FileSizeToStringEx2(.Capacity) & ", free: " & g_FileSizeToStringEx2(.Available)
 
             Else
-                szText = "??" & Path
+                g_Debug "uOnDiskThresholdReached(): couldn't create TSimpleVolume for path " & g_Quote(Path), LEMON_LEVEL_WARNING
+                szText = Path & ": " & FreePercent & "% remaining"
+
+            End If
+
+        End With
+
+    Case 3
+        ' /* detailed: include filesystem and serial */
+        With New TSimpleVolume
+            If .SetTo(Path) Then
+                szText = .SafeLabel & " (" & Path & ") is nearly out of space" & vbCrLf & "Capacity: " & g_FileSizeToStringEx2(.Capacity) & ", free: " & g_FileSizeToStringEx2(.Available) & vbCrLf & _
+                "Filesystem: " & .FileSystem & vbCrLf & "Serial: " & .SerialNumber
+
+            Else
+                g_Debug "uOnDiskThresholdReached(): couldn't create TSimpleVolume for path " & g_Quote(Path), LEMON_LEVEL_WARNING
+                szText = Path & ": " & FreePercent & "% remaining"
 
             End If
 
@@ -772,30 +995,14 @@ Dim szExtra As String
 
     End Select
 
-'Dim l As Long
-
-    ' /* verbosity      title           text
-    '       1           "disk low"      path
-    '       2                           % as meter
-    '       3                           "x gb of y gb (%) remaining
-    ' */
-
-'    l = sn41EZNotify(mToken, _
-                     CLASS_LOW_DISK, _
-                     szTitle, _
-                     szText, , "!disk-low_space", , , , "action::Open," & Path & IIf(szExtra <> "", "#?" & szExtra, ""))
-
-'    If l Then _
-        sn42AddAction l, "Open", Path
-
     snDoRequest "notify?app-sig=" & App.ProductName & "&password=" & mPassword & "&id=" & CLASS_LOW_DISK & _
-                "&title=" & szTitle & "&text=" & szText & "&icon=!disk-low_space" & _
-                "&action=Open," & Path & _
-                szExtra
+                "&title=Low disk space&text=" & szText & "&icon=!disk-low_space" & _
+                "&uid=low-disk-space-" & LCase$(Path) & "&action=Open," & Path & _
+                "&value-percent=" & CStr(100 - FreePercent)
 
 End Sub
 
-Private Sub theHandler_OnLockKeyPressed(ByVal Key As melon4.B_MODIFIER_KEYS, ByVal Enabled As Boolean)
+Private Sub uOnLockKeyPressed(ByVal Key As melon4.B_MODIFIER_KEYS, ByVal Enabled As Boolean)
 
     Select Case Key
     Case B_CAPS_LOCK
@@ -829,42 +1036,77 @@ Private Sub theHandler_OnLockKeyPressed(ByVal Key As melon4.B_MODIFIER_KEYS, ByV
 
 End Sub
 
-Private Sub theHandler_OnLowPowerWarning(ByVal CurrentChargePercent As Integer)
+Private Sub uOnLowPowerWarning(ByVal CurrentChargePercent As Integer)
 
-    g_Debug "theHandler.OnLowPowerWarning()", LEMON_LEVEL_PROC_ENTER
+    g_Debug "uOnLowPowerWarning()", LEMON_LEVEL_PROC_ENTER
 
     ' /* show even if charging? */
 
-    If (get_power_status() = B_POWER_STATE_CONNECTED) And (mConfig.ValueOf("power.warn_when_charging") = "0") Then _
+    If (get_power_status() = B_POWER_STATE_CONNECTED) And (mConfig.ValueOf("power.warn_when_charging") = "0") Then
+        g_Debug "ignoring: warn_when_charging not set", LEMON_LEVEL_PROC_EXIT
         Exit Sub
-
-Dim sz As String
-
-    ' /* matrix */
-    '
-    '   show_text   use_meter
-    '       0           0           icon only
-    '       0           1           icon with meter
-    '       1           0           title and text
-    '       1           1           title and meter
-
-    sz = CStr(CurrentChargePercent)
-
-    If mConfig.ValueOf("power.show_text") = "1" Then
-        If mConfig.ValueOf("power.use_meter") = "0" Then _
-            sz = "Current battery charge is " & sz & "%"
-
-    ElseIf mConfig.ValueOf("power.use_meter") = "0" Then
-        sz = ""
 
     End If
 
+
+
+Dim szTitle As String
+Dim szText As String
+Dim i As Integer
+
+    i = -1
+
+    Select Case Val(mConfig.ValueOf("power.verbosity"))
+    Case "1"
+        ' /* basic: icon only */
+        
+    Case "2"
+        ' /* simple: icon + title */
+        szTitle = "Battery level low"
+
+    Case "3"
+        ' /* detailed: icon + title + current charge */
+        szTitle = "Battery level low"
+        szText = "Current battery charge is " & CStr(CurrentChargePercent) & "%"
+        i = CurrentChargePercent
+
+    End Select
+
     snarl_ez_notify App.ProductName, CLASS_POWER_LOW, _
-                    IIf(mConfig.ValueOf("power.show_text") = "1", "Battery getting low", ""), _
-                    sz, "!battery-low", _
+                    szTitle, _
+                    szText, "!battery-low", _
                     1, , _
                     mPassword, _
                     "lowpower"
+
+
+'Dim sz As String
+'
+'    ' /* matrix */
+'    '
+'    '   show_text   use_meter
+'    '       0           0           icon only
+'    '       0           1           icon with meter
+'    '       1           0           title and text
+'    '       1           1           title and meter
+'
+'    sz = CStr(CurrentChargePercent)
+'
+'    If mConfig.ValueOf("power.show_text") = "1" Then
+'        If mConfig.ValueOf("power.use_meter") = "0" Then _
+'            sz = "Current battery charge is " & sz & "%"
+'
+'    ElseIf mConfig.ValueOf("power.use_meter") = "0" Then
+'        sz = ""
+'
+'    End If
+'
+'    snarl_ez_notify App.ProductName, CLASS_POWER_LOW, _
+'                    IIf(mConfig.ValueOf("power.show_text") = "1", "Battery getting low", ""), _
+'                    sz, "!battery-low", _
+'                    1, , _
+'                    mPassword, _
+'                    "lowpower"
 
 '    mLowPowerId = sn41EZNotify(mToken, _
                                CLASS_POWER_LOW, _
@@ -878,14 +1120,11 @@ Dim sz As String
 
 End Sub
 
-Private Sub theHandler_OnPhysicalRAMGone()
+Private Sub uOnPhysicalRAMGone()
 
     ' /* if the low RAM warning is still visible, remove it */
 
     snarl_hide_notification App.ProductName, "lowram", mPassword
-
-'    If sn41IsVisible(mLowRamId) Then _
-        sn41Hide mLowRamId
 
 Dim sz As String
 
@@ -894,33 +1133,38 @@ Dim sz As String
              "make the computer respond more slowly." & vbCrLf & vbCrLf & _
              "Closing unwanted applications, browser tabs or system tray applications will help restore physical memory."
 
-'    ElseIf mConfig.ValueOf("ram.show_title") = "0" Then
-'        sz = "Physical memory exhausted"
-'
-'    End If
-
     snarl_ez_notify App.ProductName, CLASS_NO_MEM, "Physical memory exhausted", sz, "!system-warning", , , mPassword, "noram"
-
-'    sn41EZNotify mToken, _
-                 CLASS_NO_MEM, _
-                 ", _
-                 sz, , "!system-warning"
 
 End Sub
 
-Private Sub theHandler_OnPhysicalRAMLow(ByVal PercentRemaining As Integer)
-Dim sz As String
+Private Sub uOnPhysicalRAMLow(ByVal PercentRemaining As Integer)
+Dim pmx As MEMORYSTATUSEX
+Dim szText As String
 
-    If mConfig.ValueOf("ram.use_meter") = "1" Then
-        sz = CStr(PercentRemaining)
+    szText = g_FileSizeToStringEx2(g_GetPhysMem(False), , , "0.0") & " of " & g_FileSizeToStringEx2(g_GetPhysMem(True), , , "0.0") & " (" & CStr(PercentRemaining) & "%) remaining"
 
-    Else
-        sz = g_FileSizeToStringEx2(g_GetPhysMem(False), , , "0.0") & " of " & g_FileSizeToStringEx2(g_GetPhysMem(True), , , "0.0") & _
-             " (" & CStr(PercentRemaining) & "%) remaining"
+    If mConfig.ValueOf("ram.show_extra") = "1" Then
+        ' /* safe to assume we can use GlobalMemoryStatusEx() as Snarl only supports W2K+ */
+
+        pmx.dwLength = Len(pmx)
+        If GlobalMemoryStatusEx(pmx) Then
+            szText = szText & vbCrLf & "Details (Available / Total):"
+            szText = szText & vbCrLf & "Physical: " & g_FileSizeToStringEx2(g_LargeToDouble(pmx.ullAvailPhys)) & " / " & g_FileSizeToStringEx2(g_LargeToDouble(pmx.ullTotalPhys))
+            szText = szText & vbCrLf & "Paging: " & g_FileSizeToStringEx2(g_LargeToDouble(pmx.ullAvailPageFile)) & " / " & g_FileSizeToStringEx2(g_LargeToDouble(pmx.ullTotalPageFile))
+            szText = szText & vbCrLf & "Virtual: " & g_FileSizeToStringEx2(g_LargeToDouble(pmx.ullAvailVirtual)) & " / " & g_FileSizeToStringEx2(g_LargeToDouble(pmx.ullTotalVirtual))
+
+        Else
+            g_Debug "uOnPhysicalRAMLow(): GlobalMemoryStatusEx() failed: " & g_ApiError(), LEMON_LEVEL_WARNING
+
+        End If
 
     End If
 
-    snarl_ez_notify App.ProductName, CLASS_LOW_MEM, "Physical memory low", sz, "!system-info", , , mPassword, "lowram", , PercentRemaining
+    snarl_ez_notify App.ProductName, CLASS_LOW_MEM, _
+                    "Physical memory low", _
+                    szText, _
+                    "!system-warning", , , _
+                    mPassword, "lowram", , PercentRemaining
 
 '    mLowRamId = sn41EZNotify(mToken, _
                              CLASS_LOW_MEM, _
@@ -929,79 +1173,122 @@ Dim sz As String
 
 End Sub
 
-Private Sub theHandler_OnPowerStatusChanged(ByVal Connected As Boolean, ByVal CurrentChargePercent As Integer)
+Private Sub uOnPowerStatusChanged(ByVal Connected As Boolean, ByVal CurrentChargePercent As Integer)
 
     g_Debug "theHandler.OnPowerStatusChanged()", LEMON_LEVEL_PROC_ENTER
 
-Dim sz As String
+Dim szTitle As String
+Dim szText As String
+Dim i As Integer
 
-    ' /* matrix */
-    '
-    '   show_text   use_meter
-    '       0           0           icon only
-    '       0           1           N/A
-    '       1           0           icon and title
-    '       1           1           N/A
-
-    sz = CStr(CurrentChargePercent)
-
-    If mConfig.ValueOf("power.show_text") = "1" Then
-        If mConfig.ValueOf("power.use_meter") = "0" Then _
-            sz = "Current battery charge is " & sz & "%"
-
-    ElseIf mConfig.ValueOf("power.use_meter") = "0" Then
-        sz = ""
-
-    End If
+    i = -1
 
     ' /* remove existing notification */
 
     snarl_hide_notification App.ProductName, "powerchange", mPassword
 
-'    If sn41IsVisible(mPowerId) Then _
-        sn41Hide mPowerId
-
     If Connected Then
+        g_Debug "connected..."
 
-        ' /* also remove low power warning if it's still on screen */
-
+        ' /* remove low power warning if it's still on screen */
         snarl_hide_notification App.ProductName, "lowpower", mPassword
 
-'        If sn41IsVisible(mLowPowerId) Then _
-            sn41Hide mLowPowerId
+        Select Case Val(mConfig.ValueOf("power.verbosity"))
+        Case "1"
+            ' /* basic: icon only */
+            
+        Case "2"
+            ' /* simple: icon + title */
+            szTitle = "Power connected"
+
+        Case "3"
+            ' /* detailed: icon + title + current charge */
+            szTitle = "Power connected"
+            szText = "Current battery charge is " & CStr(CurrentChargePercent) & "%"
+            i = CurrentChargePercent
+
+        End Select
 
         snarl_ez_notify App.ProductName, CLASS_POWER_CONNECT, _
+                        szTitle, _
+                        szText, _
+                        "!power-connected", , , mPassword, "powerchange", i
+
+'        snarl_ez_notify App.ProductName, CLASS_POWER_CONNECT, _
                         IIf(mConfig.ValueOf("power.show_text") = "1", "Power connected", ""), _
                         sz, _
                         "!power-connected", , , mPassword, "powerchange"
 
-'        mPowerId = sn41EZNotify(mToken, _
-                                       CLASS_POWER_CONNECT, _
-                                       IIf(mConfig.ValueOf("power.show_text") = "1", "Power connected", ""), _
-                                       sz, _
-                                       , _
-                                       "!power-connected" _
-                                       )
-
     Else
+        g_Debug "disconnected..."
 
+        Select Case Val(mConfig.ValueOf("power.verbosity"))
+        Case "1"
+            ' /* basic: icon only */
+            
+        Case "2"
+            ' /* simple: icon + title */
+            szTitle = "Power disconnected"
+
+        Case "3"
+            ' /* detailed: icon + title + current charge */
+            szTitle = "Power disconnected"
+            szText = "Current battery charge is " & CStr(CurrentChargePercent) & "%"
+            i = CurrentChargePercent
+
+        End Select
+        
         snarl_ez_notify App.ProductName, CLASS_POWER_DISCONNECT, _
+                        szTitle, _
+                        szText, _
+                        "!power-disconnected", , , mPassword, "powerchange", , i
+
+'        snarl_ez_notify App.ProductName, CLASS_POWER_DISCONNECT, _
                         IIf(mConfig.ValueOf("power.show_text") = "1", "Power disconnected", ""), _
                         sz, _
                         "!power-disconnected", , , mPassword, "powerchange"
-
-'        mPowerId = sn41EZNotify(mToken, _
-                                       CLASS_POWER_DISCONNECT, _
-                                       IIf(mConfig.ValueOf("power.show_text") = "1", "Power disconnected", ""), _
-                                       sz, _
-                                       , _
-                                       "!power-disconnected" _
-                                       )
 
     End If
 
     g_Debug "", LEMON_LEVEL_PROC_EXIT
 
+End Sub
+
+Private Sub theFastTimer_Pulse()
+
+    uScanKeyState
+
+    ' /* IP address info */
+
+    If (g_IsPressed(vbKeyEscape)) And (g_IsPressed(vbKeyI)) Then
+        If Not snarl_is_notification_visible(App.ProductName, "ipaddrinfo", mPassword) Then _
+            snarl_ez_notify App.ProductName, "", "Assigned IP addresses", Replace$(get_ip_address_table(), " ", "; "), "!system-info", , , mPassword, "ipaddrinfo"
+
+    End If
+
+    ' /* nic and dun info */
+
+    If (g_IsPressed(vbKeyEscape)) And (g_IsPressed(vbKeyN)) Then
+        If Not snarl_is_notification_visible(App.ProductName, "adapterinfo", mPassword) Then _
+            snarl_ez_notify App.ProductName, "", "Network adapters", Replace$(get_ip_address_table(), " ", "; "), "!system-info", , , mPassword, "adapterinfo"
+
+    End If
+    
+    ' /* memory info */
+
+    If (g_IsPressed(vbKeyEscape)) And (g_IsPressed(vbKeyM)) Then
+        If Not snarl_is_notification_visible(App.ProductName, "memoryinfo", mPassword) Then _
+            snarl_ez_notify App.ProductName, "", "Memory allocation", uGetMemoryInfo(), "!system-info", , , mPassword, "memoryinfo"
+
+    End If
+
+    ' /* disk info */
+
+    If (g_IsPressed(vbKeyEscape)) And (g_IsPressed(vbKeyV)) Then
+        If Not snarl_is_notification_visible(App.ProductName, "diskinfo", mPassword) Then _
+            snarl_ez_notify App.ProductName, "", "Disk volumes", uGetVolumeInfo(), "!system-info", , , mPassword, "diskinfo"
+
+    End If
 End Sub
 
 Private Sub theNetRoster_Connected(ByVal Name As String, Device As melon4.BTagList)
@@ -1063,13 +1350,6 @@ Dim szText As String
 
 End Sub
 
-Private Sub theNICTimer_Pulse()
-
-    theNetRoster.Refresh
-    theDUNRoster.Refresh
-
-End Sub
-
 Private Function uSpeed(ByVal Speed As Long) As String
 
     If Speed > 999999999 Then
@@ -1088,7 +1368,16 @@ Private Function uSpeed(ByVal Speed As Long) As String
 
 End Function
 
+Private Sub theSlowTimer_Pulse()
+
+    If mConfig.ValueOf("other.watch_ie") = "1" Then _
+        uCheckIEWindows
+
+End Sub
+
 Private Sub theVolRoster_VolumeMounted(ByVal Path As String, ByVal Label As String, ByVal VolType As Long)
+
+    g_Debug "##VolumeMounted(): path=" & g_Quote(Path) & " label=" & g_Quote(Label) & " type=" & g_Quote(VolType), LEMON_LEVEL_INFO
 
     ' /* remove any corresponding "Volume unmounted" notification */
     snarl_hide_notification App.ProductName, "vol-unmounted-" & Path, mPassword
@@ -1123,6 +1412,8 @@ Dim sz As String
 End Sub
 
 Private Sub theVolRoster_VolumeUnmounted(ByVal Path As String, ByVal Label As String, ByVal VolType As Long)
+
+    g_Debug "##VolumeUnmounted(): path=" & g_Quote(Path) & " label=" & g_Quote(Label) & " type=" & g_Quote(VolType), LEMON_LEVEL_INFO
 
     ' /* remove any corresponding "Volume mounted" notification */
     snarl_hide_notification App.ProductName, "vol-mounted-" & Path, mPassword
@@ -1230,13 +1521,6 @@ Dim pc As BControl
             pc.SetEnabled (Value = "1")
 
 
-    Case "power.low_mark"
-        theHandler.SetLowPowerThreshold Val(Value)
-
-    Case "ram.low_mark"
-        theHandler.SetLowRAMThreshold Val(Value)
-
-
     Case "disk.enabled"
         If Control.Page.Find("disk.low_mark", pc) Then _
             pc.SetEnabled (Value = "1")
@@ -1255,9 +1539,6 @@ Dim pc As BControl
 
 
     Case "nic.enabled"
-        
-        uEnableNICScanning (Value = "1")
-
         If Control.Page.Find("nic.verbosity", pc) Then _
             pc.SetEnabled (Value = "1")
 
@@ -1268,13 +1549,9 @@ Dim pc As BControl
             pc.SetEnabled (Value = "1")
 
 
-    Case "disk.monitor"
-        ' /* volume mounts/unmounts */
-        uEnableVolScanning (Value = "1")
-
     End Select
 
-    theHandler.ConfigChanged Control.GetName, Value
+    uConfigChanged Control.GetName
 
 End Sub
 
@@ -1282,15 +1559,15 @@ Private Sub KPrefsPage_ControlInvoked(Control As BControl)
 
     Select Case Control.GetName
     Case "power.test"
-        theHandler_OnPowerStatusChanged (get_power_status = B_POWER_STATE_CONNECTED), "50"
-        theHandler_OnLowPowerWarning "50"
+        uOnPowerStatusChanged (get_power_status = B_POWER_STATE_CONNECTED), "50"
+        uOnLowPowerWarning 50
 
     Case "ram.test"
-        theHandler_OnPhysicalRAMGone
-        theHandler_OnPhysicalRAMLow 100 - g_PercentMemInUse(True)
+        uOnPhysicalRAMGone
+        uOnPhysicalRAMLow 100 - g_PercentMemInUse(True)
 
     Case "cpu.test"
-        theHandler_OnCPUThresholdReached mConfig.ValueOf("cpu.high_mark"), mConfig.ValueOf("cpu.duration")
+        uOnCPUThresholdReached mConfig.ValueOf("cpu.high_mark"), mConfig.ValueOf("cpu.duration")
 
     Case "nic.test"
         theNetRoster_Connected "<test_network>", new_BTagList()
@@ -1301,7 +1578,7 @@ Private Sub KPrefsPage_ControlInvoked(Control As BControl)
         theDUNRoster_Disconnected "<test_dialup>", new_BTagList()
 
     Case "disk.test"
-        theHandler_OnDiskThresholdReached mConfig.ValueOf("disk.low_mark"), g_SafeLeftStr(App.Path, 3)
+        uOnDiskThresholdReached mConfig.ValueOf("disk.low_mark"), g_SafeLeftStr(App.Path, 3)
 
     Case "go_website"
         ShellExecute Control.Page.Panel.hWnd, "open", "http://www.fullphat.net", vbNullString, vbNullString, 5
@@ -1331,17 +1608,6 @@ End Function
 
 Private Sub KPrefsPage_PanelResized(ByVal Width As Long, ByVal Height As Long)
 End Sub
-
-Private Sub uCfgCheck(ByVal Name As String, ByVal Default As String)
-
-    If (mConfig Is Nothing) Then _
-        Exit Sub
-
-    If Not mConfig.Exists(Name) Then _
-        mConfig.Add Name, Default
-
-End Sub
-
 
 
 
@@ -1519,79 +1785,128 @@ End Sub
 '
 'End Function
 
-Private Sub theVolTimer_Pulse()
+Private Sub theExternalIPRequest_Completed(ByVal WasSuccessful As Boolean)
 
-    theVolRoster.Refresh
+    g_Debug "##ExternalIPRequest.Completed()", LEMON_LEVEL_PROC_ENTER
 
-End Sub
+Dim bNotify As Boolean
+Dim sz As String
 
-Private Sub uEnableNICScanning(ByVal Enabled As Boolean)
+    If WasSuccessful Then
+        g_Debug "completed"
+        sz = theExternalIPRequest.ResponseBody()
 
-    If Enabled Then
+        If g_IsIDE() Then _
+            g_Debug "address is " & sz
 
-        ' /* scan the current NIC and DUN adapters */
+        If sz <> mCurrentExternalIP Then
+            If mCurrentExternalIP <> "" Then
+                g_Debug "external IP address has changed", LEMON_LEVEL_INFO
 
-        Set theNetRoster = New TNetRoster2
-        With theNetRoster
-            .LockRoster
-            .Refresh
-            .UnlockRoster
+                snarl_ez_notify App.ProductName, CLASS_IP_CHANGE, _
+                                "External IP address changed", "Was " & mCurrentExternalIP & ", now " & sz, _
+                                g_MakePath(App.Path) & IIf(g_IsIDE(), "bin\", "") & "ipaddrchange.png", , , mPassword, _
+                                "extipaddrchange"
 
-        End With
 
-        Set theDUNRoster = New TDUNRoster
-        With theDUNRoster
-            .LockRoster
-            .Refresh
-            .UnlockRoster
+            Else
+                g_Debug "not notifying: first pass"
 
-        End With
+            End If
 
-        ' /* start watching */
+            mCurrentExternalIP = sz
 
-        Set theNICTimer = new_BTimer(4000)
-        g_Debug "uEnableNICScanning(): enabled"
+        Else
+            g_Debug "no change"
+
+        End If
 
     Else
-        ' /* kill the timer */
-        Set theNICTimer = Nothing
-
-        ' /* delete the rosters */
-        Set theDUNRoster = Nothing
-        Set theNetRoster = Nothing
-        g_Debug "uEnableNICScanning(): disabled"
+        g_Debug "timed out", LEMON_LEVEL_WARNING
 
     End If
 
-End Sub
-
-Private Sub uEnableVolScanning(ByVal Enabled As Boolean)
-
-    If Enabled Then
-
-        ' /* scan the current mounted volumes */
-
-        With theVolRoster
-            .LockRoster
-            .SetWatchedVolumes False, True
-            .Refresh
-            .UnlockRoster
-
-        End With
-
-        ' /* start watching */
-
-        g_Debug "uEnableVolScanning(): enabled"
-        Set theVolTimer = new_BTimer(2000)
-
-    Else
-        ' /* kill the timer */
-        Set theVolTimer = Nothing
-        g_Debug "uEnableVolScanning(): disabled"
-
-    End If
+    g_Debug "", LEMON_LEVEL_PROC_EXIT
 
 End Sub
+
+
+'Private Sub uEnableNICScanning(ByVal Enabled As Boolean)
+'
+'    g_Debug "uEnableNICScanning()", LEMON_LEVEL_PROC_ENTER
+'
+'    If Enabled Then
+'        g_Debug "enabling..."
+'
+'        ' /* scan the current NIC and DUN adapters */
+'
+'        Set theNetRoster = New TNetRoster2
+'        With theNetRoster
+'            .LockRoster
+'            .Refresh
+'            .UnlockRoster
+'
+'        End With
+'
+'        Set theDUNRoster = New TDUNRoster
+'        With theDUNRoster
+'            .LockRoster
+'            .Refresh
+'            .UnlockRoster
+'
+'        End With
+'
+'        ' /* start watching */
+'
+'        Set theNICTimer = new_BTimer(4000)
+'        g_Debug "enabled"
+'
+'    Else
+'        g_Debug "disabling..."
+'
+'        ' /* kill the timer */
+'        Set theNICTimer = Nothing
+'
+'        ' /* delete the rosters */
+'        Set theDUNRoster = Nothing
+'        Set theNetRoster = Nothing
+'        g_Debug "disabled"
+'
+'    End If
+'
+'    g_Debug "", LEMON_LEVEL_PROC_EXIT
+'
+'End Sub
+
+'Private Sub uEnableVolScanning(ByVal Enabled As Boolean)
+'
+'    g_Debug "uEnableVolScanning()", LEMON_LEVEL_PROC_ENTER
+'
+'    If Enabled Then
+'        g_Debug "enabling..."
+'
+'        ' /* scan the current mounted volumes */
+'
+'        With theVolRoster
+'            .LockRoster
+'            .SetWatchedVolumes False, True
+'            .Refresh
+'            .UnlockRoster
+'
+'        End With
+'
+'        g_Debug "enabled"
+'
+'    Else
+'        g_Debug "disabling..."
+'
+'        g_Debug "disabled"
+'
+'    End If
+'
+'    g_Debug "", LEMON_LEVEL_PROC_EXIT
+'
+'End Sub
 
 Private Sub uSaveBitmap(ByVal hBitmap As Long, ByRef Path As String)
 
@@ -1625,3 +1940,577 @@ Private Sub uAddClass(ByVal Id As String, ByVal Desc As String, Optional ByVal E
     snarl_add_class App.ProductName, Id, Desc, Enabled, mPassword
 
 End Sub
+
+Private Function uGetKeyLockState(ByVal KeyCode As Long) As Boolean
+Dim b As Integer
+
+    b = GetKeyState(KeyCode)
+    uGetKeyLockState = (b And 1)
+
+End Function
+
+Private Sub uCheckExternalIP()
+
+    g_Debug "uCheckExternalIP()", LEMON_LEVEL_PROC_ENTER
+
+    Set theExternalIPRequest = New CHTTPRequest3
+    g_Debug "sending request..."
+    theExternalIPRequest.GetContent "http://automation.whatismyip.com/n09230945.asp"
+
+    g_Debug "", LEMON_LEVEL_PROC_EXIT
+
+End Sub
+
+Private Sub uScanIPTable(ByVal Notify As Boolean)
+Dim szAdded As String
+Dim szRemoved As String
+Dim ppd As BPackedData
+Dim szn As String
+Dim i As Long
+
+'    g_Debug "uScanIPTable(): ", LEMON_LEVEL_PROC_ENTER
+
+    ' /* get current */
+
+    Set ppd = New BPackedData
+    ppd.SetTo get_ip_address_table(), " ", ""
+
+'    g_Debug "tidying list..."
+    If ppd.Count Then
+        For i = ppd.Count To 1 Step -1
+            ppd.EntryAt i, szn, ""
+            If (szn = "0.0.0.0") Or (szn = "127.0.0.1") Or (szn = "") Then _
+                ppd.Remove i
+
+        Next i
+    End If
+
+    ' /* look for removals */
+
+    If mLocalIPList.Count > 0 Then
+        For i = mLocalIPList.Count To 1 Step -1
+            mLocalIPList.EntryAt i, szn, ""
+            If Not ppd.Exists(szn) Then
+                g_Debug "uScanIPTable(): " & g_Quote(szn) & " removed", LEMON_LEVEL_INFO
+                szRemoved = szRemoved & szn & "; "
+                mLocalIPList.Remove i
+
+            End If
+        Next i
+    End If
+
+    ' /* look for additions */
+
+    With ppd
+        .Rewind
+        Do While .GetNextItem(szn, "")
+            If Not mLocalIPList.Exists(szn) Then
+                g_Debug "uScanIPTable(): " & g_Quote(szn) & " added", LEMON_LEVEL_INFO
+                szAdded = szAdded & szn & "; "
+                mLocalIPList.Add szn, ""
+
+            End If
+        Loop
+    End With
+
+    If szAdded <> "" Then _
+        szAdded = "Added: " & g_SafeLeftStr(szAdded, Len(szAdded) - 2)
+
+    If szRemoved <> "" Then _
+        szRemoved = "Removed: " & g_SafeLeftStr(szRemoved, Len(szRemoved) - 2)
+
+Dim szText As String
+
+    If szAdded <> "" Then
+        szText = szAdded
+        If szRemoved <> "" Then _
+            szText = szText & vbCrLf & szRemoved
+
+    Else
+        szText = szRemoved
+
+    End If
+
+    ' /* only notify if something changed */
+
+    If (szText <> "") And (Notify) Then _
+        uOnLocalIPAddressChanged szText
+
+'    g_Debug "", LEMON_LEVEL_PROC_EXIT
+
+'"Current configured addresses are:" & vbCrLf & Replace$(sz, " ", vbCrLf)
+'            snShowMessageEx Me.CLASS_1, "IP Address Change", szText, 10, g_MakePath(App.Path) & "icon.png", Me.hWnd, &H401
+
+End Sub
+
+Private Sub uScanKeyState()
+Static b As Boolean
+
+    b = uGetKeyLockState(vbKeyCapital)
+    If b <> mCapState Then
+        mCapState = b
+        g_Debug "uScanKeyState(): B_CAPS_LOCK changed to " & CStr(b)
+        uOnLockKeyPressed B_CAPS_LOCK, b
+
+    End If
+
+    b = uGetKeyLockState(vbKeyNumlock)
+    If b <> mNumState Then
+        mNumState = b
+        g_Debug "uScanKeyState(): B_NUM_LOCK changed to " & CStr(b)
+        uOnLockKeyPressed B_NUM_LOCK, b
+
+    End If
+
+    b = uGetKeyLockState(vbKeyScrollLock)
+    If b <> mSclState Then
+        mSclState = b
+        g_Debug "uScanKeyState(): B_SCROLL_LOCK changed to " & CStr(b)
+        uOnLockKeyPressed B_SCROLL_LOCK, b
+
+    End If
+
+End Sub
+
+Private Sub uConfigChanged(ByVal Item As String)
+Dim sz As String
+
+    g_Debug "uConfigChanged()", LEMON_LEVEL_PROC_ENTER
+
+    sz = mConfig.ValueOf(Item)
+    g_Debug "arg: " & g_Quote(Item) & " current value: " & g_Quote(sz)
+
+    Select Case Item
+    Case "cpu.enabled"
+        If sz = "1" Then
+            g_Debug "system load monitoring started"
+
+        Else
+            g_Debug "system load monitoring stopped"
+
+        End If
+
+    Case "cpu.duration"
+        mHighCPUDuration = Val(sz)
+        g_Debug "CPU duration threshold set to " & CStr(mHighCPUDuration) & " secs"
+        mDoneHighCPUWarning = False
+
+    Case "cpu.high_mark"
+        mHighCPUThreshold = MAX(MIN(Val(sz), 100), 0)
+        g_Debug "CPU threshold set to " & CStr(mHighCPUThreshold) & "%"
+        mDoneHighCPUWarning = False
+
+
+
+    Case "disk.monitor"
+        ' /* volume mounts/unmounts */
+        If sz = "1" Then
+            g_Debug "enabling disk insert/removal scanning..."
+    
+            ' /* scan the current mounted volumes */
+    
+            With theVolRoster
+                .LockRoster
+                .SetWatchedVolumes False, True
+                .Refresh
+                .UnlockRoster
+    
+            End With
+    
+            g_Debug "enabled"
+    
+        Else
+            g_Debug "disabled disk insertion/removal scanning"
+    
+        End If
+
+
+
+
+
+    Case "disk.enabled"
+        If sz = "1" Then
+            mDiskDoneList.MakeEmpty
+            g_Debug "enabling disk capacity monitoring..."
+
+        Else
+            g_Debug "TWindow.ConfigChanged(): disabling disk capacity monitoring..."
+
+        End If
+
+    Case "disk.low_mark"
+        mLowDiskThreshold = MAX(MIN(Val(sz), 100), 0)
+        g_Debug "disk space low threshold set to " & CStr(mLowDiskThreshold) & "%"
+        mDiskDoneList.MakeEmpty
+
+    Case "disk.watch_optical"
+        mWatchOpt = (sz = "1")
+
+    Case "disk.watch_removable"
+        mWatchRem = (sz = "1")
+
+
+
+    Case "other.watch_clipboard"
+        If sz = "1" Then
+            ' /* enabled */
+            g_Debug "enabling clipboard snooping..."
+            mBlockClipboardChange = True
+            g_ClipboardInit mhWnd
+
+        Else
+            ' /* disabled */
+            g_Debug "disabling clipboard snooping..."
+            g_ClipboardUninit
+
+        End If
+
+    Case "other.watch_ie"
+        If sz = "1" Then
+            g_Debug "IE download monitoring started"
+
+        Else
+            g_Debug "IE download monitoring stopped"
+
+        End If
+
+    Case "power.low_mark"
+        uSetLowPowerThreshold Val(sz)
+
+    Case "ram.low_mark"
+        uSetLowRAMThreshold Val(sz)
+
+
+    Case "nic.enabled"
+        If sz = "1" Then
+            g_Debug "enabling network and dial-up scanning..."
+
+            ' /* scan the current NIC and DUN adapters */
+
+            Set theNetRoster = New TNetRoster2
+            With theNetRoster
+                .LockRoster
+                .Refresh
+                .UnlockRoster
+    
+            End With
+
+            Set theDUNRoster = New TDUNRoster
+            With theDUNRoster
+                .LockRoster
+                .Refresh
+                .UnlockRoster
+    
+            End With
+
+            g_Debug "enabled"
+
+        Else
+            g_Debug "disabling network and dial-up scanning..."
+
+            ' /* delete the rosters */
+            Set theDUNRoster = Nothing
+            Set theNetRoster = Nothing
+            g_Debug "disabled"
+
+        End If
+
+
+
+    Case "xip.enabled"
+        ' /* external IP address */
+        If sz = "1" Then _
+            uCheckExternalIP
+
+
+    End Select
+
+    g_Debug "", LEMON_LEVEL_PROC_EXIT
+
+'    b = (Config.GetValueWithDefault("cpu.enabled", "") = "1")
+'
+'    If b <> mWatchingLoad Then
+'        g_Debug "ConfigChanged(): cpu.enabled is now " & CStr(b)
+'
+'        If b Then
+'            ' /* start watching load */
+'            mHighCPUDuration = Val(Config.GetValueWithDefault("cpu.duration"))
+'
+'            n = Val(Config.GetValueWithDefault("cpu.high_mark"))
+'            n = MAX(MIN(n, 100), 0)
+'            mHighCPUThreshold = n
+'
+'            mDoneHighCPUWarning = False
+'
+'        Else
+'            ' /* stop watching load */
+''            mHighCPUThreshold = -1
+'
+'        End If
+'
+'        mWatchingLoad = b
+'
+'    End If
+
+End Sub
+
+Private Sub uSetLowPowerThreshold(ByVal Value As Long)
+
+    g_Debug "uSetLowPowerThreshold()", LEMON_LEVEL_PROC_ENTER
+
+    g_Debug "validating " & g_Quote(Value) & "..."
+    If Value > 100 Then
+        Value = 100
+
+    ElseIf Value < 0 Then
+        Value = 0
+
+    End If
+
+    mLowPowerThreshold = Value
+    mDoneLowPowerWarning = False
+
+    g_Debug "", LEMON_LEVEL_PROC_EXIT
+
+End Sub
+
+Private Sub uCheckBatteryCharge()
+Dim m As Integer
+
+    ' /* % battery check */
+    m = get_battery_charge_percent()
+    If mDoneLowPowerWarning Then
+        If m > mLowPowerThreshold Then
+            g_Debug "uCheckBatteryCharge(): returned above threshold", LEMON_LEVEL_INFO
+            mDoneLowPowerWarning = False
+
+        End If
+
+    Else
+        If m <= mLowPowerThreshold Then
+            g_Debug "uCheckBatteryCharge(): below threshold", LEMON_LEVEL_INFO
+            uOnLowPowerWarning get_battery_charge_percent()
+            mDoneLowPowerWarning = True
+
+        End If
+
+    End If
+
+End Sub
+
+Private Sub uSetLowRAMThreshold(ByVal Value As Long)
+
+    g_Debug "uSetLowRAMThreshold()", LEMON_LEVEL_PROC_ENTER
+
+    g_Debug "validating " & g_Quote(Value) & "..."
+    If Value > 100 Then
+        Value = 100
+
+    ElseIf Value < 0 Then
+        Value = 0
+
+    End If
+
+    mLowRAMThreshold = Value
+    mDoneLowRAMWarning = False
+
+    g_Debug "", LEMON_LEVEL_PROC_EXIT
+
+End Sub
+
+Private Sub uCheckRamUsage()
+Dim d As Double
+
+    ' /* % physical RAM check */
+
+    d = g_PercentMemInUse(True)
+
+    If mDoneLowRAMWarning Then
+        ' /* see if it's back above the warning limit */
+        If d > mLowRAMThreshold Then
+            g_Debug "uCheckRamUsage(): has returned above threshold", LEMON_LEVEL_INFO
+            mDoneLowRAMWarning = False
+
+        End If
+
+    Else
+        ' /* is it at or below the warning limit */
+        If d <= mLowRAMThreshold Then
+            g_Debug "uCheckRamUsage(): has dropped below threshold", LEMON_LEVEL_INFO
+            uOnPhysicalRAMLow d
+            mDoneLowRAMWarning = True
+
+        End If
+
+    End If
+
+End Sub
+
+Private Sub uScanDiskCapacities()
+Dim szPath As String
+Dim i As Integer
+
+    For i = Asc("C") To Asc("Z")
+
+        szPath = Chr$(i) & ":\"
+
+        Select Case GetDriveType(szPath)
+        Case DRIVE_FIXED
+            uCheckDiskCapacity szPath
+
+        Case DRIVE_REMOVABLE
+            If mWatchRem Then _
+                uCheckDiskCapacity szPath
+
+        Case DRIVE_CDROM
+            If mWatchOpt Then _
+                uCheckDiskCapacity szPath
+        
+        End Select
+
+    Next i
+
+End Sub
+
+Private Sub uCheckDiskCapacity(ByVal Path As String)
+Dim n As Integer
+
+    n = g_GetDiskFreePercent(Path)
+    If n < 0 Then _
+        Exit Sub
+
+    If (n <= mLowDiskThreshold) And (mDiskDoneList.IndexOf(Path) = 0) Then
+        ' /* on or below threshold and not already notified - notify and add to list */
+        g_Debug "uCheckDiskCapacity(): " & g_Quote(Path) & " is below threshold", LEMON_LEVEL_INFO
+        mDiskDoneList.Add new_BTagItem(Path, "")
+        uOnDiskThresholdReached n, Path
+
+    ElseIf (mDiskDoneList.IndexOf(Path) <> 0) And (n > mLowDiskThreshold) Then
+        ' /* notified but now above threshold - remove from list */
+        g_Debug "uCheckDiskCapacity(): " & g_Quote(Path) & " has returned above threshold", LEMON_LEVEL_INFO
+        mDiskDoneList.Remove mDiskDoneList.IndexOf(Path)
+
+    End If
+
+End Sub
+
+Private Sub uCheckCPULoad()
+Dim dLoad As Double
+
+    dLoad = krnl_GetCurrentTotalCPUPercent()
+
+    If dLoad > mHighCPUThreshold Then
+        ' /* over the threshold */
+
+        g_Debug "uCheckCPULoad(): current load (" & CStr(dLoad) & "%) is over threshold (" & CStr(mHighCPUThreshold) & "%)"
+
+        If Not mCPUIsTracking Then
+            ' /* first time (not tracking) */
+            mCPUTrackingStarted = GetTickCount()
+            mCPUIsTracking = True
+            g_Debug "uCheckCPULoad(): started tracking..."
+            uOnCPUMonitoringStarted
+
+        ElseIf Not mDoneHighCPUWarning Then
+            ' /* already tracking... */
+            If (GetTickCount() - mCPUTrackingStarted) > (mHighCPUDuration * 1000) Then
+                ' /* ...and past the cut-off duration */
+                g_Debug "uCheckCPULoad(): tracking duration exceeded"
+                uOnCPUThresholdReached mHighCPUThreshold, CInt((GetTickCount() - mCPUTrackingStarted) / 1000)
+                mDoneHighCPUWarning = True
+
+            End If
+
+        End If
+
+    ElseIf mCPUIsTracking Then
+        ' /* load has dropped below the threshold and we were monitoring, so stop */
+        g_Debug "uCheckCPULoad(): stopped tracking..."
+        uOnCPUMonitoringStopped
+        mCPUIsTracking = False
+        mDoneHighCPUWarning = False
+
+    End If
+
+End Sub
+
+Private Sub uCheckIEWindows()
+Static pt As BTagItem
+Static h As Long
+Static c As Long
+Static i As Long
+Static p As Long
+
+    ' /* gone windows */
+
+    With mIEWindowList
+        If .CountItems Then
+            For i = .CountItems To 1 Step -1
+                h = Val(.TagAt(i).Name)
+                If IsWindow(h) = 0 Then
+                    Debug.Print "removed " & g_HexStr(h)
+                    .Remove i
+            
+                End If
+            Next i
+        End If
+    End With
+
+    ' /* new windows */
+
+    c = g_AppWindows_Refresh(True)
+    If c Then
+        For i = 1 To c
+            h = g_AppWindows_WindowAt(i)
+            If (g_ClassName(h) = "#32770") And (g_WindowText(h) = "Download complete") And (mIEWindowList.IndexOf(CStr(h)) = 0) Then
+                GetWindowThreadProcessId h, p
+                If g_GetProcessFriendlyName2(p) = "Internet Explorer" Then
+                    Debug.Print "found window 0x" & g_HexStr(h)
+                    mIEWindowList.Add new_BTagItem(CStr(h), "")
+                    uOnIEDownloadCompleted
+
+                End If
+            End If
+        Next i
+    End If
+
+End Sub
+
+Private Function uGetMemoryInfo() As String
+Dim pmx As MEMORYSTATUSEX
+
+    ' /* safe to assume we can use GlobalMemoryStatusEx() as Snarl only supports W2K+ */
+
+    pmx.dwLength = Len(pmx)
+    If GlobalMemoryStatusEx(pmx) Then
+        uGetMemoryInfo = uGetMemoryInfo & "Physical: " & g_FileSizeToStringEx2(g_LargeToDouble(pmx.ullTotalPhys)) & ", " & g_FileSizeToStringEx2(g_LargeToDouble(pmx.ullAvailPhys)) & " free"
+        uGetMemoryInfo = uGetMemoryInfo & vbCrLf & "Paging: " & g_FileSizeToStringEx2(g_LargeToDouble(pmx.ullTotalPageFile)) & ", " & g_FileSizeToStringEx2(g_LargeToDouble(pmx.ullAvailPageFile)) & " free"
+        uGetMemoryInfo = uGetMemoryInfo & vbCrLf & "Virtual: " & g_FileSizeToStringEx2(g_LargeToDouble(pmx.ullTotalVirtual)) & ", " & g_FileSizeToStringEx2(g_LargeToDouble(pmx.ullAvailVirtual)) & " free"
+
+    Else
+        g_Debug "uGetMemoryInfo(): GlobalMemoryStatusEx() failed: " & g_ApiError(), LEMON_LEVEL_WARNING
+        uGetMemoryInfo = "Not available"
+
+    End If
+
+End Function
+
+Private Function uGetVolumeInfo() As String
+Dim szp As String
+Dim szl As String
+Dim dwt As Long
+
+    With New TSimpleVolRoster
+'        .SetWatchedVolumes False, True
+        .Refresh
+        .Rewind
+        Do While .GetNextVolume(szp, szl, dwt)
+            uGetVolumeInfo = uGetVolumeInfo & IIf(szl = "", "<unnamed>", UCase$(szl)) & " (" & UCase$(szp) & "): " & CStr(100 - g_GetDiskFreePercent(szp)) & "% full" & vbCrLf
+
+        Loop
+
+    End With
+
+    uGetVolumeInfo = g_SafeLeftStr(uGetVolumeInfo, Len(uGetVolumeInfo) - 1)
+
+End Function

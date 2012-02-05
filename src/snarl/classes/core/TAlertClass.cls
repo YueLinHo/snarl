@@ -50,7 +50,8 @@ Private Type T_ALERT
     App As TApp                             '// app who this class belongs to
     Config As ConfigSection                 '// V41: persistent settings
     Defaults As BPackedData
-    Forward As BTagList                    '// each style/scheme to use
+    Redirectors As BTagList                 '// each style/scheme to use
+    NetForwards As BTagList                 '// guids
 
 End Type
 
@@ -65,7 +66,7 @@ Implements mObject
 Private Sub Class_Initialize()
 
     With mContent
-        .Class = "_internal"
+        .Class = SNARL_CLASS_GENERAL
         .Desc = ""
         Set .App = New TApp
 '        .App.SetAsSnarl
@@ -101,6 +102,12 @@ Dim bEnabled As Boolean
         If (g_ConfigGet("ignore_new_classes") = "1") Or ((Flags And SN_CF_DISABLED)) Then _
             bEnabled = False
 
+'                        "use_custom_icon::0#?custom_icon::#?" & _
+'                        "use_custom_sound::0#?custom_sound::#?" & _
+'                        "use_custom_ations::0#?custom_actions::#?" & _
+
+        ' /* set defaults - if a default value is blank, we don't need to include it here */
+
         Set .Defaults = New BPackedData
         .Defaults.SetTo "enabled::" & IIf(bEnabled, "1", "0") & "#?" & _
                         "show_on_screen::1#?" & _
@@ -109,19 +116,19 @@ Dim bEnabled As Boolean
                         "custom_timeout::10#?" & _
                         "custom_priority::0#?priority::0#?" & _
                         "use_style::0#?style::#?" & _
-                        "use_custom_icon::0#?custom_icon::#?" & _
                         "duplicates::" & CStr(SN_CD_ALLOW) & "#?" & _
-                        "use_custom_sound::0#?custom_sound::#?" & _
                         "log_during_dnd::1#?block_spam::0#?" & _
                         "normal_mode::1#?away_mode::1#?busy_mode::1#?" & _
                         "override-normal::1#?override-away::1#?override-busy::1#?" & _
                         "block_if_foreground::0#?" & _
-                        "use_custom_ations::0#?custom_actions::#?" & _
-                        "log_in_history::3"
+                        "log_in_history::3#?" & _
+                        "colour-tint::" & CStr(rgba(0, 0, 0)) & "#?" & _
+                        "send_to_subscribers::0"
 
-        Set .Forward = new_BTagList()
+        Set .Redirectors = new_BTagList()
+        Set .NetForwards = new_BTagList()
 
-        ' /* read forwarding info */
+        ' /* read redirection info */
 
 Dim sn As String
 Dim sv As String
@@ -132,10 +139,22 @@ Dim sv As String
 
                 .Rewind
                 Do While .GetNextItem(sn, sv)
-                    mContent.Forward.Add new_BTagItem(sn, sv)
+                    mContent.Redirectors.Add new_BTagItem(sn, sv)
 
                 Loop
+            End With
+        End If
 
+        ' /* read forwarding info */
+
+        If Not (Settings Is Nothing) Then
+            With New BPackedData
+                .SetTo Settings.GetValueWithDefault("netforward", "")
+                .Rewind
+                Do While .GetNextItem(sn, sv)
+                    mContent.NetForwards.Add new_BTagItem(sn, sv)
+
+                Loop
             End With
         End If
 
@@ -242,7 +261,8 @@ Dim s2 As String
 
         Loop
 
-        Set .Forward = new_BTagList
+        Set .Redirectors = new_BTagList
+        Set .NetForwards = new_BTagList
 
     End With
 
@@ -383,9 +403,7 @@ Dim lDur As SN_NOTIFICATION_DURATION
             Info.Timeout = Me.DefaultTimeout
 
     Case SN_ND_CUSTOM
-
         Debug.Print "TIMEOUT: CUSTOM"
-
         Info.Timeout = Val(Me.GetValue("custom_timeout"))
 
 '    Case SN_ND_DEFAULT
@@ -407,7 +425,7 @@ Dim lDur As SN_NOTIFICATION_DURATION
 
     ' /* V40.25: custom icon */
 
-    If Me.GetValue("use_custom_icon") = "1" Then
+    If Me.GetValue("custom_icon") <> "" Then            '// Me.GetValue("use_custom_icon") = "1" Then
         Info.IconPath = Me.GetValue("custom_icon")
 
     ElseIf Info.IconPath = "" Then
@@ -435,7 +453,8 @@ Dim lDur As SN_NOTIFICATION_DURATION
 
     ' /* R2.31d3: custom ack */
 
-    If Me.GetValue("use_custom_ack") = "1" Then
+    If Me.GetValue("custom_ack") <> "" Then
+'    If Me.GetValue("use_custom_ack") = "1" Then
         Info.DefaultAck = Me.GetValue("custom_ack")
 
     ElseIf Info.DefaultAck = "" Then
@@ -458,7 +477,8 @@ Dim lDur As SN_NOTIFICATION_DURATION
     '
     ' */
 
-    If Me.GetValue("use_custom_sound") = "1" Then
+    If Me.GetValue("custom_sound") <> "" Then
+'    If Me.GetValue("use_custom_sound") = "1" Then
         Info.SndFile = Me.GetValue("custom_sound")
 
     ElseIf Info.SndFile = "" Then
@@ -505,7 +525,8 @@ Dim sv As String
 
     ' /* R2.4.2 DR3: add any custom actions */
 
-    If Me.GetValue("use_custom_actions") = "1" Then
+    If Me.GetValue("custom_actions") <> "" Then
+'    If Me.GetValue("use_custom_actions") = "1" Then
         With New TPackedData
             If .SetTo(Me.GetValue("custom_actions"), ";", "=") Then
                 .Rewind
@@ -519,13 +540,13 @@ Dim sv As String
 
     ' /* R2.4 DR7 - append any existing actions */
 
-    If Not (Args Is Nothing) Then
+    If NOTNULL(Args) Then
         With Args
             .Rewind
             Do While .GetNextItem(sn, sv)
                 If sn = "action" Then _
                     uGetAction Info.Actions, sv
-
+    
             Loop
         End With
     End If
@@ -551,6 +572,19 @@ Dim bLog As Boolean
 
     End If
 
+    ' /* background tint */
+
+Dim dw As Long
+
+    dw = g_SafeLong(Me.GetValue("colour-tint"))
+    If dw <> rgba(0, 0, 0) Then
+        dw = rgba(get_red(dw), get_green(dw), get_blue(dw))
+        If Info.OriginalContent <> "" Then _
+            Info.OriginalContent = Info.OriginalContent & "#?"
+
+        Info.OriginalContent = Info.OriginalContent & "colour-tint::" & CStr(dw)
+
+    End If
 
     ' /* send it to the notification roster */
 
@@ -561,77 +595,92 @@ Dim bLog As Boolean
 
 End Function
 
-Public Sub AddForward(ByVal StyleAndScheme As String)
+Public Sub AddRedirector(ByVal StyleAndScheme As String, Optional ByVal Flags As SN_REDIRECTION_FLAGS = SN_RF_ALWAYS)
 
-    If (mContent.Forward Is Nothing) Then _
+    If (mContent.Redirectors Is Nothing) Then _
         Exit Sub
 
-    ' /* R2.4 DR8: forwarder now has flags (and is a taglist) */
-
     With mContent
-        .Forward.Add new_BTagItem(LCase$(Replace$(StyleAndScheme, ": ", "/")), "7")
-        .Config.Update "forward", taglist_as_string(.Forward)
+        If .Redirectors.IndexOf(StyleAndScheme, False) <> 0 Then
+            .Redirectors.Update StyleAndScheme, CStr(Flags)
+
+        Else
+            .Redirectors.Add new_BTagItem(StyleAndScheme, CStr(Flags))
+
+        End If
+        .Config.Update "forward", taglist_as_string(.Redirectors)
         .App.WriteConfig                                                ' // write the config
 
     End With
 
 End Sub
 
-Public Sub RemForward(ByVal StyleAndScheme As String)
+Public Sub RemRedirector(ByVal StyleAndScheme As String)
 
-    If (mContent.Forward Is Nothing) Then _
+    If (mContent.Redirectors Is Nothing) Then _
         Exit Sub
 
-    StyleAndScheme = LCase$(Replace$(StyleAndScheme, ": ", "/"))
-
     With mContent
-        .Forward.Remove .Forward.IndexOf(StyleAndScheme)
-        .Config.Update "forward", taglist_as_string(.Forward)
+        .Redirectors.Remove .Redirectors.IndexOf(StyleAndScheme)
+        .Config.Update "forward", taglist_as_string(.Redirectors)
         .App.WriteConfig
 
     End With
 
 End Sub
 
-Public Function HasForward(ByVal StyleAndScheme As String) As Boolean
+Public Function RedirectList() As BTagList
 
-    If Not (mContent.Forward Is Nothing) Then _
-        HasForward = (mContent.Forward.IndexOf(LCase$(Replace$(StyleAndScheme, ": ", "/"))) <> 0)
-
-End Function
-
-Public Function ForwardList() As BTagList
-
-    Set ForwardList = mContent.Forward
+    Set RedirectList = mContent.Redirectors
 
 End Function
 
-Public Sub SetForward(ByVal Name As String, ByVal Value As Long, ByVal Combine As Boolean)
-Dim i As Long
+Public Sub AddNetForward(ByVal Guid As String)
 
-    i = Val(mContent.Forward.ValueOf(Name))
-
-    If Combine Then
-        i = i Or Value
-
-    Else
-        i = i And (Not Value)
-
-    End If
-
-    ' /* if the mask/combine mode causes us to reach zero, ignore the change */
-
-    If i = 0 Then _
+    If (mContent.NetForwards Is Nothing) Then _
         Exit Sub
 
     With mContent
-        .Forward.Update Name, CStr(i)
-        .Config.Update "forward", taglist_as_string(.Forward)
+        .NetForwards.Add new_BTagItem(Guid, "")
+        .Config.Update "netforward", taglist_as_string(.NetForwards)
         .App.WriteConfig                                                ' // write the config
 
     End With
 
 End Sub
+
+Public Sub RemNetForward(ByVal Guid As String)
+
+    If (mContent.NetForwards Is Nothing) Then _
+        Exit Sub
+
+    With mContent
+        .NetForwards.Remove .NetForwards.IndexOf(Guid)
+        .Config.Update "netforward", taglist_as_string(.NetForwards)
+        .App.WriteConfig
+
+    End With
+
+End Sub
+
+'Public Function HasNetForward(ByVal Guid As String) As Boolean
+'
+'    If Not (mContent.Redirectors Is Nothing) Then _
+'        HasRedirector = (mContent.Redirectors.IndexOf(StyleAndScheme) <> 0)
+'
+'End Function
+
+Public Function NetForwardList() As BTagList
+
+    Set NetForwardList = mContent.NetForwards
+
+End Function
+
+
+
+
+
+
 
 Private Sub uGetAction(ByRef ListToAddTo As BTagList, ByVal PackedAction As String)
 Dim i As Long
@@ -656,5 +705,83 @@ Dim szCmd As String
     ListToAddTo.Add new_BTagItem(szLbl, szCmd)
 
 End Sub
+
+Friend Sub DoRedirection(ByRef Info As T_NOTIFICATION_INFO)
+
+    If ISNULL(mContent.Redirectors) Then _
+        Exit Sub
+
+'Dim pCopyInfo As T_NOTIFICATION_INFO
+Dim fConditions As SN_REDIRECTION_FLAGS
+Dim pt As BTagItem
+
+    With mContent.Redirectors
+        .Rewind
+        Do While .GetNextTag(pt) = B_OK
+            fConditions = Val(pt.Value)
+
+            Debug.Print "TAlert.DoRedirection(): busy:" & g_IsDND() & " away:" & g_IsAway() & " cond:" & g_HexStr(fConditions)
+
+            If (g_IsDND()) And ((fConditions And SN_RF_WHEN_BUSY) <> 0) Then
+                ' /* redirect when busy */
+                fConditions = -1
+
+            ElseIf (g_IsAway()) And ((fConditions And SN_RF_WHEN_AWAY) <> 0) Then
+                ' /* redirect when away */
+                fConditions = -1
+
+            ElseIf (fConditions And SN_RF_WHEN_ACTIVE) <> 0 Then
+                ' /* redirect when active */
+                fConditions = -1
+
+            Else
+                ' /* no shadowing */
+                fConditions = 0
+
+            End If
+
+            If fConditions <> 0 Then
+                g_Debug "TAlert.DoRedirection(): redirecting to '" & pt.Name & "'..."
+                g_StyleRoster.RedirectTo pt.Name, Info
+'                LSet pCopyInfo = Info
+'                pCopyInfo.StyleName = LCase$(style_GetStyleName(pt.Name))
+'                pCopyInfo.SchemeName = LCase$(style_GetSchemeName(pt.Name))
+'                g_NotificationRoster.Redirect pCopyInfo
+
+            End If
+        Loop
+
+    End With
+
+End Sub
+
+Friend Sub DoForwarding(ByRef Info As T_NOTIFICATION_INFO)
+
+    If ISNULL(mContent.NetForwards) Then _
+        Exit Sub
+
+Dim psForwarder As ConfigSection
+Dim pt As BTagItem
+Dim i As Long
+
+    With mContent.NetForwards
+        .Rewind
+        Do While .GetNextTag(pt) = B_OK
+
+            i = g_SubsRoster.Config.FindSection(pt.Name)
+            If i Then
+                g_SubsRoster.ForwardNotification g_SubsRoster.Config.SectionAt(i), Info
+
+            Else
+                MsgBox pt.Name & " not found"
+
+            End If
+
+        Loop
+
+    End With
+
+End Sub
+
 
 

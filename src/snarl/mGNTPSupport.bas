@@ -126,6 +126,9 @@ Public Sub gntp_Process(ByVal Request As String, ByRef Sender As CSocket, ByRef 
     Case "NOTIFY"
         Debug.Print uDoNotification(Response, Sender, KeepSocketOpen)
 
+    Case "SUBSCRIBE"
+        Debug.Print uDoSubscription(Response, Sender)
+
     Case Else
         uOutput "unsupported directive '" & mDirective & "'"
         Response = uCreateResponse(INVALID_REQUEST)
@@ -483,7 +486,7 @@ Dim v() As String
     mDirective = ""
 
     Select Case s(1)
-    Case "REGISTER", "NOTIFY"
+    Case "REGISTER", "NOTIFY", "SUBSCRIBE"
         mDirective = s(1)
 
     Case Else
@@ -963,3 +966,88 @@ Private Sub uOutdent()
 #End If
 
 End Sub
+
+Private Function uDoSubscription(ByRef Response As String, ByRef Sender As CSocket) As Boolean
+
+    mCustomHeaders = "Response-Action: SUBSCRIBE"
+
+'    ' /* for now... */
+'
+'    Response = uCreateResponse(INTERNAL_SERVER_ERROR)
+'    Exit Function
+
+
+Dim pp As TPackedData
+
+    Set pp = New TPackedData
+    If Not pp.SetTo(mSection(0), vbCrLf, ": ") Then
+        uOutput "uDoSubscription(): bad data"
+        Response = uCreateResponse(INVALID_REQUEST)
+        Exit Function
+
+    End If
+
+#If GNTP_TEST = 1 Then
+    uListPackedData pp
+#End If
+
+'Dim szSubID As String
+'Dim szSubName As String
+
+    ' /* required items */
+
+'Subscriber-ID: <string>
+'Required - A unique id (UUID) that identifies the subscriber
+'
+'Subscriber-Name: <string>
+'Required - The friendly name of the subscribing machine
+
+    If (Not pp.Exists("Subscriber-ID")) Or (Not pp.Exists("Subscriber-Name")) Then
+        uOutput "uDoRegistration(): missing subscriber ID or name"
+        Response = uCreateResponse(REQUIRED_HEADER_MISSING)
+        Exit Function
+
+    End If
+
+Dim pArgs As BPackedData
+
+    Set pArgs = New BPackedData
+    pArgs.Add "id", pp.ValueOf("Subscriber-ID")
+    pArgs.Add "name", pp.ValueOf("Subscriber-Name")
+
+'Subscriber-Port: <int>
+'Optional - The port that the subscriber will listen for notifications on (defaults to the standard 23053)
+
+    If pp.Exists("Subscriber-Port") Then
+        pArgs.Add "reply-port", pp.ValueOf("Subscriber-Port")
+
+    Else
+        pArgs.Add "reply-port", CStr(GNTP_DEFAULT_PORT)
+
+    End If
+
+Dim hr As SNARL_STATUS_CODE
+
+    hr = g_SubsRoster.AddSubscriber("gntp", Sender, pArgs)
+    If hr = SNARL_SUCCESS Then
+        ' /* done */
+        Response = uCreateResponse(0)
+        uDoSubscription = True
+
+    Else
+        ' /* TO DO: create appropriate GNTP error based on result */
+        Select Case hr
+        Case SNARL_ERROR_ALREADY_SUBSCRIBED
+            Response = uCreateResponse(0)
+            uDoSubscription = True
+
+        Case Else
+            Response = uCreateResponse(INTERNAL_SERVER_ERROR)
+
+        End Select
+
+    End If
+
+End Function
+
+

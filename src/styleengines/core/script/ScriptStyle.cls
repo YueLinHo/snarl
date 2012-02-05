@@ -28,7 +28,7 @@ Dim mPath As String
 Private Sub Class_Initialize()
 
     Set mInfo = New ScriptStyleInfo
-    Set mContent = New Notification
+'    Set mContent = New Notification
 '    mPulseFreq = 250
 
 End Sub
@@ -151,6 +151,8 @@ Friend Sub bUpdateContent(ByRef Info As notification_info, ByVal RealIcon As Str
     g_Debug "app: " & Info.Title
     g_Debug "scheme: " & Info.Scheme
     g_Debug "content: " & Info.Text
+
+    Set mContent = New Notification
 
     With mContent
         .bSetTo Info.Text

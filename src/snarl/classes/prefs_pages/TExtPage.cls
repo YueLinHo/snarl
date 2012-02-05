@@ -55,7 +55,7 @@ Dim i As Long
         .Add new_BPrefsSeparator
         .Add new_BPrefsControl("fancytoolbar", "toolbar-general", "Reload Extensions|")
 '        .Add new_BPrefsControl("fancytoolbar", "toolbar-general", "Reload Extensions|Install Extension...")
-        .Add new_BPrefsSeparator
+'        .Add new_BPrefsSeparator
 
         Set pm = New CTempMsg
         pm.Add "image-file", g_MakePath(App.Path) & "etc\icons\info_emblem.png"
@@ -182,48 +182,15 @@ Dim b As Boolean
 End Sub
 
 Private Sub KPrefsPage_ControlInvoked(Control As BControl)
-Dim px As TExtension
-Dim pc As BControl
-Dim rv As Long
 
     Debug.Print "[" & mPage.GetName() & "]: ControlInvoked '" & Control.GetName() & "'"
 
     Select Case Control.GetName()
-'    Case "fb2>ext.reload"
-'        ' /* reload extensions */
-'        If Not (g_ExtnRoster Is Nothing) Then
-'            g_ExtnRoster.Reload
-'            uUpdateExtensions
-'
-'        End If
-
-    Case "fb2>ext.cfg"
-        ' /* configure extension */
-        If (g_ExtnRoster Is Nothing) Or (mPage Is Nothing) Then _
-            Exit Sub
-
-        If Not mPage.Find("lb>extensions", pc) Then _
-            Exit Sub
-
-        Set px = melonRosterItemAt(g_ExtnRoster, Val(pc.GetValue()))
-        If Not (px Is Nothing) Then _
-            px.DoPrefs Control.Page.Panel.hWnd
-
-
     Case "lb>extensions"
         ' /* extension double-clicked */
 
         If Not (mCurrent Is Nothing) Then _
             mCurrent.DoPrefs mPage.Panel.hWnd
-
-'        If (g_ExtnRoster Is Nothing) Then _
-'            Exit Sub
-'
-'        Set px = melonRosterItemAt(g_ExtnRoster, Val(Control.GetValue()))
-'        If (px Is Nothing) Then _
-'            Exit Sub
-'
-'        MsgBox px.Path, vbInformation Or vbOKOnly
 
     End Select
 

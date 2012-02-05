@@ -22,6 +22,7 @@ Option Explicit
     ' */
 
 Public Const S_STYLE_REDIRECT_TO_SCREEN = &H1000&
+'Public Const S_STYLE_WANTS_APP_SIG = &H2000&
 
 Private Const CSIDL_APPDATA = &H1A
 Private Declare Function SHGetSpecialFolderPath Lib "SHELL32.DLL" Alias "SHGetSpecialFolderPathA" (ByVal hWndOwner As Long, ByVal lpszPath As String, ByVal nFolder As Long, ByVal fCreate As Boolean) As Long
@@ -144,7 +145,13 @@ Dim c As Long
     With pv
         .SizeTo c, c
         .DrawScaledImage Img, new_BPoint(Fix((.Width - Img.Width) / 2), Fix((.Height - Img.Height) / 2))
+        
+#If GFX_LIB_21 Then
+        Set style_MakeSquareImage = .AsBitmap()
+
+#Else
         Set style_MakeSquareImage = .ConvertToBitmap()
+#End If
 
     End With
 
@@ -176,4 +183,13 @@ Public Function style_GetSnarlStylesPath2(ByVal AllUsers As Boolean, ByRef Path 
 
 End Function
 
+Public Function style_MakeFriendly(ByVal StyleAndScheme As String) As String
+Dim sz As String
 
+    sz = style_GetSchemeName(StyleAndScheme)
+    If sz = "" Then _
+        sz = "<Default>"
+
+    style_MakeFriendly = style_GetStyleName(StyleAndScheme) & ": " & sz
+
+End Function

@@ -819,3 +819,127 @@ Static i As Long
     End If
 
 End Function
+
+Friend Function RedirectTo(ByVal StyleAndScheme As String, ByRef Info As T_NOTIFICATION_INFO) As Boolean
+
+    ' /* returns True if the notification should be reflected back to the screen */
+
+    g_Debug "TStyleRoster.RedirectTo()", LEMON_LEVEL_PROC_ENTER
+ 
+    ' /* if StyleAndScheme is empty, it's already been provided in Info */
+    If StyleAndScheme = "" Then _
+        StyleAndScheme = Info.StyleName & "/" & Info.SchemeName
+ 
+    StyleAndScheme = LCase$(StyleAndScheme)
+ 
+    ' /* get the appropriate instance for the notification before we do anything else
+    '    we must pass a valid style instance to CSnarlWindow, even if the style
+    '    roster is invalid */
+
+Dim i As Long
+
+    i = Me.IndexOf(style_GetStyleName(StyleAndScheme))
+    If i = 0 Then
+        g_Debug "redirector " & g_Quote(Info.StyleName) & " not found", LEMON_LEVEL_CRITICAL Or LEMON_LEVEL_PROC_EXIT
+        Exit Function
+
+    End If
+
+    ' /* some safety checks */
+
+Dim ps As TStyle
+
+    Set ps = mItem(i)
+    If (ps.Flags And S_STYLE_IS_WINDOWLESS) = 0 Then
+        g_Debug g_Quote(ps.Name) & " is not a redirector", LEMON_LEVEL_CRITICAL Or LEMON_LEVEL_PROC_EXIT
+        Exit Function
+
+    End If
+    
+Dim psi As IStyleInstance
+    
+    Set psi = ps.CreateInstance()
+    If ISNULL(psi) Then
+        g_Debug "failed to create new instance of redirector " & g_Quote(Info.StyleName), LEMON_LEVEL_CRITICAL Or LEMON_LEVEL_PROC_EXIT
+        Exit Function
+
+    End If
+
+    ' /* get the path to the style - we need this for style-provided icons and sounds */
+
+    Info.IconPath = g_TranslateIconPath(Info.IconPath, ps.Path)
+
+Dim sTitle As String
+Dim sText As String
+
+    If (ps.Flags And S_STYLE_V42_CONTENT) Then
+        g_Debug "wants unabridged content..."
+        ' /* title becomes sender name, text is set to the original packed string */
+        sTitle = Info.ClassObj.App.Name
+        sText = Info.OriginalContent
+
+    Else
+        ' /* pre-V42 model: <title> is either title or app/title pair, <text> is text */
+        g_Debug "wants translated content..."
+        sText = Info.Text
+        sTitle = Info.Title
+
+        ' /* if S_STYLE_WANT_APP_NAME is set, prefix title with the sending app name */
+
+        If (ps.Flags And S_STYLE_WANT_APP_NAME) Then
+            g_Debug "wants application name..."
+            sTitle = Info.ClassObj.App.Name & "#?" & sTitle
+
+        End If
+    End If
+
+Dim pContent As notification_info
+
+    g_Debug "sending to " & g_Quote(ps.Name) & "..."
+    LSet pContent = ps.CreateNotificationInfo(sTitle, sText, Info.IconPath, _
+                                              style_GetSchemeName(StyleAndScheme), _
+                                              IIf(Info.Priority > 0, S_NOTIFICATION_IS_PRIORITY, 0))
+
+    psi.UpdateContent pContent
+
+    ' /* R2.4 Beta 4: if the style set notificaton_info->flags to -1 we should pass the notification
+    '    back around for on-screen display */
+
+    If pContent.Flags = -1 Then _
+        g_Debug "redirect indicated we should reflect notification to screen..."
+
+    RedirectTo = (pContent.Flags = -1)
+
+    g_Debug "", LEMON_LEVEL_PROC_EXIT
+
+End Function
+
+Public Function SafeGetStyle(ByVal StyleToUse As String, ByRef Style As TStyle, ByRef Instance As IStyleInstance) As Boolean
+
+    ' /* try to create a new TStyle from the provided Style name */
+
+Dim i As Long
+
+    i = Me.IndexOf(style_GetStyleName(StyleToUse))
+    If i Then
+        Set Style = mItem(i)
+        SafeGetStyle = True
+
+    Else
+        ' /* not found? use default */
+        Set Style = New TStyle
+
+    End If
+
+    ' /* create a new instance from the style */
+
+    Set Instance = Style.CreateInstance()
+
+    ' /* didn't work? use an internal style instance */
+
+    If (Instance Is Nothing) Then _
+        Set Instance = New TInternalStyle
+
+End Function
+
+

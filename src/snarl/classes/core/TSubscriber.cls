@@ -101,7 +101,7 @@ Dim mApps As BTagList               ' // which app(s) we're subscribed to - an e
 Dim mRemoteAddr As String           ' // where to forward notifications or computer to subscribe to
 Dim mDescription As String
 Dim mPassword As String
-Dim mGuid As String
+'Dim mGuid As String
 
 Dim mSuccess As Boolean
 Dim mCache As BTagList              ' // requests are cached while we wait for the socket to connect
@@ -109,19 +109,23 @@ Dim mCache As BTagList              ' // requests are cached while we wait for t
 Dim mEnabled As Boolean
 Dim mConfig As ConfigSection
 
+
+Dim mAddressAndPort As String
+Dim mProtocol As String
+
     ' /* a word on granularity: a subscriber is an IP address and a port and any number of apps - password is per subscriber */
 
 Implements BTagItem
 
 Private Function BTagItem_Name() As String
 
-    BTagItem_Name = mGuid
+    BTagItem_Name = mAddressAndPort
 
 End Function
 
 Private Function BTagItem_Value() As String
 
-    BTagItem_Value = mType
+'    BTagItem_Value = mType
 
 End Function
 
@@ -136,96 +140,96 @@ End Sub
 
 Private Sub theSocket_OnClose()
 
-    g_Debug "TSubscriber.OnClose(): remote computer '" & mRemoteAddr & "' closed the connection", LEMON_LEVEL_INFO
-
-    Select Case mType
-
-    Case SN_ST_SNP3_FORWARD, SN_ST_GNTP_FORWARD, SN_ST_SNP3_SUBSCRIPTION, SN_ST_GNTP_SUBSCRIPTION
-        g_Debug "TSubscriber.OnClose(): was a forward/subscription"
-        frmAbout.bForwardersChanged
-    
-    Case SN_ST_SNP3_SUBSCRIBER, SN_ST_GNTP_SUBSCRIBER
-        g_Debug "TSubscriber.OnClose(): removing remote subscription"
-        g_SubsRoster.RemoveByGuid mGuid
-        frmAbout.bSubsChanged
-
-    End Select
-
-    uReset
+'    g_Debug "TSubscriber.OnClose(): remote computer '" & mRemoteAddr & "' closed the connection", LEMON_LEVEL_INFO
+'
+'    Select Case mType
+'
+'    Case SN_ST_SNP3_FORWARD, SN_ST_GNTP_FORWARD, SN_ST_SNP3_SUBSCRIPTION, SN_ST_GNTP_SUBSCRIPTION
+'        g_Debug "TSubscriber.OnClose(): was a forward/subscription"
+'        frmAbout.bForwardersChanged
+'
+'    Case SN_ST_SNP3_SUBSCRIBER, SN_ST_GNTP_SUBSCRIBER
+'        g_Debug "TSubscriber.OnClose(): removing remote subscription"
+'        g_SubsRoster.RemoveByGuid mGuid
+'        frmAbout.bSubsChanged
+'
+'    End Select
+'
+'    uReset
 
 End Sub
 
-Public Function SetFrom(ByRef Config As ConfigSection) As Boolean
+'Public Function SetFrom(ByRef Config As ConfigSection) As Boolean
+'
+''    ' /* configure from an existing (or recently created ConfigSection).  This implies
+''    '    persistency and thus means we're either a forwarder or a subscription to a
+''    '    remote computer */
+''
+''
+''    ' /* provided IP cannot be same as this computer (or NULL) */
+''    mRemoteAddr = Config.GetValueWithDefault("remotehost", "")
+''
+''    If g_IsLocalAddress(mRemoteAddr) Then
+''        g_Debug "TSubscriber.SetFrom(): invalid IP address '" & mRemoteAddr & "'", LEMON_LEVEL_CRITICAL
+''        Exit Function
+''
+''    End If
+''
+''    mType = g_SafeLong(Config.GetValueWithDefault("type", ""))
+''
+''    Select Case mType
+''    Case SN_ST_GNTP_FORWARD, SN_ST_GNTP_SUBSCRIPTION, SN_ST_SNP3_FORWARD, SN_ST_SNP3_SUBSCRIPTION
+''
+''    Case Else
+''        g_Debug "TSubscriber.SetFrom(): type must be one of SN_ST_GNTP_FORWARD, SN_ST_GNTP_SUBSCRIPTION, SN_ST_SNP3_FORWARD, SN_ST_SNP3_SUBSCRIPTION", LEMON_LEVEL_CRITICAL
+''        Exit Function
+''
+''    End Select
+''
+''    ' /* initialize */
+''
+''    Set mConfig = Config
+''    mGuid = Config.Name
+''    mDescription = Config.GetValueWithDefault("description", "")
+''    mEnabled = (Config.GetValueWithDefault("enabled", "0") = "1")
+''
+''    ' /* TO-DO: allow forwarding or subscribing to named apps */
+''    '// Config.GetValueWithDefault("apps", "")
+''
+''    ' /* create the socket */
+''
+''    uReset
+''
+''    SetFrom = True
+'
+'End Function
 
-    ' /* configure from an existing (or recently created ConfigSection).  This implies
-    '    persistency and thus means we're either a forwarder or a subscription to a
-    '    remote computer */
-
-
-    ' /* provided IP cannot be same as this computer (or NULL) */
-    mRemoteAddr = Config.GetValueWithDefault("remotehost", "")
-
-    If g_IsLocalAddress(mRemoteAddr) Then
-        g_Debug "TSubscriber.SetFrom(): invalid IP address '" & mRemoteAddr & "'", LEMON_LEVEL_CRITICAL
-        Exit Function
-
-    End If
-
-    mType = g_SafeLong(Config.GetValueWithDefault("type", ""))
-
-    Select Case mType
-    Case SN_ST_GNTP_FORWARD, SN_ST_GNTP_SUBSCRIPTION, SN_ST_SNP3_FORWARD, SN_ST_SNP3_SUBSCRIPTION
-
-    Case Else
-        g_Debug "TSubscriber.SetFrom(): type must be one of SN_ST_GNTP_FORWARD, SN_ST_GNTP_SUBSCRIPTION, SN_ST_SNP3_FORWARD, SN_ST_SNP3_SUBSCRIPTION", LEMON_LEVEL_CRITICAL
-        Exit Function
-
-    End Select
-
-    ' /* initialize */
-
-    Set mConfig = Config
-    mGuid = Config.Name
-    mDescription = Config.GetValueWithDefault("description", "")
-    mEnabled = (Config.GetValueWithDefault("enabled", "0") = "1")
-
-    ' /* TO-DO: allow forwarding or subscribing to named apps */
-    '// Config.GetValueWithDefault("apps", "")
-
-    ' /* create the socket */
-
-    uReset
-
-    SetFrom = True
-
-End Function
-
-Public Function SetTo(ByVal SubscriberType As SN_SUBSCRIBER_TYPE, ByRef RemoteSocket As CSocket, ByRef Data As BPackedData) As Boolean
-
-    ' /* configure from the provided information.  This implies transiency and thus
-    '    means we're recording a subscription received from a remote computer */
-
-    ' /* error checking */
-
-    If (SubscriberType <> SN_ST_GNTP_SUBSCRIBER) And (SubscriberType <> SN_ST_SNP3_SUBSCRIBER) Then
-        g_Debug "TSubscriber.SetTo(): SubType can only be SN_ST_GNTP_SUBSCRIBER or SN_ST_SNP3_SUBSCRIBER", LEMON_LEVEL_CRITICAL
-        Exit Function
-
-    End If
-
-    mType = SubscriberType
-    mGuid = g_CreateGUID(True)          ' // we'll create our own...
-    mRemoteAddr = RemoteSocket.RemoteHostIP
-    Set theSocket = RemoteSocket
-
-'    mDescription = Description
-
-    g_Debug "TSubscriber.SetTo(): subscribed to from " & mRemoteAddr, LEMON_LEVEL_INFO
-
-
-    SetTo = True
-
-End Function
+'Public Function SetTo(ByVal SubscriberType As SN_SUBSCRIBER_TYPE, ByRef RemoteSocket As CSocket, ByRef Data As BPackedData) As Boolean
+'
+'    ' /* configure from the provided information.  This implies transiency and thus
+'    '    means we're recording a subscription received from a remote computer */
+'
+'    ' /* error checking */
+'
+'    If (SubscriberType <> SN_ST_GNTP_SUBSCRIBER) And (SubscriberType <> SN_ST_SNP3_SUBSCRIBER) Then
+'        g_Debug "TSubscriber.SetTo(): SubType can only be SN_ST_GNTP_SUBSCRIBER or SN_ST_SNP3_SUBSCRIBER", LEMON_LEVEL_CRITICAL
+'        Exit Function
+'
+'    End If
+'
+'    mType = SubscriberType
+'    mGuid = g_CreateGUID(True)          ' // we'll create our own...
+'    mRemoteAddr = RemoteSocket.RemoteHostIP
+'    Set theSocket = RemoteSocket
+'
+''    mDescription = Description
+'
+'    g_Debug "TSubscriber.SetTo(): subscribed to from " & mRemoteAddr, LEMON_LEVEL_INFO
+'
+'
+'    SetTo = True
+'
+'End Function
 
 Public Function send(ByVal Content As String) As Boolean
 
@@ -382,43 +386,43 @@ Public Function SubscriptionType() As SN_SUBSCRIBER_TYPE
 End Function
 
 Public Function Detail() As String
-Dim pt As BTagItem
-Dim i As Long
-
-    Detail = IIf(mType = SN_ST_SNP3_FORWARD, "Forwarding ", "Subscribed to ")
-
-    If mApps.CountItems = 0 Then
-        Detail = Detail & "everything"
-
-    Else
-        With mApps
-            .Rewind
-            Do While .GetNextTag(pt) = B_OK
-                i = i + 1
-                If i > 4 Then
-                    Detail = Detail & "and " & CStr(mApps.CountItems - 4) & " more, "
-                    Exit Do
-
-                Else
-                    Detail = Detail & pt.Name & ", "
-
-                End If
-
-            Loop
-
-        End With
-
-        Detail = g_SafeLeftStr(Detail, Len(Detail) - 2)
-
-    End If
-
-
-    If (mType <> SN_ST_GNTP_SUBSCRIBER) And (mType <> SN_ST_SNP3_SUBSCRIBER) Then _
-        Detail = Detail & IIf((mType And SN_ST_OUTBOUND), " to ", " from ") & mRemoteAddr
-
-
-    If (mType And SN_ST_TYPE_MASK) = SN_ST_GNTP Then _
-        Detail = Detail & " (using GNTP)"
+'Dim pt As BTagItem
+'Dim i As Long
+'
+'    Detail = IIf(mType = SN_ST_SNP3_FORWARD, "Forwarding ", "Subscribed to ")
+'
+'    If mApps.CountItems = 0 Then
+'        Detail = Detail & "everything"
+'
+'    Else
+'        With mApps
+'            .Rewind
+'            Do While .GetNextTag(pt) = B_OK
+'                i = i + 1
+'                If i > 4 Then
+'                    Detail = Detail & "and " & CStr(mApps.CountItems - 4) & " more, "
+'                    Exit Do
+'
+'                Else
+'                    Detail = Detail & pt.Name & ", "
+'
+'                End If
+'
+'            Loop
+'
+'        End With
+'
+'        Detail = g_SafeLeftStr(Detail, Len(Detail) - 2)
+'
+'    End If
+'
+'
+'    If (mType <> SN_ST_GNTP_SUBSCRIBER) And (mType <> SN_ST_SNP3_SUBSCRIBER) Then _
+'        Detail = Detail & IIf((mType And SN_ST_OUTBOUND), " to ", " from ") & mRemoteAddr
+'
+'
+'    If (mType And SN_ST_TYPE_MASK) = SN_ST_GNTP Then _
+'        Detail = Detail & " (using GNTP)"
 
 End Function
 
@@ -519,11 +523,11 @@ Public Function Description() As String
 
 End Function
 
-Public Function Guid() As String
-
-    Guid = mGuid
-
-End Function
+'Public Function Guid() As String
+'
+'    Guid = mGuid
+'
+'End Function
 
 Private Sub theSocket_OnConnect()
 Dim pt As BTagItem
@@ -726,3 +730,37 @@ Public Function RemoteHost() As String
 
 End Function
 
+Public Function SetTo2(ByVal Protocol, ByRef RemoteSocket As CSocket, ByRef Data As BPackedData) As Boolean
+
+    g_Debug "TSubscriber.SetTo2()", LEMON_LEVEL_PROC_ENTER
+
+    mProtocol = LCase$(Protocol)
+    Set theSocket = RemoteSocket
+    mAddressAndPort = RemoteSocket.RemoteHostIP & ":" & CStr(RemoteSocket.RemotePort)
+
+    Select Case mProtocol
+    Case "snp"
+'        mGuid = g_CreateGUID(True)          ' // we'll create our own...
+        SetTo2 = True
+
+    Case Else
+        g_Debug "Protocol " & g_Quote(mProtocol) & " not supported", LEMON_LEVEL_CRITICAL
+
+    End Select
+
+
+    g_Debug "", LEMON_LEVEL_PROC_EXIT
+
+End Function
+
+Public Function Protocol() As String
+
+    Protocol = mProtocol
+
+End Function
+
+Public Function AddressAndPort() As String
+
+    AddressAndPort = mAddressAndPort
+
+End Function

@@ -985,23 +985,20 @@ Dim pm As OMMenu
 
     With New OMMenu
         ' /* R2.2 */
-        .AddItem .CreateItem("stky", "Make Sticky", , (mOriginalTimeout > 0))
+        .AddItem .CreateItem("stky", "Make sticky", , (mOriginalTimeout > 0))
         .AddItem .CreateItem(" ", "Details", , , , , , uDetailsMenu())          ' // R2.3
-        .AddSeparator
-
-        If mInfo.ClassObj.App.HasConfig Then _
-            .AddItem .CreateItem("acfg", mInfo.ClassObj.App.Name & " Settings...", , mInfo.ClassObj.App.HasConfig)
-
-        .AddItem .CreateItem("$" & mInfo.ClassObj.App.Name & "#?" & mInfo.ClassObj.Name, "Notification Settings...")
 
         .AddSeparator
+        .AddItem .CreateItem("acfg", mInfo.ClassObj.App.Name & " settings...", , mInfo.ClassObj.App.HasConfig)
+        .AddItem .CreateItem("$" & mInfo.ClassObj.App.Name & "#?" & mInfo.ClassObj.Name, "Notification settings...")
 
-        .AddItem .CreateItem("wlog", "Write content to Log")
+        .AddSeparator
+        Set pm = uGetRedirectorsMenu()
+        .AddItem .CreateItem(" ", "Redirect using", , (pm.CountItems > 0), , , , pm)
+        Set pm = uGetForwardersMenu()
+        .AddItem .CreateItem(" ", "Forward to", , (pm.CountItems > 0), , , , pm)
+        .AddItem .CreateItem("wlog", "Write content to log")
         .AddItem .CreateItem("copy", "Copy content to Clipboard")
-
-        Set pm = g_GetRemoteComputersMenu()
-        If Not (pm Is Nothing) Then _
-            .AddItem .CreateItem(" ", "Send Content to", , Not (pm Is Nothing), , , , pm)
 
         .AddSeparator
         .AddItem .CreateItem("clse", "Close")
@@ -1011,7 +1008,7 @@ Dim pm As OMMenu
 
         If g_IsPressed(VK_CONTROL) Then
             .AddSeparator
-            .AddItem .CreateItem("scrn", "Capture Notification")
+            .AddItem .CreateItem("scrn", "Capture notification")
 
         End If
 
@@ -1021,6 +1018,7 @@ Dim pm As OMMenu
 
     End With
 
+Dim szData As String
 Dim sz() As String
 
     If Not (pmi Is Nothing) Then
@@ -1046,37 +1044,31 @@ Dim sz() As String
             g_WriteToLog mInfo.Title, mInfo.Text
 
         Case "copy"
+            Clipboard.Clear
             Clipboard.SetText mInfo.Title & vbCrLf & mInfo.Text
 
         Case "acfg"
-            mInfo.ClassObj.App.DoSettings
+            mInfo.ClassObj.App.DoSettings 0
 
         Case Else
+            szData = g_SafeRightStr(pmi.Name, Len(pmi.Name) - 1)
             
             Select Case g_SafeLeftStr(pmi.Name, 1)
             Case "$"
                 ' /* app settings */
-                sz = Split(g_SafeRightStr(pmi.Name, Len(pmi.Name) - 1), "#?")
+                sz = Split(szData, "#?")
                 frmAbout.DoAppConfig sz(0), sz(1)
 
+            Case ">"
+                ' /* forward */
+                g_SubsRoster.QuickForward szData, mInfo
+                
+            Case "]"
+                ' /* redirect */
+                g_StyleRoster.RedirectTo szData, mInfo
+
             End Select
-            
-'            If g_SafeLeftStr(pmi.Name, 3) = "ip>" Then
-'                MsgBox g_SafeRightStr(pmi.Name, Len(pmi.Name) - 3)
-
-'                With New SNBConnection
-'                    If .Connect(g_SafeRightStr(pmi.Name, Len(pmi.Name) - 3)) = SNB_SUCCESS Then
-'                        .ShowNotification "", mInfo.Title, mInfo.Text & vbCrLf & vbCrLf & "Sent from " & get_host_name(), mOriginalTimeout
-'                        .Disconnect
-'
-'                    End If
-'
-'                End With
-'
-'            End If
-
         End Select
-
     End If
 
 End Sub
@@ -1552,7 +1544,7 @@ Dim pbm As mfxBitmap
     ' /* R2.4: apply scaling */
 
 Dim pt As BPoint
-Dim pv As mfxView
+'Dim pv As mfxView
 Dim s As Single
 Dim n As Long
 
@@ -1564,18 +1556,33 @@ Dim n As Long
 
     Set mCloseRect = new_BRect(0, 0, 19 * s, 19 * s)
 
+Dim pb As mfxBitmap
+
     ' /* create a temporary view */
 
-    Set pv = New mfxView
-    With pv
-        .SizeTo pbm.Width * s, pbm.Height * s
-        .DrawScaledImage pbm, , new_BPoint(pv.Width, pv.Height)
+    With New mfxView
+        .SizeTo pbm.Width, pbm.Height
+        .DrawScaledImage pbm                ' // style content
 
         ' /* set top-right corner */
         Set pt = new_BPoint(.Width - mCloseRect.Left - 3, mCloseRect.Top + 3)
         pt.OffsetBy -(EMBLEM_SIZE + 1), 0
 
-        ' /* permanent emblems */
+        ' /* emblems */
+
+        If mOriginalTimeout = 0 Then
+            ' /* sticky */
+            .DrawScaledImage bm_IsSticky, pt, new_BPoint(EMBLEM_SIZE, EMBLEM_SIZE), EMBLEM_ALPHA
+            pt.OffsetBy -(EMBLEM_SIZE + 1), 0
+
+        End If
+
+        If (Not mClickThru) And (mInfo.DefaultAck <> "") Then
+            ' /* indicate notification has a callback */
+            .DrawScaledImage bm_HasActions, pt, new_BPoint(EMBLEM_SIZE, EMBLEM_SIZE), EMBLEM_ALPHA
+            pt.OffsetBy -(EMBLEM_SIZE + 1), 0
+
+        End If
 
         If (mInfo.IntFlags And SN_NF_FORWARD) Then
             ' /* if the notification was forwarded */
@@ -1589,12 +1596,20 @@ Dim n As Long
 
         End If
 
-        If mOriginalTimeout = 0 Then
-            ' /* sticky */
-            .DrawScaledImage bm_IsSticky, pt, new_BPoint(EMBLEM_SIZE, EMBLEM_SIZE), EMBLEM_ALPHA
-            pt.OffsetBy -(EMBLEM_SIZE + 1), 0
+        ' /* convert final content to an image */
+        Set pb = .ConvertToBitmap()
 
-        End If
+    End With
+
+Dim pv As mfxView
+
+    ' /* create another temporary view, scaled according to our settings */
+
+    Set pv = New mfxView
+    With pv
+        .SizeTo pbm.Width * s, pbm.Height * s
+        .Clear
+        .DrawScaledImage pb, , new_BPoint(.Width, .Height)
 
     End With
 
@@ -1740,7 +1755,7 @@ Private Function uDrawDropshadow() As Boolean
 
     ' /* styles can veto the system drop shadow */
 
-    uDrawDropshadow = (gPrefs.use_dropshadow) And ((mStyleFlags And S_STYLE_NO_DROPSHADOW) = 0)
+    uDrawDropshadow = ((mStyleFlags And S_STYLE_NO_DROPSHADOW) = 0)
 
 End Function
 
@@ -1973,90 +1988,144 @@ Dim sz As String
 
 End Function
 
-Private Sub uDrawEmblems()
-Const EMBLEM_ALPHA = 190
-Const EMBLEM_SIZE = 14
-Dim pt As BPoint
-Dim pr As BRect
-'Dim n As Integer
-
-'    Debug.Print "** draw emblems **"
-
-    ' /* pre-process to determine how many are to be drawn */
-    
-'    If mOriginalTimeout = 0 Then _
-'        n = n + 1                       ' // sticky
+'Private Sub uDrawEmblems()
+'Const EMBLEM_ALPHA = 190
+'Const EMBLEM_SIZE = 14
+'Dim pt As BPoint
+'Dim pr As BRect
+''Dim n As Integer
 '
-'    If (mInfo.IntFlags And SN_NF_REMOTE) Or (mInfo.ClassObj.App.IsRemote) Then _
-'        n = n + 1                       ' // remote app
-
-    With theView
-
-        ' /* set top-right corner */
-        Set pt = new_BPoint(.Width - mCloseRect.Left - 3, mCloseRect.Top + 3)
-
-'        Set pr = new_BRect(pt.x - ((EMBLEM_SIZE + 1) * n), pt.y, pt.x, pt.y + EMBLEM_SIZE)
-'        .SetHighColour rgba(0, 0, 0, 190)
-'        .FillRoundRect pr.InsetByCopy(-2, -2), 6, 6
-
-        pt.OffsetBy -(EMBLEM_SIZE + 1), 0
-
-        ' /* if the notification is sticky */
-
-        If mOriginalTimeout = 0 Then
-            .DrawScaledImage bm_IsSticky, pt, new_BPoint(EMBLEM_SIZE, EMBLEM_SIZE), EMBLEM_ALPHA
-            pt.OffsetBy -(EMBLEM_SIZE + 1), 0
-
-        End If
-
-        ' /* if the notification is high priority */
-
-        If mInfo.Priority > 0 Then
-            .DrawScaledImage bm_Priority, pt, new_BPoint(EMBLEM_SIZE, EMBLEM_SIZE), EMBLEM_ALPHA
-            pt.OffsetBy -(EMBLEM_SIZE + 1), 0
-
-        End If
-
-        ' /* if notification isn't click-through and the mouse pointer isn't
-        '    over it, and it has actions or a default callback, draw the actions indicator emblem */
-                        '//And (Not mCloseButtonVisible)
-        If (Not mClickThru) And (mInfo.DefaultAck <> "") Then
-            .DrawScaledImage bm_HasActions, pt, new_BPoint(EMBLEM_SIZE, EMBLEM_SIZE), EMBLEM_ALPHA
-            pt.OffsetBy -(EMBLEM_SIZE + 1), 0
-
-        End If
-
-'        If (Not mClickThru) And ((mInfo.Actions.CountItems > 0) Or (mInfo.DefaultAck <> "")) Then
+''    Debug.Print "** draw emblems **"
+'
+'    ' /* pre-process to determine how many are to be drawn */
+'
+''    If mOriginalTimeout = 0 Then _
+''        n = n + 1                       ' // sticky
+''
+''    If (mInfo.IntFlags And SN_NF_REMOTE) Or (mInfo.ClassObj.App.IsRemote) Then _
+''        n = n + 1                       ' // remote app
+'
+'    With theView
+'
+'        ' /* set top-right corner */
+'        Set pt = new_BPoint(.Width - mCloseRect.Left - 3, mCloseRect.Top + 3)
+'
+''        Set pr = new_BRect(pt.x - ((EMBLEM_SIZE + 1) * n), pt.y, pt.x, pt.y + EMBLEM_SIZE)
+''        .SetHighColour rgba(0, 0, 0, 190)
+''        .FillRoundRect pr.InsetByCopy(-2, -2), 6, 6
+'
+'        pt.OffsetBy -(EMBLEM_SIZE + 1), 0
+'
+'        ' /* if the notification is sticky */
+'
+'        If mOriginalTimeout = 0 Then
+'            .DrawScaledImage bm_IsSticky, pt, new_BPoint(EMBLEM_SIZE, EMBLEM_SIZE), EMBLEM_ALPHA
+'            pt.OffsetBy -(EMBLEM_SIZE + 1), 0
+'
+'        End If
+'
+'        ' /* if the notification is high priority */
+'
+'        If mInfo.Priority > 0 Then
+'            .DrawScaledImage bm_Priority, pt, new_BPoint(EMBLEM_SIZE, EMBLEM_SIZE), EMBLEM_ALPHA
+'            pt.OffsetBy -(EMBLEM_SIZE + 1), 0
+'
+'        End If
+'
+'        MsgBox mInfo.DefaultAck
+'
+'        ' /* if notification isn't click-through and the mouse pointer isn't
+'        '    over it, and it has actions or a default callback, draw the actions indicator emblem */
+'                        '//And (Not mCloseButtonVisible)
+'        If (Not mClickThru) And (mInfo.DefaultAck <> "") Then
+'
+'        MsgBox "!"
+'
 '            .DrawScaledImage bm_HasActions, pt, new_BPoint(EMBLEM_SIZE, EMBLEM_SIZE), EMBLEM_ALPHA
 '            pt.OffsetBy -(EMBLEM_SIZE + 1), 0
 '
 '        End If
-    
-        ' /* if the notification was generated by a remote app */
-
-        If (mInfo.IntFlags And SN_NF_FORWARD) Then
-            .DrawScaledImage bm_Forward, pt, new_BPoint(EMBLEM_SIZE, EMBLEM_SIZE), EMBLEM_ALPHA
-            pt.OffsetBy -(EMBLEM_SIZE + 1), 0
-
-        End If
-    
-        ' /* if the notification was generated by a remote app */
-
-'        If (mInfo.IntFlags And SN_NF_REMOTE) Or (mInfo.ClassObj.App.IsRemote) Then
-'            .DrawScaledImage bm_Remote, pt, new_BPoint(EMBLEM_SIZE, EMBLEM_SIZE), EMBLEM_ALPHA
+'
+''        If (Not mClickThru) And ((mInfo.Actions.CountItems > 0) Or (mInfo.DefaultAck <> "")) Then
+''            .DrawScaledImage bm_HasActions, pt, new_BPoint(EMBLEM_SIZE, EMBLEM_SIZE), EMBLEM_ALPHA
+''            pt.OffsetBy -(EMBLEM_SIZE + 1), 0
+''
+''        End If
+'
+'        ' /* if the notification was generated by a remote app */
+'
+'        If (mInfo.IntFlags And SN_NF_FORWARD) Then
+'            .DrawScaledImage bm_Forward, pt, new_BPoint(EMBLEM_SIZE, EMBLEM_SIZE), EMBLEM_ALPHA
 '            pt.OffsetBy -(EMBLEM_SIZE + 1), 0
 '
 '        End If
-    
-        ' /* if the notification was generated by a secure app */
-    
-'        If (mInfo.IntFlags And SN_NF_SECURE) Then
-'            .DrawScaledImage bm_Secure, pt, new_BPoint(EMBLEM_SIZE, EMBLEM_SIZE), EMBLEM_ALPHA
-'            pt.OffsetBy -(EMBLEM_SIZE + 1), 0
 '
-'        End If
+'        ' /* if the notification was generated by a remote app */
+'
+''        If (mInfo.IntFlags And SN_NF_REMOTE) Or (mInfo.ClassObj.App.IsRemote) Then
+''            .DrawScaledImage bm_Remote, pt, new_BPoint(EMBLEM_SIZE, EMBLEM_SIZE), EMBLEM_ALPHA
+''            pt.OffsetBy -(EMBLEM_SIZE + 1), 0
+''
+''        End If
+'
+'        ' /* if the notification was generated by a secure app */
+'
+''        If (mInfo.IntFlags And SN_NF_SECURE) Then
+''            .DrawScaledImage bm_Secure, pt, new_BPoint(EMBLEM_SIZE, EMBLEM_SIZE), EMBLEM_ALPHA
+''            pt.OffsetBy -(EMBLEM_SIZE + 1), 0
+''
+''        End If
+'
+'    End With
+'
+'End Sub
+
+Private Function uGetForwardersMenu() As OMMenu
+Dim ps As ConfigSection
+Dim pMenu As OMMenu
+
+    Set pMenu = New OMMenu
+
+    With g_SubsRoster.Config
+        .Rewind
+        Do While .GetNextSection(ps)
+            If ps.GetValueWithDefault("type", "") = "forwarder" Then _
+                pMenu.AddItem pMenu.CreateItem(">" & ps.Name, ps.GetValueWithDefault("name", ""))
+
+        Loop
 
     End With
 
-End Sub
+    Set uGetForwardersMenu = pMenu
+
+End Function
+
+Private Function uGetRedirectorsMenu() As OMMenu
+Dim pSchemesMenu As OMMenu
+Dim pMenu As OMMenu
+Dim ps As TStyle
+Dim i As Long
+
+    Set pMenu = New OMMenu
+
+    With g_StyleRoster
+        .Rewind
+        Do While .GetNextStyle(ps)
+            If ps.IsRedirect Then
+                Set pSchemesMenu = New OMMenu
+                For i = 1 To ps.CountSchemes
+                    pSchemesMenu.AddItem pSchemesMenu.CreateItem("]" & ps.Name & "/" & ps.SafeSchemeAt(i), ps.SchemeAt(i))
+
+                Next i
+                pMenu.AddItem pMenu.CreateItem("", ps.Name, , , , , , pSchemesMenu)
+
+            End If
+        Loop
+    End With
+
+    Set uGetRedirectorsMenu = pMenu
+
+End Function
+
+
 

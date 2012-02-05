@@ -28,12 +28,14 @@ Option Explicit
     '*********************************************************************************************/
 
 Dim mPanel As BPrefsPanel
+Dim mSelected As String
 Dim mSelIndex As Long
 
 Dim WithEvents mAddEditPanel As TRunFileEditPanel
+Attribute mAddEditPanel.VB_VarHelpID = -1
 
-Dim mIsRunFile As Boolean
-Dim mConfFile As String
+Dim mType As String
+Dim mConfigFile As ConfigFile
 
 Implements KPrefsPanel
 Implements KPrefsPage
@@ -46,47 +48,23 @@ End Sub
 
 Private Sub KPrefsPage_ControlChanged(Control As prefs_kit_d2.BControl, ByVal Value As String)
 Dim pc As BControl
-Dim sz As String
-Dim i As Long
 
     Select Case Control.GetName()
     Case "list"
         mSelIndex = Val(Value)
-'        Select Case gRunFiles.TagAt(mSelIndex).Value
-'        Case "1"
-'            sz = "Snarl will pass specific notification elements as individual arguments, as follows: " & vbCrLf & vbCrLf & _
-'                 gRunFiles.TagAt(mSelIndex).Name & " ""<notification title>"" ""<notification text>"" ""<sender>""" & vbCrLf & vbCrLf & _
-'                 "Any elements prefixed with either ""data-"" or ""value-"" will also be included as additional arguments."
-'
-'        Case "2"
-'            sz = "variable template"
-'
-'        End Select
-
-        prefskit_SafeSetText mPanel, "file_hint", sz
+        mSelected = prefskit_GetItem(Control, "data")
 
 
-        ' /* toolbar */
-'        prefskit_SafeEnable mPanel, "toolbar_options", (Value <> "0")
 
-'        If mPanel.Find("toolbar_options", pc) Then
-''            prefskit_SetItem pc, 1, "enabled", IIf(mSelected.DefaultAck <> "", 1&, 0&)
-'            prefskit_SetItem pc, 2, "enabled", IIf(mSelIndex <> 0, 1&, 0&)
-'
-'        End If
-
-    Case "toolbar_options"
-
-        Select Case Val(Value)
-        Case 1
-            ' /* add */
+    Case "add_remove"
+        If Value = "+" Then
             uAddNewEntry
 
-        Case 2
+        Else
             If mSelIndex <> 0 Then _
                 uRemEntry mSelIndex
 
-        End Select
+        End If
 
     End Select
 
@@ -94,19 +72,39 @@ End Sub
 
 Private Sub KPrefsPage_ControlInvoked(Control As prefs_kit_d2.BControl)
 Dim prf As TRunFileScheme
+Dim i As Long
 
     Select Case Control.GetName
     Case "list"
-        Set prf = gRunFiles.TagAt(Val(Control.GetValue))
-        Set mAddEditPanel = New TRunFileEditPanel
-        mAddEditPanel.Go mPanel.hWnd, prf
+        Select Case mType
+        Case "r"
+            ' /* run files */
+            Set prf = gRunFiles.TagAt(Val(Control.GetValue))
+            Set mAddEditPanel = New TRunFileEditPanel
+            mAddEditPanel.Go mPanel.hWnd, prf
 
-'        ShellExecute Control.Page.Panel.hWnd, "open", prf.File, vbNullString, vbNullString, 5
+        Case "n"
+            ' /* network forwarder */
+
+        End Select
+
+
+
+'    Case "test_forward"
+''        i = mConfigFile.FindSection(mSelected)
+''        If i Then
+''            If Not g_SubsRoster.DoForward(mConfigFile.SectionAt(i)) Then _
+''                MsgBox "Failed to forward notification.  Check the protocol and host names are valid.", vbExclamation Or vbOKOnly, "Network Forwarder"
+''
+''        End If
+
 
     Case "go_user_guide"
         ShellExecute Control.Page.Panel.hWnd, "open", g_MakePath(App.Path) & "etc\RunFileUserGuide\index.html", vbNullString, vbNullString, 5
 
     End Select
+
+'        ShellExecute Control.Page.Panel.hWnd, "open", prf.File, vbNullString, vbNullString, 5
 
 End Sub
 
@@ -143,66 +141,91 @@ End Sub
 Private Sub KPrefsPanel_Selected(ByVal Command As String)
 End Sub
 
-Public Function Go(ByVal IsRunFile As Boolean) As Long
+Public Function Go(ByVal PanelType As String, ByVal Title As String, ByRef ConfigFile As ConfigFile) As Long
+
+    Set mConfigFile = ConfigFile
+    mType = PanelType
+
 Dim pPage As BPrefsPage
 Dim pc As BControl
 Dim pm As CTempMsg
 
-    mIsRunFile = IsRunFile
-
-    If mIsRunFile Then
-        mConfFile = "runfile"
-
-    Else
-        mConfFile = "image"
-
-    End If
-
-
     If (mPanel Is Nothing) Then
-
         Set mPanel = New BPrefsPanel
         With mPanel
             .SetHandler Me
-            .SetTitle "Run File Settings"
+            .SetTitle Title & " Settings"
             .SetWidth 400
             .SetWindow 1
 
-            Set pPage = new_BPrefsPage("", , Me)
+            Select Case mType
 
-            With pPage
-                .SetMargin 0
+            Case "r"
+                ' /* Run File */
 
-                Set pm = New CTempMsg
-'                pm.Add "item-height", 36&
-                Set pc = new_BPrefsControl("listbox", "list", , , , pm)
-                pc.SizeTo 0, 160
-                .Add pc
+                Set pPage = new_BPrefsPage("Schemes", load_image_obj(g_MakePath(App.Path) & "etc\icons\runfile.png"), Me)
+                With pPage
+                    .SetMargin 0
+                    Set pm = New CTempMsg
+                    pm.Add "item-height", 36&
+                    pm.Add "plus_minus", 1&
+                    Set pc = new_BPrefsControl("listbox", "list", , , , pm)
+                    pc.SizeTo 0, (6 * 36) + 2
+                    .Add pc
+                    .Add new_BPrefsControl("fancyplusminus", "add_remove")
+'                .Add new_BPrefsControl("fancytoolbar", "toolbar_options", "Add...|Remove")
 
-'                .Add new_BPrefsControl("fancyedit", "file_to_run")
-                .Add new_BPrefsControl("fancytoolbar", "toolbar_options", "Add...|Remove")
-''                .Add new_BPrefsControl("fancybutton2", "fb>ack", "Invoke Callback", , , , False)
+                End With
+                .AddPage pPage
 
-'                If mIsRunFile Then
-'                    Set pc = new_BPrefsControl("label", "file_hint")
-'                    pc.SizeTo 0, 90
+                Set pPage = new_BPrefsPage("About", load_image_obj(g_MakePath(App.Path) & "etc\icons\generic_about.png"), Me)
+                With pPage
+                    .SetMargin 0
+    '                Set pm = New CTempMsg
+    '                pm.Add "item-height", 36&
+    '                pm.Add "plus_minus", 1&
+    '                Set pc = new_BPrefsControl("listbox", "list", , , , pm)
+    '                pc.SizeTo 0, (6 * 36) + 2
+    '                .Add pc
+    '                .Add new_BPrefsControl("fancyplusminus", "add_remove")
+    '
+    '
+    ''                .Add new_BPrefsControl("fancytoolbar", "toolbar_options", "Add...|Remove")
+    
+                End With
+                .AddPage pPage
+
+
+'            Case "n"
+'                ' /* Network Forwarder */
+'
+'                Set pPage = new_BPrefsPage("Destinations", load_image_obj(g_MakePath(App.Path) & "etc\icons\network.png"), Me)
+'                With pPage
+'                    .SetMargin 0
+'                    Set pm = New CTempMsg
+'                    pm.Add "item-height", 36&
+'                    pm.Add "plus_minus", 1&
+'                    Set pc = new_BPrefsControl("listbox", "list", , , , pm)
+'                    pc.SizeTo 0, (6 * 36) + 2
 '                    .Add pc
-'
-''                    .Add new_BPrefsControl("label", "", "Each scheme represents an individual file to run")
-'''                    .Add new_BPrefsControl("label", "", "Snarl will pass notification elements as arguments to the file it runs, as follows: " & vbCrLf & _
-'''                                                        "<file> ""<notification title>"" ""<notification text>"" ""<sender>"".")
-'''
-'''                    .Add new_BPrefsControl("label", "", "Any notification elements prefixed with either ""data-"" or ""value-"" are also included as an additional arguments.")
-'
+'                    .Add new_BPrefsControl("fancyplusminus", "add_remove")
 '                    .Add new_BPrefsSeparator
-'                    .Add new_BPrefsControl("fancybutton2", "go_user_guide", "User Guide")
+'                    .Add new_BPrefsControl("fancybutton2", "test_forward", "Test")
 '
-'                End If
+'                End With
+'                .AddPage pPage
+'
+'                Set pPage = new_BPrefsPage("About", load_image_obj(g_MakePath(App.Path) & "etc\icons\generic_about.png"), Me)
+'                With pPage
+'                    .SetMargin 0
+'
+'                End With
+'                .AddPage pPage
 
-            End With
-
-            .AddPage pPage
+            End Select
+            
             .Go
+
 
             uRefreshList
 
@@ -217,23 +240,33 @@ End Function
 Private Sub uAddNewEntry()
 Dim prf As TRunFileScheme
 
-    Set prf = New TRunFileScheme
-    If prf.CreateNew Then
-        Set mAddEditPanel = New TRunFileEditPanel
-        mAddEditPanel.Go mPanel.hWnd, prf
-        g_RunFileLoadSchemes
-        uRefreshList
+    Select Case mType
+    Case "r"
+        Set prf = New TRunFileScheme
+        If prf.CreateNew Then
+            Set mAddEditPanel = New TRunFileEditPanel
+            mAddEditPanel.Go mPanel.hWnd, prf
+            g_RunFileLoadSchemes
+    
+        End If
 
-    End If
+    End Select
+
+    uRefreshList
 
 End Sub
 
 Private Sub uRemEntry(ByVal Index As Long)
 Dim prf As TRunFileScheme
 
-    Set prf = gRunFiles.TagAt(Index)
-    DeleteFile prf.File
-    gRunFiles.Remove Index
+    Select Case mType
+    Case "r"
+        Set prf = gRunFiles.TagAt(Index)
+        DeleteFile prf.File
+        gRunFiles.Remove Index
+
+    End Select
+
     uRefreshList
 
 End Sub
@@ -244,23 +277,19 @@ Dim pc As BControl
     If Not mPanel.Find("list", pc) Then _
         Exit Sub
 
-Dim sz As String
 Dim n As Long
-
-Dim pt As BTagItem
 
     n = Val(pc.GetValue())
 
-    With gRunFiles
-        .Rewind
-        Do While .GetNextTag(pt) = B_OK
-            sz = sz & pt.Name & "|"
+    Select Case mType
+    Case "r"
+        uGetCurrentRunFiles pc
 
-        Loop
+'    Case "n"
+'        uGetForwards pc
 
-    End With
+    End Select
 
-    pc.SetText g_SafeLeftStr(sz, Len(sz) - 1)
     pc.SetValue CStr(MAX(n, 1))
 
 End Sub
@@ -270,3 +299,116 @@ Private Sub mAddEditPanel_Done()
     uRefreshList
     
 End Sub
+
+Private Sub uGetCurrentRunFiles(ByRef ListControl As BControl)
+Dim szType As String
+Dim pt As BTagItem
+Dim sz As String
+Dim i As Long
+
+    ' /* set content */
+
+    With gRunFiles
+        .Rewind
+        Do While .GetNextTag(pt) = B_OK
+            Select Case pt.Value
+            Case "1"
+                szType = "Static template"
+
+            Case "2"
+                szType = "Custom template"
+
+            Case "3"
+                szType = "Unabridged"
+
+            Case Else
+                szType = "Unknown type"
+
+            End Select
+
+            sz = sz & pt.Name & "#?0#?" & szType & "|"
+
+        Loop
+    End With
+
+    sz = g_SafeLeftStr(sz, Len(sz) - 1)
+    ListControl.SetText sz
+
+    If sz <> "" Then
+        ' /* set icons */
+        With gRunFiles
+            .Rewind
+            Do While .GetNextTag(pt) = B_OK
+                i = i + 1
+
+                Select Case pt.Value
+                Case "1"
+                    szType = "-static"
+    
+                Case "2"
+                    szType = "-custom"
+                    
+                Case "3"
+                    szType = "-unabridged"
+    
+                Case Else
+                    szType = ""
+    
+                End Select
+
+                prefskit_SetItem ListControl, i, "image-file", g_MakePath(App.Path) & "etc\icons\runfile" & szType & ".png"
+    
+            Loop
+        End With
+    End If
+
+End Sub
+
+'Private Sub uGetForwards(ByRef ListControl As BControl)
+'Dim ps As ConfigSection
+'Dim szList As String
+'
+'    With mConfigFile
+'        .Load
+'        .Rewind
+'
+'        Do While .GetNextSection(ps)
+'            If ps.GetValueWithDefault("type", "") = "forwarder" Then
+'                ' /* name, hosts, protocol */
+'                If (ps.GetValueWithDefault("name", "") <> "") And (ps.Name <> "") Then _
+'                    szList = szList & ps.GetValueWithDefault("name", "") & "#?" & ps.Name & "#?" & _
+'                                      "To " & ps.GetValueWithDefault("hosts", "<none>") & " using " & ps.GetValueWithDefault("protocol", "<unknown protocol>") & "|"
+'
+'            End If
+'        Loop
+'
+'        szList = g_SafeLeftStr(szList, Len(szList) - 1)
+'        ListControl.SetText szList
+'
+'Dim szIcon As String
+'Dim i As Long
+'
+'        If szList <> "" Then
+'            .Rewind
+'            Do While .GetNextSection(ps)
+'                If ps.GetValueWithDefault("type", "") = "forwarder" Then
+'                    If (ps.GetValueWithDefault("name", "") <> "") And (ps.Name <> "") Then
+'                        i = i + 1
+'                        szIcon = LCase$(ps.GetValueWithDefault("protocol", ""))
+'                        Select Case szIcon
+'                        Case "snp", "gntp"
+'
+'                        Case Else
+'                            szIcon = "unknown"
+'
+'                        End Select
+'
+'                        prefskit_SetItem ListControl, i, "image-file", g_MakePath(App.Path) & "etc\icons\protocol-" & szIcon & ".png"
+'
+'                    End If
+'                End If
+'            Loop
+'        End If
+'    End With
+'
+'End Sub

@@ -30,19 +30,7 @@ Private Function BTagItem_Name() As String
 End Function
 
 Private Function BTagItem_Value() As String
-
 End Function
-
-'Private Sub Class_Initialize()
-'
-'    mPulseRate = 250
-'
-'End Sub
-'
-'Private Sub Class_Terminate()
-'
-'
-'End Sub
 
 Public Function InitFrom(ByVal Path As String) As Boolean
 Dim szCode As String
@@ -309,7 +297,7 @@ Public Function Info() As style_info
 
 End Function
 
-Public Sub UpdateContent(ByRef Content As notification_info, ByVal RealIcon As String)
+Public Function UpdateContent(ByRef Content As notification_info, ByVal RealIcon As String) As mfxBitmap
 
     g_Debug "TScriptStyle.UpdateContent()", LEMON_LEVEL_PROC_ENTER
 
@@ -327,16 +315,11 @@ Public Sub UpdateContent(ByRef Content As notification_info, ByVal RealIcon As S
         mView.Clear
         CallProc "style_Draw"
 
+        Set UpdateContent = mView.AsBitmap()
+
     End If
 
     g_Debug "", LEMON_LEVEL_PROC_EXIT
-
-End Sub
-
-Public Function GetContent() As MImage
-
-    If NOTNULL(mView) Then _
-        Set GetContent = mView.ConvertToBitmap()
 
 End Function
 
@@ -345,3 +328,5 @@ Public Function Name() As String
     Name = BTagItem_Name()
 
 End Function
+
+

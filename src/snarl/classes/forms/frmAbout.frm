@@ -3,7 +3,7 @@ Begin VB.Form frmAbout
    BackColor       =   &H00E0E0E0&
    BorderStyle     =   3  'Fixed Dialog
    Caption         =   "Snarl"
-   ClientHeight    =   3840
+   ClientHeight    =   3495
    ClientLeft      =   45
    ClientTop       =   405
    ClientWidth     =   6450
@@ -20,23 +20,53 @@ Begin VB.Form frmAbout
    LinkTopic       =   "Form2"
    MaxButton       =   0   'False
    MinButton       =   0   'False
-   ScaleHeight     =   256
+   ScaleHeight     =   233
    ScaleMode       =   3  'Pixel
    ScaleWidth      =   430
    ShowInTaskbar   =   0   'False
    StartUpPosition =   2  'CenterScreen
    Begin VB.Timer Timer1 
       Interval        =   100
-      Left            =   240
-      Top             =   3240
+      Left            =   0
+      Top             =   2940
+   End
+   Begin VB.Label Label3 
+      BackStyle       =   0  'Transparent
+      Caption         =   "Other icons: Gnome themes by various artists"
+      Height          =   255
+      Index           =   5
+      Left            =   1980
+      TabIndex        =   6
+      Top             =   2340
+      Width           =   4155
+   End
+   Begin VB.Label Label3 
+      BackStyle       =   0  'Transparent
+      Caption         =   "UI icons: Faenza by Matthieu James (aka ~tiheum)"
+      Height          =   255
+      Index           =   4
+      Left            =   1980
+      TabIndex        =   5
+      Top             =   2040
+      Width           =   4155
+   End
+   Begin VB.Label Label3 
+      BackStyle       =   0  'Transparent
+      Caption         =   "Snarl icon by Paul Davey (aka Mattahan)"
+      Height          =   255
+      Index           =   3
+      Left            =   1980
+      TabIndex        =   4
+      Top             =   1740
+      Width           =   4155
    End
    Begin VB.Label Label1 
       Alignment       =   2  'Center
       BackStyle       =   0  'Transparent
       Caption         =   "www.getsnarl.info"
       BeginProperty Font 
-         Name            =   "Calibri"
-         Size            =   9.75
+         Name            =   "Tahoma"
+         Size            =   9
          Charset         =   0
          Weight          =   400
          Underline       =   0   'False
@@ -47,24 +77,24 @@ Begin VB.Form frmAbout
       Height          =   255
       Left            =   2370
       TabIndex        =   3
-      Top             =   3180
+      Top             =   3060
       Width           =   1710
    End
    Begin VB.Image Image2 
       Appearance      =   0  'Flat
       Height          =   450
-      Left            =   5580
+      Left            =   600
       Picture         =   "frmAbout.frx":1042
       Stretch         =   -1  'True
-      Top             =   2520
+      Top             =   2280
       Width           =   825
    End
    Begin VB.Line Line1 
       BorderColor     =   &H00808080&
       X1              =   0
       X2              =   430
-      Y1              =   200
-      Y2              =   200
+      Y1              =   192
+      Y2              =   192
    End
    Begin VB.Image Image1 
       Height          =   1920
@@ -77,8 +107,8 @@ Begin VB.Form frmAbout
       BackStyle       =   0  'Transparent
       Caption         =   "Snarl"
       BeginProperty Font 
-         Name            =   "Calibri"
-         Size            =   15.75
+         Name            =   "Tahoma"
+         Size            =   14.25
          Charset         =   0
          Weight          =   700
          Underline       =   0   'False
@@ -89,52 +119,34 @@ Begin VB.Form frmAbout
       Index           =   0
       Left            =   1980
       TabIndex        =   2
-      Top             =   180
+      Top             =   120
       Width           =   4395
    End
    Begin VB.Label Label3 
       BackStyle       =   0  'Transparent
       Caption         =   "A notification system for Windows"
-      BeginProperty Font 
-         Name            =   "Calibri"
-         Size            =   9.75
-         Charset         =   0
-         Weight          =   400
-         Underline       =   0   'False
-         Italic          =   0   'False
-         Strikethrough   =   0   'False
-      EndProperty
-      Height          =   315
+      Height          =   255
       Index           =   1
       Left            =   1980
       TabIndex        =   1
-      Top             =   600
+      Top             =   780
       Width           =   3255
    End
    Begin VB.Label Label3 
       BackStyle       =   0  'Transparent
-      Caption         =   "© 2005-2011 full phat products"
-      BeginProperty Font 
-         Name            =   "Calibri"
-         Size            =   9
-         Charset         =   0
-         Weight          =   400
-         Underline       =   0   'False
-         Italic          =   0   'False
-         Strikethrough   =   0   'False
-      EndProperty
+      Caption         =   "© 2005-2012 full phat products"
       Height          =   255
       Index           =   2
       Left            =   1980
       TabIndex        =   0
-      Top             =   900
+      Top             =   1140
       Width           =   4155
    End
    Begin VB.Shape Shape1 
       BackColor       =   &H00FFFFFF&
       BackStyle       =   1  'Opaque
       BorderColor     =   &H00FFFFFF&
-      Height          =   3000
+      Height          =   2880
       Left            =   0
       Top             =   0
       Width           =   6450
@@ -238,6 +250,7 @@ Private Const SN_II_AWAY = 60&
     ' /* R2.5.1 */
 Dim WithEvents theGarbageTimer As BTimer
 Attribute theGarbageTimer.VB_VarHelpID = -1
+Private Const HISTORY_PAGE = 6
 
 Implements MMessageSink
 Implements KPrefsPanel
@@ -257,15 +270,15 @@ Dim n As Integer
 
     ' /* R2.4 DR7: check for Calibri and default to Tahoma */
 
-    For n = Label3.LBound To Label3.UBound
-        Label3(n).Font.Name = "Calibri"
-        If Label3(n).Font.Name <> "Calibri" Then
-            Label3(n).Font.Name = "Tahoma"
-            Label3(n).Font.Size = Label3(n).Font.Size - 1
-
-        End If
-
-    Next n
+'    For n = Label3.LBound To Label3.UBound
+'        Label3(n).Font.Name = "Calibri"
+'        If Label3(n).Font.Name <> "Calibri" Then
+'            Label3(n).Font.Name = "Tahoma"
+'            Label3(n).Font.Size = Label3(n).Font.Size - 1
+'
+'        End If
+'
+'    Next n
 
     ' /* R2.4 DR8: register for TS session events */
 
@@ -278,7 +291,7 @@ Dim n As Integer
     Me.bSetHotkeys
 
     If g_ConfigGet("use_notification_hotkey") = "1" Then _
-        uSetNotificationHotkey True
+        Me.bSetNotificationHotkey True
 
     ' /* pre-load our 'About' text */
 
@@ -324,7 +337,7 @@ Dim n As Integer
 
     ' /* create the garbage collection timer */
 
-    Set theGarbageTimer = new_BTimer(10000)
+    Set theGarbageTimer = new_BTimer(60000)
 
 End Sub
 
@@ -385,7 +398,7 @@ Dim i As Long
     RemoveSubClass Me.hWnd
 
     uUnregisterHotkeys
-    uSetNotificationHotkey False
+    Me.bSetNotificationHotkey False
 
 End Sub
 
@@ -464,54 +477,15 @@ Private Sub KPrefsPage_ControlChanged(Control As prefs_kit_d2.BControl, ByVal Va
     If Control.GetName = "" Then _
         Exit Sub
 
-'Dim sz() As String
-'Dim pc As BControl
-'Dim i As Long
-
     Select Case Control.GetName
-
-'    Case "use_hotkey"
-'        ' /* R2.2: we have a separate config entry now */
-'        g_ConfigSet Control.GetName, Value
-'        prefskit_SafeEnable Control.Page.Panel, "hotkey_prefs", (Value = "1")
-'        frmAbout.bSetHotkeys
-'
-'    Case "hotkey_prefs"
-'        ' /* the key picker control should return a pair of values separated by a comma.  The first
-'        '    value is the set of modifiers; the second value is the keycode of the key pressed */
-'
-'        sz() = Split(Value, ",")
-'        If UBound(sz()) <> 1 Then _
-'            Exit Sub
-'
-'        ' /* we're only interested in the keycode here */
-'
-'        If sz(1) <> g_ConfigGet("hotkey_prefs") Then
-'            If frmAbout.bSetHotkeys(Val(sz(1))) Then
-'                ' /* registered okay so store the new keycode */
-'                g_ConfigSet "hotkey_prefs", sz(1)
-'                g_Debug "TGeneralPage.ControlChanged(): [hotkey_prefs]: hotkey changed to #" & sz(1)
-'
-'            Else
-'                g_Debug "TGeneralPage.ControlChanged(): [hotkey_prefs]: couldn't set hotkey to #" & sz(1), LEMON_LEVEL_WARNING
-'                sz(1) = g_ConfigGet("hotkey_prefs")
-'
-'            End If
-'
-'        End If
-'
-'        Control.SetValue CStr(MOD_CONTROL) & "," & sz(1)
-
-
 
     Case "ts>display", "advanced_tab_strip"
         ' /* don't write this to config! */
-
+        Exit Sub
 
     ' /* [About] */
 
     Case "ftb>web_stuff"
-
         Select Case Val(Value)
         Case 1
             ' /* site */
@@ -527,23 +501,17 @@ Private Sub KPrefsPage_ControlChanged(Control As prefs_kit_d2.BControl, ByVal Va
             ShellExecute 0, "open", "http://www.snarl-development.blogspot.com/", vbNullString, vbNullString, SW_SHOW
 
         End Select
-
-    Case Else
-        ' /* other controls */
-        g_ConfigSet Control.GetName, Value
+        Exit Sub
 
     End Select
 
+    ' /* other controls - are there any now? */
+    Debug.Print "frmAbout: setting '" & Control.GetName; "' to '" & Value & "'"
+    g_ConfigSet Control.GetName, Value
 
     ' /* post-processing */
-
-
     Select Case Control.GetName()
-    Case "run_on_logon"
-        g_SetAutoRun2
 
-    Case "use_notification_hotkey"
-        uSetNotificationHotkey (Value = "1")
 
     End Select
 
@@ -561,18 +529,10 @@ Dim hWnd As Long
         g_ConfigInit
 
     Case "test_display_settings"
-        g_PrivateNotify "", "Settings Test", "This is a test of the current display settings", 0, , 1, , , SN_NF_REMOTE Or SN_NF_SECURE, True, "_display_settings_test"
-
-    ' /* [About] */
-
-    Case "go_web_site"
-        ShellExecute 0, "open", "http://www.getsnarl.info/", vbNullString, vbNullString, SW_SHOW
-
-    Case "go_forum"
-        ShellExecute 0, "open", "http://groups.google.co.uk/group/snarl-discuss?hl=en", vbNullString, vbNullString, SW_SHOW
-
-    Case "go_cvs"
-        ShellExecute 0, "open", "http://snarlwin.cvs.sourceforge.net/snarlwin/", vbNullString, vbNullString, SW_SHOW
+        g_NotificationRoster.Hide 0, "_display_settings_test", App.ProductName, ""
+        g_NotificationRoster.Hide 0, "_display_settings_test_priority", App.ProductName, ""
+        g_PrivateNotify "", "Settings Test", "This is a test of the current display settings", 0, , , "!null", , SN_NF_REMOTE Or SN_NF_SECURE, True, "_display_settings_test", 50
+        g_PrivateNotify "", "Settings Test (Priority)", "This is a test of the current display settings", 0, , 1, "!null", , SN_NF_REMOTE Or SN_NF_SECURE, True, "_display_settings_test_priority", 50
 
     End Select
 
@@ -880,114 +840,33 @@ Dim pm As CTempMsg
             mPanel.SetTitle "Snarl Preferences"
             mPanel.SetWidth 540
 
-            ' /* general page */
-
-            g_Debug "frmAbout.NewDoPrefs(): general page..."
-            Set pp = new_BPrefsPage("General", load_image_obj(g_MakePath(App.Path) & "etc\icons\general.png"), Me)
-
-            With pp
-                .SetMargin 48
-
-                ' /* launch options */
-
-                .Add new_BPrefsControl("banner", "", "Launch Options")
-                .Add new_BPrefsControl("fancytoggle2", "run_on_logon", "Start at login?", "", g_ConfigGet("run_on_logon"))
-                .Add new_BPrefsControl("fancytoggle2", "show_msg_on_start", "Show Welcome Message on startup?", "", g_ConfigGet("show_msg_on_start"), pm)
-                .Add new_BPrefsControl("fancytoggle2", "auto_update", "Check for updates on launch?", "", g_ConfigGet("auto_update"))
-                .Add new_BPrefsControl("fancybutton2", "update_now", "Check now...")
-
-                ' /* applications */
-
-                .Add new_BPrefsControl("banner", "", "Applications")
-                .Add new_BPrefsControl("fancytoggle2", "notify_on_first_register", "Only notify the first time an application registers?", , g_ConfigGet("notify_on_first_register"))
-'                .Add new_BPrefsControl("fancytoggle2", "only_allow_secure_apps", "Only allow password-protected applications?", "", g_ConfigGet("only_allow_secure_apps"))
-'                .Add new_BPrefsControl("fancytoggle2", "apps_must_register", "Applications must register before creating notifications?", "", g_ConfigGet("apps_must_register"))
-
-                ' /* notifications */
-
-                .Add new_BPrefsControl("banner", "", "Notifications")
-                .Add new_BPrefsControl("fancytoggle2", "use_notification_hotkey", "Use Windows+Esc key combination to close notifications?", , g_ConfigGet("use_notification_hotkey"))
-                .Add new_BPrefsControl("label", "", "If enabled, Windows+Esc will close the most recent notification; Windows+Ctrl+Esc will close all notifications.")
-
-                ' /* misc */
-
-                .Add new_BPrefsControl("banner", "", "Miscellaneous")
-                .Add new_BPrefsControl("fancytoggle2", "log_only", "Log only (don't display)?", , g_ConfigGet("log_only"))
-
-    '        .Add new_BPrefsControl("fancytoggle2", "sticky_snarls", "Sticky notifications?", , g_ConfigGet("sticky_snarls"))
-
-            End With
-
-            .AddPage pp
-
-
             ' /* apps */
 
             g_Debug "frmAbout.NewDoPrefs(): apps page..."
             Set mAppsPage = New TAppsPage
-            .AddPage new_BPrefsPage("Apps", load_image_obj(g_MakePath(App.Path) & "etc\icons\apps.png"), mAppsPage)
+            .AddPage new_BPrefsPage("Applications", load_image_obj(g_MakePath(App.Path) & "etc\icons\apps.png"), mAppsPage)
 
-            ' /* display page */
+            ' /* notifications page */
 
-Dim pdsp As TDisplaySubPage
-
-            Set pp = new_BPrefsPage("Display", load_image_obj(g_MakePath(App.Path) & "etc\icons\display.png"), Me)
+            Set pp = new_BPrefsPage("Notifications", load_image_obj(g_MakePath(App.Path) & "etc\icons\notifications.png"), Me)
             With pp
                 .SetMargin 0
-
                 Set pm = New CTempMsg
                 pm.Add "height", 380
                 Set pc = new_BPrefsControl("tabstrip", "ts>display", , , , pm)
-
-                Set pdsp = New TDisplaySubPage
-                pdsp.Name = "def"
-                BTabStrip_AddPage pc, "Appearance", new_BPrefsPage("pg>" & pdsp.Name, , pdsp)
-
-                Set pdsp = New TDisplaySubPage
-                pdsp.Name = "lay"
-                BTabStrip_AddPage pc, "Layout", new_BPrefsPage("pg>" & pdsp.Name, , pdsp)
-
-                Set pdsp = New TDisplaySubPage
-                pdsp.Name = "vis"
-                BTabStrip_AddPage pc, "Behaviour", new_BPrefsPage("pg>" & pdsp.Name, , pdsp)
-
-'                Set pdsp = New TDisplaySubPage
-'                pdsp.Name = "sty"
-'                BTabStrip_AddPage pc, "Defaults", new_BPrefsPage("pg>" & pdsp.Name, , pdsp)
-
-'                Set pdsp = New TDisplaySubPage
-'                pdsp.Name = "thu"
-'                BTabStrip_AddPage pc, "Pass-Thru", new_BPrefsPage("pg>" & pdsp.Name, , pdsp)
-
-'                Set pdsp = New TDisplaySubPage
-'                pdsp.Name = "adv"
-'                BTabStrip_AddPage pc, "Sounds", new_BPrefsPage("pg>" & pdsp.Name, , pdsp)
+                BTabStrip_AddPage pc, "The Basics", new_BPrefsPage("appearance1", , New TDisplaySubPage)
+                BTabStrip_AddPage pc, "Appearance", new_BPrefsPage("appearance2", , New TDisplaySubPage)
+'                BTabStrip_AddPage pc, "Layout", new_BPrefsPage("layout", , New TDisplaySubPage)
+                BTabStrip_AddPage pc, "Layout", new_BPrefsPage("behaviour", , New TDisplaySubPage)
+                BTabStrip_AddPage pc, "Sounds", new_BPrefsPage("sounds", , New TDisplaySubPage)
+                BTabStrip_AddPage pc, "Redirection", new_BPrefsPage("redirection", , New TDisplaySubPage)
+                BTabStrip_AddPage pc, "Advanced", new_BPrefsPage("advanced", , New TDisplaySubPage)
 
                 .Add pc
                 .Add new_BPrefsControl("fancybutton2", "test_display_settings", "Test Settings")
 
             End With
-
             .AddPage pp
-
-            ' /* styles */
-
-            Set pp = new_BPrefsPage("Styles", load_image_obj(g_MakePath(App.Path) & "etc\icons\styles.png"), Me)
-            With pp
-                .SetMargin 0
-                Set pm = New CTempMsg
-                pm.Add "height", 412
-                Set pc = new_BPrefsControl("tabstrip", "", , , , pm)
-                BTabStrip_AddPage pc, "Display Styles", new_BPrefsPage("sty-display", , New TNetSubPage)
-                BTabStrip_AddPage pc, "Redirect Styles", new_BPrefsPage("sty-redirect", , New TNetSubPage)
-                .Add pc
-
-            End With
-            .AddPage pp
-
-'            .AddPage new_BPrefsPage("Styles", load_image_obj(g_MakePath(App.Path) & "etc\icons\styles.png"), New TStylesPage)
-
-            .AddPage new_BPrefsPage("Extensions", load_image_obj(g_MakePath(App.Path) & "etc\icons\extensions.png"), New TExtPage)
             
             ' /* network */
 
@@ -1000,8 +879,8 @@ Dim pdsp As TDisplaySubPage
                 BTabStrip_AddPage pc, "General", new_BPrefsPage("net-general", , New TNetSubPage)
                 BTabStrip_AddPage pc, "Forwarding", new_BPrefsPage("net-clients", , New TNetSubPage)
                 BTabStrip_AddPage pc, "Subscriptions", new_BPrefsPage("net-subs", , New TNetSubPage)
-                BTabStrip_AddPage pc, "Subscribers", new_BPrefsPage("net-subscribers", , New TNetSubPage)
-'                BTabStrip_AddPage pc, "Listeners", new_BPrefsPage("net-listeners", , New TNetSubPage)
+'                BTabStrip_AddPage pc, "Subscribers", new_BPrefsPage("net-subscribers", , New TNetSubPage)
+''                BTabStrip_AddPage pc, "Listeners", new_BPrefsPage("net-listeners", , New TNetSubPage)
                 .Add pc
 
             End With
@@ -1009,80 +888,60 @@ Dim pdsp As TDisplaySubPage
 
             ' /* presence */
 
-            g_Debug "frmAbout.NewDoPrefs(): presence page..."
-            Set pp = new_BPrefsPage("Presence", load_image_obj(g_MakePath(App.Path) & "etc\icons\presence.png"), Me)
+'            g_Debug "frmAbout.NewDoPrefs(): presence page..."
+'            Set pp = new_BPrefsPage("Presence", load_image_obj(g_MakePath(App.Path) & "etc\icons\presence.png"), Me)
+'            With pp
+'                .SetMargin 0
+'                Set pm = New CTempMsg
+'                pm.Add "height", 412
+'                Set pc = new_BPrefsControl("tabstrip", "", , , , pm)
+'                BTabStrip_AddPage pc, "Active", new_BPrefsPage("pre-active", , New TNetSubPage)
+'                BTabStrip_AddPage pc, "Away", new_BPrefsPage("pre-away", , New TNetSubPage)
+'                BTabStrip_AddPage pc, "Busy", new_BPrefsPage("pre-busy", , New TNetSubPage)
+'                .Add pc
+'
+'            End With
+'            .AddPage pp
+
+            ' /* addons */
+
+            Set pp = new_BPrefsPage("AddOns", load_image_obj(g_MakePath(App.Path) & "etc\icons\extensions.png"), Me)
+            With pp
+                .SetMargin 0
+                Set pm = New CTempMsg
+                pm.Add "height", 412
+                Set pc = new_BPrefsControl("tabstrip", "", , , , pm)
+'                BTabStrip_AddPage pc, "Displays", new_BPrefsPage("sty-display", , New TNetSubPage)
+                BTabStrip_AddPage pc, "Redirectors", new_BPrefsPage("sty-redirect", , New TNetSubPage)
+                BTabStrip_AddPage pc, "Extensions", new_BPrefsPage("sty-extensions", , New TExtPage)
+                BTabStrip_AddPage pc, "Style Engines", new_BPrefsPage("sty-engines", , New TNetSubPage)
+                .Add pc
+
+            End With
+            .AddPage pp
+
+            ' /* settings page */
+
+            g_Debug "frmAbout.NewDoPrefs(): general page..."
+            Set pp = new_BPrefsPage("Options", load_image_obj(g_MakePath(App.Path) & "etc\icons\general.png"), Me)
 
             With pp
                 .SetMargin 0
                 Set pm = New CTempMsg
                 pm.Add "height", 412
                 Set pc = new_BPrefsControl("tabstrip", "", , , , pm)
-                BTabStrip_AddPage pc, "Active", new_BPrefsPage("pre-active", , New TNetSubPage)
-                BTabStrip_AddPage pc, "Away", new_BPrefsPage("pre-away", , New TNetSubPage)
-                BTabStrip_AddPage pc, "Busy", new_BPrefsPage("pre-busy", , New TNetSubPage)
-                .Add pc
+                BTabStrip_AddPage pc, "General", new_BPrefsPage("gen-basic", , New TNetSubPage)
+                BTabStrip_AddPage pc, "Advanced", new_BPrefsPage("gen-advanced", , New TNetSubPage)
+                BTabStrip_AddPage pc, "Presence", new_BPrefsPage("gen-presence", , New TNetSubPage)
+                BTabStrip_AddPage pc, "Security", new_BPrefsPage("gen-security", , New TNetSubPage)
 
-            End With
-            .AddPage pp
-
-
-
-
-            ' /* advanced page */
-
-Dim pasp As TAdvSubPage
-
-            g_Debug "frmAbout.NewDoPrefs(): advanced page..."
-
-            Set pp = new_BPrefsPage("Advanced", load_image_obj(g_MakePath(App.Path) & "etc\icons\advanced.png"), Me)
-            With pp
-                .SetMargin 0
-
-                Set pm = New CTempMsg
-                pm.Add "height", 380
-                Set pc = new_BPrefsControl("tabstrip", "advanced_tab_strip", , , , pm)
-
-                Set pasp = New TAdvSubPage
-                pasp.Name = "gen"
-                BTabStrip_AddPage pc, "General", new_BPrefsPage("advpage_" & pasp.Name, , pasp)
-
-                Set pasp = New TAdvSubPage
-                pasp.Name = "sec"
-                BTabStrip_AddPage pc, "Security", new_BPrefsPage("advpage_" & pasp.Name, , pasp)
-
-                If gDebugMode Then
-                    Set pasp = New TAdvSubPage
-                    pasp.Name = "dbg"
-                    BTabStrip_AddPage pc, "Debug", new_BPrefsPage("advpage_" & pasp.Name, , pasp)
-
-                End If
+                If gDebugMode Then _
+                    BTabStrip_AddPage pc, "Debug", new_BPrefsPage("gen-debug", , New TNetSubPage)
 
                 .Add pc
 
             End With
-
             .AddPage pp
-
-
-
-'            Set pp = new_BPrefsPage("Advanced", load_image_obj(g_MakePath(App.Path) & "etc\icons\advanced.png"), Me)
-'
-'            With pp
-'                .SetMargin 96
-'
-''                .Add new_BPrefsControl("banner", "", "Presence Management")
-''                .Add new_BPrefsControl("fancycycle", "away_mode", "Log as Missed|Make Sticky|Discard|Display", "When Away:", g_ConfigGet("away_mode"))
-''                .Add new_BPrefsControl("fancycycle", "busy_mode", "Log as Missed|Make Sticky|Discard|Display", "When Busy:", g_ConfigGet("busy_mode"))
-'
-'        ' /* other stuff */
-'
-''        .Add new_BPrefsControl("banner", "", "System Functions")
-''        .Add new_BPrefsControl("fancybutton2", "restart_style_roster", "Reload Styles")
-''        .Add new_BPrefsControl("label", "", "Forces Snarl to reload all installed styles.  Under normal circumstances you shouldn't need to do this; it's provided for users who are developing their own styles and want to test them without restarting Snarl.")
-'
-'            End With
-'
-'            .AddPage pp
 
             ' /* R2.4.2 DR3: history */
 
@@ -1099,8 +958,6 @@ Dim pasp As TAdvSubPage
 
             End With
             .AddPage pp
-            
-            
 
             ' /* About page */
 
@@ -1174,9 +1031,9 @@ Dim pasp As TAdvSubPage
             .Go
             g_SetWindowIconToAppResourceIcon .hWnd
             g_ShowWindow .hWnd, True, True
-            SetForegroundWindow .hWnd
+'            SetForegroundWindow .hWnd
 
-            g_NotificationRoster.ResetMissed
+            g_WindowToFront .hWnd, True
 
             g_Debug "frmAbout.NewDoPrefs(): done"
 
@@ -1190,6 +1047,18 @@ Dim pasp As TAdvSubPage
 End Sub
 
 Private Sub KPrefsPanel_PageChanged(ByVal NewPage As Long)
+
+    If NewPage = HISTORY_PAGE Then _
+        g_NotificationRoster.ResetMissed
+
+Dim pc As BControl
+
+    If NOTNULL(mPanel) Then
+        If mPanel.Find("cb>apps", pc) Then _
+            pc.Notify IIf(NewPage = 1, "show_sidebar", "hide_sidebar"), Nothing
+
+    End If
+
 End Sub
 
 Private Sub KPrefsPanel_Quit()
@@ -1315,13 +1184,8 @@ Friend Sub bUpdateExtList()
 
 Dim pc As BControl
 
-    If Not (mPanel.Find("lb>extensions", pc)) Then _
-        Exit Sub
-
-    ' /* how's this? we send a fake control notification which
-    '    translates as a request to update the extensions list! */
-
-    pc.Notify "update_list", Nothing
+    If (mPanel.Find("lb>extensions", pc)) Then _
+        pc.Notify "update_list", Nothing
 
 End Sub
 
@@ -1581,7 +1445,7 @@ End Sub
 
 Private Sub theGarbageTimer_Pulse()
 
-    If ISNULL(g_AppRoster) Then _
+    If (ISNULL(g_AppRoster)) Or (g_ConfigGet("garbage_collection") = "0") Then _
         Exit Sub
 
 Dim t As Long
@@ -1591,7 +1455,7 @@ Dim t As Long
 Dim pa As TApp
 Dim i As Long
 
-    Debug.Print "--running garbage collection--"
+    Debug.Print "running garbage collection..."
 
     With g_AppRoster
         If .CountApps Then
@@ -1599,7 +1463,7 @@ Dim i As Long
                 Set pa = .AppAt(i)
                 If Not pa.KeepAlive Then
                     ' /* app shouldn't remain registered if it disappears */
-                    If pa.Pid <> 0 Then
+                    If pa.Pid > 0 Then
                         ' /* win32 */
                         If Not g_IsProcessRunning(pa.Pid) Then
                             g_Debug "GarbageCollection: '" & pa.Name & "' (" & CStr(pa.Pid) & ") has gone"
@@ -1612,7 +1476,7 @@ Dim i As Long
         End If
     End With
 
-    Debug.Print "--garbage collection took " & GetTickCount() - t & " ms--"
+    Debug.Print "...took " & GetTickCount() - t & " ms"
 
 End Sub
 
@@ -1874,7 +1738,7 @@ End Function
 
 Public Sub DoAppConfig(ByVal AppName As String, Optional ByVal ClassName As String)
 
-    NewDoPrefs 2
+    NewDoPrefs 1
 
 Dim i As Long
 
@@ -2063,9 +1927,9 @@ Static Style As Long
 
 End Function
 
-Friend Sub uSetNotificationHotkey(ByVal Register As Boolean)
+Friend Sub bSetNotificationHotkey(ByVal Register As Boolean)
 
-    g_Debug "frmAbout.uSetNotificationHotkey()", LEMON_LEVEL_PROC_ENTER
+    g_Debug "frmAbout.bSetNotificationHotkey()", LEMON_LEVEL_PROC_ENTER
 
     If Register Then
         ' /* R2.4.2: registers Win+Esc and Win+Ctrl+Esc.  Win+Esc will close the most recent notification; Win+Ctrl+Esc closes all */
@@ -2285,7 +2149,7 @@ End Sub
 
 Friend Sub bShowMissedPanel()
 
-    Me.NewDoPrefs 9
+    Me.NewDoPrefs HISTORY_PAGE
     mMarkMissedOnClose = True
 
 Dim pc As BControl

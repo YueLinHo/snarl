@@ -31,7 +31,7 @@ Dim i
 
 Const RX = 6
 Const TITLE_TEXT_GAP = 2
-Const POPUP_WIDTH = 330
+Const POPUP_WIDTH = 300
 
   ' /* Must create these as it seems VBScript can't instantiate an object when it's referenced as an argument */
 

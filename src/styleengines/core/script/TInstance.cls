@@ -13,7 +13,8 @@ Attribute VB_PredeclaredId = False
 Attribute VB_Exposed = False
 Option Explicit
 
-Dim mStyle As TScriptStyle
+Dim mStyle As TScriptStyle          ' // the scripted style which does the work - shared across instances
+Dim mContent As mfxBitmap           ' // the latest content for this instance
 
 Implements IStyleInstance
 
@@ -22,7 +23,7 @@ End Sub
 
 Private Function IStyleInstance_GetContent() As melon.MImage
 
-    Set IStyleInstance_GetContent = mStyle.GetContent()
+    Set IStyleInstance_GetContent = mContent
 
 End Function
 
@@ -35,7 +36,9 @@ End Sub
 Private Sub IStyleInstance_UpdateContent(NotificationInfo As libSnarlStyles.notification_info)
 
     g_Debug "StyleInstance.UpdateContent()", LEMON_LEVEL_PROC_ENTER
-    mStyle.UpdateContent NotificationInfo, NotificationInfo.Icon
+
+    Set mContent = mStyle.UpdateContent(NotificationInfo, NotificationInfo.Icon)
+
     g_Debug "", LEMON_LEVEL_PROC_EXIT
 
 End Sub

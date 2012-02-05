@@ -31,8 +31,10 @@ Dim mInfo As extension_info
 Dim mObj As MWndProcSink
 Dim mObj41 As ISnarlExtension
 Dim mLastErr As String
+Dim mRelease As String
 
 Dim mhWndPrefsPanel As Long
+Dim mhWndConfig As Long
 
 Implements mObject
 Implements MWndProcSink
@@ -313,6 +315,8 @@ Private Function uEnable() As Boolean
 
 Dim dw As Long
 
+    Set gCurrentExtension = Me
+
     If Not (mObj41 Is Nothing) Then
         ' /* V41 */
         dw = mObj41.Initialize()
@@ -326,6 +330,7 @@ Dim dw As Long
             ' /* success */
             mObj41.Start
             mState = SN_ES_LOADED
+            mObj41.GetInfo mInfo
 
         End If
 
@@ -348,7 +353,26 @@ Dim dw As Long
 
     End If
 
-    uEnable = True
+    Set gCurrentExtension = Nothing
+    uEnable = True                      ' // is this correct? even if it failed to load?
+
+Dim ppd As BPackedData
+
+    If mState = SN_ES_LOADED Then
+        If (mRelease <> mInfo.Release) And (mRelease <> "") Then
+            Set ppd = g_CreatePacked(SNARL_CLASS_GENERAL, "Extension updated", _
+                                     mInfo.Name & " " & mInfo.Release & " was installed (previous version was " & mRelease & ")", , _
+                                     "!system-info")
+
+            If Me.IsConfigurable Then _
+                ppd.Add "action", "Configure...,!configure " & mClass & ".extension"
+
+            g_DoNotify 0, ppd, Nothing, 0, "", GetCurrentProcessId()
+
+        End If
+    End If
+
+    mRelease = mInfo.Release
 
 End Function
 
@@ -413,7 +437,7 @@ Private Function uDisable(ByVal UnloadNow As Boolean) As Boolean
 
 End Function
 
-Public Function DoPrefs(ByVal hWndPrefsPanel As Long) As Boolean
+Public Function DoPrefs(ByVal hWndOwner As Long) As Boolean
 
 '    If Not mEnabled Then
 '        g_Debug "TExtension.DoPrefs(): '" & mInfo.Name & "' is not enabled", LEMON_LEVEL_WARNING
@@ -433,6 +457,16 @@ Public Function DoPrefs(ByVal hWndPrefsPanel As Long) As Boolean
 
     End If
 
+    If mhWndConfig <> 0 Then
+        g_ShowWindow mhWndConfig, True, True
+        g_Debug "TExtension.DoPrefs(): config already open", LEMON_LEVEL_INFO
+        Exit Function
+
+    End If
+        
+    If hWndOwner <> 0 Then _
+        hWndOwner = g_GetTopLevel(hWndOwner)
+
 Dim hWndConfig As Long
 
     If Not (mObj41 Is Nothing) Then
@@ -442,7 +476,7 @@ Dim hWndConfig As Long
     ElseIf Not (mObj Is Nothing) Then
         ' /* send it a SNARL_EXT_PREFS */
 
-        mObj.WndProc HWND_SNARL, SNARL_EXT_PREFS, 0, hWndPrefsPanel, 0, hWndConfig
+        mObj.WndProc HWND_SNARL, SNARL_EXT_PREFS, 0, hWndOwner, 0, hWndConfig
         g_Debug "TExtension.DoPrefs(): '" & mInfo.Name & "' SNARL_EXT_PREFS=" & g_HexStr(hWndConfig)
 
         If mInfo.Version >= 40 Then _
@@ -456,14 +490,31 @@ Dim hWndConfig As Long
 
 
     If IsWindow(hWndConfig) <> 0 Then
-        mhWndPrefsPanel = hWndPrefsPanel
-        g_MoveWindow hWndConfig, 0, 0, 0, 0, True, mhWndPrefsPanel
+        ' /* position it */
+        If hWndOwner = 0 Then
+            g_MoveWindow hWndConfig, 0, 0, 0, True
+
+        Else
+            g_MoveWindow hWndConfig, 0, 0, 0, 0, True, hWndOwner
+
+        End If
+
+        ' /* show it */
         g_ShowWindow hWndConfig, True, True
 
+        ' /* subclass the provided window */
         AddSubClass hWndConfig, Me
-        SetWindowLong hWndConfig, GWL_HWNDPARENT, mhWndPrefsPanel
 
-        EnableWindow mhWndPrefsPanel, 0
+        If hWndOwner <> 0 Then
+            ' /* assign the owner as our owner and disable it */
+            SetWindowLong hWndConfig, GWL_HWNDPARENT, hWndOwner
+            EnableWindow hWndOwner, 0
+
+        End If
+
+        mhWndPrefsPanel = hWndOwner
+        mhWndConfig = hWndConfig
+
         DoPrefs = True
 
     Else
@@ -569,6 +620,7 @@ Private Function MWndProcSink_WndProc(ByVal hWnd As Long, ByVal uMsg As Long, By
         EnableWindow mhWndPrefsPanel, -1
         g_ShowWindow mhWndPrefsPanel, True, True
         mhWndPrefsPanel = 0
+        mhWndConfig = 0
 
     End If
 
@@ -649,4 +701,8 @@ Dim sz As String
 
 End Sub
 
+Public Function IsConfigOpen() As Boolean
 
+    IsConfigOpen = (mhWndConfig <> 0)
+
+End Function

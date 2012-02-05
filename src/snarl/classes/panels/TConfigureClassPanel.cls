@@ -31,9 +31,12 @@ Dim mPanel As BPrefsPanel
 Dim mhWndPanel As Long
 
 Dim mIgnoreChanges As Boolean           ' // when set KPrefsPage_ControlChanged() doesn't update config
-Dim mCurrentForward As Long
-Dim mCurrentForwardName As String
-Dim mCurrentCondition As Long
+
+Dim WithEvents thePicker As TRedirectPicker
+Attribute thePicker.VB_VarHelpID = -1
+Dim mSelectedRedirect As String
+
+Dim mSelectedForward As String
 
 Public Event Done()
 
@@ -58,26 +61,33 @@ Dim sz As String
     ' /* update values */
 
     Select Case Control.GetName
-    Case "show_on_screen", "use_style", "custom_timeout", "use_custom_icon", "custom_icon", _
-         "use_custom_sound", "custom_sound", "ignore_input", "use_custom_ack", "custom_ack", "log_during_dnd", "block_spam", _
-         "override-normal", "override-away", "override-busy", "block_if_foreground", "use_custom_actions", "custom_actions", _
-         "log_in_history"
 
-        gSelectedClass.SetValue Control.GetName, Value
+    Case "", "redirection_list"
+        Exit Sub
 
-        Debug.Print Control.GetName
+    Case "net_forward_list"
+        mSelectedForward = prefskit_GetItem(Control, "data")
+        Exit Sub
 
-        If Control.GetName = "custom_timeout" Then
-            Control.SetText IIf(Value = "0", "Sticky", Value & " second" & IIf(Value = "1", "", "s"))
+    Case "add_remove_redirect"
+        If Value = "+" Then
+            Set thePicker = New TRedirectPicker
+            thePicker.Go mPanel.hWnd, ""
+            Exit Sub
 
-        ElseIf (Control.GetName = "use_style") And (Value = "1") Then
-            gSelectedClass.SetStyleAndScheme uSelectedItem("style_name"), uSelectedItem("scheme_name")
+        Else
+            gSelectedClass.RemRedirector prefskit_GetItemEx(mPanel, "redirection_list", "data", 0)
+            If mPanel.Find("redirection_list", pc) Then
+                g_UpdateRedirectList pc, gSelectedClass.RedirectList
+                pc.SetValue CStr(prefskit_GetItemCount(pc))
+                
+            End If
+            Exit Sub
 
         End If
 
     Case "duration", "position", "duplicates"
         gSelectedClass.SetValue Control.GetName, CStr(Val(Value) - 1)
-
 
     Case "priority"
         Select Case Val(Value)
@@ -99,7 +109,6 @@ Dim sz As String
 
         End Select
 
-
     Case "style_name"
         ' /* 'style' combo */
         uUpdateSchemeList
@@ -114,13 +123,32 @@ Dim sz As String
         End If
 
 
-    Case "lb>notify"
-        mCurrentForward = Val(Value)
-        mCurrentForwardName = LCase$(Replace$(prefskit_GetItem(Control), ": ", "/"))
-        uSetConditions
+'    Case "lb>notify"
+'        mCurrentForward = Val(Value)
+'        mCurrentForwardName = LCase$(Replace$(prefskit_GetItem(Control), ": ", "/"))
+'        uSetConditions
 
-    Case "when_list"
-        mCurrentCondition = Val(Value)
+    Case Else
+'    Case "show_on_screen", "use_style", "custom_timeout", "use_custom_icon", "custom_icon", _
+         "use_custom_sound", "custom_sound", "ignore_input", "use_custom_ack", "custom_ack", "log_during_dnd", "block_spam", _
+         "override-normal", "override-away", "override-busy", "block_if_foreground", "use_custom_actions", "custom_actions", _
+         "log_in_history"
+
+        Debug.Print "TConfigureClassPanel.ControlChanged(): setting " & g_Quote(Control.GetName) & " to " & g_Quote(Value)
+        gSelectedClass.SetValue Control.GetName, Value
+
+
+    End Select
+
+    ' /* post-processing
+    
+    Select Case Control.GetName()
+    Case "custom_timeout"
+        Control.SetText IIf(Value = "0", "Sticky", Value & " second" & IIf(Value = "1", "", "s"))
+
+    Case "use_style"
+        If (Value = "1") Then _
+            gSelectedClass.SetStyleAndScheme uSelectedItem("style_name"), uSelectedItem("scheme_name")
 
     End Select
 
@@ -131,6 +159,7 @@ Dim sz As String
 End Sub
 
 Private Sub KPrefsPage_ControlInvoked(Control As prefs_kit_d2.BControl)
+Dim sz As String
 
     Select Case Control.GetName
 
@@ -138,63 +167,33 @@ Private Sub KPrefsPage_ControlInvoked(Control As prefs_kit_d2.BControl)
         If Not (gSelectedClass Is Nothing) Then _
             gSelectedClass.TestNotification
 
+    Case "redirection_list"
+        mSelectedRedirect = Control.GetValue()
+        Set thePicker = New TRedirectPicker
+        sz = prefskit_GetItem(Control, "data")
+        thePicker.Go mPanel.hWnd, sz, Val(gSelectedClass.RedirectList.ValueOf(sz, , False))
+
     End Select
 
 End Sub
 
 Private Sub KPrefsPage_ControlNotify(Control As prefs_kit_d2.BControl, ByVal Notification As String, Data As melon.MMessage)
-Dim fChecked As Boolean
-Dim sz As String
 
     Debug.Print Control.GetName & " - " & Notification
 
     Select Case Control.GetName
-    Case "lb>notify"
-        If (Notification = "checked") And (mCurrentForward <> 0) Then
-            ' /* get item name */
-            sz = prefskit_GetItem(Control, "text", mCurrentForward)
-
-            Debug.Print gSelectedClass.Name & " > " & sz
-
-            ' /* get tickbox state */
-            If prefskit_GetItem(Control, "checked", mCurrentForward) = "1" Then
-                gSelectedClass.AddForward sz
-
+    Case "net_forward_list"
+        If (Notification = "checked") And (mSelectedForward <> "") Then
+            ' /* get item state */
+            If prefskit_GetItem(Control, "checked") = "1" Then
+                ' /* add the forward */
+                gSelectedClass.AddNetForward mSelectedForward
+                
             Else
-                gSelectedClass.RemForward sz
+                ' /* remove it */
+                gSelectedClass.RemNetForward mSelectedForward
 
             End If
-
-            uSetConditions
-
-        End If
-
-
-    Case "when_list"
-        ' /* user is ticking items */
-        If (Notification = "checked") And (mCurrentCondition <> 0) Then
-
-            ' /* get tickbox state */
-            fChecked = (prefskit_GetItem(Control, "checked", mCurrentCondition) = "1")
-
-            Select Case mCurrentCondition
-
-            Case 1
-                ' /* when away */
-                gSelectedClass.SetForward mCurrentForwardName, 1, fChecked
-
-            Case 2
-                ' /* when busy */
-                gSelectedClass.SetForward mCurrentForwardName, 2, fChecked
-
-            Case 3
-                ' /* (other times) */
-                gSelectedClass.SetForward mCurrentForwardName, 4, fChecked
-
-            End Select
-
-            uSetConditions
-
         End If
 
     End Select
@@ -245,7 +244,6 @@ Public Sub Go(ByVal hWndPanel As Long)
 Dim pp As BPrefsPage
 Dim pm As CTempMsg
 Dim pc As BControl
-'Dim sz As String
 
     mhWndPanel = hWndPanel
     Set mPanel = New BPrefsPanel
@@ -255,111 +253,162 @@ Dim pc As BControl
         .SetWindow 1                                            ' // so it doesn't appear during Go()
         .SetWidth 360
 
-        ' /* general page */
+        ' /* Appearance */
 
-'        Set pp = new_BPrefsPage("General", , Me)
         Set pp = new_BPrefsPage("Appearance", load_image_obj(g_MakePath(App.Path) & "etc\icons\class-app.png"), Me)
         With pp
-            .SetMargin 80
+            .SetMargin 90
             .SetWidth 300
-
             ' /* display */
             .Add new_BPrefsControl("fancytoggle2", "show_on_screen", "Show on screen?", "Visibility:", gSelectedClass.GetValue("show_on_screen"))
-
             ' /* style */
             .Add new_BPrefsControl("fancytoggle2", "use_style", "Use a specific style?", "Style:", gSelectedClass.GetValue("use_style"))
             .Add new_BPrefsCombo("style_name", "", "", , 24)
             .Add new_BPrefsCombo("scheme_name", "", "", , 24)
-
             ' /* position */
             .Add new_BPrefsControl("fancycycle", "position", "Default|Top Left|Top Right|Bottom Left|Bottom Right", "Position:")
-
-            ' /* R2.3: custom icon */
-            .Add new_BPrefsControl("fancytoggle2", "use_custom_icon", "Use custom icon?", "Icon:")
-            .Add new_BPrefsControl("fancyfilepicker", "custom_icon", , , "")
-
-            ' /* view-only */
-'            .Add new_BPrefsControl("fancytoggle2", "ignore_input", "Ignore mouse and other input events?", "Interaction:")
-
-            ' /* test button */
-            .Add new_BPrefsSeparator
-            .Add new_BPrefsControl("fancybutton2", "test", "Test")
-
-        End With
-
-        .AddPage pp
-
-
-        Set pp = new_BPrefsPage("Behaviour", load_image_obj(g_MakePath(App.Path) & "etc\icons\class-beh.png"), Me)
-        With pp
-            .SetMargin 80
-            .SetWidth 300
-
-'            If Not (gSelectedClass Is Nothing) Then _
-'                sz = gSelectedClass.GetValue("custom_timeout")
-
             ' /* duration */
-            .Add new_BPrefsControl("fancycycle", "duration", "Default|App Decides|Custom", "Duration:")
+            .Add new_BPrefsControl("fancycycle", "duration", "Default|Application Decides|Custom", "Duration:")
             Set pm = New CTempMsg
             pm.Add "min", 0&
             pm.Add "max", 60&
             pm.Add "freq", 10&
             pm.Add "label_size", 64&
             .Add new_BPrefsControl("fancyslider", "custom_timeout", , , , pm)
+            ' /* R2.6: background tint */
+            .Add new_BPrefsControl("fancycolourpicker", "colour-tint", , "Tint:")
+            ' /* test button */
+            .Add new_BPrefsSeparator
+            .Add new_BPrefsControl("fancybutton2", "test", "Test")
 
+        End With
+        .AddPage pp
+
+
+        ' /* Behaviour */
+
+        Set pp = new_BPrefsPage("Behaviour", load_image_obj(g_MakePath(App.Path) & "etc\icons\class-beh.png"), Me)
+        With pp
+            .SetMargin 90
+            .SetWidth 300
             ' /* priority */
-            .Add new_BPrefsControl("fancycycle", "priority", "App Decides|Low|Normal|High", "Priority:")
+            .Add new_BPrefsControl("fancycycle", "priority", "Application Decides|Low|Normal|High", "Priority:")
+            ' /* logging */
+            .Add new_BPrefsControl("fancycycle", "log_in_history", "Always|Never|Application Decides", "Logging:", gSelectedClass.GetValue("log_in_history"))
+            ' /* misc toggles */
+            .Add new_BPrefsControl("fancytoggle2", "block_if_foreground", "Ignore if foreground application?", "Other:", gSelectedClass.GetValue("block_if_foreground"))
+            .Add new_BPrefsControl("fancytoggle2", "ignore_input", "Ignore mouse and other input events?", "")
+            .Add new_BPrefsControl("fancytoggle2", "block_spam", "Prevent notification flooding?", "")
 
-            ' /* R2.3: custom sound */
-            .Add new_BPrefsControl("fancytoggle2", "use_custom_sound", "Play custom sound?", "")
-            .Add new_BPrefsControl("fancyfilepicker", "custom_sound", , "Sound:")
+            .Add new_BPrefsControl("banner", "", "Presence")
+            .Add new_BPrefsControl("fancycycle", "override-normal", "Default|Log as Missed|Display Sticky|Discard|Display Normally|Display High Priority", "Active:", gSelectedClass.GetValue("override-normal"))
+            .Add new_BPrefsControl("fancycycle", "override-away", "Default|Log as Missed|Display Sticky|Discard|Display Normally|Display High Priority", "Away:", gSelectedClass.GetValue("override-away"))
+            .Add new_BPrefsControl("fancycycle", "override-busy", "Default|Log as Missed|Display Sticky|Discard|Display Normally|Display High Priority", "Busy:", gSelectedClass.GetValue("override-busy"))
 
-            ' /* R2.31: custom ack - renamed in R2.4 DR7 to "Callback" */
-            .Add new_BPrefsControl("fancytoggle2", "use_custom_ack", "Custom callback?", "")
-            .Add new_BPrefsControl("fancyedit", "custom_ack", , "Callback:")
-
-'            ' /* R2.31: duplicates renamed to spamming */
-'            .Add new_BPrefsControl("fancytoggle2", "block_spam", "Prevent notification flooding?", "Other:")
 
             ' /* R2.31: test button here too */
             .Add new_BPrefsSeparator
             .Add new_BPrefsControl("fancybutton2", "test", "Test")
 
         End With
-
         .AddPage pp
 
-'                .Add new_BPrefsControl("fancycycle", "fc>fwd.when", "Never|Always|Away|Do Not Disturb Set", "When:")
-'            .Add new_BPrefsControl("label", "", "View-only mode makes the notification invisible to the mouse pointer, allowing you to access content beneath it.  View-only notifications cannot be interacted with.")
+
+        ' /* Network */
+
+        Set pp = new_BPrefsPage("Network", load_image_obj(g_MakePath(App.Path) & "etc\icons\network.png"), Me)
+        With pp
+            .SetMargin 24
+            .SetWidth 300
+            ' /* forwarding */
+            .Add new_BPrefsControl("banner", "", "Forwarding")
+            
+            Set pm = New CTempMsg
+            pm.Add "item-height", 26&
+            pm.Add "checkboxes", 1&
+            Set pc = new_BPrefsControl("listbox", "net_forward_list", , "", , pm)
+            pc.SizeTo 0, (4 * 26) + 2
+            .Add pc
+
+            ' /* toggles */
+            .Add new_BPrefsControl("banner", "", "Other")
+            .Add new_BPrefsControl("fancytoggle2", "send_to_subscribers", "Send to subscribers?", "")
+
+            ' /* R2.31: test button here too */
+            .Add new_BPrefsSeparator
+            .Add new_BPrefsControl("fancybutton2", "test", "Test")
+
+        End With
+        .AddPage pp
 
 
+        ' /* Redirection */
 
         Set pp = new_BPrefsPage("Redirection", load_image_obj(g_MakePath(App.Path) & "etc\icons\class-fwd.png"), Me)
         With pp
             .SetMargin 0
             .SetWidth 300
-
-            .Add new_BPrefsControl("label", "", "Send the notification content to the following:")
-
-            ' /* list */
-
+            .Add new_BPrefsControl("label", "", "Send notification content using the following Redirectors:")
             Set pm = New CTempMsg
-            pm.Add "checkboxes", 1
-            Set pc = new_BPrefsControl("listbox", "lb>notify", g_StyleRoster.GetNonWindowStyleList(), "", "1", pm)
-            pc.SizeTo 0, 136
+            pm.Add "plus_minus", 1&
+            pm.Add "item-height", 26&
+            Set pc = new_BPrefsControl("listbox", "redirection_list", "", "", "1", pm)
+            pc.SizeTo 0, (7 * 26) + 2
             .Add pc
-            mCurrentForward = 1
+            .Add new_BPrefsControl("fancyplusminus", "add_remove_redirect")
+            .Add new_BPrefsControl("label", "", "Redirectors can be configured in the AddOns page.")
 
-            ' /* R2.4 DR8: when to forward */
+            ' /* R2.31: test button here too */
+            .Add new_BPrefsSeparator
+            .Add new_BPrefsControl("fancybutton2", "test", "Test")
 
-            .Add new_BPrefsControl("label", "", "When the following conditions are met:")
+        End With
+        .AddPage pp
 
-            Set pm = New CTempMsg
-            pm.Add "checkboxes", 1
-            Set pc = new_BPrefsControl("listbox", "when_list", "When away|When busy|(All other times)", "", "", pm)
-            pc.SizeTo 0, 68
-            .Add pc
 
+        ' /* presence */
+
+'        Set pp = new_BPrefsPage("Presence", load_image_obj(g_MakePath(App.Path) & "etc\icons\presence.png"), Me)
+'        With pp
+'            .SetMargin 90
+'            .SetWidth 300
+'            .Add new_BPrefsControl("banner", "", "When I'm at my computer...")
+'            .Add new_BPrefsControl("fancycycle", "override-normal", "Default|Log as Missed|Display Sticky|Discard|Display Normally|Display High Priority", "Action:", gSelectedClass.GetValue("override-normal"))
+'            .Add new_BPrefsControl("banner", "", "When I'm away...")
+'            .Add new_BPrefsControl("fancycycle", "override-away", "Default|Log as Missed|Display Sticky|Discard|Display Normally|Display High Priority", "Action:", gSelectedClass.GetValue("override-away"))
+'            .Add new_BPrefsControl("banner", "", "When I'm busy...")
+'            .Add new_BPrefsControl("fancycycle", "override-busy", "Default|Log as Missed|Display Sticky|Discard|Display Normally|Display High Priority", "Action:", gSelectedClass.GetValue("override-busy"))
+'
+'            ' /* R2.31: test button here too */
+'            .Add new_BPrefsSeparator
+'            .Add new_BPrefsControl("fancybutton2", "test", "Test")
+'
+'        End With
+'        .AddPage pp
+
+
+        ' /* advanced */
+
+        Set pp = new_BPrefsPage("Advanced", load_image_obj(g_MakePath(App.Path) & "etc\icons\class-ext.png"), Me)
+        With pp
+            .SetMargin 90
+            .SetWidth 300
+            .Add new_BPrefsControl("banner", "", "Content Customisation")
+            .Add new_BPrefsControl("label", "", "The following can be used to replace content created by the application.")
+
+            ' /* R2.3: custom icon */
+'            .Add new_BPrefsControl("fancytoggle2", "use_custom_icon", "Use custom icon?")
+            .Add new_BPrefsControl("fancyfilepicker", "custom_icon", , "Icon:", "")
+            ' /* R2.3: custom sound */
+'            .Add new_BPrefsControl("fancytoggle2", "use_custom_sound", "Play custom sound?", "")
+            .Add new_BPrefsControl("fancyfilepicker", "custom_sound", , "Sound:")
+            ' /* R2.31: custom ack - renamed in R2.4 DR7 to "Callback" */
+'            .Add new_BPrefsControl("fancytoggle2", "use_custom_ack", "Custom callback?", "")
+            .Add new_BPrefsControl("fancyedit", "custom_ack", , "Callback:")
+            ' /* R2.4.2 DR3: custom actions */
+'            .Add new_BPrefsControl("fancytoggle2", "use_custom_actions", "Custom actions?", "")
+            .Add new_BPrefsControl("fancyedit", "custom_actions", , "Actions:")
+            .Add new_BPrefsControl("label", "", "Separate multiple actions with semicolons, for example " & g_Quote("open=!open;close=!close"))
             ' /* R2.31: test button here too */
             .Add new_BPrefsSeparator
             .Add new_BPrefsControl("fancybutton2", "test", "Test")
@@ -368,66 +417,35 @@ Dim pc As BControl
 
         .AddPage pp
 
-
-
-
-        Set pp = new_BPrefsPage("Presence", load_image_obj(g_MakePath(App.Path) & "etc\icons\presence.png"), Me)
-        With pp
-            .SetMargin 80
-            .SetWidth 300
-
-            .Add new_BPrefsControl("banner", "", "When I'm at my computer...")
-            .Add new_BPrefsControl("fancycycle", "override-normal", "Default|Log as Missed|Display Sticky|Discard|Display Normally|Display High Priority", "Action:", gSelectedClass.GetValue("override-normal"))
-
-            .Add new_BPrefsControl("banner", "", "When I'm away...")
-            .Add new_BPrefsControl("fancycycle", "override-away", "Default|Log as Missed|Display Sticky|Discard|Display Normally|Display High Priority", "Action:", gSelectedClass.GetValue("override-away"))
+            ' /* duplicates */
+'            .Add new_BPrefsControl("fancycycle", "duplicates", "Allow|Block|Delay", "Flooding:")
+'            ' /* R2.4.2 DR3: custom actions */
+'            .Add new_BPrefsControl("fancytoggle2", "use_custom_actions", "Custom actions?", "")
+'            .Add new_BPrefsControl("fancyedit", "custom_actions", , "Actions:")
+'            .Add new_BPrefsControl("label", "", "<Action>=<command>.  Separate multiple actions with semi-colons.")
+'                .Add new_BPrefsControl("fancycycle", "fc>fwd.when", "Never|Always|Away|Do Not Disturb Set", "When:")
+'            .Add new_BPrefsControl("label", "", "View-only mode makes the notification invisible to the mouse pointer, allowing you to access content beneath it.  View-only notifications cannot be interacted with.")
 
 '            ' /* R2.31: log during DnD */
 '            .Add new_BPrefsControl("fancytoggle2", "log_during_dnd", "Always log when I'm busy", "")
 
-            .Add new_BPrefsControl("banner", "", "When I'm busy...")
-            .Add new_BPrefsControl("fancycycle", "override-busy", "Default|Log as Missed|Display Sticky|Discard|Display Normally|Display High Priority", "Action:", gSelectedClass.GetValue("override-busy"))
+'            If Not (gSelectedClass Is Nothing) Then _
+'                sz = gSelectedClass.GetValue("custom_timeout")
 
-            ' /* R2.31: test button here too */
-            .Add new_BPrefsSeparator
-            .Add new_BPrefsControl("fancybutton2", "test", "Test")
+'            ' /* duration */
+'            .Add new_BPrefsControl("fancycycle", "duration", "Default|Application Decides|Custom", "Duration:")
+'            Set pm = New CTempMsg
+'            pm.Add "min", 0&
+'            pm.Add "max", 60&
+'            pm.Add "freq", 10&
+'            pm.Add "label_size", 64&
+'            .Add new_BPrefsControl("fancyslider", "custom_timeout", , , , pm)
+'
+'            ' /* priority */
+'            .Add new_BPrefsControl("fancycycle", "priority", "Application Decides|Low|Normal|High", "Priority:")
 
-        End With
-
-        .AddPage pp
-
-
-
-        Set pp = new_BPrefsPage("Advanced", load_image_obj(g_MakePath(App.Path) & "etc\icons\class-ext.png"), Me)
-        With pp
-            .SetMargin 80
-            .SetWidth 300
-
-            ' /* duplicates */
-'            .Add new_BPrefsControl("fancycycle", "duplicates", "Allow|Block|Delay", "Flooding:")
-
-            .Add new_BPrefsControl("banner", "", "Behaviour")
-            .Add new_BPrefsControl("fancytoggle2", "block_if_foreground", "Ignore if foreground application?", , gSelectedClass.GetValue("block_if_foreground"))
-
-            .Add new_BPrefsControl("fancytoggle2", "ignore_input", "Ignore mouse and other input events?", "")
-            .Add new_BPrefsControl("fancytoggle2", "block_spam", "Prevent notification flooding?", "")
-
-            ' /* R2.4.2 DR3: custom actions */
-            .Add new_BPrefsControl("fancytoggle2", "use_custom_actions", "Custom actions?", "")
-            .Add new_BPrefsControl("fancyedit", "custom_actions", , "Actions:")
-            .Add new_BPrefsControl("label", "", "<Action>=<command>.  Separate multiple actions with semi-colons.")
-
-            .Add new_BPrefsControl("fancycycle", "log_in_history", "Always|Never|App Decides", "Log:", gSelectedClass.GetValue("log_in_history"))
-
-            ' /* R2.31: test button here too */
-            .Add new_BPrefsSeparator
-            .Add new_BPrefsControl("fancybutton2", "test", "Test")
-
-        End With
-
-        .AddPage pp
-
-
+'            ' /* R2.31: duplicates renamed to spamming */
+'            .Add new_BPrefsControl("fancytoggle2", "block_spam", "Prevent notification flooding?", "Other:")
 
 
         .Go
@@ -473,17 +491,21 @@ End Sub
 
 Public Sub ClassChanged()
 
+    ' /* called by the main panel whenever the selected notification class has changed */
+
     If (gSelectedClass Is Nothing) Then _
         Exit Sub
 
     mIgnoreChanges = True
-
     mPanel.SetTitle gSelectedClass.App.Name & ": " & gSelectedClass.Description
 
     uSetValues
     uSetControls
 
-    uSetConditions
+Dim sz As String
+
+    sz = gSelectedClass.GetValue("custom_timeout")
+    prefskit_SafeSetText mPanel, "custom_timeout", IIf(sz = "0", "Sticky", sz & " second" & IIf(sz = "1", "", "s"))
 
     mIgnoreChanges = False
 
@@ -584,8 +606,8 @@ Public Sub SetFocus()
 End Sub
 
 Private Function MWndProcSink_WndProc(ByVal hWnd As Long, ByVal uMsg As Long, ByVal wParam As Long, ByVal lParam As Long, ByVal PrevWndProc As Long, ReturnValue As Long) As Boolean
-Static rc As RECT
 Static rcOwner As RECT
+Static rc As RECT
 
     If (mPanel Is Nothing) Then _
         Exit Function
@@ -657,6 +679,10 @@ Dim dw As Long
         uSafeSetValue "show_on_screen", .GetValue("show_on_screen")
         uSafeSetValue "ignore_input", .GetValue("ignore_input")
 
+        uSafeSetValue "log_in_history", .GetValue("log_in_history")
+        uSafeSetValue "colour-tint", .GetValue("colour-tint")
+        uSafeSetValue "send_to_subscribers", .GetValue("send_to_subscribers")
+
         If .GetValue("custom_priority") = "0" Then
             ' /* app decides */
             uSafeSetValue "priority", "1"
@@ -695,7 +721,7 @@ Dim b As Boolean
 Dim sz As String
 Dim i As Long
 Dim j As Long
-    
+
         b = (.GetValue("use_style") = "1")
         If b Then
             ' /* look it up */
@@ -747,31 +773,20 @@ Dim j As Long
         uSafeSetValue "use_custom_actions", .GetValue("use_custom_actions")
         uSafeSetText "custom_actions", .GetValue("custom_actions")
 
+        ' /* redirection */
+
+Dim pc As BControl
+
+        If mPanel.Find("redirection_list", pc) Then _
+            g_UpdateRedirectList pc, .RedirectList
 
         ' /* forwarding */
 
-Dim pc As BControl
-Dim pm As CTempMsg
-
-        If mPanel.Find("lb>notify", pc) Then
-            j = Val(pc.DoExCmd(B_COUNT_ITEMS))
-            If j Then
-                For i = 1 To j
-                    Debug.Print CStr(i) & " >> " & prefskit_GetItem(pc, , i) & " " & .HasForward(prefskit_GetItem(pc, , i))
-
-                    Set pm = New CTempMsg
-                    pm.Add "index", i
-                    pm.Add "checked", IIf(.HasForward(prefskit_GetItem(pc, , i)), 1&, 0&)
-                    pc.DoExCmd B_SET_ITEM, pm
-
-                Next i
-            End If
+        If mPanel.Find("net_forward_list", pc) Then
+            g_SubsRoster.BuildForwarderList pc, .NetForwardList
+            mSelectedForward = prefskit_GetItem(pc, "data")         ' // covers bug in prefs kit which doesn't trigger a change
 
         End If
-
-        uSafeSetValue "override-normal", .GetValue("override-normal")
-        uSafeSetValue "override-away", .GetValue("override-away")
-        uSafeSetValue "override-busy", .GetValue("override-busy")
 
     End With
 
@@ -818,39 +833,39 @@ Dim b As Boolean
 
         ' /* custom icon */
 
-        uSafeEnable "use_custom_icon", b
-        B2 = b
-        If B2 Then
-            If mPanel.Find("use_custom_icon", pc) Then _
-                B2 = (pc.GetValue = "1")
-
-        End If
-
-        uSafeEnable "custom_icon", B2
+'        uSafeEnable "use_custom_icon", b
+'        B2 = b
+'        If B2 Then
+'            If mPanel.Find("use_custom_icon", pc) Then _
+'                B2 = (pc.GetValue = "1")
+'
+'        End If
+'
+'        uSafeEnable "custom_icon", B2
 
         ' /* custom sound */
 
-        uSafeEnable "use_custom_sound", b
-        B2 = b
-        If B2 Then
-            If mPanel.Find("use_custom_sound", pc) Then _
-                B2 = (pc.GetValue = "1")
-
-        End If
-
-        uSafeEnable "custom_sound", B2
+'        uSafeEnable "use_custom_sound", b
+'        B2 = b
+'        If B2 Then
+'            If mPanel.Find("use_custom_sound", pc) Then _
+'                B2 = (pc.GetValue = "1")
+'
+'        End If
+'
+'        uSafeEnable "custom_sound", B2
 
         ' /* custom ack */
 
-        uSafeEnable "use_custom_ack", b
-        B2 = b
-        If B2 Then
-            If mPanel.Find("use_custom_ack", pc) Then _
-                B2 = (pc.GetValue = "1")
-
-        End If
-
-        uSafeEnable "custom_ack", B2
+'        uSafeEnable "use_custom_ack", b
+'        B2 = b
+'        If B2 Then
+'            If mPanel.Find("use_custom_ack", pc) Then _
+'                B2 = (pc.GetValue = "1")
+'
+'        End If
+'
+'        uSafeEnable "custom_ack", B2
 
     End If
 
@@ -864,26 +879,69 @@ Dim pc As BControl
 
 End Function
 
-Private Sub uSetConditions()
-Dim pc As BControl
+'Private Sub uSetConditions()
+'Dim pc As BControl
+'
+'    If (Not mPanel.Find("when_list", pc)) Or (gSelectedClass Is Nothing) Or (mCurrentForward = 0) Then _
+'        Exit Sub
+'
+'Dim pm As CTempMsg
+'Dim i As Long
+'
+'    i = Val(gSelectedClass.ForwardList.ValueOf(mCurrentForwardName))
+'    Debug.Print "current forward: " & mCurrentForwardName & " flags=" & g_HexStr(i)
+'
+'Dim n As Long
+'
+'    For n = 0 To 2
+'        Set pm = New CTempMsg
+'        pm.Add "index", n + 1
+'        pm.Add "checked", IIf((i And 2 ^ n), 1&, 0&)
+'        pc.DoExCmd B_SET_ITEM, pm
+'
+'    Next n
+'
+'End Sub
 
-    If (Not mPanel.Find("when_list", pc)) Or (gSelectedClass Is Nothing) Or (mCurrentForward = 0) Then _
-        Exit Sub
+Private Sub thePicker_Closed()
 
-Dim pm As CTempMsg
-Dim i As Long
-
-    i = Val(gSelectedClass.ForwardList.ValueOf(mCurrentForwardName))
-    Debug.Print "current forward: " & mCurrentForwardName & " flags=" & g_HexStr(i)
-
-Dim n As Long
-
-    For n = 0 To 2
-        Set pm = New CTempMsg
-        pm.Add "index", n + 1
-        pm.Add "checked", IIf((i And 2 ^ n), 1&, 0&)
-        pc.DoExCmd B_SET_ITEM, pm
-
-    Next n
+    Set thePicker = Nothing
 
 End Sub
+
+Private Sub thePicker_Saved(ByVal Name As String, ByVal Flags As SN_REDIRECTION_FLAGS)
+
+    gSelectedClass.AddRedirector Name, Flags
+
+Dim pc As BControl
+
+    If mPanel.Find("redirection_list", pc) Then
+        ' /* refresh the list */
+        g_UpdateRedirectList pc, gSelectedClass.RedirectList
+
+        ' /* if an entry was previously selected, select it again now otherwise selected the last one (i.e. new one) */
+        If mSelectedRedirect = "" Then _
+            mSelectedRedirect = CStr(prefskit_GetItemCount(pc))
+
+        pc.SetValue mSelectedRedirect
+
+    End If
+
+    mSelectedRedirect = ""
+
+End Sub
+
+Public Sub Show()
+
+'    If NOTNULL(mPanel) Then _
+'        g_ShowWindow mPanel.hWnd, True
+
+End Sub
+
+Public Sub Hide()
+
+'    If NOTNULL(mPanel) Then _
+'        g_ShowWindow mPanel.hWnd, False
+
+End Sub
+

@@ -46,17 +46,7 @@ Private Sub KPrefsPage_ControlChanged(Control As prefs_kit_d2.BControl, ByVal Va
 
     Select Case Control.GetName()
     Case "version"
-        mScheme.SetVersion Val(Value)
         uSetHint
-
-    Case "template"
-        mScheme.SetTemplate Value
-
-    Case "target"
-        mScheme.SetTarget Value
-
-    Case "name"
-        mScheme.SetName Value
 
     End Select
 
@@ -66,8 +56,19 @@ Private Sub KPrefsPage_ControlInvoked(Control As prefs_kit_d2.BControl)
 Dim prf As TRunFileScheme
 
     Select Case Control.GetName
-    Case "go_user_guide"
-        ShellExecute Control.Page.Panel.hWnd, "open", g_MakePath(App.Path) & "etc\RunFileUserGuide\index.html", vbNullString, vbNullString, 5
+'    Case "go_user_guide"
+'        ShellExecute Control.Page.Panel.hWnd, "open", g_MakePath(App.Path) & "etc\RunFileUserGuide\index.html", vbNullString, vbNullString, 5
+
+    Case "save"
+        With mScheme
+            .SetVersion Val(prefskit_GetValue(mPanel, "version"))
+            .SetTemplate prefskit_GetValue(mPanel, "template")
+            .SetTarget prefskit_GetValue(mPanel, "target")
+            .SetName prefskit_SafeGetText(mPanel, "name")
+
+        End With
+
+        mPanel.Quit
 
     End Select
 
@@ -123,27 +124,25 @@ Dim pm As CTempMsg
     Set mPanel = New BPrefsPanel
     With mPanel
         .SetHandler Me
-        .SetTitle "Export Settings"
+        .SetTitle g_Quote(Scheme.Name) & " Settings"
         .SetWidth 500
         .SetWindow 1
 
         Set pPage = new_BPrefsPage("", , Me)
-
         With pPage
             .SetMargin 100
-
             .Add new_BPrefsControl("fancyedit", "name", mScheme.Name, "Name:")
-            .Add new_BPrefsControl("fancycycle", "version", "Simple|Complex|Unabridged", "Type:", CStr(mScheme.Version))
+            .Add new_BPrefsControl("fancyfilepicker", "target", mScheme.Target, "Target file:")
+            .Add new_BPrefsControl("fancycycle", "version", "Simple|Custom|Unabridged", "Type:", CStr(mScheme.Version))
 
             Set pc = new_BPrefsControl("label", "hint")
             pc.SizeTo 0, 60
             .Add pc
 
-            .Add new_BPrefsControl("fancyfilepicker", "target", mScheme.Target, "Target:")
             .Add new_BPrefsControl("fancyedit", "template", mScheme.Template, "Template:")
 
             .Add new_BPrefsSeparator
-            .Add new_BPrefsControl("fancybutton2", "go_user_guide", "User Guide")
+            .Add new_BPrefsControl("fancybutton2", "save", "Save")
 
         End With
 
@@ -257,7 +256,7 @@ Private Sub uSetHint()
     Select Case mScheme.Version
     Case 1
         prefskit_SafeSetText mPanel, "hint", _
-                             "Notification content is sent in the following order: " & _
+                             "Content is sent as " & _
                              """<notification title>"" ""<notification text>"" ""<sender>""" & vbCrLf & _
                              "Any elements prefixed with either ""data-"" or ""value-"" will also be included as additional arguments."
 
@@ -269,7 +268,7 @@ Private Sub uSetHint()
 
     Case 3
         prefskit_SafeSetText mPanel, "hint", _
-                             "Notification content is sent unabridged as a single argument in URL form (e.g. ""title=Hello, world!"")."
+                             "Notification content is sent unabridged as a single argument in URL form (e.g. ""title=Hello, world!&&text=From Snarl"")."
 
     End Select
 

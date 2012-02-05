@@ -112,6 +112,8 @@ Public Enum SNARL_STATUS_CODE
     SNARL_ERROR_DISCARDED                   '// discarded for some reason, e.g. foreground app match
     SNARL_ERROR_NOT_SUBSCRIBED              '// 2.4.2 DR3: subscriber not found
     SNARL_ERROR_ALREADY_SUBSCRIBED          '//
+    ' /* R2.5.1 */
+    SNARL_ERROR_ADDON_NOT_FOUND
 
     ' /* informational */
 
@@ -749,10 +751,11 @@ End Function
 
 
 
+Public Function snarl_is_notification_visible(ByVal Signature As String, ByVal UID As String, Optional ByVal Password As String) As Boolean
 
+    snarl_is_notification_visible = (snDoRequest("isvisible?app-sig=" & Signature & "&uid=" & UID & IIf(Password <> "", "&password=" & Password, "")) = 0)
 
-
-
+End Function
 
 Public Function snarl_ez_notify(ByVal Signature As String, ByVal Class As String, Optional ByVal Title As String, Optional ByVal Text As String, Optional ByVal Icon As String, Optional ByVal Priority As Long, Optional ByVal Duration As Long = -1, Optional ByVal Password As String, Optional ByVal UID As String, Optional ByVal Callback As String, Optional ByVal Percent As Long = -1) As Long
 Dim sz As String

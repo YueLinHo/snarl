@@ -14,9 +14,6 @@ Attribute VB_Exposed = False
 Option Explicit
 
 Dim mPanel As BPrefsPanel
-Dim mhWndOwner As Long
-
-Public Event Closed()
 
 Implements KPrefsPanel
 Implements KPrefsPage
@@ -68,11 +65,6 @@ Private Sub KPrefsPanel_PageChanged(ByVal NewPage As Long)
 End Sub
 
 Private Sub KPrefsPanel_Quit()
-
-    EnableWindow mhWndOwner, -1
-    g_ShowWindow mhWndOwner, True, True
-    RaiseEvent Closed
-
 End Sub
 
 Private Sub KPrefsPanel_Ready()
@@ -81,7 +73,7 @@ End Sub
 Private Sub KPrefsPanel_Selected(ByVal Command As String)
 End Sub
 
-Public Sub Go(ByVal hWndPanel As Long)
+Public Function Go(ByVal hWndPanel As Long) As Long
 Dim rcThis As RECT
 Dim rcOwner As RECT
 Dim dw As Long
@@ -91,21 +83,20 @@ Dim pp As BPrefsPage
 Dim pm As CTempMsg
 Dim pc As BControl
 
-    mhWndOwner = hWndPanel
-
     Set mPanel = New BPrefsPanel
     With mPanel
         .SetHandler Me
         .SetTitle "Style Defaults"
         .SetWidth 430
+        .SetWindow 1
 
         ' /* page */
 
-        Set pp = new_BPrefsPage("", , Me, 430)
+        Set pp = new_BPrefsPage("", , Me, 480)
         With pp
             .SetMargin 0
             Set pm = New CTempMsg
-            pm.Add "height", 210
+            pm.Add "height", 290
             Set pc = new_BPrefsControl("tabstrip", "", , , , pm)
             BTabStrip_AddPage pc, "General", new_BPrefsPage("defs-general", , New TNetSubPage)
             BTabStrip_AddPage pc, "Title", new_BPrefsPage("defs-title", , New TNetSubPage)
@@ -124,25 +115,10 @@ Dim pc As BControl
         .Go
         g_SetWindowIconToAppResourceIcon .hWnd
 
-        dw = GetWindowLong(.hWnd, GWL_STYLE)
-        dw = dw And (Not WS_MINIMIZEBOX)
-        SetWindowLong .hWnd, GWL_STYLE, dw
-
-        SetWindowLong .hWnd, GWL_HWNDPARENT, hWndPanel
-        EnableWindow hWndPanel, 0
-
-        GetWindowRect hWndPanel, rcOwner
-        GetWindowRect .hWnd, rcThis
-        g_RectNormalise rcThis
-
-        g_MoveWindow .hWnd, _
-                     rcOwner.Left + Fix(((rcOwner.Right - rcOwner.Left) - rcThis.Right) / 2), _
-                     rcOwner.Top + Fix(((rcOwner.Bottom - rcOwner.Top) - rcThis.Bottom) / 2)
-
-        g_ShowWindow .hWnd, True, True
+        Go = .hWnd
 
     End With
 
-End Sub
+End Function
 
 

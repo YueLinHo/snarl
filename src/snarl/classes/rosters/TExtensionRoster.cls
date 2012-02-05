@@ -88,6 +88,7 @@ Private Function MLibrary_Open() As melon.M_RESULT
         ' /* run startup code */
 
         mNoStartExtensions = g_IsPressed(vbKeyE)
+        g_Debug "TExtensionRoster.Open(): NoStartExtensions=" & CStr(mNoStartExtensions), LEMON_LEVEL_INFO
 
 '        If (g_IsPressed(VK_LCONTROL)) Or (g_IsPressed(VK_RCONTROL)) Then
 '            g_Debug "TExtensionRoster.Open(): not opening: CTRL key pressed", LEMON_LEVEL_INFO

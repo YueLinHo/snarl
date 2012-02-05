@@ -270,3 +270,24 @@ Dim hWnd As Long
 
 End Sub
 
+Public Function StyleList() As BTagList
+
+    Set StyleList = new_BTagList()
+
+    If ISNULL(mObject) Then _
+        Exit Function
+
+Dim psi As style_info
+Dim i As Long
+
+    With mObject
+        If .CountStyles Then
+            For i = 1 To .CountStyles
+                .StyleAt i, psi
+                StyleList.Add new_BTagItem(psi.Name, psi.IconPath)
+    
+            Next i
+        End If
+    End With
+
+End Function

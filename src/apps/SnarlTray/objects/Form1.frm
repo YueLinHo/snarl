@@ -45,22 +45,6 @@ Attribute VB_PredeclaredId = True
 Attribute VB_Exposed = False
 Option Explicit
 
-Dim mTrayIcon As BNotifyIcon
-Dim mClassId As String
-
-Private Sub Command1_Click()
-
-    If Not (mTrayIcon Is Nothing) Then _
-        mTrayIcon.ShowInfo "1", "SnarlTray", "Test Message", B_NOTIFY_ICON_INFO
-
-End Sub
-
-Private Sub Command3_Click()
-
-    PostMessage Val(Me.Tag), sn41AppMsg(), SNARL41_APP_PREFS, ByVal 0&
-
-End Sub
-
 Private Sub Form_QueryUnload(Cancel As Integer, UnloadMode As Integer)
 
     If UnloadMode = 0 Then _
@@ -78,23 +62,3 @@ Public Sub Add(ByVal Text As String)
 
 End Sub
 
-Public Sub InstallIcon()
-
-    Set mTrayIcon = New BNotifyIcon
-    With mTrayIcon
-        .SetTo Me.hWnd, &H401
-        .Add "1", Me.Icon.Handle, "SnarlTray"
-
-    End With
-
-End Sub
-
-Private Sub Form_Unload(Cancel As Integer)
-
-    If Not (mTrayIcon Is Nothing) Then
-        mTrayIcon.Remove "1"
-        Set mTrayIcon = Nothing
-
-    End If
-
-End Sub

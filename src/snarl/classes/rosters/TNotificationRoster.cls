@@ -40,12 +40,12 @@ Dim mMissedX As BTagList
 Dim mIconCache As BTagList          ' // R2.4.2 DR3
 Dim mHistory As BTagList            ' // R2.4.2 DR3
 
-Enum SN_STYLE_FORWARD_FLAGS
-    SN_SFF_WHEN_BUSY = 1
-    SN_SFF_WHEN_AWAY = 2
-    SN_SFF_WHEN_NOT_AWAY_OR_BUSY = 4
-
-End Enum
+'Enum SN_STYLE_FORWARD_FLAGS
+'    SN_SFF_WHEN_BUSY = 1
+'    SN_SFF_WHEN_AWAY = 2
+'    SN_SFF_WHEN_NOT_AWAY_OR_BUSY = 4
+'
+'End Enum
 
 Implements MLibrary
 Implements MVersionInfo
@@ -303,18 +303,23 @@ Dim pt As BTagItem
     ' /* R2.4: generate the "OriginalContent" content */
     g_KludgeNotificationInfo Info
 
-    ' /* R2.5 Beta 2: if user is active, send to selected global pass-thru styles */
+    ' /* R2.6: do redirects irrespective of user presence */
+    uDoGlobalRedirect Info
 
-    If (Not g_IsDND()) And (Not g_IsAway()) Then _
+'    If (Not g_IsDND()) And (Not g_IsAway()) Then _
         uDoPassThrough Info
 
-    ' /* R2.3: send to any selected non-window styles */
+    ' /* R2.6: do redirection and forwarding */
 
-    uDoClassPassThrough Info
+    With Info.ClassObj
+        .DoRedirection Info
+        .DoForwarding Info
 
-    ' /* R2.4.2 DR3 - send to subscribers */
+        If .GetValue("send_to_subscribers") = "1" Then _
+            g_SubsRoster.BroadcastToSubscribers Info
 
-    g_SubsRoster.Broadcast Info
+    End With
+
 
     ' /*
     '   R2.4 DR8: presence management, as follows:
@@ -370,9 +375,9 @@ Dim lWhatToDo As SN_PRESENCE_ACTIONS
             Case SN_PA_DISPLAY_NORMAL
                 ' /* allow it through */
     
-            Case SN_PA_FORWARD
-                Info.StyleName = style_GetStyleName(g_ConfigGet(IIf(g_IsDND, "busy_style", "away_style")))
-                Info.SchemeName = style_GetSchemeName(g_ConfigGet(IIf(g_IsDND, "busy_style", "away_style")))
+'            Case SN_PA_FORWARD
+'                Info.StyleName = style_GetStyleName(g_ConfigGet(IIf(g_IsDND, "busy_style", "away_style")))
+'                Info.SchemeName = style_GetSchemeName(g_ConfigGet(IIf(g_IsDND, "busy_style", "away_style")))
     
             End Select
     
@@ -437,7 +442,7 @@ Dim pStyle As TStyle
 
     ' /* get the style from the roster here - this is guaranteed to return a usable TStyle */
 
-    uSafeGetStyle Info.StyleName & "/" & Info.SchemeName, pStyle, psi
+    g_StyleRoster.SafeGetStyle Info.StyleName & "/" & Info.SchemeName, pStyle, psi
 
     ' /* R2.4: generate the "OriginalContent" content */
 
@@ -457,7 +462,7 @@ Dim pStyle As TStyle
         ' /* uCopyTo() will return TRUE if the style asked for the notification
         '    to be passed back for on-screen display */
 
-        If uCopyTo(Info) Then
+        If g_StyleRoster.RedirectTo("", Info) Then
             ' /* style is asking for the notification to be displayed on-screen */
             Info.StyleName = style_GetStyleName(g_ConfigGet("default_style"))
             Info.SchemeName = style_GetSchemeName(g_ConfigGet("default_style"))
@@ -1345,113 +1350,28 @@ Dim pt As POINTAPI
 
 End Function
 
-Private Sub uSafeGetStyle(ByVal StyleToUse As String, ByRef Style As TStyle, ByRef Instance As IStyleInstance)
-
-    ' /* try to create a new TStyle from the provided Style name */
-
-    If Not (g_StyleRoster Is Nothing) Then _
-        g_StyleRoster.Find style_GetStyleName(StyleToUse), Style
-
-    ' /* didn't work? use a default one */
-
-    If (Style Is Nothing) Then _
-        Set Style = New TStyle
-
-    ' /* create a new instance from the provided Style */
-
-    Set Instance = Style.CreateInstance()
-
-    ' /* didn't work? use an internal style instance */
-
-    If (Instance Is Nothing) Then _
-        Set Instance = New TInternalStyle
-
-End Sub
-
-Private Function uCopyTo(ByRef Info As T_NOTIFICATION_INFO) As Boolean
-
-    ' /* get the appropriate instance for the notification before we do anything else
-    '    we must pass a valid style instance to CSnarlWindow, even if the style
-    '    roster is invalid */
-
-Dim psi As IStyleInstance
-Dim pStyle As TStyle
-
-    ' /* get the style from the roster here - this is guaranteed to return a usable TStyle */
-
-    uSafeGetStyle Info.StyleName & "/" & Info.SchemeName, pStyle, psi
-
-    ' /* this is just a safety check */
-
-    If (pStyle.Flags And S_STYLE_IS_WINDOWLESS) = 0 Then
-        Debug.Print "TNotificationRoster.uCopyTo(): '" & pStyle.Name & "' is not a windowless style"
-        Exit Function
-
-    End If
-
-    ' /* get the path to the style - we need this for style-provided icons and sounds */
-
-    Info.IconPath = g_TranslateIconPath(Info.IconPath, pStyle.Path)
-
-Dim sTitle As String
-Dim sText As String
-
-    If (pStyle.Flags And S_STYLE_V42_CONTENT) Then
-        ' /* title becomes sender name, text is set to the original packed string */
-        sTitle = Info.ClassObj.App.Name
-        sText = Info.OriginalContent
-
-        ' /* R2.4 Beta 4 - if we should include the hostname, add it here */
-
-'        If g_ConfigGet("include_host_name_when_forwarding") = "1" Then _
-            sTitle = sTitle & " on " & g_GetComputerName()
-
-    Else
-        ' /* pre-V42 model: <title> is either title or app/title pair, <text> is text */
-        sText = Info.Text
-
-        ' /* if S_STYLE_WANT_APP_NAME is set, prefix title with the sending app name */
-
-        If (pStyle.Flags And S_STYLE_WANT_APP_NAME) Then
-            g_Debug "TNotificationRoster.uCopyTo(): style wants application name"
-            sTitle = Info.ClassObj.App.Name
-
-            ' /* R2.4 Beta 4 - if app name is requested, make it "<app> on <computer>" */
-
-'            If g_ConfigGet("include_host_name_when_forwarding") = "1" Then _
-                sTitle = sTitle & " on " & g_GetComputerName()
-
-            sTitle = sTitle & "#?" & Info.Title
-
-        Else
-            ' /* R2.4 Beta 4 - make the title component "<title> (from <computer>)" */
-
-'            If g_ConfigGet("include_host_name_when_forwarding") = "1" Then
-'                sTitle = Info.Title & " (from " & g_GetComputerName() & ")"
+'Private Sub uSafeGetStyle(ByVal StyleToUse As String, ByRef Style As TStyle, ByRef Instance As IStyleInstance)
 '
-'            Else
-                sTitle = Info.Title
-
-'            End If
-        End If
-    End If
-
-Dim pContent As notification_info
-
-    g_Debug "TNotificationRoster.uCopyTo(): sending to '" & pStyle.Name & "'"
-
-    LSet pContent = pStyle.CreateNotificationInfo(sTitle, sText, Info.IconPath, _
-                                               Info.SchemeName, _
-                                               IIf(Info.Priority > 0, S_NOTIFICATION_IS_PRIORITY, 0))
-
-    psi.UpdateContent pContent
-
-    ' /* R2.4 Beta 4: if the style set notificaton_info->flags to -1 we should pass the notification
-    '    back around for on-screen display */
-
-    uCopyTo = (pContent.Flags = -1)
-
-End Function
+'    ' /* try to create a new TStyle from the provided Style name */
+'
+'    If Not (g_StyleRoster Is Nothing) Then _
+'        g_StyleRoster.Find style_GetStyleName(StyleToUse), Style
+'
+'    ' /* didn't work? use a default one */
+'
+'    If (Style Is Nothing) Then _
+'        Set Style = New TStyle
+'
+'    ' /* create a new instance from the provided Style */
+'
+'    Set Instance = Style.CreateInstance()
+'
+'    ' /* didn't work? use an internal style instance */
+'
+'    If (Instance Is Nothing) Then _
+'        Set Instance = New TInternalStyle
+'
+'End Sub
 
 Private Function uFindMergeCandidate(ByRef Class As TAlert, ByVal Title As String, ByRef Notification As TNotification) As Boolean
 
@@ -1594,12 +1514,13 @@ Static iToken As Long
 
     ' /* and notify... */
 
-    iToken = g_PrivateNotify(SNARL_CLASS_GENERAL, "While you were away...", _
-                             "You missed " & CStr(mMissedCount2) & " notification" & IIf(mMissedCount2 > 1, "s", ""), _
-                             -1, _
-                             g_MakePath(App.Path) & "etc\icons\snarl.png", _
-                             , _
-                             "!snarl show_missed_panel")
+    If g_ConfigGet("show_missed_notification") = "1" Then _
+        iToken = g_PrivateNotify(SNARL_CLASS_GENERAL, "While you were away...", _
+                                 "You missed " & CStr(mMissedCount2) & " notification" & IIf(mMissedCount2 > 1, "s", ""), _
+                                 -1, _
+                                 g_MakePath(App.Path) & "etc\icons\snarl.png", _
+                                 , _
+                                 "!snarl show_missed_panel")
 
 End Sub
 
@@ -1667,43 +1588,20 @@ Public Function History() As BTagList
 
 End Function
 
-'Public Function Replay(ByVal HistoryIndex As Long) As Boolean
-'Dim pn As TNotification
-'
-'    Set pn = mHistory.TagAt(HistoryIndex)
-'
-'    MsgBox "replaying '" & pn.Info.Title & " / " & pn.Info.Text & "'"
-'
-'
-''    If Not (pn Is Nothing) Then _
-'        Me.Add pn.Info, Nothing
-'
-'End Function
+Private Sub uDoGlobalRedirect(ByRef Content As T_NOTIFICATION_INFO)
+Dim fPres As SN_REDIRECTION_FLAGS
+Dim pt As BTagItem
 
-Private Sub uDoPassThrough(ByRef Content As T_NOTIFICATION_INFO)
-Dim pInfo As T_NOTIFICATION_INFO
-Dim ppd As BPackedData
-Dim szn As String
-Dim szv As String
+    With gGlobalRedirectList
+        .Rewind
+        Do While .GetNextTag(pt) = B_OK
+            fPres = Val(pt.Value)
+            If ((fPres And SN_RF_WHEN_AWAY) And (g_IsAway())) Or ((fPres And SN_RF_WHEN_BUSY) And (g_IsDND())) Or ((fPres And SN_RF_WHEN_ACTIVE) And (g_IsUserActive())) Then
+                g_StyleRoster.RedirectTo pt.Name, Content
 
-    Set ppd = New BPackedData
-    With ppd
-        If .SetTo(g_ConfigGet("global_shadow_list")) Then
-            .Rewind
-            Do While .GetNextItem(szn, szv)
-                If szv = "1" Then
-                    LSet pInfo = Content
-                    pInfo.StyleName = style_GetStyleName(szn)
-                    pInfo.SchemeName = style_GetSchemeName(szn)
-                    uCopyTo pInfo
+            End If
+        Loop
 
-                End If
-            Loop
-
-        Else
-            g_Debug "TNotificationRoster.uDoPassThrough(): failed to set packed data", LEMON_LEVEL_WARNING
-
-        End If
     End With
 
 End Sub
@@ -1755,53 +1653,53 @@ End Function
 '
 'End Function
 
-Private Sub uDoClassPassThrough(ByRef Info As T_NOTIFICATION_INFO)
-
-    If (Info.ClassObj.ForwardList Is Nothing) Then _
-        Exit Sub
-
-Dim pCopyInfo As T_NOTIFICATION_INFO
-Dim fConditions As Long    ' // needs to be an enum before we forget what the flags mean!
-Dim pt As BTagItem
-
-    With Info.ClassObj.ForwardList
-        .Rewind
-        Do While .GetNextTag(pt) = B_OK
-            fConditions = Val(pt.Value)
-
-            Debug.Print "TNotificationRoster.uDoClassPassThrough(): is_dnd=" & g_IsDND() & " is_away=" & g_IsAway() & " cond=" & g_HexStr(fConditions)
-
-            If (g_IsDND()) And ((fConditions And SN_SFF_WHEN_BUSY) <> 0) Then
-                ' /* shadow only when busy */
-                fConditions = -1
-
-            ElseIf (g_IsAway()) And ((fConditions And SN_SFF_WHEN_AWAY) <> 0) Then
-                ' /* shadow only when away */
-                fConditions = -1
-
-            ElseIf (fConditions And SN_SFF_WHEN_NOT_AWAY_OR_BUSY) <> 0 Then
-                ' /* shadow when present and not busy */
-                fConditions = -1
-
-            Else
-                ' /* no shadowing */
-                fConditions = 0
-
-            End If
-
-            If fConditions <> 0 Then
-                g_Debug "TNotificationRoster.uDoClassPassThrough(): passing to '" & pt.Name & "'..."
-                LSet pCopyInfo = Info
-                pCopyInfo.StyleName = style_GetStyleName(pt.Name)
-                pCopyInfo.SchemeName = style_GetSchemeName(pt.Name)
-                uCopyTo pCopyInfo
-
-            End If
-        Loop
-
-    End With
-
-End Sub
+'Private Sub uDoClassPassThrough(ByRef Info As T_NOTIFICATION_INFO)
+'
+'    If (Info.ClassObj.RedirectList Is Nothing) Then _
+'        Exit Sub
+'
+'Dim pCopyInfo As T_NOTIFICATION_INFO
+'Dim fConditions As SN_REDIRECTION_FLAGS
+'Dim pt As BTagItem
+'
+'    With Info.ClassObj.RedirectList
+'        .Rewind
+'        Do While .GetNextTag(pt) = B_OK
+'            fConditions = Val(pt.Value)
+'
+'            Debug.Print "TNotificationRoster.uDoClassPassThrough(): is_dnd=" & g_IsDND() & " is_away=" & g_IsAway() & " cond=" & g_HexStr(fConditions)
+'
+'            If (g_IsDND()) And ((fConditions And SN_RF_WHEN_BUSY) <> 0) Then
+'                ' /* redirect when busy */
+'                fConditions = -1
+'
+'            ElseIf (g_IsAway()) And ((fConditions And SN_RF_WHEN_AWAY) <> 0) Then
+'                ' /* redirect when away */
+'                fConditions = -1
+'
+'            ElseIf (fConditions And SN_RF_WHEN_ACTIVE) <> 0 Then
+'                ' /* redirect when active */
+'                fConditions = -1
+'
+'            Else
+'                ' /* no shadowing */
+'                fConditions = 0
+'
+'            End If
+'
+'            If fConditions <> 0 Then
+'                g_Debug "TNotificationRoster.uDoClassPassThrough(): passing to '" & pt.Name & "'..."
+'                LSet pCopyInfo = Info
+'                pCopyInfo.StyleName = LCase$(style_GetStyleName(pt.Name))
+'                pCopyInfo.SchemeName = LCase$(style_GetSchemeName(pt.Name))
+'                uCopyTo pCopyInfo
+'
+'            End If
+'        Loop
+'
+'    End With
+'
+'End Sub
 
 Private Function uApplyPresence(ByRef Info As T_NOTIFICATION_INFO) As SN_PRESENCE_ACTIONS
 

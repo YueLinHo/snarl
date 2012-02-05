@@ -93,12 +93,21 @@ Public Sub Accept(ByVal Id As Long, ByVal PortNumber As Long) '// IsGNTP As Bool
 End Sub
 
 Private Sub theSocket_OnClose()
+Dim sz As String
 
-    g_Debug "TRemoteConnection.OnClose(): id=0x" & g_HexStr(mId), LEMON_LEVEL_PROC
+    g_Debug "##TRemoteConnection.OnClose()", LEMON_LEVEL_PROC_ENTER
 
-'    Debug.Print "!!!!!!!!!!!!!!!!!!!!!!!!"
-    Debug.Print "* connection dropped *"
-'    Debug.Print "!!!!!!!!!!!!!!!!!!!!!!!!"
+    sz = theSocket.RemoteHostIP & ":" & theSocket.RemotePort
+    g_Debug sz & " (" & g_HexStr(mId) & ") dropped its connection", LEMON_LEVEL_INFO
+'    If g_SubsRoster.IsSubscriber(sz) Then
+'        If g_SubsRoster.IsSNPSubscriber(sz) Then
+'            g_Debug "removing subscription..."
+'            g_SubsRoster.RemoveSubscriber theSocket, Nothing
+'
+'        End If
+'    End If
+
+    g_Debug "", LEMON_LEVEL_PROC_EXIT
 
 End Sub
 
@@ -724,10 +733,9 @@ Dim ppd As BPackedData
 Dim sx As String
 Dim sz As String
 
-    On Error GoTo er
+'    On Error GoTo er
 
     theSocket.PeekData sz
-
 
     If g_SafeRightStr(sz, 1) = Chr$(0) Then
         g_Debug "TRemoteConnection.uDoSNP(): NULL EOL received"
@@ -797,11 +805,11 @@ Dim sz As String
     sz = Replace$(sz, vbLf, "")
 
     If LCase$(g_SafeLeftStr(sz, 6)) = "snp://" Then
-        g_Debug "TRemoteConnection.uDoSNP(): is SNP2 request"
+        g_Debug "TRemoteConnection.uDoSNP(): is SNP 2.0 request..."
         uSNP2Translate g_SafeRightStr(sz, Len(sz) - 6)
 
     Else
-        g_Debug "TRemoteConnection.uDoSNP(): is SNP1 request"
+        g_Debug "TRemoteConnection.uDoSNP(): is SNP 1.0 request..."
         uSNPTranslate sz
 
     End If
@@ -827,9 +835,7 @@ Dim sz As String
 er:
     g_Debug "TRemoteConnection.uDoSNP(): " & err.Description, LEMON_LEVEL_CRITICAL
     uSNP2Reply SNARL_ERROR_BAD_PACKET
-
     ' /* drop the connection */
-
     theSocket.CloseSocket
 
 End Sub

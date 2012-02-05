@@ -104,28 +104,28 @@ Implements MWndProcSink
 
 Private Sub Class_Initialize()
 
-    EZRegisterClass App.ProductName
-    mhWnd = EZAddWindow(App.ProductName, Me)
-    Set mDiskDoneList = new_BTagList()
-
-    mCapState = uGetKeyLockState(vbKeyCapital)
-    mNumState = uGetKeyLockState(vbKeyNumlock)
-    mSclState = uGetKeyLockState(vbKeyScrollLock)
-    mBlockClipboardChange = True
-
-    mIgnoreFirstIPChange = True
-    uCheckExternalIP
-
-    uScanIPTable
-
-    Set mIEWindowList = new_BTagList()
+'    EZRegisterClass App.ProductName
+'    mhWnd = EZAddWindow(App.ProductName, Me)
+'    Set mDiskDoneList = new_BTagList()
+'
+'    mCapState = uGetKeyLockState(vbKeyCapital)
+'    mNumState = uGetKeyLockState(vbKeyNumlock)
+'    mSclState = uGetKeyLockState(vbKeyScrollLock)
+'    mBlockClipboardChange = True
+'
+'    mIgnoreFirstIPChange = True
+'    uCheckExternalIP
+'
+'    uScanIPTable
+'
+'    Set mIEWindowList = new_BTagList()
 
 End Sub
 
 Private Sub Class_Terminate()
 
-    EZRemoveWindow mhWnd
-    EZUnregisterClass App.ProductName
+'    EZRemoveWindow mhWnd
+'    EZUnregisterClass App.ProductName
 
 End Sub
 

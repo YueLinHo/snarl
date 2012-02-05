@@ -22,6 +22,11 @@ Private Type T_INFO
 End Type
 
 Dim mContent As T_INFO
+Dim mhWndOwner As Long
+
+Public Event StylePrefsWindowClosed()
+
+Implements BWndProcSink
 
 Private Sub Class_Initialize()
 
@@ -29,6 +34,26 @@ Private Sub Class_Initialize()
     mContent.Info.Path = g_MakePath(App.Path) & "etc\default_theme"
 
 End Sub
+
+Private Function BWndProcSink_WndProc(ByVal hWnd As Long, ByVal uMsg As Long, ByVal wParam As Long, ByVal lParam As Long, ByVal PrevWndProc As Long, ReturnValue As Long) As Boolean
+
+    On Error Resume Next
+
+    If uMsg = WM_DESTROY Then
+        ' /* config window has gone */
+        window_subclass hWnd, Nothing
+        If mhWndOwner <> 0 Then
+            EnableWindow mhWndOwner, -1
+            g_WindowToFront mhWndOwner, True
+            mhWndOwner = 0
+
+        End If
+    
+        RaiseEvent StylePrefsWindowClosed
+
+    End If
+
+End Function
 
 Friend Sub bInit(ByRef Engine As IStyleEngine, ByRef Info As style_info)
 
@@ -256,7 +281,7 @@ Dim i As Long
     With mContent
         If .SchemeCount Then
             For i = 1 To .SchemeCount
-                GetSchemeList = GetSchemeList & IIf(.Scheme(i) = "", "<default>", .Scheme(i)) & "|"
+                GetSchemeList = GetSchemeList & IIf(.Scheme(i) = "", "<default>", .Scheme(i)) & "#?" & LCase$(.Scheme(i)) & "|"
 
             Next i
         End If
@@ -301,7 +326,63 @@ End Function
 
 Public Function IsRedirect() As Boolean
 
-    IsRedirect = ((mContent.Info.Flags And S_STYLE_IS_WINDOWLESS) <> 0)
+    If mContent.Info.Flags And S_STYLE_IS_WINDOWLESS Then _
+        IsRedirect = ((mContent.Info.Flags And S_STYLE_REDIRECT_TO_SCREEN) = 0)
+
+End Function
+
+Public Function ShowPrefs(ByVal hWndOwner As Long) As Boolean
+
+    If ISNULL(mContent.Engine) Then _
+        Exit Function
+
+Dim hWndConfig As Long
+
+    hWndConfig = mContent.Engine.GetConfigWindow(mContent.Info.Name)
+    If IsWindow(hWndConfig) = 0 Then
+        g_Debug "TStyle.ShowPrefs(): GetConfigWindow() returned invalid window " & g_HexStr(hWndConfig), LEMON_LEVEL_CRITICAL
+        Exit Function
+
+    End If
+
+    ' /* valid window */
+
+Dim dw As Long
+
+    ' /* remove minimize button */
+
+    dw = GetWindowLong(hWndConfig, GWL_STYLE)
+    dw = dw And (Not WS_MINIMIZEBOX)
+    SetWindowLong hWndConfig, GWL_STYLE, dw
+    window_subclass hWndConfig, Me
+
+    If hWndOwner <> 0 Then
+        ' /* centre it on its owner */
+        mhWndOwner = g_GetTopLevel(hWndOwner)
+        SetWindowLong hWndConfig, GWL_HWNDPARENT, mhWndOwner
+        g_MoveWindow hWndConfig, , , , , True, mhWndOwner
+        EnableWindow mhWndOwner, 0
+
+    Else
+        g_MoveWindow hWndConfig, , , , True
+
+    End If
+
+'Dim rcConfig As RECT
+'Dim rc As RECT
+'
+'
+'
+'    GetWindowRect mPage.Panel.hWnd, rc
+'    GetWindowRect hWndConfig, rcConfig
+'    g_RectNormalise rcConfig
+'
+'    g_MoveWindow hWndConfig, _
+'                 rc.Left + Fix(((rc.Right - rc.Left) - rcConfig.Right) / 2), _
+'                 rc.Top + Fix(((rc.Bottom - rc.Top) - rcConfig.Bottom) / 2)
+
+    g_ShowWindow hWndConfig, True, True
+    ShowPrefs = True
 
 End Function
 

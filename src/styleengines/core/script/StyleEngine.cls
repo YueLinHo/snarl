@@ -173,6 +173,12 @@ Private Function IStyleEngine_Initialize() As melon.M_RESULT
 
     ' /* get scripts */
 
+
+    ' /* if in the IDE, current path */
+
+    If g_IsIDE() Then _
+        uLoadScriptsFrom g_MakePath(App.Path)
+
 Dim sz As String
 
     ' /* all users */
@@ -196,12 +202,13 @@ Dim sz As String
     End If
 
 
-    ' /* if in the IDE, current path */
-
-    uLoadScriptsFrom g_MakePath(App.Path)
-
-    If mStyles.CountItems = 0 Then _
+    If mStyles.CountItems = 0 Then
         g_Debug "no styles found", LEMON_LEVEL_WARNING
+
+    Else
+        g_Debug CStr(mStyles.CountItems) & " style(s) loaded", LEMON_LEVEL_INFO
+
+    End If
 
 
 '    g_Debug "setting defaults..."

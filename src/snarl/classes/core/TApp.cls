@@ -46,6 +46,8 @@ Dim mCachedIcon As mfxBitmap
 
     ' /* R2.5.1 */
 
+Dim mExtension As String
+'Dim mExtensionConfigurable As Boolean
 
 Implements mObject
 Implements BTagItem
@@ -79,6 +81,15 @@ Dim f As Boolean
 
     g_Debug "TApp.bInit()", LEMON_LEVEL_PROC_ENTER
 
+    ' /* R2.5.1: if admin setting "BlockUnknownApps" is set, check that the class file exists and fail if it doesn't */
+
+    If (gSysAdmin.BlockUnknownApps) And (Not g_Exists(gPrefs.SnarlConfigPath & "etc\" & g_MakeFilename(Info.Signature) & ".class")) Then
+        gSetLastError SNARL_ERROR_ACCESS_DENIED
+        g_Debug "blocked by admininstrative setting", LEMON_LEVEL_CRITICAL Or LEMON_LEVEL_PROC_EXIT
+        Exit Function
+
+    End If
+
     ' /* store registration time/date */
 
     Info.Timestamp = Now()
@@ -88,14 +99,10 @@ Dim f As Boolean
 
     Set mCachedIcon = load_image_obj(mInfo.Icon)
 
-    ' /* R2.5.1: if admin setting "BlockUnknownApps" is set, check that the class file exists and fail if it doesn't */
+    ' /* R2.5.1 Beta 3: if it's an extension, snag it now */
 
-    If (gSysAdmin.BlockUnknownApps) And (Not g_Exists(gPrefs.SnarlConfigPath & "etc\" & g_MakeFilename(Info.Signature) & ".class")) Then
-        gSetLastError SNARL_ERROR_ACCESS_DENIED
-        Exit Function
-
-    End If
-
+    If NOTNULL(gCurrentExtension) Then _
+        mExtension = gCurrentExtension.Class
 
     ' /* do we have a config file for this app? */
 
@@ -803,18 +810,45 @@ Public Function IncludeInMenu() As Boolean
 End Function
 
 Public Function HasConfig() As Boolean
+Dim pe As TExtension
 
-    HasConfig = (mInfo.Tool <> "") Or _
-                ((Not (mInfo.Socket Is Nothing)) And (mInfo.IncludeInMenu)) Or _
-                ((mInfo.Flags And SNARLAPP_HAS_PREFS) <> 0)
+    If mExtension <> "" Then
+        If g_ExtnRoster.Find(mExtension, pe) Then
+            HasConfig = pe.IsConfigurable()
+
+        Else
+            g_Debug "TApp.HasConfig(): extension " & g_Quote(mExtension) & " not found", LEMON_LEVEL_CRITICAL
+
+        End If
+
+    Else
+        HasConfig = (mInfo.Tool <> "") Or _
+                    ((Not (mInfo.Socket Is Nothing)) And (mInfo.IncludeInMenu)) Or _
+                    ((mInfo.Flags And SNARLAPP_HAS_PREFS) <> 0)
+
+    End If
 
 End Function
 
 Public Function HasAbout() As Boolean
+Dim pe As TExtension
 
-    HasAbout = (mInfo.Token = gSnarlToken) Or (mInfo.Hint <> "") Or _
-               ((Not (mInfo.Socket Is Nothing)) And (mInfo.IncludeInMenu)) Or _
-               ((mInfo.Flags And SNARLAPP_HAS_ABOUT) <> 0)
+    If mExtension <> "" Then
+        If g_ExtnRoster.Find(mExtension, pe) Then _
+            HasAbout = True
+
+    Else
+        HasAbout = (mInfo.Token = gSnarlToken) Or (mInfo.Hint <> "") Or _
+                   ((Not (mInfo.Socket Is Nothing)) And (mInfo.IncludeInMenu)) Or _
+                   ((mInfo.Flags And SNARLAPP_HAS_ABOUT) <> 0)
+
+    End If
+
+End Function
+
+Public Function IsQuittable() As Boolean
+
+    IsQuittable = (IsDaemon()) Or (mExtension <> "")
 
 End Function
 
@@ -832,10 +866,15 @@ End Function
 
 Public Sub DoAbout()
 Dim fApp As SN_NOTIFICATION_FLAGS
+Dim pe As TExtension
 
     If mInfo.Token = gSnarlToken Then
         ' /* ourselves */
         frmAbout.Show
+
+    ElseIf mExtension <> "" Then
+        If g_ExtnRoster.Find(mExtension, pe) Then _
+            pe.ShowDetails
 
     ElseIf mInfo.Hint <> "" Then
         ' /* display the hint text */
@@ -879,31 +918,69 @@ Dim fApp As SN_NOTIFICATION_FLAGS
 
 End Sub
 
-Public Sub DoSettings()
+Public Sub DoSettings(ByVal hWndPanel As Long)
 
-    If mInfo.Tool <> "" Then
+    g_Debug "TApp.DoSettings()", LEMON_LEVEL_PROC_ENTER
+
+Dim pe As TExtension
+
+    If mExtension <> "" Then
+        g_Debug "is an extension...", LEMON_LEVEL_INFO
+
+        If hWndPanel <> 0 Then
+            If g_ExtnRoster.Find(mExtension, pe) Then
+                If pe.IsConfigurable Then
+                    g_Debug "showing config..."
+                    pe.DoPrefs hWndPanel
+    
+                Else
+                    g_Debug "extension " & g_Quote(mExtension) & " is not configurable", LEMON_LEVEL_WARNING
+
+                End If
+    
+            Else
+                g_Debug "extension " & g_Quote(mExtension) & " not found", LEMON_LEVEL_CRITICAL
+            
+            End If
+        
+        Else
+            g_Debug "can't show extension GUI without owner window", LEMON_LEVEL_CRITICAL
+        
+        End If
+
+    ElseIf mInfo.Tool <> "" Then
         ' /* run the tool */
-        g_Debug "TApp.DoSettings(): running tool '" & mInfo.Tool & "'..."
+        g_Debug "running tool '" & mInfo.Tool & "'..."
         WinExec mInfo.Tool, SW_SHOW
 
     ElseIf Not (mInfo.Socket Is Nothing) Then
         ' /* SNP-registered (V43 only) */
-        g_Debug "TApp.DoSettings(): local SNP3 (assumed) app..."
+        g_Debug "local SNP3 (assumed) app..."
         g_SNP3SendCallback mInfo.Socket, SNARL_NOTIFY_APP_DO_PREFS, "DoPrefs", "", ""
 
     ElseIf (IsWindow(mInfo.hWnd) <> 0) And ((mInfo.Flags And SNARLAPP_HAS_PREFS)) Then
         ' /* Win32-registered */
-        g_Debug "TApp.DoSettings(): posting SNARLAPP_DO_PREFS to reply-to window..."
+        g_Debug "posting SNARLAPP_DO_PREFS to reply-to window..."
         PostMessage mInfo.hWnd, WM_NULL, 0, ByVal 0&
         PostMessage mInfo.hWnd, snAppMsg(), SNARLAPP_DO_PREFS, ByVal 0&
 
     End If
 
+    g_Debug "", LEMON_LEVEL_PROC_EXIT
+
 End Sub
 
 Public Sub DoQuitPlease()
+Dim pe As TExtension
 
-    If (IsWindow(mInfo.hWnd) <> 0) And ((mInfo.Flags And SNARLAPP_IS_DAEMON)) Then
+    If mExtension <> "" Then
+        If g_ExtnRoster.Find(mExtension, pe) Then
+            pe.SetEnabled False
+            frmAbout.bUpdateExtList
+
+        End If
+
+    ElseIf (IsWindow(mInfo.hWnd) <> 0) And ((mInfo.Flags And SNARLAPP_IS_DAEMON)) Then
         ' /* Win32-registered */
         g_Debug "TApp.DoAbout(): posting SNARLAPP_QUIT_REQUESTED to reply-to window..."
         PostMessage mInfo.hWnd, WM_NULL, 0, ByVal 0&
@@ -1165,3 +1242,4 @@ Public Function KeepAlive() As Boolean
     KeepAlive = mInfo.KeepAlive
 
 End Function
+

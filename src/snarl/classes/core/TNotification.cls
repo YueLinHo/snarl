@@ -849,3 +849,10 @@ Public Function PackedArgs() As BPackedData
     Set PackedArgs = mPacked
 
 End Function
+
+Public Function AppName() As String
+
+    AppName = mInfo.ClassObj.App.Name
+
+End Function
+

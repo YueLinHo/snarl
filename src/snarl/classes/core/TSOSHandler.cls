@@ -339,24 +339,24 @@ Dim i As Long
 
 
         Case "subs"
-            With g_SubsRoster.List
+            With g_SubsRoster.Subscribers
                 .Rewind
                 Do While .GetNextTag(ps) = B_OK
                     With ps
                         SOS_printline g_Pad(.Socket.RemoteHostIP & ":" & CStr(.Socket.RemotePort), 24) & " " & _
-                                      g_Pad(.TypeStr, 6) & _
-                                      IIf(.Apps.CountItems = 0, "(all apps)", "(specific apps)") & " " & IIf(.Password <> "", "(secure)", "")
+                                      g_Pad(.Protocol, 6) & _
+                                      IIf(.Password <> "", "(secure)", "")
 
-                        If .Apps.CountItems Then
-                            With .Apps
-                                .Rewind
-                                Do While .GetNextTag(pt) = B_OK
-                                    SOS_printline "     " & pt.Name
-
-                                Loop
-
-                            End With
-                        End If
+'                        If .Apps.CountItems Then
+'                            With .Apps
+'                                .Rewind
+'                                Do While .GetNextTag(pt) = B_OK
+'                                    SOS_printline "     " & pt.Name
+'
+'                                Loop
+'
+'                            End With
+'                        End If
 
                         i = i + 1
 
@@ -392,6 +392,24 @@ Dim i As Long
         Case "back"
             g_ClearPresence SN_PF_AWAY_SOS
             SOS_printline "Presence changed to back\n"
+
+Dim pe As TExtension
+
+        Case "cfgx"
+            If g_ExtnRoster.Find(sArgs, pe) Then
+'                If Not pe.IsConfigOpen Then
+                    SOS_printline "ok\n"
+                    pe.DoPrefs 0
+                
+'                Else
+'                    SOS_printline "extension " & g_Quote(sArgs) & ": config already open\n"
+'
+'                End If
+
+            Else
+                SOS_printline "extension " & g_Quote(sArgs) & " not found\n"
+
+            End If
 
         Case Else
             SOS_printline "unknown command; try ""help""\n"

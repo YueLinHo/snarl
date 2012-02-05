@@ -13,6 +13,7 @@
 	Prowl			0x2f380000
 	Script			0x2f400000
 	Speech			0x2f480000
+	Scroller		0x2f500000
 
 	Change Log
 	==========

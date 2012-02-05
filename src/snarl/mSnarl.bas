@@ -15,8 +15,8 @@ Option Explicit
 
     ' /* these are used by the deprecated SNARL_GET_VERSION and for GNTP responses */
 Public Const APP_VER = 2
-Public Const APP_SUB_VER = 5
-Public Const APP_SUB_SUB_VER = 1
+Public Const APP_SUB_VER = 6
+Public Const APP_SUB_SUB_VER = 0
 
 Public Const SNP_VERSION = "3.0"
 
@@ -282,7 +282,7 @@ Public g_ExtnRoster As TExtensionRoster
 Public g_StyleRoster As TStyleRoster
 Public g_AppRoster As TApplicationRoster
 Public g_NotificationRoster As TNotificationRoster
-Public g_SubsRoster As TSubscriberRoster                ' // R2.4.2 DR3
+Public g_SubsRoster As TNetworkRoster
 
 'Public Enum E_FONTSMOOTHING
 '    E_MELONTYPE
@@ -306,7 +306,7 @@ Public Type T_CONFIG
 '    UserDnD As Boolean      ' // not persitent: user-controlled DND setting
 '    SysDnDCount As Long             ' // set using WM_MANAGE_SNARL
 '    MissedCountOnDnD As Long
-    use_dropshadow As Boolean
+'    use_dropshadow As Boolean
     last_update_check As Date
     AgreeBetaUsage As Boolean
 
@@ -381,7 +381,7 @@ Public Enum SN_PRESENCE_ACTIONS
     SN_PA_DO_NOTHING = 3
     SN_PA_DISPLAY_NORMAL = 4
     SN_PA_DISPLAY_URGENT = 5
-    SN_PA_FORWARD = 6
+'    SN_PA_FORWARD = 6
 
 End Enum
 
@@ -405,6 +405,18 @@ End Enum
 
     ' /* R2.5 Beta 2 */
 Dim mFlags As SNARL_SYSTEM_FLAGS
+Public gCurrentExtension As TExtension
+
+Public Enum SN_REDIRECTION_FLAGS
+    SN_RF_WHEN_BUSY = 1
+    SN_RF_WHEN_AWAY = 2
+    SN_RF_WHEN_ACTIVE = 4
+    SN_RF_ALWAYS = SN_RF_WHEN_AWAY Or SN_RF_WHEN_BUSY Or SN_RF_WHEN_ACTIVE
+    SN_RF_NEVER = 0
+
+End Enum
+
+Public gGlobalRedirectList As BTagList
 
     ' /* requesters */
 Dim mReq() As TRequester
@@ -424,132 +436,220 @@ Dim l As Long
 
 '    MsgBox Command$
 
-Dim szArgs As String
-Dim szCmd As String
-Dim n As SN_DO_PREFS
+Dim fQuitWhenDone As Boolean
+Dim pArgs As BTagList
+Dim sz As String
 Dim i As Long
 
     If Command$ <> "" Then
         ' /* command specified, but which? */
         Debug.Print "command line: " & Command$
-        szCmd = g_RemoveQuotes(Command$)
-        i = InStr(szCmd, " ")                   ' // find first space
-        If i > 0 Then
-            ' /* split into command and args */
-            szArgs = g_SafeRightStr(szCmd, Len(szCmd) - i)
-            szCmd = g_SafeLeftStr(szCmd, i - 1)
 
-            MsgBox "Command: '" & szCmd & "' Args: '" & szArgs & "'"
+        Set pArgs = g_MakeArgList(Command$)
 
-        End If
-
-        Select Case LCase$(szCmd)
-        Case "-quit"
-            If l <> 0 Then _
-                SendMessage l, WM_CLOSE, 0, ByVal 0&
-
-            Exit Sub
-
-        Case "-debug"
-            gDebugMode = True
-
-        Case "-install"
-            ' /* must have one further arg: style engine or extension to install */
-            If (szArgs <> "") And (l <> 0) Then
-                PostMessage l, WM_SNARL_COMMAND, 1, ByVal RegisterClipboardFormat(szArgs)
+        i = 1
+        
+        Do While i <= pArgs.CountItems
+            Select Case LCase$(pArgs.TagAt(i).Name)
+            Case "-quit"
+                ' /* if we have an already running instance, tell it to quit */
+                If l <> 0 Then _
+                    SendMessage l, WM_CLOSE, 0, ByVal 0&
+    
+                ' /* don't process any further */
                 Exit Sub
 
-            End If
+            Case "-debug"
+                ' /* enable debug mode */
+                gDebugMode = True
 
-        Case "-configure"
-            ' /* must have one further arg: style or extension to install */
-            If (szArgs <> "") And (l <> 0) Then
-                PostMessage l, WM_SNARL_COMMAND, 2, ByVal RegisterClipboardFormat(szArgs)
-                Exit Sub
-
-            End If
-
-        Case "-restart", "-unload", "-load"
-            ' /* must have one further arg: style or extension to restart */
-            If (szArgs <> "") And (l <> 0) Then
-                Select Case LCase$(szCmd)
-                Case "-restart"
-                    n = SN_DP_RESTART
-
-                Case "-unload"
-                    n = SN_DP_UNLOAD
-                    
-                Case "-load"
-                    n = SN_DP_LOAD
-                    
-                End Select
-
-                PostMessage l, WM_SNARL_COMMAND, n, ByVal RegisterClipboardFormat(szArgs)
-                Exit Sub
-
-            End If
-
-        Case "-do"
-            ' /* from the URL handler */
-            If g_BeginsWith(szArgs, "snarl:", False) Then
-                szArgs = g_SafeRightStr(szArgs, Len(szArgs) - 6)
-                i = InStr(szArgs, "?")
-                If i Then
-                    szCmd = g_SafeLeftStr(szArgs, i - 1)
-                    szArgs = g_SafeRightStr(szArgs, Len(szArgs) - i)
+            Case "-r", "-req"
+                ' /* -r <request> - process standard request */
+                i = i + 1
+                If i <= pArgs.CountItems Then
+                    snDoRequest pArgs.TagAt(i).Name
+                    fQuitWhenDone = True
 
                 Else
-                    szCmd = szArgs
-                    szArgs = ""
-                    
-                End If
-                
-                Select Case szCmd
-                Case "about"
-                    If l <> 0 Then _
-                        PostMessage l, WM_SNARL_COMMAND, SN_DP_SHOW_INFO, ByVal 0
+                    ' /* arg missing: stop processing */
+                    MsgBox "Missing argument: use '-r <request>'", vbExclamation Or vbOKOnly, App.Title
+                    Exit Sub
 
+                End If
+
+            Case "-do"
+                ' /* -do <snarl:request> - URL handler */
+                i = i + 1
+                If i <= pArgs.CountItems Then
+                    sz = pArgs.TagAt(i).Name
+                    If g_BeginsWith(sz, "snarl:", False) Then
+                        ' /* from the URL handler */
+                        MsgBox "URL: " & sz
+                        fQuitWhenDone = True
+                        
+                    Else
+                        ' /* invalid */
+                        MsgBox "Invalid argument: use '-do <command>'", vbExclamation Or vbOKOnly, App.Title
+                        Exit Sub
+
+                    End If
+                Else
+                    ' /* arg missing: stop processing */
+                    MsgBox "Missing argument: use '-do <command>'", vbExclamation Or vbOKOnly, App.Title
+                    Exit Sub
+
+                End If
+
+            Case "-u", "--unload"
+                ' /* -u <thing> - unload extension or styleengine
+                i = i + 1
+                If i <= pArgs.CountItems Then
+                    ' /* send the request */
+                    sz = "system?action=unload&what=" & pArgs.TagAt(i).Name
+                    snDoRequest sz
+                    fQuitWhenDone = True
+
+                Else
+                    ' /* arg missing */
+                    MsgBox "Missing argument: use '--unload <AddOn>'", vbInformation Or vbOKOnly, App.Title
+                    Exit Sub
+
+                End If
+
+            Case "-l", "--load"
+                ' /* -l <thing> - load extension or styleengine
+                i = i + 1
+                If i <= pArgs.CountItems Then
+                    ' /* send the request */
+                    snDoRequest "system?action=load&what=" & pArgs.TagAt(i).Name
+                    fQuitWhenDone = True
+
+                Else
+                    ' /* arg missing */
+                    MsgBox "Missing argument: use '--load <AddOn>'", vbInformation Or vbOKOnly, App.Title
+                    Exit Sub
+
+                End If
+
+            Case "-c", "--configure"
+                ' /* -c <thing> - configure extension, app or style
+                i = i + 1
+                If i <= pArgs.CountItems Then
+                    ' /* send the request */
+                    snDoRequest "system?action=configure&what=" & pArgs.TagAt(i).Name
+                    fQuitWhenDone = True
+
+                Else
+                    ' /* arg missing */
+                    MsgBox "Missing argument: use '--configure <Extension|App|Style>'", vbInformation Or vbOKOnly, App.Title
+                    Exit Sub
+
+                End If
+
+
+
+            Case Else
+
+                ' /* check to see if a particular file was dropped */
+
+                Select Case g_GetExtension(pArgs.TagAt(i).Name, True)
+                Case "webforward"
+                    MsgBox "webforward"
+'                    g_CopyToAppData Command$, "styles\webforward"
+'                    If l Then _
+'                        PostMessage l, WM_SNARL_COMMAND, SN_DP_RESTART_STYLE_ROSTER, ByVal 0&
+'
+'                    Exit Sub
+    
+                Case "rsz"
+                    MsgBox "packed runnable style"
+'                    g_ExtractToAppData Command$, "styles\runnable"
+
+                Case "ssz"
+                    MsgBox "packed scripted style"
+'                    g_ExtractToAppData Command$, "styles\script"
+
+
+'                    If l Then _
+'                        PostMessage l, WM_SNARL_COMMAND, SN_DP_RESTART_STYLE_ROSTER, ByVal 0&
+'
+'                    Exit Sub
+    
                 Case Else
-                    MsgBox "Unknown command '" & szCmd & "' Args: '" & szArgs & "'", vbExclamation Or vbOKOnly, App.Title
+                    MsgBox "unknown argument " & g_Quote(pArgs.TagAt(i).Name)
+                    Exit Sub
 
                 End Select
-
-
-            Else
-                MsgBox "Incorrect URL format supplied", vbExclamation Or vbOKOnly, App.Title
-
-            End If
-
-            Exit Sub
-
-        Case Else
-
-            ' /* check to see if a particular file was dropped */
-
-            Select Case g_GetExtension(Command$, True)
-            Case "webforward"
-                g_CopyToAppData Command$, "styles\webforward"
-                If l Then _
-                    PostMessage l, WM_SNARL_COMMAND, SN_DP_RESTART_STYLE_ROSTER, ByVal 0&
-
-                Exit Sub
-
-            Case "rsz"
-                g_ExtractToAppData Command$, "styles\runnable"
-                If l Then _
-                    PostMessage l, WM_SNARL_COMMAND, SN_DP_RESTART_STYLE_ROSTER, ByVal 0&
-
-                Exit Sub
 
             End Select
 
-        End Select
+            i = i + 1
+
+        Loop
+
+'        Case "-install"
+'            ' /* must have one further arg: style engine or extension to install */
+'            If (szArgs <> "") And (l <> 0) Then
+'                PostMessage l, WM_SNARL_COMMAND, 1, ByVal RegisterClipboardFormat(szArgs)
+'                Exit Sub
+'
+'            End If
+'
+'        Case "-configure"
+'            ' /* must have one further arg: style or extension to install */
+'            If (szArgs <> "") And (l <> 0) Then
+'                PostMessage l, WM_SNARL_COMMAND, 2, ByVal RegisterClipboardFormat(szArgs)
+'                Exit Sub
+'
+'            End If
+'
+'        Case "-do"
+'            ' /* from the URL handler */
+'            If g_BeginsWith(szArgs, "snarl:", False) Then
+'                szArgs = g_SafeRightStr(szArgs, Len(szArgs) - 6)
+'                i = InStr(szArgs, "?")
+'                If i Then
+'                    szCmd = g_SafeLeftStr(szArgs, i - 1)
+'                    szArgs = g_SafeRightStr(szArgs, Len(szArgs) - i)
+'
+'                Else
+'                    szCmd = szArgs
+'                    szArgs = ""
+'
+'                End If
+'
+'                Select Case szCmd
+'                Case "about"
+'                    If l <> 0 Then _
+'                        PostMessage l, WM_SNARL_COMMAND, SN_DP_SHOW_INFO, ByVal 0
+'
+'                Case Else
+'                    MsgBox "Unknown command '" & szCmd & "' Args: '" & szArgs & "'", vbExclamation Or vbOKOnly, App.Title
+'
+'                End Select
+'
+'
+'            Else
+'                MsgBox "Incorrect URL format supplied", vbExclamation Or vbOKOnly, App.Title
+'
+'            End If
+'
+'            Exit Sub
+'
+'        Case Else
+'
+
 
     End If
 
     If l <> 0 Then
         ' /* Snarl is already running (and no useful command-line arg specified) */
-        PostMessage l, WM_SNARL_COMMAND, 0, ByVal 0&    ' // tell the running instance to show its ui...
+        If pArgs.CountItems = 0 Then _
+            PostMessage l, WM_SNARL_COMMAND, 0, ByVal 0&    ' // tell the running instance to show its ui...
+
+        Exit Sub
+
+    ElseIf fQuitWhenDone Then
         Exit Sub
 
     End If
@@ -691,7 +791,7 @@ Dim dwFlags As SNARL_SYSTEM_FLAGS
 
 '    gPrefs.SnarlConfigPath = App.Path                ' // fail-safe
 
-Dim sz As String
+'Dim sz As String
 
     ' /* R2.31 - look for a local sysconfig.ssl and get its target  */
 
@@ -809,10 +909,10 @@ Dim szData As String
 
     Load frmAbout           ' // keeps us open...
 
-    ' /* R2.4.2 DR3: start subscriber roster */
+    ' /* R2.4.2 DR3: start network (renamed in 2.6 from subscriber) roster */
 
-    g_Debug "Main(): Starting subscribers roster..."
-    Set g_SubsRoster = New TSubscriberRoster
+    g_Debug "Main(): Starting network roster..."
+    Set g_SubsRoster = New TNetworkRoster
     melonLibInit g_SubsRoster
     melonLibOpen g_SubsRoster
 
@@ -830,8 +930,8 @@ Dim szData As String
     melonLibInit g_AppRoster
     melonLibOpen g_AppRoster
 
-    g_Debug "Main(): Setting auto-run state..."
-    g_SetAutoRun2
+'    g_Debug "Main(): Setting auto-run state..."
+'    g_SetAutoRun2
 
     ' /* get style packs */
 
@@ -1004,18 +1104,6 @@ Public Function g_ConfigInit() As Boolean
 
     On Error Resume Next
 
-    With gPrefs
-'        .run_on_logon = True
-'        .font_smoothing = E_MELONTYPE
-'        .suppress_delay = 2000
-'        If g_GetSystemFolder(CSIDL_PERSONAL, sz) Then _
-            .last_sound_folder = sz
-
-'        .UserDnD = False
-        .use_dropshadow = True
-
-    End With
-
     ' /* defaults */
 
     Set mDefaults = New BPackedData
@@ -1113,6 +1201,13 @@ Public Function g_ConfigInit() As Boolean
         ' /* R2.5.1 */
         .Add "use_notification_hotkey", "1"
 
+        ' /* R2.6 *
+        .Add "scaling", "1"
+        .Add "global_redirect", ""
+        .Add "garbage_collection", "1"
+        .Add "show_missed_notification", "1"
+        .Add "notify_when_subscriber_added", "1"
+
     End With
 
     ' /* attempt to load the config file */
@@ -1173,12 +1268,28 @@ Dim i As Long
 '        .AddIfMissing "text-weight", "1"
         .AddIfMissing "text-opacity", "60"
 
+        ' /* R2.6 */
+        .AddIfMissing "colour-tint", CStr(rgba(0, 0, 0))
+
     End With
 
+    ' /* load up the global redirects list */
 
+    Set gGlobalRedirectList = new_BTagList()
 
+Dim sn As String
+Dim sv As String
 
+    With New BPackedData
+        If .SetTo(g_ConfigGet("global_redirect")) Then
+            .Rewind
+            Do While .GetNextItem(sn, sv)
+                gGlobalRedirectList.Add new_BTagItem(sn, sv)
 
+            Loop
+
+        End If
+    End With
 
 
 
@@ -1320,20 +1431,20 @@ Dim dw As Long
 
 End Sub
 
-Public Sub g_SetAutoRun2()
-Dim bAutoRun As Boolean
-
-    bAutoRun = CBool(g_ConfigGet("run_on_logon"))
-
-    If bAutoRun Then
-        add_registry_startup_item "Snarl", g_MakePath(App.Path) & LCase$(App.EXEName) & ".exe"
-
-    Else
-        rem_registry_startup_item "Snarl", g_MakePath(App.Path) & LCase$(App.EXEName) & ".exe"
-
-    End If
-
-End Sub
+'Public Sub g_SetAutoRun2()
+'Dim bAutoRun As Boolean
+'
+'    bAutoRun = CBool(g_ConfigGet("run_on_logon"))
+'
+'    If bAutoRun Then
+'        add_registry_startup_item "Snarl", g_MakePath(App.Path) & LCase$(App.EXEName) & ".exe"
+'
+'    Else
+'        rem_registry_startup_item "Snarl", g_MakePath(App.Path) & LCase$(App.EXEName) & ".exe"
+'
+'    End If
+'
+'End Sub
 
 Public Function gfRegisterAlert(ByVal AppName As String, ByVal Class As String, ByVal Flags As Long) As M_RESULT
 Dim pa As TApp
@@ -1575,18 +1686,6 @@ Dim pc As TAlert
 
 End Function
 
-'Public Sub g_AddIgnoreLock()
-'
-'    g_IgnoreLock = g_IgnoreLock + 1
-'
-'End Sub
-'
-'Public Sub g_RemIgnoreLock()
-'
-'    g_IgnoreLock = g_IgnoreLock - 1
-'
-'End Sub
-
 Public Sub g_WriteToLog(ByVal Title As String, ByVal Text As String)
 Dim sz As String
 Dim n As Integer
@@ -1605,74 +1704,6 @@ Dim n As Integer
     Close #n
 
 End Sub
-
-'Public Sub g_AddRemoteComputer(ByVal IPAddress As String)
-'
-'    If (IPAddress = "") Or (gRemoteComputers Is Nothing) Then _
-'        Exit Sub
-'
-'    ' /* should check for duplicates... */
-'
-'Dim sz As String
-'
-'    With gRemoteComputers
-'        If Not .Find(IPAddress, sz) Then
-'            .Add IPAddress, IPAddress
-'            frmAbout.bUpdateRemoteComputerList
-'            g_Debug "g_AddRemoteComputer(): added '" & IPAddress & "'"
-'            g_WriteConfig
-'
-'        Else
-'            g_Debug "g_AddRemoteComputer(): '" & IPAddress & "' already in list"
-'
-'        End If
-'    End With
-'
-'End Sub
-
-'Public Function g_GetRemoteComputers() As String
-'Dim pe As ConfigEntry
-'Dim sz As String
-'
-'    If (gRemoteComputers Is Nothing) Then _
-'        Exit Function
-'
-'    With gRemoteComputers
-'        .Rewind
-'        Do While .GetNextEntry(pe)
-'            sz = sz & pe.Value & "|"
-'
-'        Loop
-'
-'    End With
-'
-'    g_GetRemoteComputers = g_SafeLeftStr(sz, Len(sz) - 1)
-'
-'End Function
-
-Public Function g_GetRemoteComputersMenu() As OMMenu
-
-'    If (gRemoteComputers Is Nothing) Then _
-'        Exit Function
-'
-'Dim pMenu As OMMenu
-'Dim pe As ConfigEntry
-'
-'    Set pMenu = New OMMenu
-'
-'    With gRemoteComputers
-'        .Rewind
-'        Do While .GetNextEntry(pe)
-'            pMenu.AddItem pMenu.CreateItem("ip>" & pe.Value, pe.Value)
-'
-'        Loop
-'
-'    End With
-'
-'    If pMenu.CountItems > 0 Then _
-'        Set g_GetRemoteComputersMenu = pMenu
-
-End Function
 
 Public Sub g_GetIconThemes()
 Dim pn As storage_kit.Node
@@ -1876,6 +1907,12 @@ Public Sub g_ConfigUnlock(Optional ByVal IgnoreDelayedWrite As Boolean)
 
 End Sub
 
+Public Function g_ConfigIsLocked() As Boolean
+
+    g_ConfigIsLocked = mConfigLocked
+
+End Function
+
 'Public Function new_Class(ByVal Priority As Boolean) As TAlert
 '
 '    Set new_Class = New TAlert
@@ -1927,6 +1964,7 @@ Dim Arg() As String
 Dim argC As Long
 Dim pti As BTagList
 Dim i As Long
+Dim sz As String
 
     g_Debug "g_ProcessAck(): ACK is '" & Ack & "'", LEMON_LEVEL_INFO
 
@@ -1954,6 +1992,16 @@ Dim i As Long
 
         Case "system"
             uProcessSystem pti
+
+        Case "configure"
+            If pti.CountItems > 0 Then
+                sz = pti.TagAt(1).Name
+                Select Case g_GetExtension(sz, True)
+                Case "extension"
+                    uManageAddOn Arg(0), sz
+
+                End Select
+            End If
 
         Case Else
             g_Debug "g_ProcessAck(): unknown command '" & Arg(0) & "'"
@@ -1998,7 +2046,7 @@ Dim i As Long
         If Not (pti Is Nothing) Then
             i = g_AppRoster.IndexOfSig(pti.Name)
             If i Then _
-                g_AppRoster.AppAt(i).DoSettings
+                g_AppRoster.AppAt(i).DoSettings 0
 
         End If
 
@@ -2279,12 +2327,25 @@ Public Sub g_KludgeNotificationInfo(ByRef nInfo As T_NOTIFICATION_INFO, Optional
         .Text = Replace$(.Text, "\n", vbCrLf)
 
         pPacked.Add "id", .ClassObj.Name
-        pPacked.Add "title", .Title
-        pPacked.Add "text", .Text
-        pPacked.Add "timeout", CStr(.Timeout)
-        pPacked.Add "icon", .IconPath
-        pPacked.Add "priority", CStr(.Priority)
-        pPacked.Add "callback", .DefaultAck
+
+        If .Title <> "" Then _
+            pPacked.Add "title", .Title
+
+        If .Text <> "" Then _
+            pPacked.Add "text", .Text
+
+        If .Timeout <> 0 Then _
+            pPacked.Add "timeout", CStr(.Timeout)
+
+        If .IconPath <> "" Then _
+            pPacked.Add "icon", .IconPath
+
+        If .Priority <> 0 Then _
+            pPacked.Add "priority", CStr(.Priority)
+
+        If .DefaultAck <> "" Then _
+            pPacked.Add "callback", .DefaultAck
+
         pPacked.Add "value", .Value
 
 '        If (Info.Flags And SNARL41_NOTIFICATION_ALLOWS_MERGE) Then _
@@ -2523,14 +2584,14 @@ Public Sub g_PopRequest2()
 
 End Sub
 
-Private Function uCreatePacked(ByVal ClassId As String, ByVal Title As String, ByVal Text As String, Optional ByVal Timeout As Long = -1, Optional ByVal Icon As String, Optional ByVal Priority As Long = 0, Optional ByVal Ack As String, Optional ByVal Flags As SNARL41_NOTIFICATION_FLAGS, Optional ByVal Password As String, Optional ByVal AddTestAction As Boolean, Optional ByVal UID As String) As BPackedData
+Public Function g_CreatePacked(ByVal ClassId As String, ByVal Title As String, ByVal Text As String, Optional ByVal Timeout As Long = -1, Optional ByVal Icon As String, Optional ByVal Priority As Long = 0, Optional ByVal Ack As String, Optional ByVal Flags As SNARL41_NOTIFICATION_FLAGS, Optional ByVal Password As String, Optional ByVal AddTestAction As Boolean, Optional ByVal UID As String, Optional ByVal Percent As Long = -1) As BPackedData
 
     ' /* translate notification arguments into packed data
     '    currently this is only used by g_PrivateNotify()
     '    but it's flexible enough to be used elsewhere */
 
-    Set uCreatePacked = New BPackedData
-    With uCreatePacked
+    Set g_CreatePacked = New BPackedData
+    With g_CreatePacked
 
         .Add "app-sig", App.ProductName
 
@@ -2559,10 +2620,13 @@ Private Function uCreatePacked(ByVal ClassId As String, ByVal Title As String, B
             .Add "password", Password
 
         If AddTestAction Then _
-            .Add "action", "Blank,@1"
+            .Add "action", "Dummy Action,@1"
 
         If UID <> "" Then _
             .Add "uid", UID
+
+        If Percent > -1 Then _
+            .Add "value-percent", CStr(Percent)
 
     End With
 
@@ -2574,7 +2638,7 @@ Public Function g_QuickAddAction(ByVal Token As Long, ByVal Label As String, ByV
 
 End Function
 
-Public Function g_QuickLastError() As Long
+Public Function g_QuickLastError() As SNARL_STATUS_CODE
 
     g_QuickLastError = GetProp(ghWndMain, "last_error")
 
@@ -2597,7 +2661,7 @@ End Function
 '
 'End Function
 
-Public Function g_PrivateNotify(Optional ByVal ClassId As String = SNARL_CLASS_GENERAL, Optional ByVal Title As String, Optional ByVal Text As String, Optional ByVal Timeout As Long = -1, Optional ByVal Icon As String, Optional ByVal Priority As Long = 0, Optional ByVal Ack As String, Optional ByVal Flags As SNARL41_NOTIFICATION_FLAGS, Optional ByVal IntFlags As SN_NOTIFICATION_FLAGS, Optional ByVal AddTestAction As Boolean, Optional ByVal UID As String) As Long
+Public Function g_PrivateNotify(Optional ByVal ClassId As String = SNARL_CLASS_GENERAL, Optional ByVal Title As String, Optional ByVal Text As String, Optional ByVal Timeout As Long = -1, Optional ByVal Icon As String, Optional ByVal Priority As Long = 0, Optional ByVal Ack As String, Optional ByVal Flags As SNARL41_NOTIFICATION_FLAGS, Optional ByVal IntFlags As SN_NOTIFICATION_FLAGS, Optional ByVal AddTestAction As Boolean, Optional ByVal UID As String, Optional ByVal Percent As Long = -1) As Long
 
     ' /* safe internal notification generator
     '
@@ -2610,7 +2674,7 @@ Public Function g_PrivateNotify(Optional ByVal ClassId As String = SNARL_CLASS_G
         Icon = g_MakePath(App.Path) & "etc\icons\" & g_SafeRightStr(Icon, Len(Icon) - 1) & ".png"
 
     g_PrivateNotify = g_DoNotify(0, _
-                                 uCreatePacked(ClassId, Title, Text, Timeout, Icon, Priority, Ack, Flags, gSnarlPassword, AddTestAction, UID), _
+                                 g_CreatePacked(ClassId, Title, Text, Timeout, Icon, Priority, Ack, Flags, gSnarlPassword, AddTestAction, UID, Percent), _
                                  Nothing, _
                                  IntFlags Or App.Major, _
                                  "", 0)
@@ -2849,7 +2913,7 @@ Public Function g_DoAction(ByVal action As String, ByVal Token As Long, ByRef Ar
 
     End If
 
-
+Dim hr As SNARL_STATUS_CODE
 Dim szSource As String
 Dim pApp As TApp
 
@@ -2987,6 +3051,10 @@ Dim pApp As TApp
 
     ' /* undocumented/unsupported - either private or due for public release in a future revision */
 
+    Case "system"
+        ' /* PRIVATE: for internal use only under V43, to be made public in V44 */
+        uDoSystemRequest Args
+        g_DoAction = (g_QuickLastError() = SNARL_SUCCESS)
 
 
     Case "request"
@@ -2995,43 +3063,40 @@ Dim pApp As TApp
 
 
     Case "subscribe"
-        ' /* undocumented/unsupported in 2.4.2 - due for documenting in 2.5 / V43 */
-
+        ' /* undocumented/unsupported in 2.4.2/2.5; official in V43 */
         If (ReplySocket Is Nothing) Then
             ' /* can be sent via SNP3 only as ReplySocket is required */
+            g_Debug "g_DoAction(): {subscribe}: missing reply socket", LEMON_LEVEL_CRITICAL
             gSetLastError SNARL_ERROR_BAD_SOCKET
             g_DoAction = 0
 
         Else
-            g_Debug "g_DoAction(): <subscribe> from " & ReplySocket.RemoteHostIP & ":" & ReplySocket.RemotePort
-            If g_SubsRoster.AddSubscriber(SN_ST_SNP3_SUBSCRIBER, ReplySocket, Args) Then
-'                g_PrivateNotify "", "Subscriber added", ReplySocket.RemoteHostIP & " subscribed using SNP", , ".sub-snp-add"
-                frmAbout.bSubsChanged
+            g_Debug "g_DoAction(): {subscribe} source=" & ReplySocket.RemoteHostIP & ":" & ReplySocket.RemotePort
+            hr = g_SubsRoster.AddSubscriber("snp", ReplySocket, Args)
+            If hr = SNARL_SUCCESS Then
                 g_DoAction = -1
 
             Else
-                g_Debug "g_DoAction(): failed to add subscriber from " & ReplySocket.RemoteHostIP
+                g_Debug "g_DoAction(): {subscribe}: failed (" & CStr(hr) & ")", LEMON_LEVEL_CRITICAL
+                gSetLastError hr
+                g_DoAction = 0
 
             End If
-
         End If
 
 
     Case "unsubscribe"
-        ' /* undocumented/unsupported in 2.4.2 - due for documenting in 2.5 / V43 */
-
+        ' /* undocumented/unsupported in 2.4.2/2.5; official in V43 */
         If (ReplySocket Is Nothing) Then
             ' /* can be sent via SNP3 only as ReplySocket is required */
+            g_Debug "g_DoAction(): {unsubscribe}: missing reply socket", LEMON_LEVEL_CRITICAL
             gSetLastError SNARL_ERROR_BAD_SOCKET
             g_DoAction = 0
 
         Else
-            g_Debug "g_DoAction(): <unsubscribe> from " & ReplySocket.RemoteHostIP & ":" & ReplySocket.RemotePort
-            If g_SubsRoster.Remove(ReplySocket, SN_ST_SNP3_SUBSCRIBER, Args) Then
-                frmAbout.bSubsChanged
+            g_Debug "g_DoAction(): {unsubscribe}: source=" & ReplySocket.RemoteHostIP & ":" & ReplySocket.RemotePort
+            If g_SubsRoster.RemoveSubscriber(ReplySocket, Args) Then _
                 g_DoAction = -1
-
-            End If
 
         End If
 
@@ -3436,6 +3501,12 @@ End Function
 Public Function g_IsPresence(ByVal Flags As SN_PRESENCE_FLAGS) As Boolean
 
     g_IsPresence = ((mPresFlags And Flags) <> 0)
+
+End Function
+
+Public Function g_IsUserActive() As Boolean
+
+    g_IsUserActive = (Not g_IsDND()) And (Not g_IsAway())
 
 End Function
 
@@ -4165,3 +4236,315 @@ Dim n As Long
 
 End Sub
 
+Private Sub uDoSystemRequest(ByRef pArgs As BPackedData)
+
+    ' /* sets lasterror on exit */
+
+    g_Debug "uDoSystemRequest()", LEMON_LEVEL_PROC_ENTER
+    gSetLastError SNARL_SUCCESS
+
+    ' /* must have at least an "action" argument */
+
+'    MsgBox "request: " & pArgs.AsString
+
+Dim hr As Long
+
+    If Not pArgs.Exists("action") Then
+        g_Debug "command missing", LEMON_LEVEL_CRITICAL Or LEMON_LEVEL_PROC_EXIT
+        gSetLastError SNARL_ERROR_ARG_MISSING
+        Exit Sub
+
+    End If
+
+Dim szData As String
+Dim szCmd As String
+
+    ' /* get the command - defined commands thus far:
+    '
+    '   load what=<addon> - <addon> is either an extension or styleengine as defined by it's extension
+    '   unload what=<addon> - <addon> is either an extension or styleengine as defined by it's extension
+    '
+    '
+    '
+    '
+    ' */
+
+    szCmd = LCase$(pArgs.ValueOf("action"))
+
+    Select Case szCmd
+    Case "load", "unload"
+        ' /* can be an extension or style engine */
+        szData = pArgs.ValueOf("what")
+        Select Case g_GetExtension(szData, True)
+        Case "extension", "styleengine"
+            gSetLastError uManageAddOn(szCmd, szData)
+
+        Case Else
+            g_Debug "invalid addon " & g_Quote(szData), LEMON_LEVEL_CRITICAL
+            gSetLastError SNARL_ERROR_INVALID_ARG
+
+        End Select
+
+    Case "configure"
+        ' /* can be a style, extension or application */
+
+        If pArgs.Exists("what") Then
+            gSetLastError uManageAddOn(szCmd, pArgs.ValueOf("what"))
+
+        ElseIf pArgs.Exists("app-sig") Then
+            g_Debug "configuring app: " & g_Quote(pArgs.ValueOf("app-sig")) & "..."
+            gSetLastError uConfigureApp(pArgs.ValueOf("app-sig"))
+
+        
+        Else
+            g_Debug "configure: missing argument", LEMON_LEVEL_CRITICAL
+            gSetLastError SNARL_ERROR_ARG_MISSING
+
+        End If
+
+
+    Case "reboot"
+        ' /* ends Snarl, runs DelayLoad.exe */
+
+
+
+    Case Else
+        g_Debug "invalid comand " & g_Quote(szCmd), LEMON_LEVEL_CRITICAL Or LEMON_LEVEL_PROC_EXIT
+        gSetLastError SNARL_ERROR_INVALID_ARG
+
+    End Select
+
+    g_Debug "", LEMON_LEVEL_PROC_EXIT
+
+End Sub
+
+Private Function uConfigureApp(ByVal Signature As String) As SNARL_STATUS_CODE
+Dim pa As TApp
+
+    If g_AppRoster.FindBySignature(Signature, pa, "") Then
+        If pa.HasConfig Then
+            g_Debug "uConfigureApp(): asking " & g_Quote(pa.Name) & " to show its config..."
+            pa.DoSettings 0
+
+        Else
+            g_Debug "uConfigureApp(): " & g_Quote(pa.Name) & " is not configurable", LEMON_LEVEL_CRITICAL
+            uConfigureApp = SNARL_ERROR_ACCESS_DENIED
+
+        End If
+
+    Else
+        g_Debug "uConfigureApp(): " & g_Quote(Signature) & " not found/bad password", LEMON_LEVEL_CRITICAL
+        uConfigureApp = g_QuickLastError()
+
+    End If
+
+End Function
+
+Private Function uManageAddOn(ByVal Command As String, ByVal AddOn As String) As SNARL_STATUS_CODE
+
+    g_Debug "uManageAddOn()", LEMON_LEVEL_PROC_ENTER
+
+    If (g_ExtnRoster Is Nothing) Or (g_StyleRoster Is Nothing) Then
+        g_Debug "fatal: style or extension roster not started", LEMON_LEVEL_CRITICAL Or LEMON_LEVEL_PROC_EXIT
+        uManageAddOn = SNARL_ERROR_SYSTEM
+        Exit Function
+
+    End If
+
+Dim pe As TExtension
+Dim ps As TStyle
+
+    Select Case g_GetExtension(AddOn)
+    Case "extension"
+        AddOn = g_RemoveExtension(AddOn)
+
+        Select Case Command
+'        Case SN_DP_RESTART
+'            If g_ExtnRoster.Find(Item, pe) Then
+'                pe.SetEnabled False
+'                pe.SetEnabled True
+'
+'            End If
+
+        Case "install"
+            ' /* 1. create link file - doesn't matter if it exists? - use "allusers=1"? */
+            ' /* 2. refresh extensions */
+            ' /* 3. load it */
+            ' /* 4. show config? */
+            MsgBox "installing extensions is not yet implemented"
+
+        Case "uninstall"
+            ' /* 1. unload
+            '    2. delete link file
+            ' */
+            MsgBox "uninstalling extensions is not yet implemented"
+
+        Case "unload"
+            If g_ExtnRoster.Find(AddOn, pe) Then
+                g_Debug "unloading " & g_Quote(AddOn) & "..."
+                If Not pe.SetEnabled(False) Then
+                    uManageAddOn = SNARL_ERROR_FAILED
+                    g_Debug "failed", LEMON_LEVEL_CRITICAL
+
+                Else
+                    frmAbout.bUpdateExtList
+                    g_ExtnRoster.WriteExcludeList
+
+                End If
+            Else
+                g_Debug "extension " & g_Quote(AddOn) & " not found", LEMON_LEVEL_CRITICAL
+                uManageAddOn = SNARL_ERROR_ADDON_NOT_FOUND
+
+            End If
+
+        Case "load"
+            If g_ExtnRoster.Find(AddOn, pe) Then
+                g_Debug "loading " & g_Quote(AddOn) & "..."
+                If Not pe.SetEnabled(True) Then
+                    uManageAddOn = SNARL_ERROR_FAILED
+                    g_Debug "failed", LEMON_LEVEL_CRITICAL
+
+                Else
+                    frmAbout.bUpdateExtList
+                    g_ExtnRoster.WriteExcludeList
+
+                End If
+            Else
+                g_Debug "extension " & g_Quote(AddOn) & " not found", LEMON_LEVEL_CRITICAL
+                uManageAddOn = SNARL_ERROR_ADDON_NOT_FOUND
+
+            End If
+
+        Case "configure"
+            If g_ExtnRoster.Find(AddOn, pe) Then
+                If pe.IsConfigurable Then
+                    g_Debug "launching configuration for extension " & g_Quote(AddOn) & "..."
+                    pe.DoPrefs 0
+
+                Else
+                    g_Debug g_Quote(AddOn) & " is not configurable", LEMON_LEVEL_CRITICAL
+                    uManageAddOn = SNARL_ERROR_ACCESS_DENIED
+
+                End If
+
+            Else
+                g_Debug "extension " & g_Quote(AddOn) & " not found", LEMON_LEVEL_CRITICAL
+                uManageAddOn = SNARL_ERROR_ADDON_NOT_FOUND
+
+            End If
+
+        End Select
+
+
+    Case "styleengine"
+
+'        Select Case Arg
+'        Case SN_DP_RESTART
+'            g_StyleRoster.Unload Item, True
+'            g_StyleRoster.Load Item, True, True
+'
+'        Case SN_DP_UNLOAD
+'            g_StyleRoster.Unload Item, True
+'
+'        Case SN_DP_LOAD
+'            g_StyleRoster.Load Item, True, True
+'
+'        End Select
+
+    End Select
+
+    g_Debug "", LEMON_LEVEL_PROC_EXIT
+
+End Function
+
+Public Sub g_AddGlobalRedirect(ByVal StyleAndScheme As String, ByVal Flags As SN_REDIRECTION_FLAGS)
+
+    gGlobalRedirectList.Add new_BTagItem(StyleAndScheme, CStr(Flags))
+    g_ConfigSet "global_redirect", taglist_as_string(gGlobalRedirectList)
+
+End Sub
+
+Public Sub g_UpdateRedirectList(ByRef ListControl As BControl, ByRef List As BTagList)
+
+    If (ISNULL(ListControl)) Or (ISNULL(List)) Then _
+        Exit Sub
+
+'Dim pc As BControl
+Dim pt As BTagItem
+Dim ps As TStyle
+Dim sz As String
+Dim szr As String
+Dim f As SN_REDIRECTION_FLAGS
+Dim bWhen As Boolean
+Dim i As Long
+
+    ' /* set content */
+
+    With List
+        .Rewind
+        Do While .GetNextTag(pt) = B_OK
+            bWhen = True
+
+            Select Case g_SafeLong(pt.Value)
+            Case SN_RF_ALWAYS
+                szr = "Always"
+                bWhen = False
+
+            Case SN_RF_WHEN_ACTIVE
+                szr = "active"
+                
+            Case SN_RF_WHEN_AWAY
+                szr = "away"
+                
+            Case SN_RF_WHEN_BUSY
+                szr = "busy"
+
+            Case SN_RF_WHEN_ACTIVE Or SN_RF_WHEN_AWAY
+                szr = "active or away"
+
+            Case SN_RF_WHEN_ACTIVE Or SN_RF_WHEN_BUSY
+                szr = "active or busy"
+
+            Case SN_RF_WHEN_AWAY Or SN_RF_WHEN_BUSY
+                szr = "away or busy"
+
+            Case SN_RF_NEVER
+                szr = "Never"
+                bWhen = False
+
+            End Select
+    
+            sz = sz & style_MakeFriendly(pt.Name) & " (" & IIf(bWhen, "When ", "") & szr & ")" & "#?" & pt.Name & "|"
+        
+        Loop
+    
+        sz = g_SafeLeftStr(sz, Len(sz) - 1)
+        ListControl.SetText sz
+
+    End With
+
+    ' /* set icons */
+
+    If sz <> "" Then
+        With List
+            .Rewind
+            Do While .GetNextTag(pt) = B_OK
+                i = i + 1
+                If g_StyleRoster.Find(style_GetStyleName(pt.Name), ps) Then
+                    If Not g_Exists(ps.IconPath) Then
+                        prefskit_SetItem ListControl, i, "image-file", g_MakePath(App.Path) & "etc\icons\class-fwd.png"
+                    
+                    Else
+                        prefskit_SetItem ListControl, i, "image-file", ps.IconPath
+                        
+                    End If
+
+                Else
+                    prefskit_SetItem ListControl, i, "image-file", g_MakePath(App.Path) & "etc\icons\no_icon.png"
+
+                End If
+            Loop
+        End With
+    End If
+
+End Sub

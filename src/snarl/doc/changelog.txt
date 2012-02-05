@@ -1,10 +1,61 @@
 
 	Snarl Change Log
 
+	- When an extension is enabled (loaded), Snarl now checks to see if its release
+	  number has changed and displays a notification if it has.  (44.21)
+
+	- Added per-class background tint option which is sent to the destination style
+	  as "background-tint=<rgba32>".  Note that styles must support this value for
+	  it to work.  (44.14)
+
+	- Can now load, unload and configure extensions using the command line.  (44.10)
+
+	- Bumped to V44.  (44.1)
+
+	- Notification scaling re-implemented (was removed a while back).  (43.80)
+
+	- Completely revised [Redirect] page in class configuration panel.  (43.80)
+
+	- New Good and Bad icons.  (43.80)
+
+	- Minor cosmetic changes to [Style Engines] tab content.   (43.80)
+
+	- Removed [AddOns]->[Displays] tab.  (43.80)
+
+	- Moved style engines configuration panel into new [AddOns]->[Style Engines]
+	  tab  (43.80)
+
+	- Draws gear wheel emblem on notification if the default callback is set.
+	  (43.80)
+
+	- "Quit" button on [Applications] page now works for registrations created by
+	  extensions.  (43.80)
+
+	- Can now display an extension's configuration settings without the need for
+	  Snarl's GUI to be open.  (43.80)
+
+	- Can now launch an extension's configuration settings from the [Apps] page
+	  by selecting it as per a regular application.  (43.80)
+
+	- Renamed "Options..." to "Actions..." in [Missed] and [Displayed] subtabs.
+	  (43.80)
+
+	- Reworked Class Configuration panel page content to make it more logical.
+	  Fundamentally, the [Behaviour] and [Advanced] pages have had their content
+	  switched and some more commonly used options have been moved into the
+	  [Appearance] page.  (43.80)
+
+	- Improved way command-line arguments are processed.  (43.80)
+
+	- Released as 2.5.1 Beta 2.  (43.73)
+
+	- Added "Options..." button to [Missed] and [Displayed] subtabs.  (43.73)
+
+	- Fixed bug which sometimes prevented the "Copy to Clipboard" menu item from
+	  working.  (43.73)
+
 	- Added option on [General] page to enable/disable the close notification key
 	  combo.  (43.73)
-
-	- Released as 2.5.1 Beta 2.  (43.72)
 
 	- Minor cosmetic changes to scheme preview notification and Snarl Apps pop-up
 	  window.  (43.72)

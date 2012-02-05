@@ -29,17 +29,17 @@ Option Explicit
 
 Private Const ENG_DATE = "18-Oct-2011"
 
-Private Const STYLE_NAME = "Default"
+Private Const DEF_STYLE_NAME = "Default"
 Private Const DEF_STYLE_DATE = "25-Jul-2011"
 Private Const DEF_STYLE_COPY = "© 2011 full phat products"
 
-Private Const IP_STYLE_NAME = "IP Forwarder"
-Private Const IP_STYLE_DATE = "12-Dec-2010"
-Private Const IP_STYLE_COPY = "© 2010 full phat products"
+'Private Const FORWARDER_STYLE_NAME = "Network Forwarder"
+'Private Const FORWARDER_STYLE_DATE = "1-Feb-2012"
+'Private Const FORWARDER_STYLE_COPY = "© 2012 full phat products"
 
 Private Const RUN_STYLE_NAME = "Run File"
-Private Const RUN_STYLE_DATE = "13-Jan-2011"
-Private Const RUN_STYLE_COPY = "© 2011 full phat products"
+Private Const RUN_STYLE_DATE = "1-Feb-2012"
+Private Const RUN_STYLE_COPY = "© 2012 full phat products"
 
 Private Const IMAGE_STYLE_NAME = "Image"
 Private Const IMAGE_STYLE_DATE = "21-Jan-2011"
@@ -48,12 +48,15 @@ Private Const IMAGE_STYLE_COPY = "© 2011 full phat products"
 Private Const BORDER_SIZE = 6
 Private Const ICON_SIZE = 32
 
-Public IsIPForwarder As Boolean
+'Public IsNetForwarder As Boolean
 Public IsFileRunner As Boolean
 Public IsImage As Boolean
 
 Dim theView As mfxView
 Dim mPanel As TRunFilePanel
+Dim mDefPanel As TStyleDefaultsPanel
+
+Dim mForwarders As ConfigFile
 
 Implements IStyleInstance
 Implements IStyleEngine
@@ -73,25 +76,28 @@ End Function
 Private Function IStyleEngine_CreateInstance(ByVal StyleName As String) As libSnarlStyles.IStyleInstance
 Dim pStyle As TInternalStyle
 
-    If StyleName = IP_STYLE_NAME Then
+    Select Case StyleName
+
+'    Case FORWARDER_STYLE_NAME
 '        Set pStyle = New TInternalStyle
-'        pStyle.IsIPForwarder = True
+'        pStyle.IsNetForwarder = True
 '        Set IStyleEngine_CreateInstance = pStyle
 
-    ElseIf StyleName = RUN_STYLE_NAME Then
+    Case RUN_STYLE_NAME
         Set pStyle = New TInternalStyle
         pStyle.IsFileRunner = True
         Set IStyleEngine_CreateInstance = pStyle
 
-    ElseIf StyleName = IMAGE_STYLE_NAME Then
+    Case IMAGE_STYLE_NAME
         Set pStyle = New TInternalStyle
         pStyle.IsImage = True
         Set IStyleEngine_CreateInstance = pStyle
 
-    Else
+    Case Else
+        ' /* assume default style */
         Set IStyleEngine_CreateInstance = New TInternalStyle
 
-    End If
+    End Select
 
 End Function
 
@@ -109,21 +115,32 @@ End Function
 
 Private Function IStyleEngine_GetConfigWindow(ByVal StyleName As String) As Long
 
-    If StyleName = "Run File" Then
+    Select Case StyleName
+    
+    Case RUN_STYLE_NAME
         Set mPanel = New TRunFilePanel
-        IStyleEngine_GetConfigWindow = mPanel.Go(True)
+        IStyleEngine_GetConfigWindow = mPanel.Go("r", StyleName, Nothing)
 
-    ElseIf StyleName = "Image" Then
+    Case IMAGE_STYLE_NAME
         Set mPanel = New TRunFilePanel
-        IStyleEngine_GetConfigWindow = mPanel.Go(False)
+        IStyleEngine_GetConfigWindow = mPanel.Go("i", StyleName, Nothing)
 
-    End If
+'    Case FORWARDER_STYLE_NAME
+'        Set mPanel = New TRunFilePanel
+'        IStyleEngine_GetConfigWindow = mPanel.Go("n", StyleName, mForwarders)
+
+    Case Else
+        Set mDefPanel = New TStyleDefaultsPanel
+        IStyleEngine_GetConfigWindow = mDefPanel.Go(0)
+
+    End Select
 
 End Function
 
 Private Function IStyleEngine_Initialize() As melon.M_RESULT
 
-'    g_RunFileLoadSchemes
+    Set mForwarders = New ConfigFile
+    mForwarders.File = g_MakePath(gPrefs.SnarlConfigPath) & "etc\network.snarl"
 
 End Function
 
@@ -164,45 +181,47 @@ Private Sub IStyleEngine_StyleAt(ByVal Index As Long, Style As libSnarlStyles.st
         Case 1
             .Copyright = DEF_STYLE_COPY
             .Date = DEF_STYLE_DATE
-            .Description = "Built-in style which uses the Default Style settings (see the [Display] page)."
-            .Flags = S_STYLE_MULTI_INSTANCE
+            .Description = "Built-in style."
+            .Flags = S_STYLE_MULTI_INSTANCE Or S_STYLE_IS_CONFIGURABLE
             .IconPath = g_MakePath(App.Path) & "etc\icons\default_style.png"
             .Major = 1
             .Minor = 1
-            .Name = STYLE_NAME
-
-
-'        Case 2
-'            .Copyright = IP_STYLE_COPY
-'            .Date = IP_STYLE_DATE
-'            .Description = "Forwards notifications to the computers selected in the 'Network' tab"
-'            .Flags = S_STYLE_IS_WINDOWLESS Or S_STYLE_WANT_APP_NAME
-'            .IconPath = g_MakePath(App.Path) & "etc\icons\network.png"
-'            .Major = 0
-'            .Minor = 8
-'            .Name = IP_STYLE_NAME
+            .Name = DEF_STYLE_NAME
 
         Case 2
             .Copyright = RUN_STYLE_COPY
             .Date = RUN_STYLE_DATE
-            .Description = "Executes a file, passing the notification content as arguments"
+            .Description = "Executes a file, passing the notification content as arguments."
             .Flags = S_STYLE_IS_WINDOWLESS Or S_STYLE_IS_CONFIGURABLE Or S_STYLE_V42_CONTENT
             .IconPath = g_MakePath(App.Path) & "etc\icons\runfile.png"
             .Major = 2
-            .Minor = 0
+            .Minor = 6
             .Name = RUN_STYLE_NAME
             .Schemes = uGetFileSchemes("runfile")
 
-        Case 3
-            .Copyright = IMAGE_STYLE_COPY
-            .Date = IMAGE_STYLE_DATE
-            .Description = "Runs a user-defined file"
-            .Flags = S_STYLE_MULTI_INSTANCE Or S_STYLE_IS_CONFIGURABLE
-            .IconPath = g_MakePath(App.Path) & "etc\icons\image_style.png"
-            .Major = 0
-            .Minor = 1
-            .Name = IMAGE_STYLE_NAME
-            .Schemes = uGetFileSchemes("image")
+'        Case 3
+'            .Copyright = FORWARDER_STYLE_COPY
+'            .Date = FORWARDER_STYLE_DATE
+'            .Description = "Forwards notifications to remote computers using the Snarl Network Protocol (SNP) or GNTP."
+'            .Flags = S_STYLE_IS_WINDOWLESS Or S_STYLE_V42_CONTENT Or S_STYLE_IS_CONFIGURABLE Or S_STYLE_WANTS_APP_SIG
+'            .IconPath = g_MakePath(App.Path) & "etc\icons\network.png"
+'            .Major = 0
+'            .Minor = 26
+'            .Name = FORWARDER_STYLE_NAME
+'            .Schemes = uGetNetworkForwarders()
+
+
+
+'        Case 3
+'            .Copyright = IMAGE_STYLE_COPY
+'            .Date = IMAGE_STYLE_DATE
+'            .Description = "Runs a user-defined file"
+'            .Flags = S_STYLE_MULTI_INSTANCE Or S_STYLE_IS_CONFIGURABLE
+'            .IconPath = g_MakePath(App.Path) & "etc\icons\image_style.png"
+'            .Major = 0
+'            .Minor = 1
+'            .Name = IMAGE_STYLE_NAME
+'            .Schemes = uGetFileSchemes("image")
 
         End Select
 
@@ -225,7 +244,7 @@ End Sub
 
 Private Function IStyleInstance_GetContent() As melon.MImage
 
-    If Not IsIPForwarder Then _
+    If Not Me.IsFileRunner Then _
         Set IStyleInstance_GetContent = theView.ConvertToBitmap()
 
 End Function
@@ -238,11 +257,15 @@ End Sub
 
 Private Sub IStyleInstance_UpdateContent(NotificationInfo As libSnarlStyles.notification_info)
 Dim prf As TRunFileScheme
+'Dim ps As ConfigSection
 
-    If IsIPForwarder Then
-        uIPFStyleUpdate NotificationInfo
+'    If Me.IsNetForwarder Then
+'        If g_SubsRoster.FindForwarder(NotificationInfo.Scheme, ps) Then
+'            g_SubsRoster.DoForward ps, NotificationInfo
+'
+'        End If
 
-    ElseIf IsFileRunner Then
+    If IsFileRunner Then
         ' /* notificationinfo->scheme is the name */
 
         With gRunFiles
@@ -335,7 +358,8 @@ Dim u As String
 
     Case 3
         ' /* &/= format */
-        s = g_URLEncode(NotificationInfo.Text)
+'        s = g_URLEncode(NotificationInfo.Text)
+        s = NotificationInfo.Text
         s = Replace$(s, "#?", "&")
         s = Replace$(s, "::", "=")
         s = s & "&app=" & NotificationInfo.Title
@@ -343,12 +367,6 @@ Dim u As String
         ShellExecute 0, "open", Scheme.Target, g_Quote(Scheme.Template & s), vbNullString, SW_SHOW
 
     End Select
-
-End Sub
-
-Private Sub uIPFStyleUpdate(ByRef NotificationInfo As notification_info)
-
-'    g_ForwardNotification NotificationInfo
 
 End Sub
 
@@ -444,6 +462,9 @@ Dim lWidth As Long
 
         .SetHighColour rgba(0, 0, 0, 146)
         .StrokeRoundRect .Bounds, RX, RX
+
+        .SetHighColour rgba(255, 255, 255)
+        .FillRoundRect .Bounds, RX, RX, MFX_DIAG_GRADIENT
 
         ' /* icon */
 
@@ -587,4 +608,31 @@ Dim j As Long
         uReplaceMarkers = uReplaceMarkers & Right$(str, Len(str) - j + 1)
 
 End Function
+
+'Private Function uGetNetworkForwarders() As String
+'Dim ps As ConfigSection
+'Dim sz As String
+'
+'    With mForwarders
+'        .Load
+'        .Rewind
+'
+'        Do While .GetNextSection(ps)
+'            If ps.GetValueWithDefault("type", "") = "forwarder" Then
+'                ' /* name, hosts, protocol */
+'                sz = ps.GetValueWithDefault("name", "")
+'                If sz <> "" Then _
+'                    uGetNetworkForwarders = uGetNetworkForwarders & sz & "|"
+'
+'            End If
+'        Loop
+'
+'        uGetNetworkForwarders = g_SafeLeftStr(uGetNetworkForwarders, Len(uGetNetworkForwarders) - 1)
+'
+'    End With
+'
+'End Function
+
+
+
 
