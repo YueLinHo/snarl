@@ -9,7 +9,7 @@ Function style_Init()
     .description = "Looks a bit like a login window (powered by VBScript)"
     .copyright = "© 2012 full phat products"
     .version = 0
-    .revision = 1
+    .revision = 2
     .icon = style.path & "icon.png"
     .schemes = "Standard"
     .supporturl = "http://getsnarl.info"
@@ -27,6 +27,7 @@ Dim prText
 Dim prMeter
 Dim pr
 Dim cyMeter
+Dim cyText
 Dim i
 
 Const RX = 6
@@ -52,6 +53,7 @@ Const POPUP_WIDTH = 300
     If style.notification.ValueOf("text") <> "" Then
       .SetFont "Arial", 9
       .MeasureString style.notification.ValueOf("text"), new_BRect(xEdge, 0, .Width - 6, 16384), (prText)
+      cyText = prText.Height + 6
 
     End If
 
@@ -59,13 +61,13 @@ Const POPUP_WIDTH = 300
 
     If style.notification.exists("value-percent") Then
       Set prMeter = new_BRect(xEdge + 3, 0, .Width - 6 - 6, 12 - 1)
-      cyMeter = prMeter.Height
+      cyMeter = prMeter.Height + 6
 
     End If
 
     ' /* final size */
 
-    .SizeTo POPUP_WIDTH, MAX(32 + 12 + yTitle, prText.Height + cyMeter + 6 + yTitle + 6)	' // 6 = 2xMargin, 10=Space
+    .SizeTo POPUP_WIDTH, MAX(60, cyText + cyMeter + 6 + yTitle + 6)	' // 6 = 2xMargin, 10=Space
 
     ' /* background */
 
@@ -167,7 +169,7 @@ Const POPUP_WIDTH = 300
 
     If cyMeter > 0 Then
 
-      prMeter.OffsetBy 0, yTitle + 3 + 6 + prText.Height
+      prMeter.OffsetBy 0, yTitle + 3 + 6 + cyText
 
       .SetHighColour rgba(0, 0, 0, 24)
       .FillRect (prMeter)

@@ -13,9 +13,16 @@ Attribute VB_PredeclaredId = False
 Attribute VB_Exposed = False
 Option Explicit
 
-Private Const FONT_NAME = "Arial Rounded MT Bold"
-Private Const FONT_SIZE_TITLE = 26
-Private Const FONT_SIZE_TEXT = 12
+Public Style As TStyle
+
+'Private Const FONT_NAME = "Arial Rounded MT Bold"
+'Private Const FONT_SIZE_TITLE = 26
+'Private Const FONT_SIZE_TEXT = 12
+
+Const TEXT_MARGIN = 4
+Const TEXT_FIX = 2
+Const MARGIN = 16
+Const H_SPLIT = 500
 
 Dim theView As mfxView
 Dim mShowing As Boolean
@@ -99,17 +106,13 @@ Dim ppd As BPackedData
     Set ppd = New BPackedData
     ppd.SetTo NotificationInfo.Text
 
-Dim fAdvanced As Boolean
+'Dim fAdvanced As Boolean
 
-    fAdvanced = (ppd.Exists("value-rating")) Or (ppd.Exists("value-percent")) Or (ppd.Exists("label-artist")) Or (ppd.Exists("label-album"))
+'    fAdvanced =
 
 Dim pIcon As mfxBitmap
 Dim xOffset As Long
 Dim cxIcon As Long
-
-Const TEXT_MARGIN = 4
-Const MARGIN = 16
-Const H_SPLIT = 500
 
     xOffset = MARGIN
     cxIcon = 128 '// IIf(NotificationInfo.Scheme = LCase$(SCHEME_2), 64, 128)
@@ -130,199 +133,44 @@ Const H_SPLIT = 500
 '
 '    End With
 
-Dim pr As BRect
-Dim i As Integer
-
     Set theView = New mfxView
-
     With theView
         .SizeTo GetSystemMetrics(SM_CXSCREEN), cxIcon + 16
         .EnableSmoothing False
         .TextMode = MFX_TEXT_ANTIALIAS
 
-        ' /* background */
+    End With
 
-        Set pr = new_BRect(0, 0, .Bounds.Right, Fix(.Height / 2) - 1)
-
-
-'        .SetHighColour rgba(25, 25, 25, 0)
-'        .SetLowColour rgba(25, 25, 25, 90)
-'        .FillRect pr, MFX_VERT_GRADIENT
-
-        .SetHighColour .LowColour
-        .SetHighColour rgba(0, 0, 0, 230)
-        pr.OffsetBy 0, pr.Height
-        .FillRect pr
-
-'        .SetHighColour rgba(34, 34, 34)
-'        .FillRect new_BRect(0, 0, .Bounds.Right - H_SPLIT, .Bounds.Bottom)
+'        ' /* background */
+'        .SetHighColour .LowColour
+'        If (NotificationInfo.Flags And S_NOTIFICATION_IS_PRIORITY) Then
+'            .SetHighColour rgba(230, 0, 0, 230)
 '
-'        .SetHighColour rgba(34, 34, 34)
-'        .SetLowColour rgba(0, 102, 127)
-'        .FillRect new_BRect(.Bounds.Right - H_SPLIT, 0, .Bounds.Right, .Bounds.Bottom), MFX_HORIZ_GRADIENT
+'        Else
+'            .SetHighColour rgba(0, 0, 0, 230)
 '
-'        .SetHighColour rgba(0, 0, 0, 32)
-'
+'        End If
+'        Set pr = new_BRect(0, 0, .Bounds.Right, Fix(.Height / 2) - 1)
+'        pr.OffsetBy 0, pr.Height
+'        .FillRect pr
+
 '        For i = 0 To .Bounds.Bottom Step 4
 '            .StrokeLine new_BRect(0, i, .Bounds.Right, i)
 '
 '        Next i
-
-'        If (NotificationInfo.Flags And S_NOTIFICATION_IS_PRIORITY) Then
-'            .SetHighColour rgba(255, 0, 0, 0)
-'            .SetLowColour rgba(255, 0, 0)
-'            .FillRect new_BRect(0, Fix(.Bounds.Height / 2), .Bounds.Right, .Bounds.Bottom), MFX_VERT_GRADIENT
-'
-'        End If
-
-        ' /* notification icon */
-
-        .DrawScaledImage pIcon, new_BPoint(MARGIN, 8), new_BPoint(cxIcon, cxIcon), 250
-
 
         ' /* TESTING TESTING TESTING */
 'fAdvanced = True
 '        ppd.SetTo "title::Last Train To Trancentral#?value-rating::4/5#?label-artist::The KLF#?label-album::The White Room#?label-duration::3:47#?label-copyright::© 1991 KLF COMMUNICATIONS"
         ' /* TESTING TESTING TESTING */
 
-Dim pb As mfxBitmap
+    If (ppd.Exists("value-rating")) Or (ppd.Exists("label-artist")) Or (ppd.Exists("label-album")) Then
+        uDrawAdvanced xOffset, ppd
 
-Dim cy As Long
-Dim j As Integer
-Const TEXT_FIX = 2
-Dim sz As String
+    Else
+        uDrawNormal xOffset, ppd, (NotificationInfo.Flags And S_NOTIFICATION_IS_PRIORITY), pIcon, cxIcon
 
-        If fAdvanced Then
-            ' /* work bottom up... */
-
-            i = -1
-
-            If ppd.Exists("value-rating") Then
-                i = uRatingPercent(ppd.ValueOf("value-rating"))
-                Debug.Print "rating % = " & CStr(i)
-
-            ElseIf ppd.Exists("value-percent") Then
-                i = g_SafeLong(ppd.ValueOf("value-percent"))
-                If (i < 0) Or (i > 100) Then _
-                    i = -1
-
-            End If
-
-            ' /* starting point */
-            Set pr = new_BRect(xOffset, .Bounds.Bottom - TEXT_MARGIN - 16 - 1, .Bounds.Right - MARGIN - 1, .Bounds.Bottom - TEXT_MARGIN - 1)
-
-            ' /* rating stars */
-            If i > 0 Then
-                Set pb = load_image_obj(g_MakePath(App.Path) & IIf(g_IsIDE, "bin\", "") & "star.png")
-                i = Fix(i / 20)
-                For j = 0 To (i - 1)
-                    .DrawScaledImage pb, new_BPoint(pr.Left + (17 * j), pr.Top), new_BPoint(16, 16)
-
-                Next j
-                pr.OffsetBy 0, -17
-
-            End If
-
-            .SetFont FONT_NAME, FONT_SIZE_TEXT - 2
-            .SetHighColour rgba(0, 204, 254)
-
-            ' /* copyright */
-            If ppd.ValueOf("label-copyright") <> "" Then
-                Set pr = new_BRect(xOffset, pr.Bottom - 1 - .StringHeight("A"), .Bounds.Right - MARGIN - 1, pr.Bottom - 1)
-                pr.OffsetBy 0, -cy
-                .DrawString ppd.ValueOf("label-copyright"), pr, MFX_ALIGN_TOP
-                cy = pr.Height - TEXT_FIX
-
-            End If
-
-            .SetFont FONT_NAME, FONT_SIZE_TEXT
-
-            ' /* album */
-            If ppd.ValueOf("label-album") <> "" Then
-                Set pr = new_BRect(xOffset, pr.Bottom - 1 - .StringHeight("A"), .Bounds.Right - MARGIN - 1, pr.Bottom - 1)
-                pr.OffsetBy 0, -cy
-                .DrawString ppd.ValueOf("label-album"), pr, MFX_ALIGN_TOP
-                cy = pr.Height - TEXT_FIX
-
-            End If
-
-            .SetFont FONT_NAME, FONT_SIZE_TEXT, True
-
-            ' /* artist */
-            If ppd.ValueOf("label-artist") <> "" Then
-                Set pr = new_BRect(xOffset, pr.Bottom - 1 - .StringHeight("A"), .Bounds.Right - MARGIN - 1, pr.Bottom - 1)
-                pr.OffsetBy 0, -cy
-                .DrawString ppd.ValueOf("label-artist"), pr, MFX_ALIGN_TOP
-                cy = pr.Height - TEXT_FIX
-
-            End If
-
-
-            ' /* title */
-            If ppd.ValueOf("title") <> "" Then _
-                sz = ppd.ValueOf("title")
-
-            If ppd.ValueOf("label-duration") <> "" Then _
-                sz = sz & IIf(sz <> "", " ", "") & "(" & ppd.ValueOf("label-duration") & ")"
-
-            If sz <> "" Then
-                .SetFont FONT_NAME, FONT_SIZE_TITLE, True
-                Set pr = new_BRect(xOffset, pr.Bottom - 1 - .StringHeight("A"), .Bounds.Right - MARGIN - 1, pr.Bottom - 1)
-                pr.OffsetBy 0, -cy
-                .SetHighColour rgba(255, 255, 255)
-                .DrawString sz, pr, MFX_ALIGN_TOP
-
-            End If
-
-
-        Else
-            ' /* work bottom up, so text part first... */
-            If ppd.ValueOf("text") <> "" Then
-                .SetFont FONT_NAME, FONT_SIZE_TEXT, True
-                Set pr = new_BRect(xOffset, .Bounds.Bottom - TEXT_MARGIN - 1 - .StringHeight("A"), .Bounds.Right - MARGIN - 1, .Bounds.Bottom - TEXT_MARGIN - 1)
-                .SetHighColour rgba(0, 204, 254)
-                .SetLowColour rgba(0, 0, 0, 64)
-                .DrawString ppd.ValueOf("text"), pr, MFX_ALIGN_TOP Or MFX_SIMPLE_OUTLINE
-                cy = pr.Height - 4
-
-            End If
-
-            ' /* title */
-            If ppd.ValueOf("title") <> "" Then
-                .SetFont FONT_NAME, FONT_SIZE_TITLE, True
-                Set pr = new_BRect(xOffset, .Bounds.Bottom - TEXT_MARGIN - 1 - .StringHeight("A"), .Bounds.Right - MARGIN - 1, .Bounds.Bottom - TEXT_MARGIN - 1)
-                pr.OffsetBy 0, -cy
-                .SetHighColour rgba(255, 255, 255)
-                .SetLowColour rgba(0, 0, 0, 64)
-                .DrawString ppd.ValueOf("title"), pr, MFX_ALIGN_TOP Or MFX_SIMPLE_OUTLINE
-
-            End If
-        End If
-
-        ' /* highlight */
-
-'Dim i As Long
-
-
-'        .DrawScaledImage pb, new_BPoint(-150, -150), , 70, 52
-
-        ' /* now, convert this into a bitmap and redraw but with a constant alpha */
-
-        Set pb = .ConvertToBitmap()
-        .Clear
-
-        If NotificationInfo.Scheme = LCase$(SCHEME_2) Then
-            ' /* compact */
-            .SizeTo .Width, 96
-            .DrawScaledImage pb, , new_BPoint(.Width, .Height), 250
-
-        Else
-            ' /* normal */
-            .DrawScaledImage pb, , , 250
-
-        End If
-
-    End With
+    End If
 
 End Sub
 
@@ -356,4 +204,196 @@ Dim b As Single
 
 End Function
 
+Private Sub uDrawNormal(ByVal xOffset As Long, ByRef Content As BPackedData, ByVal IsPriority As Boolean, ByRef Icon As MImage, ByVal IconSize As Long)
+Dim pb As MImage
+Dim pr As BRect
+Dim cy As Long
+Dim i As Long
+Dim j As Long
 
+    With theView
+
+        ' /* calc background size */
+
+        cy = 0
+        i = -1
+        If Content.Exists("value-percent") Then
+            i = g_SafeLong(Content.ValueOf("value-percent"))
+            If (i < 0) And (i > 100) Then _
+                i = -1
+
+        End If
+
+        ' /* title */
+        If Content.ValueOf("title") <> "" Then
+            .SetFont Style.ReadSetting("title_font"), Style.ReadSetting("title_size"), (Style.ReadSetting("title_bold") = "1"), (Style.ReadSetting("title_italic") = "1")
+            cy = cy + .StringHeight("A")
+            
+        End If
+
+        ' /* text */
+        If Content.ValueOf("text") <> "" Then
+            .SetFont Style.ReadSetting("text_font"), Style.ReadSetting("text_size"), (Style.ReadSetting("text_bold") = "1"), (Style.ReadSetting("text_italic") = "1")
+            cy = cy + .StringHeight("A")
+
+        End If
+
+        ' /* stars */
+        If i > -1 Then _
+            cy = cy + 16 + 2
+
+
+        ' /* --- draw --- */
+
+
+        ' /* background */
+        If IsPriority Then
+            .SetHighColour rgba(230, 0, 0, 230)
+
+        Else
+            .SetHighColour g_SafeLong(Style.ReadSetting("col-background"))
+
+        End If
+        Set pr = new_BRect(0, .Bounds.Bottom - cy, .Bounds.Right, .Bounds.Bottom)
+        .FillRect pr
+
+        ' /* icon */
+        .DrawScaledImage Icon, new_BPoint(MARGIN, 8), new_BPoint(IconSize, IconSize), 250
+
+        ' /* now work from top down */
+        cy = .Bounds.Bottom - cy
+
+        ' /* title */
+        If Content.ValueOf("title") <> "" Then
+            .SetFont Style.ReadSetting("title_font"), Style.ReadSetting("title_size"), (Style.ReadSetting("title_bold") = "1"), (Style.ReadSetting("title_italic") = "1")
+            Set pr = new_BRect(xOffset, 0, .Bounds.Right - MARGIN, .StringHeight("A") - 1).OffsetByCopy(0, cy)
+            .SetHighColour rgba(255, 255, 255)
+            .SetLowColour rgba(0, 0, 0, 64)
+            .DrawString .GetFormattedText(Content.ValueOf("title"), pr.Width), pr, MFX_ALIGN_V_CENTER Or MFX_SIMPLE_OUTLINE
+            cy = cy + .StringHeight("A")
+
+        End If
+
+        ' /* text */
+        If Content.ValueOf("text") <> "" Then
+            cy = cy - 2
+            .SetFont Style.ReadSetting("text_font"), Style.ReadSetting("text_size"), (Style.ReadSetting("text_bold") = "1"), (Style.ReadSetting("text_italic") = "1")
+            Set pr = new_BRect(xOffset, 0, .Bounds.Right - MARGIN, .StringHeight("A") - 1).OffsetByCopy(0, cy)
+            .SetHighColour rgba(0, 204, 254)
+            .SetLowColour rgba(0, 0, 0, 64)
+            .DrawString .GetFormattedText(Content.ValueOf("text"), pr.Width), pr, MFX_ALIGN_V_CENTER Or MFX_SIMPLE_OUTLINE
+            cy = cy + .StringHeight("A") + 2
+
+        End If
+
+        ' /* rating stars */
+        If i > 0 Then
+            Set pr = new_BRect(0, 0, 16 - 1, 16 - 1).OffsetByCopy(xOffset, cy)
+            Set pb = load_image_obj(g_MakePath(App.Path) & IIf(g_IsIDE, "bin\", "") & "star.png")
+            i = Fix(i / 20)
+            For j = 1 To i
+                .DrawScaledImage pb, pr.TopLeft, pr.Size
+                pr.OffsetBy 16 + 1, 0
+
+            Next j
+
+        End If
+
+        ' /* redraw at constant alpha */
+        Set pb = .ConvertToBitmap()
+        .Clear
+        .DrawScaledImage pb, , , 240
+
+    End With
+
+End Sub
+
+Private Sub uDrawAdvanced(ByVal xOffset As Long, ByRef Content As BPackedData)
+Dim sz As String
+Dim pb As MImage
+Dim pr As BRect
+Dim cy As Long
+Dim i As Long
+Dim j As Long
+
+    With theView
+        i = -1
+        If Content.Exists("value-rating") Then
+            i = uRatingPercent(Content.ValueOf("value-rating"))
+            Debug.Print "rating % = " & CStr(i)
+
+        ElseIf Content.Exists("value-percent") Then
+            i = g_SafeLong(Content.ValueOf("value-percent"))
+            If (i < 0) Or (i > 100) Then _
+                i = -1
+
+        End If
+
+        ' /* starting point */
+        Set pr = new_BRect(xOffset, .Bounds.Bottom - TEXT_MARGIN - 16 - 1, .Bounds.Right - MARGIN - 1, .Bounds.Bottom - TEXT_MARGIN - 1)
+
+        ' /* rating stars */
+        If i > 0 Then
+            Set pb = load_image_obj(g_MakePath(App.Path) & IIf(g_IsIDE, "bin\", "") & "star.png")
+            i = Fix(i / 20)
+            For j = 0 To (i - 1)
+                .DrawScaledImage pb, new_BPoint(pr.Left + (17 * j), pr.Top), new_BPoint(16, 16)
+
+            Next j
+            pr.OffsetBy 0, -17
+
+        End If
+
+        .SetFont Style.ReadSetting("text_font"), Style.ReadSetting("text_size")
+        .SetHighColour rgba(0, 204, 254)
+
+        ' /* copyright */
+        If Content.ValueOf("label-copyright") <> "" Then
+            Set pr = new_BRect(xOffset, pr.Bottom - 1 - .StringHeight("A"), .Bounds.Right - MARGIN - 1, pr.Bottom - 1)
+            pr.OffsetBy 0, -cy
+            .DrawString Content.ValueOf("label-copyright"), pr, MFX_ALIGN_TOP
+            cy = pr.Height - TEXT_FIX
+
+        End If
+
+        .SetFont Style.ReadSetting("text_font"), Style.ReadSetting("text_size")
+
+        ' /* album */
+        If Content.ValueOf("label-album") <> "" Then
+            Set pr = new_BRect(xOffset, pr.Bottom - 1 - .StringHeight("A"), .Bounds.Right - MARGIN - 1, pr.Bottom - 1)
+            pr.OffsetBy 0, -cy
+            .DrawString Content.ValueOf("label-album"), pr, MFX_ALIGN_TOP
+            cy = pr.Height - TEXT_FIX
+
+        End If
+
+        .SetFont Style.ReadSetting("text_font"), Style.ReadSetting("text_size"), (Style.ReadSetting("text_bold") = "1")
+
+        ' /* artist */
+        If Content.ValueOf("label-artist") <> "" Then
+            Set pr = new_BRect(xOffset, pr.Bottom - 1 - .StringHeight("A"), .Bounds.Right - MARGIN - 1, pr.Bottom - 1)
+            pr.OffsetBy 0, -cy
+            .DrawString Content.ValueOf("label-artist"), pr, MFX_ALIGN_TOP
+            cy = pr.Height - TEXT_FIX
+
+        End If
+
+        ' /* title */
+        If Content.ValueOf("title") <> "" Then _
+            sz = Content.ValueOf("title")
+
+        If Content.ValueOf("label-duration") <> "" Then _
+            sz = sz & IIf(sz <> "", " ", "") & "(" & Content.ValueOf("label-duration") & ")"
+
+        If sz <> "" Then
+            .SetFont Style.ReadSetting("title_font"), Style.ReadSetting("title_size"), (Style.ReadSetting("title_bold") = "1"), (Style.ReadSetting("title_italic") = "1")
+            Set pr = new_BRect(xOffset, pr.Bottom - 1 - .StringHeight("A"), .Bounds.Right - MARGIN - 1, pr.Bottom - 1)
+            pr.OffsetBy 0, -cy
+            .SetHighColour rgba(255, 255, 255)
+            .DrawString sz, pr, MFX_ALIGN_TOP
+
+        End If
+
+    End With
+
+End Sub

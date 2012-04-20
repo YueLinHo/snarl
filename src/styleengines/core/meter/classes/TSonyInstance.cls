@@ -17,20 +17,16 @@ Const EM_TITLE_TEXT = 0
 Const EM_MARGIN = 10
 
 Dim mStyle As TStyle
-
 Dim mInfo As notification_info
+Dim mIconOnly As Boolean
 Dim mIconSize As Long
 Dim mIcon As mfxBitmap
 Dim mView As mfxView
 
-Dim mIsNumeric As Boolean
-Dim mIconOnly As Boolean
-
-Const SHADOW_SIZE = 10
-
 Dim mTitleRect As BRect
 Dim mTextRect As BRect
-Dim mSettings As T_METER_STYLE_SETTINGS
+Dim mValue As Long
+Dim mTint As Long
 
 Implements IStyleInstance
 Implements IMeterStyle
@@ -52,7 +48,7 @@ Private Sub IMeterStyle_SetStyle(Style As TStyle)
 
 End Sub
 
-Private Sub IStyleInstance_AdjustPosition(X As Long, Y As Long, Alpha As Integer, Done As Boolean)
+Private Sub IStyleInstance_AdjustPosition(X As Long, y As Long, Alpha As Integer, Done As Boolean)
 End Sub
 
 Private Function IStyleInstance_GetContent() As melon.MImage
@@ -93,32 +89,50 @@ End Sub
 Private Sub IStyleInstance_UpdateContent(NotificationInfo As libSnarlStyles.notification_info)
 
     LSet mInfo = NotificationInfo
-    LSet mSettings = gSettings.Sony
+'    LSet mSettings = gSettings.Sony
 
-    ' /* clear cached icon */
+    With New BPackedData
+        .SetTo NotificationInfo.Text
+        mInfo.Title = .ValueOf("title")
+        mInfo.Text = .ValueOf("text")
 
-    Set mIcon = Nothing
-    mIconSize = 0
+        mValue = -1
+        If .Exists("value-percent") Then
+            mValue = g_SafeLong(.ValueOf("value-percent"))
+            If (mValue < 0) Or (mValue > 100) Then _
+                mValue = -1
+
+        End If
+
+        mTint = 0
+        If .Exists("colour-tint") Then _
+            mTint = g_SafeLong(.ValueOf("colour-tint"))
+
+    End With
 
 Dim pi As MImage
 
     ' /* cache icon */
-
+    mIconSize = 0
+    Set mIcon = Nothing
     Set pi = load_image_obj(NotificationInfo.Icon)
     If is_valid_image(pi) Then
         Set mIcon = style_MakeSquareImage(pi)
-        mIconSize = MIN(mIcon.Height, IIf(InStr(mInfo.Scheme, "big icon"), 128, 48))
+        mIconSize = Min(mIcon.Height, IIf(InStr(mInfo.Scheme, "big icon"), 128, 48))
 
     End If
 
     ' /* pre-configuration */
+    mIconOnly = ((mInfo.Title = "") And (mInfo.Text = ""))
+    If mIconOnly Then
+        ' /* icon-only notifications are a fixed width and height */
+        mView.SizeTo 250, 80
 
-    mIconOnly = ((mInfo.Title = "") And (mInfo.Text = "")) 'Or (InStr(mInfo.Scheme, "icon only") > 0))
-    mIsNumeric = (g_IsPercent(mInfo.Text) And (Val(mStyle.ReadSetting("show_graphically"))))
+    Else
+        ' /* calculate notifcation size and internal measurements */
+        uCalcSize
 
-    ' /* calculate notifcation size and internal measurements */
-
-    uCalcSize
+    End If
 
     uDraw
 
@@ -134,22 +148,17 @@ Dim m As Long
         .EnableSmoothing False
 
         ' /* background */
+        If (mInfo.Flags And S_NOTIFICATION_IS_PRIORITY) Then
+            .SetHighColour rgba(255, 0, 0, 232)
 
-        .SetHighColour IIf(InStr(mInfo.Scheme, "psp"), g_GetPSPColour(), g_GetPS3Colour())
+        Else
+            .SetHighColour IIf(InStr(mInfo.Scheme, "psp"), g_GetPSPColour(), g_GetPS3Colour())
+
+        End If
         .FillRect .Bounds
 
-'        .SetHighColour rgba(0, 0, 0, 102)
-'        .SetLowColour rgba(0, 0, 0, 0)
-'        .FillRect .Bounds, MFX_VERT_GRADIENT
-'        .SetHighColour rgba(0, 0, 0, 127)
-'        .SetLowColour rgba(255, 255, 255, 127)
-'        .StrokeFancyRect .Bounds
-
-
         ' /* for the PS3 darken background based on time of day */
-
         If InStr(mInfo.Scheme, "ps3") Then
-
             If gDbgMinute = -1 Then
                 ' /* get time of day in minutes */
                 m = (Hour(Now) * 60) + Minute(Now)
@@ -182,111 +191,34 @@ Dim m As Long
 
             .FillRect .Bounds, MFX_VERT_GRADIENT
 
-            .EnableSmoothing True
-            .SetHighColour rgba(255, 255, 255, 63)
-            .FillEllipse new_BRect(-300, -30, .Bounds.Right + 90 - 1, .Bounds.Top + 47)
-            .SetHighColour rgba(255, 255, 255, 102)
-            .StrokeEllipse new_BRect(-300, -30, .Bounds.Right + 90 - 1, .Bounds.Top + 47)
-            .EnableSmoothing False
-
         End If
 
-        ' /* priority notifications get a red gradient starting at the bottom edge and fading up */
+        ' /* light effect */
+'        .SetHighColour rgba(255, 255, 255, 100)
+'        .SetLowColour rgba(0, 0, 0, 0)
+'        .StrokeFancyRoundRect .Bounds.InsetByCopy(2, 2), 4, 4
 
-        If (mInfo.Flags And S_NOTIFICATION_IS_PRIORITY) Then
-            .SetHighColour rgba(255, 0, 0, 190)
-            .SetLowColour rgba(255, 0, 0, 0)
-            .SetHighlightPosition .Bounds.Right, .Bounds.Bottom
-            .SetHighlightFocusScale 0.1, 0.1
-            .FillRect .Bounds, MFX_CENTER_GRADIENT
-
-        End If
-
-        .SetHighColour rgba(0, 0, 0)
-        .StrokeRect .Bounds
-
-    End With
-
-    ' /* draw the foreground */
-
-    uDrawForeground
-
-End Sub
-
-Private Sub uCalcSize()
-
-    If (mView Is Nothing) Then
-        g_Debug "TSonyInstance.uCalcSize(): view not created", LEMON_LEVEL_CRITICAL
-        Exit Sub
-
-    End If
-
-Dim cyNotification As Long
-
-    cyNotification = 80
-    Set mTitleRect = new_BRect(0, 0, 0, 0)
-    Set mTextRect = new_BRect(0, 0, 0, 0)
-
-    ' /* icon-only notifications are a fixed width and height */
-
-    If mIconOnly Then
-        mView.SizeTo 250, cyNotification
-        Exit Sub
-
-    End If
-
-Dim prTemp As BRect
 Dim pr As BRect
+Dim c As Long
 
-    ' /* measure title and text to see how big the notification needs to be */
+        ' /* bokeh effect */
+        .EnableSmoothing True
+        For m = 1 To 32
+            Randomize Timer
+            c = (Rnd * 72)
+            Set pr = new_BRect(0, 0, c - 1, c - 1).OffsetByCopy(Rnd * (.Width * 2) - (.Width / 2), Rnd * (.Height * 2) - (.Height / 2))
+            .SetHighColour rgba(255, 255, 255, (Rnd * 40) + 10)
+            .StrokeEllipse pr
+            .SetLowColour .HighColour
+            .SetHighColour g_SetRGB32Alpha(.HighColour, 2)
+            .FillEllipse pr, MFX_CENTER_GRADIENT
 
-    With mView
+        Next m
 
-        ' /* create the base bounding rect - this is used to get the title and text height
-        '    based on a fixed width */
-
-        Set pr = new_BRect(0, 0, 250, cyNotification)
-        pr.InsetBy EM_MARGIN, EM_MARGIN
-
-        ' /* if we have an icon then shrink accordingly */
-        If (mIconSize > 0) And (mIconSize < 128) Then _
-            pr.Right = pr.Right - (mIconSize + EM_MARGIN)
-
-        ' /* measure title */
-        If mInfo.Title <> "" Then
-            .SetFont mStyle.ReadSetting("title_font"), mStyle.ReadSetting("title_size"), True
-            Set prTemp = pr.Duplicate
-            prTemp.Bottom = 16384
-            .MeasureString mInfo.Title, prTemp, prTemp
-            Set mTitleRect = new_BRect(0, 0, prTemp.Width + 2, prTemp.Height + 2)
-
-        End If
-
-        ' /* measure text */
-        If (mInfo.Text <> "") And (Not mIsNumeric) Then
-            .SetFont mStyle.ReadSetting("text_font"), mStyle.ReadSetting("text_size"), True
-            Set prTemp = pr.Duplicate
-            prTemp.Bottom = 16384
-            .MeasureString mInfo.Text, prTemp, prTemp
-            Set mTextRect = new_BRect(0, 0, prTemp.Width + 2, prTemp.Height + 2)
-
-        End If
-
-        ' /* size the view */
-
-        .SizeTo 250, MAX(mTitleRect.Height + mTextRect.Height + (2 * EM_MARGIN), cyNotification)
-
-    End With
-
-End Sub
-
-Private Sub uDrawForeground()
 Dim pt As BPoint
 
-    ' /* icon */
-
-    If mIconSize > 0 Then
-        With mView
+        ' /* icon */
+        If mIconSize > 0 Then
             If mIconOnly Then
                 ' /* centre of the notification */
                 Set pt = new_BPoint(Fix((.Width - mIconSize) / 2), Fix((.Height - mIconSize) / 2))
@@ -299,33 +231,102 @@ Dim pt As BPoint
 
             End If
 
-            ' /* draw the icon */
-            .DrawScaledImage mIcon, pt, new_BPoint(mIconSize, mIconSize), 128
+            .DrawScaledImage mIcon, pt, new_BPoint(mIconSize, mIconSize), IIf(InStr(mInfo.Scheme, "big icon"), 170, 240)
 
-        End With
+        End If
+
+        If InStr(mInfo.Scheme, "ps3") Then
+            ' /* PS3 schemes get reflection effect */
+            .EnableSmoothing True
+            .SetHighColour rgba(255, 255, 255, 63)
+            .FillEllipse new_BRect(-300, -30, .Bounds.Right + 90 - 1, .Bounds.Top + 47)
+            .SetHighColour rgba(255, 255, 255, 102)
+            .StrokeEllipse new_BRect(-300, -30, .Bounds.Right + 90 - 1, .Bounds.Top + 47)
+            .EnableSmoothing False
+
+        End If
+
+        ' /* edge */
+        .EnableSmoothing False
+        .SetHighColour rgba(0, 0, 0, 220)
+        .StrokeRect .Bounds
+
+    End With
+
+    ' /* draw the foreground */
+
+    If Not mIconOnly Then _
+        uDrawForeground
+
+End Sub
+
+Private Sub uCalcSize()
+
+    If (mView Is Nothing) Then
+        g_Debug "TSonyInstance.uCalcSize(): view not created", LEMON_LEVEL_CRITICAL
+        Exit Sub
 
     End If
 
-    If mIconOnly Then _
-        Exit Sub
+Dim prTemp As BRect
+Dim pr As BRect
+Dim cy As Long
 
-'    mView.SetHighColour mSettings.TextColour
+    cy = 2 * EM_MARGIN
 
+    ' /* measure title and text to see how big the notification needs to be */
+
+    With mView
+        .SizeTo 250, 900
+        ' /* create the base bounding rect - this is used to get the title and text height
+        '    based on a fixed width */
+        Set pr = new_BRect(0, 0, .Bounds.Right, .Bounds.Bottom)
+        pr.InsetBy EM_MARGIN, EM_MARGIN
+        ' /* if we have an icon then shrink accordingly */
+        If (mIconSize > 0) And (mIconSize < 128) Then _
+            pr.Right = pr.Right - (mIconSize + EM_MARGIN)
+
+        ' /* measure title */
+        If mInfo.Title <> "" Then
+            .SetFont mStyle.ReadSetting("title_font"), mStyle.ReadSetting("title_size"), True
+            .MeasureString mInfo.Title, pr.Duplicate, prTemp
+            Set mTitleRect = new_BRect(0, 0, prTemp.Width + 2, prTemp.Height + 2)
+            cy = cy + mTitleRect.Height
+
+        End If
+
+        ' /* measure text */
+        If mInfo.Text <> "" Then
+            .SetFont mStyle.ReadSetting("text_font"), mStyle.ReadSetting("text_size"), True
+            .MeasureString mInfo.Text, pr.Duplicate, prTemp
+            Set mTextRect = new_BRect(0, 0, prTemp.Width + 2, prTemp.Height + 2)
+            cy = cy + mTextRect.Height
+
+        End If
+
+        ' /* meter */
+        If mValue > -1 Then _
+            cy = cy + 10
+
+        ' /* size the view */
+        .SizeTo 250, Max(cy, 80)
+
+    End With
+
+End Sub
+
+Private Sub uDrawForeground()
 Dim xOffset As Long
+Dim pr As BRect
 
     If mIconSize > 0 Then _
         xOffset = IIf(mIconSize = 128, 0, 48) + EM_MARGIN
 
-Dim pr As BRect
-
-    ' /* title */
-
     With mView
-
-        If mTitleRect.Bottom > 0 Then
+        ' /* title */
+        If NOTNULL(mTitleRect) Then
             Set pr = mTitleRect.Duplicate
-
-            If (mTextRect.Height = 1) And (Not mIsNumeric) Then
+            If ISNULL(mTextRect) Then
                 ' /* no text so centre vertically */
                 pr.OffsetBy EM_MARGIN + xOffset, Fix((.Height - mTitleRect.Height) / 2)
 
@@ -341,17 +342,12 @@ Dim pr As BRect
             .SetLowColour rgba(96, 96, 96, 127)
             .DrawString mInfo.Title, pr, MFX_SIMPLE_OUTLINE                 '// actual text
 
-
         End If
 
         ' /* text */
-
-        If mIsNumeric Then
-
-
-        ElseIf mTextRect.Bottom > 1 Then
+        If NOTNULL(mTextRect) Then
             Set pr = mTextRect.Duplicate
-            If mTitleRect.Height = 1 Then
+            If ISNULL(mTitleRect) Then
                 ' /* no title so centre vertically */
                 pr.OffsetBy EM_MARGIN + xOffset, Fix((.Height - mTextRect.Height) / 2)
 
@@ -367,86 +363,20 @@ Dim pr As BRect
             .SetLowColour rgba(96, 96, 96, 127)
             .DrawString mInfo.Text, pr, MFX_SIMPLE_OUTLINE                  '// actual text
 
+        End If
 
-'Dim pr2 As BRect
-'Dim dw As Single
-'Const RX = 5
-'
-'        With mView
-''            .EnableSmoothing False
-'
-'            Set pr = new_BRect(0, 0, .Width, 7)
-'            pr.InsetBy EM_MARGIN, 0
-'            pr.OffsetBy 0, Fix((.Height - pr.Height) / 2)
-'            If mIconSize > 0 Then _
-'                pr.Left = pr.Left + xOffset
-'
-'            ' /* draw bar border */
-'
-'            .SetHighColour rgba(0, 0, 0)
-'            .FillRoundRect pr.InsetByCopy(-1, -1), RX, RX, MFX_VERT_GRADIENT
-'
-''            .SetHighColour rgba(255, 255, 255, 90)
-''            .SetLowColour rgba(255, 255, 255, 120)
-'
-'            .SetHighColour rgba(90, 90, 90)
-'            .SetLowColour rgba(120, 120, 120)
-'            .FillRoundRect pr, RX, RX, MFX_VERT_GRADIENT
-'
-'            ' /* take a copy of this - we'll need it if we draw the % value below the bar */
-'            Set pr2 = pr.Duplicate
-'
-'            ' /* draw bar inner */
-'            .SetHighColour rgba(96, 96, 96)
-''            .FillRoundRect pr.insetbycopy(2, 2), rx, rx
-'
-'            ' /* if text is non-numeric (during a Scheme Preview
-'            '    notification for example), treat as 50% */
-'            If Not g_ispercent(mInfo.Text) Then
-'                dw = 50
-'
-'            Else
-'                dw = g_safelong(minfo.text)
-'
-'            End If
-'
-'            ' /* constrain value */
-'            If dw > 100 Then
-'                dw = 100
-'
-'            ElseIf dw < 0 Then
-'                dw = 0
-'
-'            End If
-'
-'            If dw > 0 Then
-'                ' /* figure out how big the meter should be and draw it */
-'                pr.Right = pr.Left + Fix(pr.Width * (dw / 100))
-'                .SetHighColour rgba(179, 197, 80)
-'                .FillRoundRect pr, RX, RX
-'
-'                ' /* draw glass effect over meter */
-'                .SetHighColour rgba(255, 255, 255, 180)
-'                pr.Bottom = pr.Top + 2
-'                .FillRect pr.InsetByCopy(2, 0)
-'
-'            End If
-'
-'            ' /* draw the actual value (not the passed text) below */
-'
-''            If mSettings.ShowMeterPercent Then
-''                pr2.OffsetBy 0, pr2.Height + 2
-''                pr2.Bottom = pr2.Bottom + 20
-''
-''                .SetFont mSettings.zzTextFont, mSettings.zzTextFontSize, True
-''
-''                .SetHighColour rgba(0, 0, 0, 102)
-''                .DrawString CStr(dw) & "%", pr2.OffsetToCopy(2, 2), MFX_ALIGN_H_CENTER
-''
-''                .SetHighColour rgba(255, 255, 255)
-''                .DrawString CStr(dw) & "%", pr2, MFX_ALIGN_H_CENTER
-''
-''            End If
+        ' /* meter */
+        If mValue > -1 Then
+            Set pr = .Bounds.InsetByCopy(EM_MARGIN, EM_MARGIN)
+            pr.Top = pr.Bottom - 9
+            pr.Left = pr.Left + xOffset
+            .EnableSmoothing True
+            .SetHighColour rgba(0, 0, 0, 160)
+            .FillRoundRect pr, 6, 6
+            pr.InsetBy 1, 1
+            pr.Right = pr.Left + (pr.Width * (mValue / 100))
+            .SetHighColour rgba(255, 255, 255, 200)
+            .FillRoundRect pr, 4, 4
 
         End If
     End With

@@ -15,7 +15,7 @@ Option Explicit
 
 Private Declare Function ShellExecute Lib "SHELL32.DLL" Alias "ShellExecuteA" (ByVal hWnd As Long, ByVal lpOperation As String, ByVal lpFile As String, ByVal lpParameters As String, ByVal lpDirectory As String, ByVal nShowCmd As Long) As Long
 
-Private Const LIB_DATE = "6-Jan-2012"
+Private Const LIB_DATE = "24-Feb-2012"
 
 Dim mLastErr As String
 Dim mPanel As BPrefsPanel
@@ -63,92 +63,101 @@ Private Function IStyleEngine_Description() As String
 End Function
 
 Private Function IStyleEngine_GetConfigWindow(ByVal StyleName As String) As Long
-Dim pp As BPrefsPage
-Dim pm As CTempMsg
+Dim ps As TScriptStyle
 
-    If (mPanel Is Nothing) Then
+    Set ps = mStyles.TagAt(mStyles.IndexOf(StyleName, False))
+    If NOTNULL(ps) Then
+        If MsgBox("This is a scripted style.  Would you like to open the script so you can edit it?", vbQuestion Or vbYesNo, "Scripted Styles") = vbYes Then _
+            ShellExecute 0, "open", "notepad.exe", ps.ScriptPath, vbNullString, 5
 
-'        mPanelStyle = StyleName
-
-        Set mPanel = New BPrefsPanel
-        With mPanel
-            .SetHandler Me
-            .SetTitle "Prowl Preferences"
-            .SetWidth 300
-            .SetWindow 1
-            
-            Set pp = new_BPrefsPage("General", load_image_obj(g_MakePath(App.Path) & "general.png"), Me)
-            With pp
-                .SetMargin 88
-
-'            .Add new_BPrefsControl("banner", "", "User Key")
-'                .Add new_BPrefsControl("fancyedit", "UserKey", gConfig.UserKey, "User key:")
-'                .Add new_BPrefsControl("label", "", "This is the user key you generated at http://prowl.weks.net/")
-'
-''            .Add new_BPrefsControl("banner", "", "Options")
-'                .Add new_BPrefsControl("fancytoggle2", "OnlyShowPriorityNotifications", "Only show priority notifications?", "Options:", IIf(gConfig.OnlyShowPriorityNotifications, "1", "0"))
-'                .Add new_BPrefsControl("fancytoggle2", "ReplaceCRLFs", "Replace CR/LFs with spaces?", "", IIf(gConfig.ReplaceCRLFs, "1", "0"))
-'                .Add new_BPrefsControl("fancytoggle2", "RedactSensitive", "Redact text in sensitive notifications?", "", IIf(gConfig.RedactSensitive, "1", "0"))
-'
-'                .Add new_BPrefsControl("fancyedit", "AppText", gConfig.AppText, "Application:")
-'                .Add new_BPrefsControl("label", "", "Prowl supports an entry which indicates the sending application.  You can use the special values %APP% and %COMPUTER% to indicate the sending application and the name of this computer respectively")
-'
-'                .Add new_BPrefsControl("separator", "")
-'                .Add new_BPrefsControl("fancybutton2", "test", "Test Settings")
-            
-            End With
-            .AddPage pp
-
-            Set pp = new_BPrefsPage("Network", load_image_obj(g_MakePath(App.Path) & "network.png"), Me)
-            With pp
-                .SetMargin 88
-    
-                Set pm = New CTempMsg
-                pm.Add "min", 1&
-                pm.Add "max", 9&
-                pm.Add "freq", 1&
-                pm.Add "label_size", 64&
-                .Add new_BPrefsControl("fancyslider", "Timeout", "", "Timeout:", CStr(-1), pm)
-                .Add new_BPrefsControl("label", "", "This is the maximum time to wait while sending the notification to the Prowl servers.  You should try to keep this setting as low as possible.")
-'
-'                .Add new_BPrefsControl("fancytoggle2", "UseProxyServer", "Use a proxy server?", "Proxy:", IIf(gConfig.UseProxyServer, "1", "0"))
-'                .Add new_BPrefsControl("fancyedit", "ProxyServer", gConfig.ProxyServer, "Name:")
-'                .Add new_BPrefsControl("fancyedit", "ProxyServerPort", CStr(gConfig.ProxyServerPort), "Port:")
-'                .Add new_BPrefsControl("label", "", "Leave the following blank if proxy autentication is not required:")
-'                .Add new_BPrefsControl("fancyedit", "ProxyUsername", gConfig.ProxyUsername, "Username:")
-    
-'                Set pm = New CTempMsg
-'                pm.Add "password", -1
-'                .Add new_BPrefsControl("fancyedit", "ProxyPassword", gConfig.ProxyPassword, "Password:", , pm)
-            
-            End With
-            .AddPage pp
-
-            Set pp = new_BPrefsPage("About", load_image_obj(g_MakePath(App.Path) & "icon.png"), Me)
-            With pp
-                .SetMargin 32
-                .Add new_BPrefsControl("banner", "", "About Prowl")
-                .Add new_BPrefsControl("label", "", "Prowl is an iPod Touch/iPhone push message service created by Zachary West.  To get Prowl to work, you must:")
-                .Add new_BPrefsControl("label", "", "o Own an iPod Touch or iPhone")
-                .Add new_BPrefsControl("label", "", "o Purchase and install the iPhone Prowl client from the App Store")
-                .Add new_BPrefsControl("label", "", "o Create a (free) account at prowl.weks.net")
-                .Add new_BPrefsControl("label", "", "o Generate your unique user key at the same site")
-                .Add new_BPrefsControl("label", "", "o Enter this user key in the text box above")
-    
-                .Add new_BPrefsControl("separator", "")
-                .Add new_BPrefsControl("label", "", "More detailed instructions are available at http://prowl.weks.net")
-                .Add new_BPrefsControl("fancybutton2", "go_prowl_site", "Visit prowl.weks.net")
-            
-            End With
-            .AddPage pp
-            
-            .Go
-'            g_SetWindowIconToAppResourceIcon mPanel.hWnd
-
-        End With
     End If
 
-    IStyleEngine_GetConfigWindow = mPanel.hWnd
+'Dim pp As BPrefsPage
+'Dim pm As CTempMsg
+'
+'    If (mPanel Is Nothing) Then
+'
+''        mPanelStyle = StyleName
+'
+'        Set mPanel = New BPrefsPanel
+'        With mPanel
+'            .SetHandler Me
+'            .SetTitle "Prowl Preferences"
+'            .SetWidth 300
+'            .SetWindow 1
+'
+'            Set pp = new_BPrefsPage("General", load_image_obj(g_MakePath(App.Path) & "general.png"), Me)
+'            With pp
+'                .SetMargin 88
+'
+''            .Add new_BPrefsControl("banner", "", "User Key")
+''                .Add new_BPrefsControl("fancyedit", "UserKey", gConfig.UserKey, "User key:")
+''                .Add new_BPrefsControl("label", "", "This is the user key you generated at http://prowl.weks.net/")
+''
+'''            .Add new_BPrefsControl("banner", "", "Options")
+''                .Add new_BPrefsControl("fancytoggle2", "OnlyShowPriorityNotifications", "Only show priority notifications?", "Options:", IIf(gConfig.OnlyShowPriorityNotifications, "1", "0"))
+''                .Add new_BPrefsControl("fancytoggle2", "ReplaceCRLFs", "Replace CR/LFs with spaces?", "", IIf(gConfig.ReplaceCRLFs, "1", "0"))
+''                .Add new_BPrefsControl("fancytoggle2", "RedactSensitive", "Redact text in sensitive notifications?", "", IIf(gConfig.RedactSensitive, "1", "0"))
+''
+''                .Add new_BPrefsControl("fancyedit", "AppText", gConfig.AppText, "Application:")
+''                .Add new_BPrefsControl("label", "", "Prowl supports an entry which indicates the sending application.  You can use the special values %APP% and %COMPUTER% to indicate the sending application and the name of this computer respectively")
+''
+''                .Add new_BPrefsControl("separator", "")
+''                .Add new_BPrefsControl("fancybutton2", "test", "Test Settings")
+'
+'            End With
+'            .AddPage pp
+'
+'            Set pp = new_BPrefsPage("Network", load_image_obj(g_MakePath(App.Path) & "network.png"), Me)
+'            With pp
+'                .SetMargin 88
+'
+'                Set pm = New CTempMsg
+'                pm.Add "min", 1&
+'                pm.Add "max", 9&
+'                pm.Add "freq", 1&
+'                pm.Add "label_size", 64&
+'                .Add new_BPrefsControl("fancyslider", "Timeout", "", "Timeout:", CStr(-1), pm)
+'                .Add new_BPrefsControl("label", "", "This is the maximum time to wait while sending the notification to the Prowl servers.  You should try to keep this setting as low as possible.")
+''
+''                .Add new_BPrefsControl("fancytoggle2", "UseProxyServer", "Use a proxy server?", "Proxy:", IIf(gConfig.UseProxyServer, "1", "0"))
+''                .Add new_BPrefsControl("fancyedit", "ProxyServer", gConfig.ProxyServer, "Name:")
+''                .Add new_BPrefsControl("fancyedit", "ProxyServerPort", CStr(gConfig.ProxyServerPort), "Port:")
+''                .Add new_BPrefsControl("label", "", "Leave the following blank if proxy autentication is not required:")
+''                .Add new_BPrefsControl("fancyedit", "ProxyUsername", gConfig.ProxyUsername, "Username:")
+'
+''                Set pm = New CTempMsg
+''                pm.Add "password", -1
+''                .Add new_BPrefsControl("fancyedit", "ProxyPassword", gConfig.ProxyPassword, "Password:", , pm)
+'
+'            End With
+'            .AddPage pp
+'
+'            Set pp = new_BPrefsPage("About", load_image_obj(g_MakePath(App.Path) & "icon.png"), Me)
+'            With pp
+'                .SetMargin 32
+'                .Add new_BPrefsControl("banner", "", "About Prowl")
+'                .Add new_BPrefsControl("label", "", "Prowl is an iPod Touch/iPhone push message service created by Zachary West.  To get Prowl to work, you must:")
+'                .Add new_BPrefsControl("label", "", "o Own an iPod Touch or iPhone")
+'                .Add new_BPrefsControl("label", "", "o Purchase and install the iPhone Prowl client from the App Store")
+'                .Add new_BPrefsControl("label", "", "o Create a (free) account at prowl.weks.net")
+'                .Add new_BPrefsControl("label", "", "o Generate your unique user key at the same site")
+'                .Add new_BPrefsControl("label", "", "o Enter this user key in the text box above")
+'
+'                .Add new_BPrefsControl("separator", "")
+'                .Add new_BPrefsControl("label", "", "More detailed instructions are available at http://prowl.weks.net")
+'                .Add new_BPrefsControl("fancybutton2", "go_prowl_site", "Visit prowl.weks.net")
+'
+'            End With
+'            .AddPage pp
+'
+'            .Go
+''            g_SetWindowIconToAppResourceIcon mPanel.hWnd
+'
+'        End With
+'    End If
+'
+'    IStyleEngine_GetConfigWindow = mPanel.hWnd
 
 End Function
 

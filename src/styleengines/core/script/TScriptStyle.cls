@@ -17,6 +17,7 @@ Dim mHelpers As THelpers
 Dim mObj As ScriptStyle
 Dim mInfo As style_info
 Dim mView As mfxView
+Dim mScriptFile As String
 
 Dim WithEvents theScript As ScriptControl
 Attribute theScript.VB_VarHelpID = -1
@@ -41,6 +42,7 @@ Dim i As Integer
 
     Set theScript = New ScriptControl
     theScript.Language = "VBScript"
+    mScriptFile = g_MakePath(Path) & "script.vbs"
 
     g_Debug "loading " & g_MakePath(Path) & "script.vbs..."
     i = FreeFile()
@@ -70,7 +72,7 @@ Dim i As Integer
     mObj.bSetPath Path, "" '//style_GetSnarlConfigPath()
     theScript.AddObject "style", mObj, False
 
-    mInfo.Flags = 0
+    mInfo.Flags = S_STYLE_IS_CONFIGURABLE
 
 Dim ph As THelpers
 Dim szErr As String
@@ -329,4 +331,19 @@ Public Function Name() As String
 
 End Function
 
+Public Function ScriptPath() As String
 
+    ScriptPath = mScriptFile
+
+End Function
+
+Private Sub theScript_Error()
+
+    With theScript.Error
+        MsgBox "Error loading script " & g_Quote(mScriptFile) & vbCrLf & vbCrLf & _
+               .Description & " at line " & .Line & ", column " & .Column & " (" & g_Quote(.Text) & ")" & vbCrLf & vbCrLf & "Error type: " & .Source, _
+               vbExclamation Or vbOKOnly, "Scripted Style Error"
+
+    End With
+
+End Sub

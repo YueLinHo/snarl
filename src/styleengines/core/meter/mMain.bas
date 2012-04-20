@@ -315,3 +315,31 @@ End Function
 
 
 
+Public Function g_CreateMarker(ByVal Colour As Long, Optional ByVal Height As Long = 24) As MImage
+Dim pp(3) As BPoint
+
+    With New mfxView
+        .SizeTo 20, Height + 2
+        .EnableSmoothing True
+        .SetHighColour Colour
+
+        Set pp(0) = new_BPoint(0, 0)
+        Set pp(1) = new_BPoint(0, Height - 1)
+        Set pp(2) = new_BPoint(0 + 9, Height - 5 - 1)
+        Set pp(3) = new_BPoint(0 + 9, 0)
+        .FillShape pp(), True
+
+        Set pp(0) = new_BPoint(0 + 9, 0)
+        Set pp(1) = new_BPoint(0 + 9, Height - 5 - 1)
+        Set pp(2) = new_BPoint(0 + 9 + 9, Height - 1)
+        Set pp(3) = new_BPoint(0 + 9 + 9, 0)
+        .FillShape pp(), True
+
+        .EnableSmoothing False
+        .StrokeLine new_BRect(0 + 9, 0, 0 + 9, Height - 5 - 1)
+
+        Set g_CreateMarker = .ConvertToBitmap()
+
+    End With
+
+End Function

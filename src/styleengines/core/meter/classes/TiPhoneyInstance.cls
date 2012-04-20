@@ -50,6 +50,7 @@ Dim mRed As Integer
 
 Dim mIconOnly As Boolean
 Dim mIsNumeric As Boolean
+Dim mTintCol As Long
 
 Implements IStyleInstance
 Implements IMeterStyle
@@ -128,9 +129,17 @@ Private Sub IStyleInstance_UpdateContent(NotificationInfo As libSnarlStyles.noti
 
     mIconSize = 0
     If mData.Exists("icon") Then
-        Set mIcon = style_MakeSquareImage(load_image_obj(mData.ValueOf("icon")))
+        Set mIcon = style_MakeSquareImage(load_image_obj(NotificationInfo.Icon))
         If is_valid_image(mIcon) Then _
             mIconSize = MIN(mIcon.Height, 48)
+
+    End If
+
+    If mData.Exists("colour-tint") Then
+        mTintCol = g_SafeLong(mData.ValueOf("colour-tint"))
+
+    Else
+        mTintCol = 0
 
     End If
 
@@ -255,6 +264,8 @@ Const RX = 20
 
         End If
 
+        If mTintCol <> 0 Then _
+            .DrawScaledImage g_CreateMarker(mTintCol, 36), new_BPoint(12, 0), , 245
 
 '        .SetHighColour rgba(255, 0, 0)
 '        .StrokeRect mTitleRect

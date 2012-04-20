@@ -20,6 +20,20 @@
 
 	banner.styleengine
 
+	- All styles now support V42 model, priority notifications and most support meters.  (39.93)
+
+	- Migrated Tiny settings into generic model.  (39.93)
+
+	- All styles bumped to 2.0 except for Music Video which is at 1.303.  (39.93)
+
+	- Can now configure various settings for Music Video.  (39.93)
+
+	- New internal model makes configuration management much easier.  (39.93)
+
+	- Info Bar bumped to 1.0.  (39.91)
+
+	- Cosmetic enhancements to Info Bar and long body text is now trimmed to be a single line.  (39.91)
+
 	- Revamped Music Video style.  (39.87)
 
 	- Minor cosmetic changes to Tiny style look and default
@@ -30,31 +44,33 @@
 
 	meter.styleengine
 
-	- Fixed bug in iPhoney style which would sometimes cause over-
-	  sized notifications to be created.  (39.89)
+	- Added "Solid" style to OS X-ish and bumped to 2.0.  "Solid" draws the meter as a solid rectangle
+	  rather than blocks.  Can now configure background and meter foreground colours.  (39.93)
 
-	- Corporate and Droid styles now properly support "new" legacy
-	  meter support setting.  (39.88)
+	- Smooth bumped to 2.0.  Text is now drawn with faint outline to help with light coloured backgrounds.
+	  Now supports V42 API and value-percent for the meter.  Also supports colour-tint, which is drawn as
+	  a small bookmark.  Text colour can now be customised.  (39.93)
 
-	- "Automatically detect numeric text?" option renamed to "Enable
-	  Legacy meter support?  (39.88)
+	- Fixed bug in iPhoney style which would sometimes cause over-sized notifications to be created.  (39.89)
 
-	- Corporate and Droid styles will now display any elements that
-	  begin with "label-" as per the modified V42 style specification.
-	  (39.88)
+	- Corporate and Droid styles now properly support "new" legacy meter support setting.  (39.88)
 
-	- Coroporate style "label-tagline" element renamed to "style-corp-
-	  tagline" as per the modified V42 style specification.  (39.88)
+	- "Automatically detect numeric text?" option renamed to "Enable Legacy meter support?  (39.88)
+
+	- Corporate and Droid styles will now display any elements that begin with "label-" as per the
+	  modified V42 style specification.  (39.88)
+
+	- Coroporate style "label-tagline" element renamed to "style-corp-tagline" as per the modified V42
+	  style specification.  (39.88)
 
 	- Fixed some bugs in the Corporate style.  (39.84)
 
 	- Added new "OS X-ish" style.  (39.84)
 
-	- Beginning standardisation of custom V42 entries which
-	  styles can make use of.  (39.84)
+	- Beginning standardisation of custom V42 entries which styles can make use of.  (39.84)
 
-	- Fixed bug in Corporate style which caused a meter to be
-	  incorrectly displayed in certain circumstances.  (39.82)
+	- Fixed bug in Corporate style which caused a meter to be incorrectly displayed in certain
+	  circumstances.  (39.82)
 
 	- Added "light" scheme to Corporate.  (39.76)
 

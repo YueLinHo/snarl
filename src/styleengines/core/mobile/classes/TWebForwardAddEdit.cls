@@ -27,6 +27,8 @@ Option Explicit
     '/
     '*********************************************************************************************/
 
+Private Declare Function CopyFile Lib "kernel32" Alias "CopyFileA" (ByVal lpExistingFileName As String, ByVal lpNewFileName As String, ByVal bFailIfExists As Long) As Long
+
 Dim mhOwner As Long
 Dim mPanel As BPrefsPanel
 Dim mFile As CConfFile2
@@ -53,11 +55,11 @@ Private Sub KPrefsPage_ControlChanged(Control As prefs_kit_d2.BControl, ByVal Va
         Case "1"
             uDoPreview
         
-        Case "2"
+        Case "3"
             uSave
 
-        Case "4"
-            ShellExecute mPanel.hWnd, "open", "https://sourceforge.net/apps/mediawiki/snarlwin/index.php?title=WebForward_SDK", vbNullString, vbNullString, SW_SHOW
+'        Case "4"
+'            ShellExecute mPanel.hWnd, "open", "https://sourceforge.net/apps/mediawiki/snarlwin/index.php?title=WebForward_SDK", vbNullString, vbNullString, SW_SHOW
 
         End Select
 
@@ -66,10 +68,30 @@ Private Sub KPrefsPage_ControlChanged(Control As prefs_kit_d2.BControl, ByVal Va
 End Sub
 
 Private Sub KPrefsPage_ControlInvoked(Control As prefs_kit_d2.BControl)
+Dim szSrc As String
+Dim sz As String
 
-'    Select Case Control.GetName()
-'
-'    End Select
+    Select Case Control.GetName()
+    Case "pick_icon"
+        With New CFileDialog
+            .Title = "Choose Icon"
+            .AddFilter "Pictures", "*.bmp;*.png;*.jpg;*.jpeg;*.gif;*.tga", True, True
+            .AddFilter "All files", "*.*", False, False
+            .DialogType = E_DIALOG_OPEN
+            If .Go(True, E_FILE_DIALOG_CENTRE_SCREEN) Then
+                szSrc = .SelectedFile
+                sz = g_MakePath(App.Path) & IIf(g_IsIDE, "bin\", "") & g_MakeFilename2(mFile.ValueOf("name")) & ".icon"
+                If g_Exists(sz) Then
+                    If MsgBox("Replace existing icon?", vbQuestion Or vbYesNo, "WebForward") = vbNo Then _
+                        Exit Sub
+
+                End If
+                CopyFile szSrc, sz, 0
+
+            End If
+        End With
+
+    End Select
 
 End Sub
 
@@ -137,6 +159,7 @@ Dim pp As BPrefsPage
             .SetMargin 100
 
             .Add new_BPrefsControl("fancyedit", "name", mFile.ValueOf("name"), "Name:")
+            .Add new_BPrefsControl("fancybutton2", "pick_icon", "Icon...")
             .Add new_BPrefsControl("fancyedit", "url", mFile.ValueOf("url"), "Base URL:")
             .Add new_BPrefsControl("label", "", "The remote path to the server, e.g.: ""http://www.myserver.local/do?""")
             
@@ -149,12 +172,11 @@ Dim pp As BPrefsPage
             .Add new_BPrefsControl("label", "", "Separate individual headers with ""\n"" markers, e.g. ""Accept-Language: en-US\nAccept: text/plain""")
             .Add new_BPrefsControl("fancyedit", "content", mFile.ValueOf("content"), "Content:")
             .Add new_BPrefsControl("fancytoggle2", "suppress_std_headers", "Suppress default headers (""From"" and ""User-Agent"")?", , mFile.ValueOf("suppress_std_headers"))
-'            .Add new_BPrefsControl("fancybutton2", "go_preview", "Preview")
 
             .Add new_BPrefsControl("label", "", "Use #app# to retrieve the registered application name and #icon-base64# to insert the icon as Base64 encoded data.", "Note:")
 
             .Add new_BPrefsSeparator
-            .Add new_BPrefsControl("fancytoolbar", "toolbar", "Preview|Save||User Guide")
+            .Add new_BPrefsControl("fancytoolbar", "toolbar", "Preview||Save")
             
 '            .Add new_BPrefsControl("fancybutton2", "go_user_guide", "User Guide")
 

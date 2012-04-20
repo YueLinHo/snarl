@@ -209,7 +209,7 @@ Private Function IStyleEngine_Initialize() As melon.M_RESULT
          "Red/Yellow/Green|Magenta/White/Cyan"
 
     uAdd STYLE_NAME_IPHONEY, _
-         "Mimics the Apple iPhone alert.  Inspired by 'iPhonesque' for Growl by mattrobs", _
+         "Mimics the Apple iPhone alert.  Inspired by 'iPhonesque' by mattrobs", _
          S_STYLE_IS_CONFIGURABLE Or S_STYLE_MULTI_INSTANCE Or S_STYLE_PULSE_NEEDED Or S_STYLE_V42_CONTENT, _
          "Custom|Black|Original|PSP", _
          1, 1, _
@@ -240,18 +240,18 @@ Private Function IStyleEngine_Initialize() As melon.M_RESULT
 
     uAdd STYLE_NAME_SONY, _
          "Displays a notification with a background that changes colour based on the month of the year", _
-         S_STYLE_IS_CONFIGURABLE Or S_STYLE_MULTI_INSTANCE, _
+         S_STYLE_IS_CONFIGURABLE Or S_STYLE_MULTI_INSTANCE Or S_STYLE_V42_CONTENT, _
          "PS3|PS3 (Big Icon)|PSP|PSP (Big Icon)", _
-         0, 3, uCreatePackedStr("title_font::Trebuchet MS#?title_size::11#?text_font::Trebuchet MS#?text_size::10#?fg_alpha::100#?show_graphically::1#?show_icon::1#?icon_align::0#?show_percent::1"), _
-         E_METER_STYLE_CAN_CHANGE_FONT Or E_METER_STYLE_CAN_SET_ICON_POS Or E_METER_STYLE_CAN_HIDE_SHOW_ICON
+         2, 0, uCreatePackedStr("title_font::Trebuchet MS#?title_size::10#?text_font::Trebuchet MS#?text_size::9#?fg_alpha::100#?show_graphically::1#?show_icon::1#?icon_align::0#?show_percent::1"), _
+         E_METER_STYLE_CAN_CHANGE_FONT Or E_METER_STYLE_NO_LEGACY_METER
 
     uAdd STYLE_NAME_SMOOTH, _
          "A simple smooth style", _
-         S_STYLE_IS_CONFIGURABLE Or S_STYLE_MULTI_INSTANCE, _
+         S_STYLE_IS_CONFIGURABLE Or S_STYLE_MULTI_INSTANCE Or S_STYLE_V42_CONTENT, _
          "Smooth", _
-         1, 0, _
-         uCreatePackedStr("title_font::Arial#?title_size::10#?text_font::Arial#?text_size::9#?background::" & CStr(rgba(51, 102, 196)) & "#?show_graphically::1#?show_percent::1"), _
-         E_METER_STYLE_CAN_CHANGE_FONT Or E_METER_STYLE_CAN_CHANGE_BKGND Or E_METER_STYLE_LOAD_SCHEMES_FROM_FILE Or E_METER_STYLE_HAS_CUSTOM_SCHEME
+         2, 0, _
+         uCreatePackedStr("title_font::Arial#?title_size::10#?text_font::Arial#?text_size::9#?background::" & CStr(rgba(51, 102, 196)) & "#?foreground::" & CStr(rgba(255, 255, 255)) & "#?border::" & CStr(rgba(0, 0, 0))), _
+         E_METER_STYLE_CAN_CHANGE_FONT Or E_METER_STYLE_CAN_CHANGE_BKGND Or E_METER_STYLE_LOAD_SCHEMES_FROM_FILE Or E_METER_STYLE_HAS_CUSTOM_SCHEME Or E_METER_STYLE_NO_LEGACY_METER Or E_METER_STYLE_CAN_CHANGE_FGND Or E_METER_STYLE_CAN_CHANGE_BORDER
 
     uAdd STYLE_NAME_METRO, _
          "A modern style", _
@@ -263,7 +263,8 @@ Private Function IStyleEngine_Initialize() As melon.M_RESULT
 
 
     uAdd STYLE_NAME_CLOCK, _
-         "Displays notification text formatted as 'YYYYMMDDHHMMSS' as a time", S_STYLE_MULTI_INSTANCE, _
+         "Displays notification text formatted as 'YYYYMMDDHHMMSS' as a time", _
+         S_STYLE_MULTI_INSTANCE Or S_STYLE_V42_CONTENT, _
          "", _
          1, 0, uCreatePackedStr(""), E_METER_STYLE_LOAD_SCHEMES_FROM_FILE Or E_METER_STYLE_HAS_OWN_PAGE, , , New TClockPage
 
@@ -289,19 +290,19 @@ Private Function IStyleEngine_Initialize() As melon.M_RESULT
     uAdd STYLE_NAME_CORP, _
          "Corporate Style", _
          S_STYLE_IS_CONFIGURABLE Or S_STYLE_MULTI_INSTANCE Or S_STYLE_V42_CONTENT Or S_STYLE_PULSE_NEEDED, _
-         "Standard|Light", _
-         1, 0, _
+         "Standard|Light|Standard framed|Light framed", _
+         1, 1, _
          uCreatePackedStr("title_font::Droid Sans#?title_size::11#?text_font::Droid Sans#?text_size::9#?background::" & CStr(rgba(15, 15, 15)) & "#?foreground::" & CStr(rgba(255, 255, 255)) & "#?fg_alpha::100"), _
          E_METER_STYLE_CAN_CHANGE_FONT Or E_METER_STYLE_NO_SHOW_PERCENT
 
 
     uAdd STYLE_NAME_OSX, _
-         "A single-instance style inspired by the OS X On-Screen Display notification", _
-         S_STYLE_SINGLE_INSTANCE Or S_STYLE_V42_CONTENT Or S_STYLE_CUSTOM_SHOW Or S_STYLE_CUSTOM_HIDE Or S_STYLE_DONT_QUEUE Or S_STYLE_NO_DROPSHADOW Or S_STYLE_CLICK_THROUGH, _
-         "Standard", _
-         0, 1, _
-         uCreatePackedStr("background::" & CStr(rgba(127, 127, 127)) & "#?bg_alpha::30"), _
-         E_METER_STYLE_CAN_CHANGE_BKGND Or E_METER_STYLE_CAN_SET_BG_ALPHA Or E_METER_STYLE_NO_SHOW_PERCENT Or E_METER_STYLE_SINGLE_PREVIEW
+         "A single-instance style inspired by the OS X On Screen Display", _
+         S_STYLE_IS_CONFIGURABLE Or S_STYLE_SINGLE_INSTANCE Or S_STYLE_V42_CONTENT Or S_STYLE_CUSTOM_SHOW Or S_STYLE_CUSTOM_HIDE Or S_STYLE_DONT_QUEUE Or S_STYLE_NO_DROPSHADOW Or S_STYLE_CLICK_THROUGH, _
+         "Standard|Solid", _
+         2, 0, _
+         uCreatePackedStr("background::" & CStr(rgba(24, 24, 24)) & "#?bg_alpha::67" & "#?foreground::" & CStr(rgba(255, 255, 255))), _
+         E_METER_STYLE_CAN_CHANGE_BKGND Or E_METER_STYLE_CAN_SET_BG_ALPHA Or E_METER_STYLE_NO_SHOW_PERCENT Or E_METER_STYLE_SINGLE_PREVIEW Or E_METER_STYLE_CAN_CHANGE_FGND Or E_METER_STYLE_NO_LEGACY_METER
 
 
 Dim pPacked As BPackedData
@@ -543,10 +544,8 @@ Dim fUseMeter As Boolean
         End If
 
         ' /* icon */
-
         If (mCurrent.Flags And E_METER_STYLE_CAN_HIDE_SHOW_ICON) Then
             .Add new_BPrefsControl("fancytoggle2", "show_icon", "Show icon?", "Icon:", mCurrent.ReadSetting("show_icon"))
-
             If (mCurrent.Flags And E_METER_STYLE_CAN_SET_ICON_POS) Then
                 Set pm = New CTempMsg
                 pm.Add "text", "Position:"
@@ -561,12 +560,10 @@ Dim fUseMeter As Boolean
 Dim f As Boolean
 
         f = ((mCurrent.Name = STYLE_NAME_JUST_BLACK) And (g_IsPressed(VK_LCONTROL)))
-
         If (mCurrent.Flags And E_METER_STYLE_CAN_CHANGE_BKGND) Or (f) Then _
             .Add new_BPrefsControl("fancycolourpicker", "background", "", IIf(f, "Not just black:", "Background:"), mCurrent.ReadSetting("background"))
 
         ' /* foreground opacity */
-
         If (mCurrent.Flags And E_METER_STYLE_CAN_SET_BG_ALPHA) Then
             Set pm = New CTempMsg
             pm.Add "min", 0&
@@ -577,19 +574,15 @@ Dim f As Boolean
 
         End If
 
-
         ' /* foreground colour picker */
-
         If (mCurrent.Flags And E_METER_STYLE_CAN_CHANGE_FGND) Then _
             .Add new_BPrefsControl("fancycolourpicker", "foreground", "", "Text:", mCurrent.ReadSetting("foreground"))
 
         ' /* border colour picker */
-
         If (mCurrent.Flags And E_METER_STYLE_CAN_CHANGE_BORDER) Then _
             .Add new_BPrefsControl("fancycolourpicker", "border", "", "Border:", mCurrent.ReadSetting("border"))
 
         ' /* foreground opacity */
-
         If (mCurrent.Flags And E_METER_STYLE_CAN_SET_FG_ALPHA) Then
             Set pm = New CTempMsg
             pm.Add "min", 0&
@@ -601,42 +594,37 @@ Dim f As Boolean
         End If
 
         ' /* meter */
-
-        .Add new_BPrefsControl("banner", "", "Meter")
-
-        .Add new_BPrefsControl("fancytoggle2", "show_graphically", "Enable legacy meter support?", "", mCurrent.ReadSetting("show_graphically"))
-        fUseMeter = (Val(mCurrent.ReadSetting("show_graphically")) <> 0)
-
-        If (mCurrent.Flags And E_METER_STYLE_VARIABLE_METERS) Then
-            .Add new_BPrefsControl("fancycycle", "meter_type", mCurrent.MeterTypes, "Type:", mCurrent.ReadSetting("meter_type"), , fUseMeter)
-
-            If (mCurrent.Flags And E_METER_STYLE_HAS_SPECTRUMS) Then
-                
-                .Add new_BPrefsControl("fancycolourpicker", "bar_colour", "", "Bar colour:", mCurrent.ReadSetting("bar_colour"))
-                
-                Set pm = New CTempMsg
-                pm.Add "item-height", 24&
-                Set pc = new_BPrefsControl("combo", "spectrum_type", mCurrent.Spectrums, "Spectrum type:", mCurrent.ReadSetting("spectrum_type"), pm, (InStr(mCurrent.MeterType(Val(mCurrent.ReadSetting("meter_type"))), "Spectrum")))
-                .Add pc
-
-                uSetSpectrumIcon pc, 1, 0
-                uSetSpectrumIcon pc, 2, 1
-
+        If (mCurrent.Flags And E_METER_STYLE_NO_LEGACY_METER) = 0 Then
+            .Add new_BPrefsControl("banner", "", "Meter")
+            .Add new_BPrefsControl("fancytoggle2", "show_graphically", "Enable legacy meter support?", "", mCurrent.ReadSetting("show_graphically"))
+            fUseMeter = (Val(mCurrent.ReadSetting("show_graphically")) <> 0)
+    
+            If (mCurrent.Flags And E_METER_STYLE_VARIABLE_METERS) Then
+                .Add new_BPrefsControl("fancycycle", "meter_type", mCurrent.MeterTypes, "Type:", mCurrent.ReadSetting("meter_type"), , fUseMeter)
+                If (mCurrent.Flags And E_METER_STYLE_HAS_SPECTRUMS) Then
+                    .Add new_BPrefsControl("fancycolourpicker", "bar_colour", "", "Bar colour:", mCurrent.ReadSetting("bar_colour"))
+                    Set pm = New CTempMsg
+                    pm.Add "item-height", 24&
+                    Set pc = new_BPrefsControl("combo", "spectrum_type", mCurrent.Spectrums, "Spectrum type:", mCurrent.ReadSetting("spectrum_type"), pm, (InStr(mCurrent.MeterType(Val(mCurrent.ReadSetting("meter_type"))), "Spectrum")))
+                    .Add pc
+                    uSetSpectrumIcon pc, 1, 0
+                    uSetSpectrumIcon pc, 2, 1
+    
+                End If
             End If
+
+            If (mCurrent.Flags And E_METER_STYLE_NO_SHOW_PERCENT) = 0 Then _
+                .Add new_BPrefsControl("fancytoggle2", "show_percent", "Display value as percentage?", "Options:", mCurrent.ReadSetting("show_percent"))
+
         End If
 
-        If (mCurrent.Flags And E_METER_STYLE_NO_SHOW_PERCENT) = 0 Then _
-            .Add new_BPrefsControl("fancytoggle2", "show_percent", "Display value as percentage?", "Options:", mCurrent.ReadSetting("show_percent"))
-
         ' /* test and reset buttons - all */
-
         .Add new_BPrefsControl("separator", "", "")
-        .Add new_BPrefsControl("fancybutton2", "fb2>Test", "Test")
-        .Add new_BPrefsControl("separator", "", "")
-        .Add new_BPrefsControl("fancybutton2", "fb2>Reset", "Reset to Factory Settings")
+'        .Add new_BPrefsControl("fancybutton2", "fb2>Test", "Test")
+'        .Add new_BPrefsControl("fancybutton2", "fb2>Reset", "Reset to Factory Settings")
+        .Add new_BPrefsControl("fancytoolbar", "main_toolbar", "Test Settings||Restore Defaults")
 
         ' /* debugging section - Sony only ATM (and only if CTRL held down) */
-
         If g_IsPressed(VK_LCONTROL) Then
 '            If mPanelStyle = STYLE_NAME_SONY Then
 '            .Add new_BPrefsControl("separator", "", "")
@@ -662,6 +650,18 @@ Private Sub KPrefsPage_ControlChanged(Control As prefs_kit_d2.BControl, ByVal Va
     ' /* write settings back to config file */
 
     Select Case Control.GetName()
+    Case "main_toolbar"
+        Select Case Val(Value)
+        Case 1
+            ' /* test settings */
+            mCurrent.DoPreview
+
+        Case 3
+            ' /* reset to factory defaults */
+            uResetToDefaults
+
+        End Select
+
     Case "title", "text"
         ' /* fonts need a little extra tweaking... */
         With New BPackedData
@@ -711,80 +711,15 @@ Dim pc As BControl
 End Sub
 
 Private Sub KPrefsPage_ControlInvoked(Control As prefs_kit_d2.BControl)
-Dim pc As BControl
 
     Select Case Control.GetName()
-
     Case "fb2>Test"
         ' /* test settings */
         mCurrent.DoPreview
 
-
     Case "fb2>Reset"
         ' /* reset to factory defaults */
-
-        mNoWriteConfig = True
-
-        ' /* set our title and text controls - the correct values are determined by
-        '    uGetDefaultFont() and are stored in the right place as setting a
-        '    control's value manually still generates a 'changed' notification */
-
-
-Dim szn As String
-Dim szv As String
-
-        With mCurrent.Defaults
-            .Rewind
-
-            Do While .GetNextItem(szn, szv)
-                If mPage.Find(szn, pc) Then _
-                    pc.SetValue szv
-
-            Loop
-
-        End With
-
-        ' /* fonts */
-
-        If mPage.Find("title", pc) Then _
-            pc.SetValue uCreatePackedFontStr(mCurrent.GetDefault("title_font"), mCurrent.GetDefault("title_size"))
-
-        If mPage.Find("text", pc) Then _
-            pc.SetValue uCreatePackedFontStr(mCurrent.GetDefault("text_font"), mCurrent.GetDefault("text_size"))
-
-'            Select Case mPanelStyle
-'            Case STYLE_NAME_IPHONEY
-'                pc.SetValue CStr(rgba(56, 89, 131))
-'
-'            Case STYLE_NAME_MINIMAL
-'                pc.SetValue CStr(rgba(255, 255, 255))
-'
-'            End Select
-'        End If
-'
-'        If mPage.Find("foreground", pc) Then
-'            Select Case mPanelStyle
-'            Case STYLE_NAME_IPHONEY
-'                pc.SetValue CStr(rgba(255, 255, 255))
-'
-'            Case STYLE_NAME_MINIMAL
-'                pc.SetValue CStr(rgba(168, 192, 225))
-'
-'            End Select
-'        End If
-
-
-        ' /* set style-specific controls here */
-
-'        Select Case mPanelStyle
-'        Case STYLE_NAME_SONY
-'            ' /* Sony */
-'
-'            If mPage.Find("fs>DropshadowStrength", pc) Then _
-'                pc.SetValue "50"
-
-        mNoWriteConfig = False
-'        uWriteConfig
+        uResetToDefaults
 
     End Select
 
@@ -995,3 +930,66 @@ Dim ppd As BPackedData
     uCreatePackedFontStr = ppd.AsString()
 
 End Function
+
+Private Sub uResetToDefaults()
+Dim pc As BControl
+
+    mNoWriteConfig = True
+
+    ' /* set our title and text controls - the correct values are determined by
+    '    uGetDefaultFont() and are stored in the right place as setting a
+    '    control's value manually still generates a 'changed' notification */
+
+Dim szn As String
+Dim szv As String
+
+    With mCurrent.Defaults
+        .Rewind
+        Do While .GetNextItem(szn, szv)
+            If mPage.Find(szn, pc) Then _
+                pc.SetValue szv
+
+        Loop
+
+    End With
+
+    ' /* fonts */
+    If mPage.Find("title", pc) Then _
+        pc.SetValue uCreatePackedFontStr(mCurrent.GetDefault("title_font"), mCurrent.GetDefault("title_size"))
+
+    If mPage.Find("text", pc) Then _
+        pc.SetValue uCreatePackedFontStr(mCurrent.GetDefault("text_font"), mCurrent.GetDefault("text_size"))
+
+'            Select Case mPanelStyle
+'            Case STYLE_NAME_IPHONEY
+'                pc.SetValue CStr(rgba(56, 89, 131))
+'
+'            Case STYLE_NAME_MINIMAL
+'                pc.SetValue CStr(rgba(255, 255, 255))
+'
+'            End Select
+'        End If
+'
+'        If mPage.Find("foreground", pc) Then
+'            Select Case mPanelStyle
+'            Case STYLE_NAME_IPHONEY
+'                pc.SetValue CStr(rgba(255, 255, 255))
+'
+'            Case STYLE_NAME_MINIMAL
+'                pc.SetValue CStr(rgba(168, 192, 225))
+'
+'            End Select
+'        End If
+
+    ' /* set style-specific controls here */
+
+'        Select Case mPanelStyle
+'        Case STYLE_NAME_SONY
+'            ' /* Sony */
+'
+'            If mPage.Find("fs>DropshadowStrength", pc) Then _
+'                pc.SetValue "50"
+
+    mNoWriteConfig = False
+
+End Sub

@@ -155,8 +155,12 @@ Dim pe As CConfEntry
         If mConfig.GetValueWithDefault("configurable", "0") = "1" Then _
             .Flags = .Flags Or S_STYLE_IS_CONFIGURABLE
 
-        If Me.IsRedirect() Then _
+        If Me.IsRedirect() Then
             .Flags = .Flags Or S_STYLE_IS_WINDOWLESS Or S_STYLE_DONT_QUEUE
+            If Me.IsScreenRedirect Then _
+                .Flags = .Flags Or S_STYLE_REDIRECT_TO_SCREEN
+
+        End If
 
         .IconPath = g_MakePath(mPath) & g_FilenameFromPath(mConfig.GetValueWithDefault("icon", "icon.png"))
         If Not g_Exists(.IconPath) Then _
@@ -195,7 +199,14 @@ End Function
 Public Function IsRedirect() As Boolean
 
     If NOTNULL(mConfig) Then _
-        IsRedirect = (mConfig.GetValueWithDefault("redirect", "0") = "1")
+        IsRedirect = (mConfig.GetValueWithDefault("redirect", "0") = "1") Or (IsScreenRedirect())
+
+End Function
+
+Public Function IsScreenRedirect() As Boolean
+
+    If NOTNULL(mConfig) Then _
+        IsScreenRedirect = (mConfig.GetValueWithDefault("redirect_to_screen", "0") = "1")
 
 End Function
 

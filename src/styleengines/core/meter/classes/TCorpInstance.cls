@@ -50,6 +50,7 @@ Dim mPercent As Single
 Dim mMeterRect As BRect
 
 Dim mBkCol As Long
+Dim mTintCol As Long
 
 Dim mLabel() As T_LABEL
 Dim mLabels As String
@@ -75,7 +76,7 @@ Private Sub IMeterStyle_SetStyle(Style As TStyle)
 
 End Sub
 
-Private Sub IStyleInstance_AdjustPosition(X As Long, Y As Long, Alpha As Integer, Done As Boolean)
+Private Sub IStyleInstance_AdjustPosition(X As Long, y As Long, Alpha As Integer, Done As Boolean)
 End Sub
 
 Private Function IStyleInstance_GetContent() As melon.MImage
@@ -135,7 +136,7 @@ Private Sub IStyleInstance_UpdateContent(NotificationInfo As libSnarlStyles.noti
     mIconSize = 0
     Set mIcon = style_MakeSquareImage(load_image_obj(NotificationInfo.Icon))
     If is_valid_image(mIcon) Then _
-        mIconSize = MIN(mIcon.Height, 48)
+        mIconSize = Min(mIcon.Height, 48)
 
     ' /* pre-configuration */
 
@@ -160,9 +161,13 @@ Dim ppd As BPackedData
     If ppd.Exists("style-corp-tagline") Then _
         mPrimary = g_SafeLeftStr(ppd.ValueOf("style-corp-tagline"), 5)
 
-    ' /* colour */
+    ' /* text colour */
 
-    If NotificationInfo.Scheme = "light" Then
+    If (NotificationInfo.Flags And S_NOTIFICATION_IS_PRIORITY) Then
+        ' /* always white */
+        mBaseTextCol = vbWhite
+
+    ElseIf InStr(NotificationInfo.Scheme, "light") Then
         mBaseTextCol = vbBlack
 
     Else
@@ -176,11 +181,19 @@ Dim ppd As BPackedData
         If ppd.ValueOf("colour-background") <> "" Then _
             mBkCol = g_RGBAFromString(ppd.ValueOf("colour-background"))
 
-    ElseIf NotificationInfo.Scheme = "light" Then
+    ElseIf InStr(NotificationInfo.Scheme, "light") Then
         mBkCol = rgba(247, 247, 247)
 
     Else
         mBkCol = rgba(64, 64, 64)
+
+    End If
+
+    If ppd.Exists("colour-tint") Then
+        mTintCol = g_SafeLong(ppd.ValueOf("colour-tint"))
+
+    Else
+        mTintCol = 0
 
     End If
 
@@ -224,7 +237,7 @@ Dim cyNotification As Long
 
     mView.SizeTo 260, cyNotification
 
-Dim Y As Long
+Dim y As Long
 Dim prTemp As BRect
 Dim pr As BRect
 Dim fNeedGap As Boolean
@@ -239,7 +252,7 @@ Dim cxMaster As Long
         .TextMode = MFX_TEXT_ANTIALIAS
         cxMaster = .Width
 
-        Y = EM_MARGIN
+        y = EM_MARGIN
 
         ' /* create the base bounding rect - this is used to get the title and text height
         '    based on a fixed width */
@@ -251,7 +264,7 @@ Dim cxMaster As Long
         If mPrimary <> "" Then
             .SetFont mStyle.ReadSetting("text_font"), PRIMARY_FONT_SIZE
             cxPrimary = .StringWidth(mPrimary) + EM_TITLE_TEXT
-            Set mPrimaryRect = new_BRect(EM_MARGIN, Y, EM_MARGIN + cxPrimary - 1, Y + .StringHeight(mPrimary) - 1)
+            Set mPrimaryRect = new_BRect(EM_MARGIN, y, EM_MARGIN + cxPrimary - 1, y + .StringHeight(mPrimary) - 1)
             If mIconSize > 0 Then _
                 mPrimaryRect.OffsetBy 48 + EM_TITLE_TEXT, 0
 
@@ -266,15 +279,14 @@ Dim cxMaster As Long
         ' /* measure title */
 
         If mTitle <> "" Then
-            .SetFont mStyle.ReadSetting("text_font"), mStyle.ReadSetting("text_size"), True
+            .SetFont mStyle.ReadSetting("title_font"), mStyle.ReadSetting("title_size"), True
             Set prTemp = pr.Duplicate
             prTemp.Left = xPos
             prTemp.Bottom = 16384
             .MeasureString mTitle, prTemp, prTemp
-            Set mTitleRect = new_BRect(xPos, Y, .Width - EM_MARGIN - 1, Y + prTemp.Height - 1)
+            Set mTitleRect = new_BRect(xPos, y, .Width - EM_MARGIN - 1, y + prTemp.Height - 1)
             fNeedGap = True
-
-            Y = Y + prTemp.Height
+            y = y + prTemp.Height
 
         End If
 
@@ -286,14 +298,12 @@ Dim cxMaster As Long
             prTemp.Left = xPos
             prTemp.Bottom = 16384
             .MeasureString mText, prTemp, prTemp
-
             If fNeedGap Then _
-                Y = Y + EM_TITLE_TEXT
+                y = y + EM_TITLE_TEXT
 
-            Set mTextRect = new_BRect(xPos, Y, .Width - EM_MARGIN - 1, Y + prTemp.Height - 1)
-
+            Set mTextRect = new_BRect(xPos, y, .Width - EM_MARGIN - 1, y + prTemp.Height - 1)
             fNeedGap = True
-            Y = Y + prTemp.Height
+            y = y + prTemp.Height
 
         End If
 
@@ -301,11 +311,11 @@ Dim cxMaster As Long
 
         If mPercent > -1 Then
             If fNeedGap Then _
-                Y = Y + EM_TITLE_TEXT
+                y = y + EM_TITLE_TEXT
 
-            Set mMeterRect = new_BRect(xPos, Y, .Width - EM_MARGIN - 1, Y + 10 - 1)
+            Set mMeterRect = new_BRect(xPos, y, .Width - EM_MARGIN - 1, y + 10 - 1)
             fNeedGap = True
-            Y = Y + mMeterRect.Height
+            y = y + mMeterRect.Height
 
         Else
             Set mMeterRect = Nothing
@@ -329,24 +339,24 @@ Dim szv As String
                     mView.MeasureString szv, prTemp, prTemp
 
                     If fNeedGap Then _
-                        Y = Y + EM_TITLE_TEXT
+                        y = y + EM_TITLE_TEXT
 
                     mLabels = mLabels + 1
                     ReDim Preserve mLabel(mLabels)
                     With mLabel(mLabels)
                         .Text = szv
-                        Set .Frame = new_BRect(xPos, Y, mView.Width - EM_MARGIN - 1, Y + prTemp.Height - 1)
+                        Set .Frame = new_BRect(xPos, y, mView.Width - EM_MARGIN - 1, y + prTemp.Height - 1)
 
                     End With
 
                     fNeedGap = True
-                    Y = Y + prTemp.Height
+                    y = y + prTemp.Height
 
                 End If
             Loop
         End With
 
-        Y = Y + EM_MARGIN
+        y = y + EM_MARGIN
         mCenterIconAndBadge = False
 
         If (mText = "") And (mTitle = "") And (mLabels = 0) And (mMeterRect Is Nothing) And (mPrimary = "") Then
@@ -359,14 +369,14 @@ Dim szv As String
 
         ElseIf (mText = "") And (mTitle = "") And (mLabels = 0) And (mMeterRect Is Nothing) Then
             ' /* special case: icon & badge only */
-            cyNotification = MAX(mIconSize, mPrimaryRect.Height) + (2 * EM_MARGIN)
+            cyNotification = Max(mIconSize, mPrimaryRect.Height) + (2 * EM_MARGIN)
             mCenterIconAndBadge = True
 
         End If
 
         ' /* size the view */
 
-        .SizeTo cxMaster, MAX(Y, cyNotification)
+        .SizeTo cxMaster, Max(y, cyNotification)
 
         ' /* icon position */
 
@@ -390,7 +400,6 @@ Const RX = 10
         .TextMode = MFX_TEXT_ANTIALIAS
 
         ' /* background */
-
         If (mInfo.Flags And S_NOTIFICATION_IS_PRIORITY) Then
             .SetHighColour rgba(mRed, 0, 0)
             .FillRoundRect .Bounds, RX, RX
@@ -401,6 +410,13 @@ Const RX = 10
 
         End If
 
+        ' /* shading */
+        .SetHighColour rgba(0, 0, 0, 0)
+        .SetLowColour rgba(0, 0, 0, 32)
+'        .FillRoundRect .Bounds, RX, RX, MFX_VERT_GRADIENT
+        .FillRoundRect new_BRect(.Bounds.Left, .Bounds.Top + Fix(.Bounds.Height / 2), .Bounds.Right, .Bounds.Bottom), RX, RX, MFX_VERT_GRADIENT
+
+
 '        .SetHighColour rgba(255, 255, 255, 20)
 '        .SetLowColour rgba(255, 255, 255, 0)
 '        .FillRoundRect new_BRect(0, 0, .Bounds.Right, Fix(.Bounds.Height / 2) - 1), RX, RX, MFX_VERT_GRADIENT
@@ -409,38 +425,38 @@ Const RX = 10
 '        .SetLowColour rgba(255, 255, 255, 0)
 '        .FillRoundRect new_BRect(0, 0, .Bounds.Right, .Bounds.Bottom), RX, RX, MFX_VERT_GRADIENT
 
-        If mInfo.Scheme = "light" Then
-            .SetHighColour rgba(0, 0, 0, 0)
-            .SetLowColour rgba(0, 0, 0, 32)
+        ' /* draw marker if tint colour specified */
+        If mTintCol <> 0 Then _
+            .DrawScaledImage g_CreateMarker(mTintCol), new_BPoint(.Width - 30, 0), , 240
 
-        Else
-            .SetHighColour rgba(0, 0, 0, 0)
-            .SetLowColour rgba(0, 0, 0, 128)
+        ' /* frame */
+        If InStr(mInfo.Scheme, "framed") Then
+'            .SetHighColour rgba(0, 0, 0, 72)
+'            .StrokeRoundRect .Bounds.InsetByCopy(2, 2).ExpandByCopy(-1, -1), RX, RX, 2
+'            .SetHighColour rgba(255, 255, 255)
+'            .StrokeRoundRect .Bounds.ExpandByCopy(-1, -1), RX, RX, 2
+
+            .SetHighColour rgba(0, 0, 0, 64)
+            .StrokeRoundRect .Bounds.InsetByCopy(2, 2), RX, RX, 1
+            .SetHighColour rgba(255, 255, 255)
+            .StrokeRoundRect .Bounds.InsetByCopy(1, 1), RX, RX, 1
 
         End If
 
-        .FillRoundRect new_BRect(0, 0, .Bounds.Right, .Bounds.Bottom), RX, RX, MFX_VERT_GRADIENT
+        ' /* edge */
+        .SetHighColour rgba(0, 0, 0, 84)
+        .StrokeRoundRect .Bounds
 
-
-'        .SetHighColour rgba(255, 255, 255, 200)
-'        .StrokeLine new_BRect(RX, 0, .Bounds.Right - RX, 0)
-
-'        .SetHighColour rgba(255, 255, 255, 150)
-'        .StrokeRoundRect .Bounds.InsetByCopy(0, 0), RX, RX
 
         ' /* title */
-
         If mTitle <> "" Then
-'            .SetHighColour rgba(255, 0, 0)
-'            .StrokeRect mTitleRect
-
-            .SetFont mStyle.ReadSetting("text_font"), Val(mStyle.ReadSetting("text_size")), True
+            .SetFont mStyle.ReadSetting("title_font"), Val(mStyle.ReadSetting("title_size")), True
             .SetHighColour g_MakeRGBA(mBaseTextCol, 250)
-
+            .SetLowColour rgba(0, 0, 0, 8)
             If (mText = "") And (mLabels = 0) And (mMeterRect Is Nothing) Then _
                 mTitleRect.OffsetTo mTitleRect.Left, Fix((.Height - mTitleRect.Height) / 2)
 
-            .DrawString mTitle, mTitleRect
+            .DrawString mTitle, mTitleRect ', MFX_SIMPLE_OUTLINE
 
         End If
 
@@ -466,28 +482,21 @@ Dim cxIconBadge As Long
             cxIconBadge = mIconSize + EM_TITLE_TEXT + mPrimaryRect.Width
 
         ' /* icon */
-
         If Not (mIcon Is Nothing) Then
-        
             If mCenterIconAndBadge Then
-                mIconPos.OffsetTo Fix((.Width - cxIconBadge) / 2), mIconPos.Y
+                mIconPos.OffsetTo Fix((.Width - cxIconBadge) / 2), mIconPos.y
 
             ElseIf (mTitle = "") And (mLabels = 0) And (mMeterRect Is Nothing) And (mText = "") And (mPrimary = "") Then
                 ' /* just icon */
-                mIconPos.OffsetTo Fix((.Width - mIconSize) / 2), mIconPos.Y
+                mIconPos.OffsetTo Fix((.Width - mIconSize) / 2), mIconPos.y
 
             End If
-
             .DrawScaledImage mIcon, mIconPos, new_BPoint(mIconSize, mIconSize)
 
         End If
 
         ' /* primary */
-
         If mPrimary <> "" Then
-'            .SetHighColour rgba(0, 0, 255)
-'            .StrokeRect mPrimaryRect
-
             If mCenterIconAndBadge Then
                 mPrimaryRect.OffsetTo Fix((.Width - cxIconBadge) / 2) + mIconSize + EM_TITLE_TEXT, mPrimaryRect.Top
 
@@ -496,28 +505,22 @@ Dim cxIconBadge As Long
                 mPrimaryRect.OffsetTo Fix((.Width - mPrimaryRect.Width) / 2), mPrimaryRect.Top
 
             End If
-
             .SetHighColour rgba(255, 0, 0)
-'            .StrokeRect mPrimaryRect
-
             .SetFont mStyle.ReadSetting("text_font"), PRIMARY_FONT_SIZE
             .SetHighColour g_MakeRGBA(mBaseTextCol, 250)
             .DrawString mPrimary, mPrimaryRect, MFX_ALIGN_V_CENTER
 
         End If
 
-        ' /* meter */
-
 Dim pr As BRect
 
+        ' /* meter */
         If Not (mMeterRect Is Nothing) Then
-
             If (mTitle = "") And (mText = "") And (mLabels = 0) Then _
                 mMeterRect.OffsetTo mMeterRect.Left, Fix((.Height - mMeterRect.Height) / 2)
 
             .SetHighColour rgba(0, 0, 0, 60)
             .FillRoundRect mMeterRect, 4, 4
-
             .SetHighColour rgba(255, 255, 255, 90)
             Set pr = mMeterRect.InsetByCopy(1, 1)
             pr.Right = pr.Left + ((mPercent / 100) * pr.Width) - 1
@@ -526,14 +529,12 @@ Dim pr As BRect
 
         End If
 
-        ' /* subtext */
-
 Dim i As Long
 
+        ' /* subtext */
         If mLabels > 0 Then
             .SetFont mStyle.ReadSetting("text_font"), mStyle.ReadSetting("text_size")
             .SetHighColour g_MakeRGBA(mBaseTextCol, 250)
-
             For i = 1 To mLabels
                 Set pr = mLabel(i).Frame.Duplicate
                 If (mTitle = "") And (mText = "") And (mMeterRect Is Nothing) Then _
@@ -542,7 +543,6 @@ Dim i As Long
                 .DrawString mLabel(i).Text, pr
 
             Next i
-
         End If
 
 '        .SetHighColour rgba(255, 255, 255)
@@ -551,4 +551,5 @@ Dim i As Long
     End With
 
 End Sub
+
 

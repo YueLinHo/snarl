@@ -13,6 +13,8 @@ Attribute VB_PredeclaredId = False
 Attribute VB_Exposed = False
 Option Explicit
 
+Public Style As TStyle
+
 Private Declare Function GetAsyncKeyState Lib "user32" (ByVal vKey As Long) As Integer
 
 Private Const SM_CXSCREEN = 0
@@ -38,7 +40,7 @@ Dim mPos As Single
 Dim mInfo As notification_info
 Dim mIcon As mfxBitmap
 Dim mPriorityIcon As mfxBitmap
-Dim mIsNumeric As Boolean
+Dim mValue As Long
 
 Implements IStyleInstance
 
@@ -53,27 +55,23 @@ Private Sub IStyleInstance_AdjustPosition(x As Long, y As Long, Alpha As Integer
     '   time until we're done positioning the notification */
 
 Const STEP_SIZE = 0.25
-Const FAST_STEP_SIZE = 1
+Const FAST_STEP_SIZE = 2
 
 Dim d As Single
 
     d = IIf(mInfo.Scheme = "amiga guru", FAST_STEP_SIZE, STEP_SIZE)
-
     x = 0
 
     If mShowing Then
         ' /* counter is set to view height so decrease by one on each call */
-
         If mPos = 0 Then
             y = 0
             Exit Sub
 
         End If
 
-
         mPos = mPos - d
         y = 0 - mPos
-
         If mPos > 0 Then _
             Done = False        ' // keep going
 
@@ -85,7 +83,6 @@ Dim d As Single
 
         mPos = mPos - d
         y = mPos - theView.Height
-
         If mPos > 0 Then _
             Done = False        ' // keep going
 
@@ -142,7 +139,7 @@ Dim pr As BRect
 Dim cxIcon As Long
 
         If Not (mIcon Is Nothing) Then
-            cxIcon = MIN(mIcon.Height, (.Height - 2))
+            cxIcon = Min(mIcon.Height, (.Height - 2))
             .DrawScaledImage mIcon, new_BPoint(xOffset, Fix((.Height - cxIcon) / 2)), new_BPoint(cxIcon, cxIcon)
             xOffset = xOffset + cxIcon + 4
 
@@ -168,7 +165,7 @@ Dim cxIcon As Long
 
         pr.Left = xOffset
         .SetFont FONT_NAME, FONT_SIZE_TEXT
-        .DrawString mInfo.Text & IIf(mIsNumeric, "%", ""), pr, MFX_ALIGN_V_CENTER
+        .DrawString mInfo.Text & IIf(mValue > -1, "%", ""), pr, MFX_ALIGN_V_CENTER
 
     End With
 
@@ -204,7 +201,7 @@ Dim pr As BRect
 Dim cxIcon As Long
 
         If Not (mIcon Is Nothing) Then
-            cxIcon = MIN(mIcon.Height, (.Height - 2))
+            cxIcon = Min(mIcon.Height, (.Height - 2))
             .DrawScaledImage mIcon, new_BPoint(xOffset, Fix((.Height - cxIcon) / 2)), new_BPoint(cxIcon, cxIcon)
             xOffset = xOffset + cxIcon + 4
 
@@ -226,9 +223,21 @@ Dim cxIcon As Long
 
         ' /* text */
 
-        pr.Left = xOffset
-        .SetFont FONT_NAME_OSX, FONT_SIZE_TEXT_OSX
-        .DrawString mInfo.Text & IIf(mIsNumeric, "%", ""), pr, MFX_ALIGN_V_CENTER
+Dim sz As String
+
+        sz = mInfo.Text
+        If mValue > -1 Then _
+            sz = sz & "%"
+
+        If mInfo.Text <> "" Then
+            pr.Left = xOffset
+            If (mInfo.Flags And S_NOTIFICATION_IS_PRIORITY) Then _
+                pr.Right = pr.Right - .Height - 4
+
+            .SetFont FONT_NAME_OSX, FONT_SIZE_TEXT_OSX
+            .DrawString .GetFormattedText(sz, pr.Width), pr, MFX_ALIGN_V_CENTER
+
+        End If
 
     End With
 
@@ -296,17 +305,18 @@ Dim pr As BRect
 
         ' /* notification icon */
 
-Dim cxIcon As Long
+'Dim cxIcon As Long
 
         If Not (mIcon Is Nothing) Then
-            cxIcon = MIN(mIcon.Height, (.Height - 4))
-            .DrawScaledImage mIcon, new_BPoint(xOffset, Fix((.Height - cxIcon) / 2)), new_BPoint(cxIcon, cxIcon)
-            xOffset = xOffset + cxIcon + 4
+'            cxIcon = MIN(mIcon.Height, (.Height - 4))
+            .DrawScaledImage mIcon, new_BPoint(xOffset, 0), new_BPoint(.Height, .Height)
+            xOffset = xOffset + .Height + 4
 
         End If
 
         ' /* title */
 
+Dim sz As String
 Dim cx As Long
 
         If mInfo.Title <> "" Then
@@ -340,12 +350,23 @@ Dim cx As Long
         End If
 
         ' /* text */
+        
+        sz = mInfo.Text
+        If mValue > -1 Then _
+            sz = sz & "%"
 
-        .SetHighColour rgba(0, 0, 0)
-        Set pr = .Bounds.Duplicate
-        pr.Left = xOffset
-        .SetFont FONT_NAME, FONT_SIZE_TEXT
-        .DrawString mInfo.Text & IIf(mIsNumeric, "%", ""), pr, MFX_ALIGN_V_CENTER
+        If mInfo.Text <> "" Then
+            .SetHighColour rgba(0, 0, 0)
+            Set pr = .Bounds.Duplicate
+            pr.Left = xOffset
+            If (mInfo.Flags And S_NOTIFICATION_IS_PRIORITY) Then _
+                pr.Right = pr.Right - .Height - 4
+
+            .SetFont FONT_NAME, FONT_SIZE_TEXT
+            sz = .GetFormattedText(sz, pr.Width)
+            .DrawString sz, pr, MFX_ALIGN_V_CENTER
+
+        End If
 
     End With
 
@@ -443,12 +464,13 @@ Dim i As Integer
 
         ' /* notification icon */
 
-Dim cxIcon As Long
+'Dim cxIcon As Long
+Dim sz As String
 
         If Not (mIcon Is Nothing) Then
-            cxIcon = MIN(mIcon.Height, (.Height - 4))
-            .DrawScaledImage mIcon, new_BPoint(xOffset, Fix((.Height - cxIcon) / 2)), new_BPoint(cxIcon, cxIcon)
-            xOffset = xOffset + cxIcon + 4
+'            cxIcon = MIN(mIcon.Height, (.Height - 4))
+            .DrawScaledImage mIcon, new_BPoint(xOffset, 0), new_BPoint(.Height, .Height)
+            xOffset = xOffset + .Height + 4
 
         End If
 
@@ -459,12 +481,12 @@ Dim cxIcon As Long
         ' /* title */
 
         Set pr = .Bounds.Duplicate
+        pr.Right = pr.Right - 4
         .SetHighColour rgba(0, 0, 0)
         .SetLowColour rgba(0, 0, 0, 24)
 
         If mInfo.Title <> "" Then
             pr.Left = xOffset
-
             .SetFont FONT_NAME_GS, FONT_SIZE_TITLE_GS
             .DrawString mInfo.Title, pr, MFX_ALIGN_V_CENTER Or MFX_SIMPLE_OUTLINE
             xOffset = xOffset + .StringWidth(mInfo.Title) + 4
@@ -473,9 +495,19 @@ Dim cxIcon As Long
 
         ' /* text */
 
-        pr.Left = xOffset
-        .SetFont FONT_NAME_GS, FONT_SIZE_TEXT_GS
-        .DrawString mInfo.Text & IIf(mIsNumeric, "%", ""), pr, MFX_ALIGN_V_CENTER
+        sz = mInfo.Text
+        If mValue > -1 Then _
+            sz = sz & "%"
+
+        If mInfo.Text <> "" Then
+            pr.Left = xOffset
+            If (mInfo.Flags And S_NOTIFICATION_IS_PRIORITY) Then _
+                pr.Right = pr.Right - .Height - 4
+
+            .SetFont FONT_NAME_GS, FONT_SIZE_TEXT_GS
+            .DrawString .GetFormattedText(sz, pr.Width), pr, MFX_ALIGN_V_CENTER
+
+        End If
 
     End With
 
@@ -496,6 +528,7 @@ Private Sub uDrawGSFancyRect(ByRef aRect As BRect)
 End Sub
 
 Private Sub IStyleInstance_UpdateContent(NotificationInfo As libSnarlStyles.notification_info)
+Dim i As Long
 
 '
 '    fSoftIcon = (NotificationInfo.Scheme = SCHEME_1)
@@ -514,20 +547,39 @@ Private Sub IStyleInstance_UpdateContent(NotificationInfo As libSnarlStyles.noti
 
 'Debug.Print g_HexStr(NotificationInfo.Flags)
 
-    Set theView = New mfxView
-
+    mValue = -1
     LSet mInfo = NotificationInfo
-    mIsNumeric = g_IsNumeric(mInfo.Text)
-    Set mIcon = style_MakeSquareImage(load_image_obj(mInfo.Icon))
 
+    With New BPackedData
+        .SetTo NotificationInfo.Text
+        mInfo.Title = .ValueOf("title")
+        mInfo.Text = .ValueOf("text")
+
+        i = -1
+        If .Exists("value-percent") Then
+            i = g_SafeLong(.ValueOf("value-percent"))
+
+        ElseIf g_IsNumeric(mInfo.Text) Then
+            i = Val(mInfo.Text)
+            mInfo.Text = ""
+
+        End If
+
+        If (i >= 0) And (i <= 100) Then _
+            mValue = i
+
+    End With
+
+    Set mIcon = style_MakeSquareImage(load_image_obj(mInfo.Icon))
     If (mInfo.Flags And S_NOTIFICATION_IS_PRIORITY) Then
-        Set mPriorityIcon = load_image_obj(g_MakePath(App.Path) & "priority.png")
+        Set mPriorityIcon = load_image_obj(g_MakePath(App.Path) & IIf(g_IsIDE, "bin\", "") & "priority.png")
 
     Else
         Set mPriorityIcon = Nothing
 
     End If
 
+    Set theView = New mfxView
 
     Select Case LCase$(mInfo.Scheme)
     Case "amiga"
@@ -553,6 +605,8 @@ Private Sub IStyleInstance_UpdateContent(NotificationInfo As libSnarlStyles.noti
 End Sub
 
 Private Sub uDrawAmigaGuru()
+Dim cxIcon As Long
+Dim pr As BRect
 
     With theView
         .SizeTo GetSystemMetrics(SM_CXSCREEN), 78
@@ -560,17 +614,34 @@ Private Sub uDrawAmigaGuru()
         .TextMode = MFX_TEXT_CLEARTYPE
 
         ' /* background */
-
         .SetHighColour rgba(0, 0, 0)
         .FillRect .Bounds
 
-        ' /* colour */
+        ' /* icon */
+        If Not (mIcon Is Nothing) Then
+            cxIcon = Min(mIcon.Height, 128)
+            Set pr = new_BRect(0, 0, cxIcon - 1, cxIcon - 1).OffsetByCopy(0, Fix(.Height - cxIcon) / 2)
 
+            If (mInfo.Title = "") And (mInfo.Text = "") And (mValue = -1) Then
+                ' /* single, centered icon */
+                pr.OffsetBy Fix((.Width - cxIcon) / 2), 0
+
+            Else
+                ' /* offset */
+                pr.OffsetBy -Fix(cxIcon / 4), 0
+
+            End If
+
+            .DrawScaledImage mIcon, pr.TopLeft, pr.Size, 180, -45
+
+        End If
+
+        ' /* border */
         If (mInfo.Flags And S_NOTIFICATION_IS_PRIORITY) Then
             .SetHighColour rgba(255, 0, 0)
             .SetLowColour rgba(255, 0, 0, 32)
 
-        ElseIf (GetAsyncKeyState(vbKeyControl) And &H8000&) Then
+        ElseIf g_IsPressed(VK_CONTROL) Then
             .SetHighColour rgba(0, 255, 0)
             .SetLowColour rgba(0, 255, 0, 32)
 
@@ -579,48 +650,32 @@ Private Sub uDrawAmigaGuru()
             .SetLowColour rgba(255, 192, 0, 32)
 
         End If
-
         .StrokeRect .Bounds, 8
-
-
-        ' /* notification icon */
-
-Dim cxIcon As Long
-
-        If Not (mIcon Is Nothing) Then
-            cxIcon = MIN(mIcon.Height, 32)
-            If mInfo.Title = "" Then
-                ' /* single, centered icon */
-                .DrawScaledImage mIcon, new_BPoint(Fix((.Width - cxIcon) / 2), IIf(mInfo.Text = "", Fix((.Height - cxIcon) / 2), 12)), new_BPoint(cxIcon, cxIcon)
-
-            Else
-                .DrawScaledImage mIcon, new_BPoint(12, 12), new_BPoint(cxIcon, cxIcon)
-                .DrawScaledImage mIcon, new_BPoint(.Width - 12 - cxIcon, 12), new_BPoint(cxIcon, cxIcon)
-
-            End If
-        End If
-
-
-        .SetFont "Lucida Console", 12
-
-        ' /* title */
-
-        .DrawString mInfo.Title, .Bounds.InsetByCopy(8, 16), MFX_ALIGN_H_CENTER Or MFX_ALIGN_TOP Or MFX_SIMPLE_OUTLINE
-
-        ' /* text */
 
 Dim sz As String
 
-        If mIsNumeric Then
-            sz = "#" & g_HexStr(g_SafeLong(mInfo.Text)) & "." & g_HexStr(Year(Now), 4) & g_HexStr(Month(Now), 2) & g_HexStr(Day(Now), 2)
+        .SetFont "Lucida Console", 12
+        .SetLowColour rgba(0, 0, 0, 172)
+
+        If mInfo.Text <> "" Then
+            If mValue > -1 Then _
+                mInfo.Title = mInfo.Title & " #" & g_HexStr(mValue) & "." & g_HexStr(Year(Now), 4) & g_HexStr(Month(Now), 2) & g_HexStr(Day(Now), 2)
+
+            ' /* title */
+            .DrawString mInfo.Title, .Bounds.InsetByCopy(8, 16), MFX_ALIGN_H_CENTER Or MFX_ALIGN_TOP Or MFX_SIMPLE_OUTLINE
+            ' /* text */
+            .DrawString .GetFormattedText(mInfo.Text, .Bounds.InsetByCopy(8, 16).OffsetByCopy(0, 28).Width), .Bounds.InsetByCopy(8, 16).OffsetByCopy(0, 28), MFX_ALIGN_H_CENTER Or MFX_ALIGN_TOP Or MFX_SIMPLE_OUTLINE
 
         Else
-            sz = mInfo.Text
+            ' /* title */
+            .DrawString mInfo.Title, .Bounds.InsetByCopy(8, 16), MFX_ALIGN_H_CENTER Or MFX_ALIGN_TOP Or MFX_SIMPLE_OUTLINE
+            ' /* text */
+            If mValue > -1 Then
+                sz = "#" & g_HexStr(mValue) & "." & g_HexStr(Year(Now), 4) & g_HexStr(Month(Now), 2) & g_HexStr(Day(Now), 2)
+                .DrawString sz, .Bounds.InsetByCopy(8, 16).OffsetByCopy(0, 28), MFX_ALIGN_H_CENTER Or MFX_ALIGN_TOP Or MFX_SIMPLE_OUTLINE
 
+            End If
         End If
-
-        .DrawString sz, .Bounds.InsetByCopy(8, 16).OffsetByCopy(0, 28), MFX_ALIGN_H_CENTER Or MFX_ALIGN_TOP Or MFX_SIMPLE_OUTLINE
-
     End With
 
 End Sub

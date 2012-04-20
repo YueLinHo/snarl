@@ -46,13 +46,11 @@ Private Sub IMeterStyle_SetStyle(Style As TStyle)
 
 End Sub
 
-Private Sub IStyleInstance_AdjustPosition(X As Long, Y As Long, Alpha As Integer, Done As Boolean)
+Private Sub IStyleInstance_AdjustPosition(X As Long, y As Long, Alpha As Integer, Done As Boolean)
 
     X = Fix((g_ScreenWidth() - mView.Width) / 2)
-    Y = Fix((g_ScreenHeight() - mView.Height) / 2)
-
+    y = Fix((g_ScreenHeight() - mView.Height) / 2)
     Alpha = IIf(mShowing, 255, 0)
-
     Done = True
 
 End Sub
@@ -119,68 +117,73 @@ Dim n As Long
 
     End If
 
-    ' /* calculate notifcation size and internal measurements */
-
-'Dim nCol As Long
-'
-'    nCol = g_RGBAFromString(mStyle.ReadSetting("background"))
-'    nAlp = g_SafeLong(mStyle.ReadSetting("bg_alpha"))
-'    nCol = g_SetRGB32Alpha(nCol, ((nAlp / 100) * 255))
-
     With mView
         .SizeTo 200, 200
         .Clear
         .EnableSmoothing True
-        .SetHighColour rgba(24, 24, 24)
+        If (mInfo.Flags And S_NOTIFICATION_IS_PRIORITY) Then
+            .SetHighColour rgba(230, 0, 0)
+
+        Else
+            .SetHighColour g_SafeLong(mStyle.ReadSetting("background"))
+
+        End If
         .FillRoundRect .Bounds
+
         If mIconSize > 0 Then _
             .DrawScaledImage mIcon, new_BPoint(Fix((.Width - mIconSize) / 2), Fix((.Height - mIconSize) / 2)), new_BPoint(mIconSize, mIconSize)
 
-        .SetHighColour rgba(255, 255, 255)
-'        .DrawString CStr(n), .Bounds.InsetByCopy(10, 10), MFX_ALIGN_H_CENTER Or MFX_ALIGN_BOTTOM
-
-        .SetHighColour rgba(0, 0, 0, 64)
-'        .StrokeRoundRect .Bounds
-
         ' /* meter */
 
-Dim pr As BRect
 Dim c As Integer
 Dim i As Integer
+Dim pr As BRect
 
         If n > -1 Then
             ' /* draw the meter */
-
-            c = Fix(n / 10)
-            .EnableSmoothing False
-            Set pr = new_BRect(0, 0, 7, 9)
-            pr.OffsetBy 33, .Bounds.Bottom - 24
-
-            For i = 1 To 10
-                If i > c Then
-                    .SetHighColour rgba(0, 0, 0, 48)
-
-                Else
-                    .SetHighColour rgba(255, 255, 255)
-
-                End If
-
+            Select Case mInfo.Scheme
+            Case "solid"
+                Set pr = .Bounds.InsetByCopy(20, 20)
+                pr.Top = pr.Bottom - 8
+                .SetHighColour rgba(0, 0, 0, 64)
                 .FillRect pr
-                .SetHighColour rgba(0, 0, 0, 32)
-                .StrokeRect pr.InsetByCopy(-1, -1)
-                pr.OffsetBy pr.Width + 6, 0
+                .StrokeRect pr
+                c = pr.Width * (n / 100)
+                pr.Right = pr.Left + c
+                .SetHighColour g_SafeLong(mStyle.ReadSetting("foreground"))
+                .FillRect pr
 
-            Next i
+            Case Else
+                c = Fix(n / 10)
+                .EnableSmoothing False
+                Set pr = new_BRect(0, 0, 7 - 1, 8 - 1)
+                pr.OffsetBy 33, .Bounds.Bottom - 24
+                For i = 1 To 10
+                    If i > c Then
+                        .SetHighColour rgba(0, 0, 0, 48)
+    
+                    Else
+                        .SetHighColour g_SafeLong(mStyle.ReadSetting("foreground"))
+    
+                    End If
+    
+                    .FillRect pr
+                    .SetHighColour rgba(0, 0, 0, 32)
+                    .StrokeRect pr.InsetByCopy(-1, -1)
+                    pr.OffsetBy pr.Width + 6, 0
+    
+                Next i
+            End Select
 
         End If
 
 Dim pbTemp As mfxBitmap
-Dim nAlp As Long
+'Dim nAlp As Long
 
         Set pbTemp = .ConvertToBitmap()
         .Clear
         .EnableSmoothing True
-        .DrawScaledImage pbTemp, , , 172
+        .DrawScaledImage pbTemp, , , (g_SafeLong(mStyle.ReadSetting("bg_alpha")) / 100) * 255 '// 172
 
     End With
 

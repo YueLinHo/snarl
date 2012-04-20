@@ -43,6 +43,7 @@ End Type
 
 Dim mTime As T_TIME
 Dim mStyle As TStyle
+Dim mTintCol As Long
 
 Implements IMeterStyle
 Implements IStyleInstance
@@ -69,6 +70,7 @@ Private Sub IStyleInstance_Show(ByVal Visible As Boolean)
 End Sub
 
 Private Sub IStyleInstance_UpdateContent(NotificationInfo As libSnarlStyles.notification_info)
+Dim szTime As String
 
     If (mView Is Nothing) Then
         Set mView = New mfxView
@@ -78,41 +80,66 @@ Private Sub IStyleInstance_UpdateContent(NotificationInfo As libSnarlStyles.noti
 
     LSet mInfo = NotificationInfo
 
-    ' /* clear cached icon */
+    ' /* now V42 so augment replace title and text with real title and text */
 
-    Set mIcon = Nothing
-'    mIconSize = 0
+    With New BPackedData
+        If .SetTo(NotificationInfo.Text) Then
+            mInfo.Title = .ValueOf("title")
+            mInfo.Text = .ValueOf("text")
+            szTime = .ValueOf("value-date-packed")
+
+            mTintCol = 0
+            If .Exists("colour-tint") Then _
+                mTintCol = g_SafeLong(.ValueOf("colour-tint"))
+
+        End If
+    End With
 
 Dim pi As MImage
 
     ' /* cache icon */
 
+    Set mIcon = Nothing
     Set pi = load_image_obj(NotificationInfo.Icon)
     If is_valid_image(pi) Then _
         Set mIcon = create_bitmap_from_image(pi)
 
     ' /* validate text field - it must be in the format "YYYYMMDDHHMMSS" */
 
-    If Len(mInfo.Text) <> 14 Then
-        g_Debug "TClockInstance.UpdateContent(): invalid time string '" & mInfo.Text & "'"
-        mInfo.Text = Format$(Now, "YYYYMMDDHHNNSS")
-        g_Debug "converted to now(): " & mInfo.Text
+    If szTime <> "" Then
+        uGetPackedTime szTime
+
+    ElseIf mInfo.Text <> "" Then
+        uGetPackedTime mInfo.Text
 
     End If
-
-    With mTime
-        .Year = uVal(Left$(mInfo.Text, 4))
-        .Month = uVal(Mid$(mInfo.Text, 5, 2))
-        .Date = uVal(Mid$(mInfo.Text, 7, 2))
-        .Hour = uVal(Mid$(mInfo.Text, 9, 2))
-        .Minute = uVal(Mid$(mInfo.Text, 11, 2))
-        .Second = uVal(Mid$(mInfo.Text, 13, 2))
-
-    End With
 
     uDraw
 
 End Sub
+
+Private Function uGetPackedTime(ByVal PackedTime As String) As Boolean
+
+    If Len(PackedTime) <> 14 Then _
+        Exit Function
+
+'        g_Debug "TClockInstance.UpdateContent(): invalid time string '" & mInfo.Text & "'"
+'        mInfo.Text = Format$(Now, "YYYYMMDDHHNNSS")
+'        g_Debug "converted to now(): " & mInfo.Text
+'
+'    End If
+
+    With mTime
+        .Year = uVal(Left$(PackedTime, 4))
+        .Month = uVal(Mid$(PackedTime, 5, 2))
+        .Date = uVal(Mid$(PackedTime, 7, 2))
+        .Hour = uVal(Mid$(PackedTime, 9, 2))
+        .Minute = uVal(Mid$(PackedTime, 11, 2))
+        .Second = uVal(Mid$(PackedTime, 13, 2))
+
+    End With
+
+End Function
 
 Private Sub uDraw()
 
@@ -122,13 +149,17 @@ Private Sub uDraw()
 
     End If
 
-    If LCase$(mInfo.Scheme) = "analog" Then
+    Select Case LCase$(mInfo.Scheme)
+    Case "analog"
         uDrawAnalog
 
-    Else
+    Case "digital"
         uDrawDigital
 
-    End If
+    Case Else
+        uDrawReminder
+
+    End Select
 
 End Sub
 
@@ -300,11 +331,12 @@ Dim hr As Double, Mr As Double, sr As Double
         ' /* title */
 
         If mInfo.Title <> "" Then
-            .SetFont "Calibri", 8, True
-            .TextMode = MFX_TEXT_CLEARTYPE
+            .SetFont "Arial", 8, True
+            .TextMode = MFX_TEXT_ANTIALIAS
+            Set pr = new_BRect(8, 8, .Width - 8 - 1, 8 + (.StringHeight("A") * 2) + 1)
             .SetHighColour rgba(255, 255, 255)
-            .SetLowColour IIf((mInfo.Flags And S_NOTIFICATION_IS_PRIORITY), rgba(255, 0, 0), rgba(0, 0, 0))
-            .DrawString mInfo.Title, .Bounds.InsetByCopy(8, 8), MFX_ALIGN_H_CENTER Or MFX_ALIGN_BOTTOM Or MFX_SIMPLE_OUTLINE
+            .SetLowColour IIf((mInfo.Flags And S_NOTIFICATION_IS_PRIORITY), rgba(255, 0, 0, 240), rgba(0, 0, 0, 240))
+            .DrawString mInfo.Title, pr, MFX_ALIGN_H_CENTER Or MFX_ALIGN_V_CENTER Or MFX_SIMPLE_OUTLINE
 
         End If
 
@@ -423,4 +455,134 @@ Private Function uVal(ByVal str As String) As Integer
     End If
 
 End Function
+
+Private Sub uDrawReminder()
+Dim prBounds As BRect
+Dim cy As Long
+Const RX = 4
+
+    With mView
+        ' /* measure */
+
+        If (mTime.Date = 0) And (mTime.Month = 0) And (mInfo.Title = "") Then
+            cy = 50
+
+        ElseIf (mTime.Date = 0) And (mTime.Month = 0) Then
+            cy = 70
+
+        Else
+            cy = 92
+
+        End If
+
+        .SizeTo 280, cy
+        .EnableSmoothing True
+        .TextMode = MFX_TEXT_ANTIALIAS
+        Set prBounds = .Bounds.InsetByCopy(8, 8)
+
+        ' /* day of month */
+        If mTime.Date > 0 Then
+            .SetFont "Arial Narrow", 32
+            prBounds.Left = prBounds.Left + .StringWidth("00") + 4
+
+        End If
+
+        ' /* draw */
+        .SetHighColour rgba(255, 255, 255)
+        .FillRoundRect .Bounds, RX, RX
+
+'        If mTintCol <> 0 Then
+'            Set pb = g_CreateMarker(rgba(0, 0, 0))
+'            .DrawScaledImage pb, new_BPoint(.Width - 24 - 1, 0), new_BPoint(pb.Width + 2, pb.Height + 1), 176
+'            .DrawScaledImage g_CreateMarker(mTintCol), new_BPoint(.Width - 24, 0), , 244
+'
+'        End If
+
+        .SetHighColour rgba(0, 0, 0, 0)
+        .SetLowColour rgba(0, 0, 0, 16)
+        .FillRoundRect .Bounds, RX, RX, MFX_VERT_GRADIENT
+
+        ' /* priority */
+        If mInfo.Flags And S_NOTIFICATION_IS_PRIORITY Then
+            .DrawScaledImage load_image_obj(g_MakePath(App.Path) & IIf(g_IsIDE, "bin\", "") & "clock\reminder-priority.png"), new_BPoint(Fix((.Width - 128) / 2), Fix((.Height - 128) / 2)), new_BPoint(128, 128), 48
+            .SetHighColour rgba(255, 0, 0, 96)
+
+        Else
+            .SetHighColour rgba(0, 0, 0, 96)
+
+        End If
+        .StrokeRoundRect .Bounds, RX, RX
+
+
+        ' /* day of month */
+        If mTime.Date > 0 Then
+            .SetHighColour rgba(255, 64, 64, 220)
+            .SetFont "Arial Narrow", 32
+            .DrawString Format$(mTime.Date, "00"), .Bounds.InsetByCopy(8, 8).OffsetByCopy(-4, -4)
+
+        End If
+
+        ' /* month and year */
+
+Dim prTitle As BRect
+
+        Set prTitle = prBounds.Duplicate
+
+        If (mTime.Month > 0) Then
+            .SetHighColour rgba(0, 0, 0, 250)
+            .SetFont "Arial", 10, True
+            .DrawString Format$(DateSerial(mTime.Year, mTime.Month, mTime.Date), "dddd mmmm yyyy"), prTitle
+            prTitle.Top = prTitle.Top + .StringHeight("A") + 4
+
+        End If
+
+        If mInfo.Title <> "" Then
+            .SetHighColour rgba(0, 0, 0, 250)
+            .SetFont "Arial", 10
+            .DrawString .GetFormattedText(mInfo.Title, prTitle.Width), prTitle
+
+        End If
+
+        ' /* text and icon block */
+
+        Set prBounds = .Bounds.InsetByCopy(8, 8)
+        prBounds.Top = prBounds.Bottom - 32
+        .SetHighColour rgba(158, 158, 158, 176)
+        .StrokeRect prBounds
+
+        If mTintCol <> 0 Then
+            .EnableSmoothing False
+            .SetHighColour rgba(get_red(mTintCol), get_green(mTintCol), get_blue(mTintCol), 72)
+            .FillRect prBounds.InsetByCopy(1, 1)
+            .EnableSmoothing True
+
+        End If
+
+Dim pb As MImage
+
+        Set pb = load_image_obj(mInfo.Icon)
+        If is_valid_image(pb) Then _
+            .DrawScaledImage pb, prBounds.InsetByCopy(8, 8).TopLeft, new_BPoint(16, 16)
+
+        prBounds.Left = prBounds.Left + 32
+        .SetHighColour rgba(255, 124, 124)
+        .StrokeLine new_BRect(prBounds.Left, prBounds.Top + 1, prBounds.Left, prBounds.Bottom - 1)
+        .StrokeLine new_BRect(prBounds.Left + 2, prBounds.Top + 1, prBounds.Left + 2, prBounds.Bottom - 1)
+        prBounds.Left = prBounds.Left + 4
+
+        If mInfo.Text <> "" Then
+            .SetHighColour rgba(0, 0, 0, 245)
+            .SetFont "Arial", 9
+            .DrawString .GetFormattedText(mInfo.Text, prBounds.InsetByCopy(4, 4).Width), prBounds.InsetByCopy(4, 4)
+
+        End If
+
+        .SetHighColour rgba(0, 0, 0, 180)
+        .SetFont "Arial", 7
+        .DrawString Format$(TimeSerial(mTime.Hour, mTime.Minute, 0), "h:mm AMPM"), prBounds.InsetByCopy(4, 4), MFX_ALIGN_LEFT Or MFX_ALIGN_BOTTOM
+
+    End With
+
+End Sub
+
 

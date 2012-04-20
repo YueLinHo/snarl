@@ -200,6 +200,12 @@ Dim sz As String
     Set mStyles = new_BTagList()
     mLastErr = ""
 
+    ' /* if in IDE, from local path */
+
+    g_Debug "local..."
+    If g_IsIDE() Then _
+        uGetFromFolder g_MakePath(App.Path) & "styles"
+
     ' /* load styles from All Users first */
 
     g_Debug "all users..."

@@ -49,6 +49,7 @@ Dim mPercent As Single
 Dim mMeterRect As BRect
 
 Dim mBkCol As Long
+Dim mTintCol As Long
 
 Dim mContent As BPackedData
 Dim mLabel() As T_LABEL
@@ -151,6 +152,15 @@ Dim ppd As BPackedData
 
     If get_alpha(mBkCol) = 0 Then _
         mBkCol = rgba(64, 64, 64)           ' // zero alpha means reset to default
+
+
+    If ppd.Exists("colour-tint") Then
+        mTintCol = g_SafeLong(ppd.ValueOf("colour-tint"))
+
+    Else
+        mTintCol = 0
+
+    End If
 
     ' /* percent */
 
@@ -337,6 +347,9 @@ Const RX = 20
         .SetHighColour rgba(0, 0, 0, 90)
         .SetLowColour rgba(0, 0, 0, 0)
         .FillRoundRect new_BRect(.Bounds.Left, .Bounds.Top, .Bounds.Right, MIN(.Bounds.Bottom, 60 - 1)), RX, RX, MFX_VERT_GRADIENT
+
+        If mTintCol <> 0 Then _
+            .DrawScaledImage g_CreateMarker(mTintCol), new_BPoint(.Width - 30, 0), , 200
 
         ' /* outer white border */
 

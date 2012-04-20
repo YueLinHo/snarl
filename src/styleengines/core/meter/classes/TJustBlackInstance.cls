@@ -38,6 +38,7 @@ Dim mIcon As mfxBitmap
 Dim mView As mfxView
 
 Dim mBackground As Long
+Dim mTintCol As Long
 
 Dim mIconOnly As Boolean
 Dim mIsNumeric As Boolean
@@ -105,6 +106,15 @@ Dim pi As MImage
         mIconSize = mIcon.Height
 
     End If
+
+'    If mData.Exists("colour-tint") Then
+'        mTintCol = g_SafeLong(mData.ValueOf("colour-tint"))
+'
+'    Else
+'        mTintCol = 0
+'
+'    End If
+
 
     ' /* pre-configuration */
 

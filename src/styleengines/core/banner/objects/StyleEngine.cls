@@ -13,88 +13,44 @@ Attribute VB_PredeclaredId = False
 Attribute VB_Exposed = True
 Option Explicit
 
-Private Const LIB_DATE = "7-Oct-2011"
+Private Const LIB_DATE = "2-Mar-2012"
 
+Dim mStyles As TStyleBundle
 Dim mLastErr As String
-Dim mPanel As BPrefsPanel
 
 Implements IStyleEngine
-Implements KPrefsPanel
-
-'Private Function ISSEngine_ConfigRequested(ByVal StyleAndScheme As String) As melon.M_RESULT
-'
-'    MsgBox "Config: " & StyleAndScheme
-'
-''    If (mPanel Is Nothing) Then
-''        Set mPanel = New BPrefsPanel
-''        With mPanel
-''
-''            .SetHandler Me
-''            .SetWidth 300
-''            .AddPage new_BPrefsPage("General", , New TGeneralPage)
-''
-''
-'''    load_image g_MakePath(App.Path) & "etc\icons\general.png", pbm
-'''    mPanel.AddPage new_BPrefsPage("General", pbm, New TGeneralPage)
-'''
-'''    load_image g_MakePath(App.Path) & "etc\icons\apps.png", pbm
-'''    Set mAppsPage = New TAppsPage
-'''    mPanel.AddPage new_BPrefsPage("Apps", pbm, mAppsPage)
-'''
-'''    load_image g_MakePath(App.Path) & "etc\icons\display.png", pbm
-'''    mPanel.AddPage new_BPrefsPage("Display", pbm, New TDisplayPage)
-'''
-'''    load_image g_MakePath(App.Path) & "etc\icons\styles.png", pbm
-'''    mPanel.AddPage new_BPrefsPage("Styles", pbm, New TStylesPage)
-'''
-'''    load_image g_MakePath(App.Path) & "etc\icons\extensions.png", pbm
-'''    mPanel.AddPage new_BPrefsPage("Extensions", pbm, New TExtPage)
-'''
-'''    load_image g_MakePath(App.Path) & "etc\icons\network.png", pbm
-'''    mPanel.AddPage new_BPrefsPage("Network", pbm, New TNetworkPage)
-'''
-'''    load_image g_MakePath(App.Path) & "etc\icons\advanced.png", pbm
-'''    mPanel.AddPage new_BPrefsPage("Advanced", pbm, New TAdvancedPage)
-'''
-'''    load_image g_MakePath(App.Path) & "etc\icons\about.png", pbm
-'''    mPanel.AddPage new_BPrefsPage("About", pbm, New TAboutPage)
-'''
-'''    If gDebugMode Then
-'''        load_image g_MakePath(App.Path) & "etc\icons\debug.png", pbm
-'''        mPanel.AddPage new_BPrefsPage("Debug", pbm, New TDebugPage)
-'''
-'''    End If
-''
-'''    mPanel.SetTitle "Snarl Preferences"
-'''    mPanel.SetWidth 500
-''
-''            .Go
-'''    g_SetWindowIconToAppResourceIcon mPanel.hWnd
-''
-''        End With
-''
-''    End If
-''
-''    ISSEngine_ConfigRequested = mPanel.hWnd
-'
 
 Private Function IStyleEngine_CountStyles() As Long
 
-    IStyleEngine_CountStyles = 3
+    IStyleEngine_CountStyles = mStyles.Count()
 
 End Function
 
 Private Function IStyleEngine_CreateInstance(ByVal StyleName As String) As libSnarlStyles.IStyleInstance
+Dim ps As TStyle
+
+    If Not mStyles.Find(StyleName, ps) Then _
+        Exit Function
+
+Dim pMV As MTVInstance
+Dim pIB As InfoBarInstance
+Dim pt As TinyInstance
 
     Select Case LCase$(StyleName)
     Case "music video"
-        Set IStyleEngine_CreateInstance = New MTVInstance
+        Set pMV = New MTVInstance
+        Set pMV.Style = ps
+        Set IStyleEngine_CreateInstance = pMV
 
     Case "info bar"
-        Set IStyleEngine_CreateInstance = New InfoBarInstance
+        Set pIB = New InfoBarInstance
+        Set pIB.Style = ps
+        Set IStyleEngine_CreateInstance = pIB
 
     Case "tiny"
-        Set IStyleEngine_CreateInstance = New TinyInstance
+        Set pt = New TinyInstance
+        Set pt.Style = ps
+        Set IStyleEngine_CreateInstance = pt
 
     End Select
 
@@ -114,178 +70,45 @@ End Function
 
 Private Function IStyleEngine_GetConfigWindow(ByVal StyleName As String) As Long
 
-    If StyleName <> "Tiny" Then _
-        Exit Function
-
-Dim pPage As IStylePage
-Dim pp As BPrefsPage
-Dim sz As String
-
-    If (mPanel Is Nothing) Then
-
-        Set mPanel = New BPrefsPanel
-        With mPanel
-            .SetHandler Me
-            .SetTitle StyleName & " Preferences"
-            .SetWidth 300
-            .SetWindow 1
-
-            ' /* create prefs page based on style (tiny only for now) */
-
-            Set pPage = New TTinyPage
-
-            ' /* create prefs page */
-
-            Set pp = new_BPrefsPage("", Nothing, pPage)
-
-            ' /* ask the style page to add its content */
-
-            pPage.Init pp
-
-            ' /* test and reset buttons - all */
-
-            With pp
-                .Add new_BPrefsControl("separator", "", "")
-                .Add new_BPrefsControl("fancybutton2", "test", "Test")
-                .Add new_BPrefsControl("separator", "", "")
-                .Add new_BPrefsControl("fancybutton2", "reset", "Reset to Factory Settings")
-
-'        If (mCurrent.Flags And E_METER_STYLE_CAN_CHANGE_FONT) Then
-'            .Add new_BPrefsControl("fancyfontpicker", "text", "", "Text font:", uCreatePackedFontStr(mCurrent.ReadSetting("text_font"), mCurrent.ReadSetting("text_size")))
-'
-'        End If
-'
-'        ' /* icon */
-'
-'        If (mCurrent.Flags And E_METER_STYLE_CAN_HIDE_SHOW_ICON) Then
-'            .Add new_BPrefsControl("fancytoggle2", "show_icon", "Show icon?", "Icon:", mCurrent.ReadSetting("show_icon"))
-'
-'            If (mCurrent.Flags And E_METER_STYLE_CAN_SET_ICON_POS) Then
-'                Set pm = New CTempMsg
-'                pm.Add "text", "Position:"
-'                pm.Add "align", 1&
-'                .Add new_BPrefsControl("fancytoggle", "icon_align", "Left|Right", " ", mCurrent.ReadSetting("icon_align"), pm)
-'
-'            End If
-'        End If
-'
-'        ' /* background colour picker */
-'
-'Dim f As Boolean
-'
-'        f = ((mCurrent.Name = STYLE_NAME_JUST_BLACK) And (g_IsPressed(VK_LCONTROL)))
-'
-'        If (mCurrent.Flags And E_METER_STYLE_CAN_CHANGE_BKGND) Or (f) Then _
-'            .Add new_BPrefsControl("fancycolourpicker", "background", "", IIf(f, "Not just black:", "Background:"), mCurrent.ReadSetting("background"))
-'
-'        ' /* foreground colour picker */
-'
-'        If (mCurrent.Flags And E_METER_STYLE_CAN_CHANGE_FGND) Then _
-'            .Add new_BPrefsControl("fancycolourpicker", "foreground", "", "Text:", mCurrent.ReadSetting("foreground"))
-'
-'        ' /* border colour picker */
-'
-'        If (mCurrent.Flags And E_METER_STYLE_CAN_CHANGE_BORDER) Then _
-'            .Add new_BPrefsControl("fancycolourpicker", "border", "", "Border:", mCurrent.ReadSetting("border"))
-'
-'        ' /* foreground opacity */
-'
-'        If (mCurrent.Flags And E_METER_STYLE_CAN_SET_FG_ALPHA) Then
-'            Set pm = New CTempMsg
-'            pm.Add "min", 0&
-'            pm.Add "max", 100&
-'            pm.Add "freq", 10&
-'            pm.Add "suffix", "%"
-'            .Add new_BPrefsControl("fancyslider", "fg_alpha", "", "Foreground opacity:", mCurrent.ReadSetting("fg_alpha"), pm)
-'
-'        End If
-'
-'        ' /* meter */
-'
-'        .Add new_BPrefsControl("banner", "", "Meter")
-'
-'        .Add new_BPrefsControl("fancytoggle2", "show_graphically", "Auto-detect numeric-only text?", "", mCurrent.ReadSetting("show_graphically"))
-'        fUseMeter = (Val(mCurrent.ReadSetting("show_graphically")) <> 0)
-'
-'        If (mCurrent.Flags And E_METER_STYLE_VARIABLE_METERS) Then
-'            .Add new_BPrefsControl("fancycycle", "meter_type", mCurrent.MeterTypes, "Type:", mCurrent.ReadSetting("meter_type"), , fUseMeter)
-'
-'            If (mCurrent.Flags And E_METER_STYLE_HAS_SPECTRUMS) Then
-'
-'                .Add new_BPrefsControl("fancycolourpicker", "bar_colour", "", "Bar colour:", mCurrent.ReadSetting("bar_colour"))
-'
-'                Set pm = New CTempMsg
-'                pm.Add "item-height", 24&
-'                Set pc = new_BPrefsControl("combo", "spectrum_type", mCurrent.Spectrums, "Spectrum type:", mCurrent.ReadSetting("spectrum_type"), pm, (InStr(mCurrent.MeterType(Val(mCurrent.ReadSetting("meter_type"))), "Spectrum")))
-'                .Add pc
-'
-'                uSetSpectrumIcon pc, 1, 0
-'                uSetSpectrumIcon pc, 2, 1
-'
-'            End If
-'        End If
-'
-'        If (mCurrent.Flags And E_METER_STYLE_NO_SHOW_PERCENT) = 0 Then _
-'            .Add new_BPrefsControl("fancytoggle2", "show_percent", "Display value as percentage?", "Options:", mCurrent.ReadSetting("show_percent"))
-'
-'
-'        ' /* debugging section - Sony only ATM (and only if CTRL held down) */
-'
-'        If g_IsPressed(VK_LCONTROL) Then
-''            If mPanelStyle = STYLE_NAME_SONY Then
-''            .Add new_BPrefsControl("separator", "", "")
-'                .Add new_BPrefsControl("banner", "", "Debugging")
-'                Set pm = New CTempMsg
-'                pm.Add "min", -1&
-'                pm.Add "max", 1439&
-'                pm.Add "freq", 120&
-'                pm.Add "label_size", 50&
-'                .Add new_BPrefsControl("fancyslider", "fs>dbgTime", "", "Time of day:", "0", pm)
-'
-''            End If
-'        End If
-'
-'    End With
-
-                
-                
-                
-            
-            End With
-
-            .AddPage pp
-            
-            .Go
-
-        End With
-
-    End If
-
-    IStyleEngine_GetConfigWindow = mPanel.hWnd
+    IStyleEngine_GetConfigWindow = mStyles.Configure(StyleName)
 
 End Function
 
 Private Function IStyleEngine_Initialize() As melon.M_RESULT
+Dim ps As TStyle
 
-    ' /* tiny style defaults */
+    Set mStyles = New TStyleBundle
+    With mStyles
+    
+        Set ps = New TStyle
+        ps.SetTo "Music Video", "Displays the notification as a banner along the bottom of the screen.", _
+                 S_STYLE_NO_DROPSHADOW Or S_STYLE_CUSTOM_SHOW Or S_STYLE_CUSTOM_HIDE Or S_STYLE_SINGLE_INSTANCE Or S_STYLE_DONT_QUEUE Or S_STYLE_CLICK_THROUGH Or S_STYLE_V42_CONTENT Or S_STYLE_IS_CONFIGURABLE, _
+                 SCHEME_1, 1, 303, _
+                 LIB_DATE, "info@fullphat.net", "http://getsnarl.info", _
+                 mStyles.CreateDefaults("title_font=Arial Rounded MT Bold&title_size=26&title_bold=1&text_font=Arial Rounded MT Bold&text_size=12&col-background=" & CStr(rgba(24, 24, 24))), _
+                 E_SF_CAN_CHANGE_BACKGROUND Or E_SF_CAN_CHANGE_TEXT_FONT Or E_SF_CAN_CHANGE_TITLE_FONT
 
-    Set gTinyDefaults = New BPackedData
-    With gTinyDefaults
+        .Add ps
+            
+        Set ps = New TStyle
+        ps.SetTo "Tiny", "Displays the notfication in a tiny bubble in the top right corner of the screen.", _
+                 S_STYLE_CUSTOM_SHOW Or S_STYLE_CUSTOM_HIDE Or S_STYLE_SINGLE_INSTANCE Or S_STYLE_DONT_QUEUE Or S_STYLE_IS_CONFIGURABLE Or S_STYLE_V42_CONTENT, _
+                 "Top|Bottom|Top Left|Top Right|Bottom Left|Bottom Right", 2, 0, _
+                 LIB_DATE, "info@fullphat.net", "http://getsnarl.info", _
+                 mStyles.CreateDefaults("title_font=Verdana&title_size=7&text_font=Verdana&text_size=7&use_cleartype=1&icon_size=24&use_glass=1&invert_shading=0&col-background=" & CStr(rgba(96, 32, 0)) & "&col-foreground=" & CStr(rgba(255, 255, 255)) & "&col-border=" & CStr("-10040320") & "&col-shading=" & CStr(rgba(0, 0, 0))), _
+                 E_SF_CAN_CHANGE_BACKGROUND Or E_SF_CAN_CHANGE_BORDER Or E_SF_CAN_CHANGE_FONT_SMOOTHING Or E_SF_CAN_CHANGE_FOREGROUND Or E_SF_CAN_CHANGE_SHADING Or E_SF_CAN_CHANGE_TEXT_FONT Or E_SF_CAN_CHANGE_TITLE_FONT Or E_SF_CAN_CHANGE_ICON_SIZE Or E_SF_CAN_INVERT_SHADING Or E_SF_CAN_USE_GLASS_EFFECT
 
-        .Add "tiny.iconsize", "2"
-        .Add "tiny.font", "name::Verdana#?size::7#?bold::0"
-        .Add "tiny.cleartype", "0"
-        .Add "tiny.useglass", "1"
-        .Add "tiny.invertshading", "0"
-        .Add "tiny.background", CStr(rgba(96, 32, 0))
-        .Add "tiny.foreground", CStr(rgba(255, 255, 255))
-        .Add "tiny.border", CStr("-10040320")
-        .Add "tiny.shading", CStr(rgba(0, 0, 0))
+        .Add ps
+    
+        Set ps = New TStyle
+        ps.SetTo "Info Bar", "Displays the notfication in a thin bar along the top of the screen.", _
+                 S_STYLE_CUSTOM_SHOW Or S_STYLE_CUSTOM_HIDE Or S_STYLE_SINGLE_INSTANCE Or S_STYLE_DONT_QUEUE Or S_STYLE_V42_CONTENT, _
+                 "Amiga|OS X|geOShell|Cloud:9ine|Amiga Guru", 2, 0, _
+                 LIB_DATE, "info@fullphat.net", "http://getsnarl.info", Nothing
+
+        .Add ps
     
     End With
-
-    Set gSettings = New CConfFile
-    gSettings.SetTo sn41GetConfigPath() & "etc\banner.settings"
 
     IStyleEngine_Initialize = M_OK
 
@@ -317,45 +140,7 @@ End Function
 
 Private Sub IStyleEngine_StyleAt(ByVal Index As Long, Style As libSnarlStyles.style_info)
 
-    With Style
-        ' /* generic */
-
-        .Copyright = App.LegalCopyright
-        .Date = LIB_DATE
-        .Path = App.Path
-        .SupportEmail = "support@fullphat.net"
-        .URL = "www.fullphat.net"
-
-        Select Case Index
-        Case 1
-            .Name = "Music Video"
-            .Description = "Displays the notification as a banner along the bottom of the screen."
-            .Major = 1
-            .Minor = 202
-            .Flags = S_STYLE_NO_DROPSHADOW Or S_STYLE_CUSTOM_SHOW Or S_STYLE_CUSTOM_HIDE Or S_STYLE_SINGLE_INSTANCE Or S_STYLE_DONT_QUEUE Or S_STYLE_CLICK_THROUGH Or S_STYLE_V42_CONTENT
-            .Schemes = SCHEME_1 ' & "|" & SCHEME_2
-
-        Case 2
-            .Name = "Tiny"
-            .Description = "Displays the notfication in a tiny bubble in the top right corner of the screen."
-            .Major = 1
-            .Minor = 0
-            .Flags = S_STYLE_CUSTOM_SHOW Or S_STYLE_CUSTOM_HIDE Or S_STYLE_SINGLE_INSTANCE Or S_STYLE_DONT_QUEUE Or S_STYLE_IS_CONFIGURABLE Or S_STYLE_V42_CONTENT
-            .Schemes = "Top|Bottom|Top Left|Top Right|Bottom Left|Bottom Right"
-
-        Case 3
-            .Name = "Info Bar"
-            .Description = "Displays the notfication in a thin bar along the top of the screen."
-            .Major = 0
-            .Minor = 1
-            .Flags = S_STYLE_CUSTOM_SHOW Or S_STYLE_CUSTOM_HIDE Or S_STYLE_SINGLE_INSTANCE Or S_STYLE_DONT_QUEUE
-            .Schemes = "Amiga|OS X|geOShell|Cloud:9ine|Amiga Guru"
-
-        End Select
-
-        .IconPath = g_MakePath(App.Path) & .Name & ".png"
-
-    End With
+    mStyles.GetInfo Index, Style
 
 End Sub
 
@@ -368,27 +153,44 @@ Private Function IStyleEngine_Version() As Long
 
 End Function
 
-Private Sub KPrefsPanel_PageChanged(ByVal NewPage As Long)
-End Sub
 
-Private Sub KPrefsPanel_Quit()
 
-    Set mPanel = Nothing
 
-End Sub
-
-Private Sub KPrefsPanel_Ready()
-End Sub
-
-Private Sub KPrefsPanel_Selected(ByVal Command As String)
-End Sub
-
-Private Function uCreatePackedFontStr(ByVal Typeface As String, ByVal TypeSize As String) As String
-Dim ppd As BPackedData
-
-    Set ppd = New BPackedData
-    ppd.Add "name", Typeface
-    ppd.Add "size", TypeSize
-    uCreatePackedFontStr = ppd.AsString()
-
-End Function
+'    With Style
+'        ' /* generic */
+'        .Copyright = App.LegalCopyright
+'        .Date = LIB_DATE
+'        .Path = App.Path
+'        .SupportEmail = "support@fullphat.net"
+'        .URL = "www.fullphat.net"
+'
+'        Select Case Index
+'        Case 1
+'            .Name = "Music Video"
+'            .Description = "Displays the notification as a banner along the bottom of the screen."
+'            .Major = 1
+'            .Minor = 303
+'            .Flags = S_STYLE_NO_DROPSHADOW Or S_STYLE_CUSTOM_SHOW Or S_STYLE_CUSTOM_HIDE Or S_STYLE_SINGLE_INSTANCE Or S_STYLE_DONT_QUEUE Or S_STYLE_CLICK_THROUGH Or S_STYLE_V42_CONTENT Or S_STYLE_IS_CONFIGURABLE
+'            .Schemes = SCHEME_1 ' & "|" & SCHEME_2
+'
+'        Case 2
+'            .Name = "Tiny"
+'            .Description = "Displays the notfication in a tiny bubble in the top right corner of the screen."
+'            .Major = 1
+'            .Minor = 0
+'            .Flags = S_STYLE_CUSTOM_SHOW Or S_STYLE_CUSTOM_HIDE Or S_STYLE_SINGLE_INSTANCE Or S_STYLE_DONT_QUEUE Or S_STYLE_IS_CONFIGURABLE Or S_STYLE_V42_CONTENT
+'            .Schemes = "Top|Bottom|Top Left|Top Right|Bottom Left|Bottom Right"
+'
+'        Case 3
+'            .Name = "Info Bar"
+'            .Description = "Displays the notfication in a thin bar along the top of the screen."
+'            .Major = 1
+'            .Minor = 0
+'            .Flags = S_STYLE_CUSTOM_SHOW Or S_STYLE_CUSTOM_HIDE Or S_STYLE_SINGLE_INSTANCE Or S_STYLE_DONT_QUEUE
+'            .Schemes = "Amiga|OS X|geOShell|Cloud:9ine|Amiga Guru"
+'
+'        End Select
+'
+'        .IconPath = g_MakePath(App.Path) & .Name & ".png"
+'
+'    End With

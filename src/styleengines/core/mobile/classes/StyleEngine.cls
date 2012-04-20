@@ -46,7 +46,7 @@ Option Explicit
     '
     ' */
 
-Private Const LIB_DATE = "29-Sep-2011"
+Private Const LIB_DATE = "21-Feb-2012"
 
 Private Const STYLE_NAME_TOASTY = "Toasty"
 Private Const STYLE_NAME_NMA = "Notify My Android"
@@ -132,9 +132,7 @@ Dim pm As CTempMsg
 Dim pc As BControl
 
     If (mPanel Is Nothing) Then
-
         Set mCurrent = mStyle(uIndexOf(StyleName))
-
         If (mCurrent Is Nothing) Then
             MsgBox "Error setting style", vbCritical, App.Title
             Exit Function
@@ -144,49 +142,58 @@ Dim pc As BControl
         Set mPanel = New BPrefsPanel
         With mPanel
             .SetHandler Me
-            .SetTitle StyleName & " Preferences"
             .SetWindow 1
-            .SetWidth IIf(mCurrent.Name = STYLE_NAME_WEB_FORWARD, 480, 300)
 
-            Set pp = new_BPrefsPage("", , Me)
-
-            With pp
-                Select Case mCurrent.Name
-                Case STYLE_NAME_NMA
-                    .SetMargin 80
-                    .Add new_BPrefsControl("fancyedit", "api_key", mCurrent.ReadSetting("api_key"), "API keys:")
-                    .Add new_BPrefsControl("label", "", "Multiple keys can be provided, seperate each key with a comma.")
-
-                Case STYLE_NAME_TOASTY
-                    .SetMargin 80
-                    .Add new_BPrefsControl("fancyedit", "device_id", mCurrent.ReadSetting("device_id"), "Device ID:")
-            
-                Case STYLE_NAME_WEB_FORWARD
+            If mCurrent.Name = STYLE_NAME_WEB_FORWARD Then
+                .SetWidth 380
+                .SetTitle "WebForward 2.0"
+                Set pp = new_BPrefsPage("Forwards", load_image_obj(g_MakePath(App.Path) & IIf(g_IsIDE, "bin\", "") & "webforward.png"), Me)
+                With pp
                     .SetMargin 0
-
-                    .Add new_BPrefsControl("label", "", "Currently defined forwarders.  Double-click an entry to edit it:")
-
                     Set pm = New CTempMsg
                     pm.Add "item-height", 36&
-                    Set pc = new_BPrefsControl("listbox", "wf_list", uSchemesList(), , , pm)
-                    pc.SizeTo 0, 160
+                    pm.Add "plus_minus", 1&
+                    Set pc = new_BPrefsControl("listbox", "wf_list", , , , pm)
+                    pc.SizeTo 0, (7 * 36) + 2
                     .Add pc
-
                     .Add new_BPrefsControl("fancyplusminus", "wf_add_remove")
+                End With
+                .AddPage pp
 
-'                    .Add new_BPrefsControl("label", "", "Each scheme must consist of a base URL and a template which are combined to form an HTTP GET request.")
-'                    .Add new_BPrefsControl("label", "", "Any elements enclosed with '#' in the template will be replaced with the correspondingly named notification component (e.g. %title% will be replaced with the notification title).  See the User Guide for more information.")
-'                    .Add new_BPrefsControl("fancybutton2", "do_read_more", "User Guide")
-''                .Add new_BPrefsControl("fancyedit", "file_to_run")
-''                    .Add new_BPrefsControl("fancytoolbar", "toolbar_options", "Add...|Remove")
-'
-''                    .Add new_BPrefsControl("label", "", "Each scheme represents an individual file to run")
+                Set pp = new_BPrefsPage("About", load_image_obj(g_MakePath(App.Path) & IIf(g_IsIDE, "bin\", "") & "about.png"), Me)
+                With pp
+                    .SetMargin 24
+                    .Add new_BPrefsControl("banner", "", "The Concept")
+                    .Add new_BPrefsControl("label", "", "This style allows you to forward the content of notifications to web-based services which then typically display the notification on a device such as a mobile phone or tablet.  Each scheme is an individual WebForward, allowing for granular control over which notifications are sent where.")
+                    .Add new_BPrefsControl("banner", "", "Quick Guide")
+                    .Add new_BPrefsControl("label", "", "Each WebForward consists of a base URL and an optional query which are combined to form a GET or POST HTTP request.  If the POST method is used, the request body can also be specified.")
+                    .Add new_BPrefsControl("label", "", "Any elements enclosed with '#' characters will be replaced with the correspondingly named notification component (e.g. #title# will be replaced with the notification title).  See the User Guide for more information.")
+                    .Add new_BPrefsControl("fancybutton2", "do_read_more", "User Guide")
+                End With
+                .AddPage pp
 
-                End Select
+            Else
+                .SetWidth 300
+                .SetTitle StyleName & " Preferences"
+                Set pp = new_BPrefsPage("", , Me)
+                With pp
+                    Select Case mCurrent.Name
+                    Case STYLE_NAME_NMA
+                        .SetMargin 80
+                        .Add new_BPrefsControl("fancyedit", "api_key", mCurrent.ReadSetting("api_key"), "API keys:")
+                        .Add new_BPrefsControl("label", "", "Multiple keys can be provided, seperate each key with a comma.")
+    
+                    Case STYLE_NAME_TOASTY
+                        .SetMargin 80
+                        .Add new_BPrefsControl("fancyedit", "device_id", mCurrent.ReadSetting("device_id"), "Device ID:")
 
-            End With
+                    End Select
+                End With
+
+                .AddPage pp
+
+            End If
             
-            .AddPage pp
             .Go
 
 '    g_SetWindowIconToAppResourceIcon mPanel.hWnd
@@ -225,7 +232,7 @@ Private Function IStyleEngine_Initialize() As melon.M_RESULT
          "Forwards the notification content to a specific URL using a customizable template.", _
          S_STYLE_IS_CONFIGURABLE Or S_STYLE_MULTI_INSTANCE Or S_STYLE_IS_WINDOWLESS Or S_STYLE_V42_CONTENT, _
          uGetWebForwardSchemes(), _
-         1, 0
+         2, 0
 
     uAdd STYLE_NAME_OUTLOOK_LOG, _
          "Creates the notification as an email item in the Inbox in Microsoft Outlook.  Note that Outlook must be running for the item to be created successfully.", _
@@ -284,6 +291,9 @@ Private Function IStyleEngine_Version() As Long
 End Function
 
 Private Sub KPrefsPage_AllAttached()
+
+    uUpdateList
+
 End Sub
 
 Private Sub KPrefsPage_Attached()
@@ -305,7 +315,7 @@ Dim i As Long
             If i <> 0 Then
                 DeleteFile mWebForward.TagAt(i).Name                                ' // delete the file
                 uGetWebForwardSchemes                                               ' // reload schemes
-                prefskit_SafeSetText Control.Page.Panel, "wf_list", uSchemesList()  ' // update the listbox
+                uUpdateList
 
             End If
 
@@ -468,26 +478,26 @@ Dim sz As String
 
 End Function
 
-Private Function uSchemesList() As String
-
-    If (mWebForward Is Nothing) Then _
-        Exit Function
-
-Dim pf As CConfFile2
-
-    With mWebForward
-        .Rewind
-        Do While .GetNextTag(pf) = B_OK
-            uSchemesList = uSchemesList & pf.GetValueWithDefault("name") & "#?0#?" & g_SafeLeftStr(pf.GetValueWithDefault("url") & _
-                           Replace$(pf.GetValueWithDefault("template"), "|", "¦"), 70, True) & "|"
-
-        Loop
-
-    End With
-
-    uSchemesList = g_SafeLeftStr(uSchemesList, Len(uSchemesList) - 1)
-
-End Function
+'Private Function uSchemesList() As String
+'
+'    If (mWebForward Is Nothing) Then _
+'        Exit Function
+'
+'Dim pf As CConfFile2
+'
+'    With mWebForward
+'        .Rewind
+'        Do While .GetNextTag(pf) = B_OK
+'            uSchemesList = uSchemesList & pf.GetValueWithDefault("name") & "#?0#?" & g_SafeLeftStr(pf.GetValueWithDefault("url") & _
+'                           Replace$(pf.GetValueWithDefault("template"), "|", "¦"), 70, True) & "|"
+'
+'        Loop
+'
+'    End With
+'
+'    uSchemesList = g_SafeLeftStr(uSchemesList, Len(uSchemesList) - 1)
+'
+'End Function
 
 'Private Function uCreateNewScheme() As String
 'Dim sz As String
@@ -527,6 +537,44 @@ Private Sub theAddEditPanel_Quit()
 
     Set theAddEditPanel = Nothing
     uGetWebForwardSchemes                                       ' // reload schemes
-    prefskit_SafeSetText mPanel, "wf_list", uSchemesList()      ' // update the listbox
+    uUpdateList
+
+End Sub
+
+Private Sub uUpdateList()
+Dim pc As BControl
+
+    If (Not mPanel.Find("wf_list", pc)) Or (ISNULL(mWebForward)) Then _
+        Exit Sub
+
+Dim pf As CConfFile2
+Dim szIcon As String
+Dim sz As String
+Dim i As Long
+
+    With mWebForward
+        .Rewind
+        Do While .GetNextTag(pf) = B_OK
+            sz = sz & pf.GetValueWithDefault("name") & "#?0#?" & g_SafeLeftStr(pf.GetValueWithDefault("url") & _
+                      Replace$(pf.GetValueWithDefault("template"), "|", "¦"), 70, True) & "|"
+
+        Loop
+
+        sz = g_SafeLeftStr(sz, Len(sz) - 1)
+        pc.SetText sz
+
+        If sz <> "" Then
+            .Rewind
+            Do While .GetNextTag(pf) = B_OK
+                i = i + 1
+                szIcon = g_MakePath(App.Path) & IIf(g_IsIDE, "bin\", "") & g_MakeFilename2(pf.GetValueWithDefault("name")) & ".icon"
+                If Not g_Exists(szIcon) Then _
+                    szIcon = g_MakePath(App.Path) & IIf(g_IsIDE, "bin\", "") & "webforward.png"
+
+                prefskit_SetItem pc, i, "image-file", szIcon
+            
+            Loop
+        End If
+    End With
 
 End Sub
