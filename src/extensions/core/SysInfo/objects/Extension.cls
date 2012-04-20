@@ -50,10 +50,10 @@ Option Explicit
     '
     ' */
 
-Private Const LIB_DATE = "25-Jan-2012"
-Private Const LIB_RELEASE = "3.2"
+Private Const LIB_DATE = "21-Feb-2012"
+Private Const LIB_RELEASE = "3.2c"
 'Private Const EXT_NAME = "SysInfo"
-Private Const EXT_COMMENT = "Tracks events specific to this computer"
+Private Const EXT_COMMENT = "Monitors hardware and devices on this computer"
 
 Private Const CLASS_LOW_MEM = "lmem"
 Private Const CLASS_NO_MEM = "nmem"
@@ -997,8 +997,9 @@ Dim szText As String
 
     snDoRequest "notify?app-sig=" & App.ProductName & "&password=" & mPassword & "&id=" & CLASS_LOW_DISK & _
                 "&title=Low disk space&text=" & szText & "&icon=!disk-low_space" & _
-                "&uid=low-disk-space-" & LCase$(Path) & "&action=Open," & Path & _
-                "&value-percent=" & CStr(100 - FreePercent)
+                "&uid=low-disk-space-" & LCase$(Path) & "&value-percent=" & CStr(100 - FreePercent) & _
+                "&action=Disk Cleanup,cleanmgr.exe" & _
+                "&callback=" & Path & "&callback-label=Open"
 
 End Sub
 
@@ -1391,8 +1392,9 @@ Dim sz As String
 
     snarl_notify App.ProductName, CLASS_VOL_MNT, "vol-mounted", mPassword, _
                  IIf(VolType = DRIVE_REMOTE, "Share connected", "Disk inserted"), _
-                 uSmartenUpLabel(Label, Path) & sz, uIcon(Path), , , , _
-                 nPercentUsed, "action=Open," & Path & "&action=My Computer,shell:::{20D04FE0-3AEA-1069-A2D8-08002B30309D}"
+                 uSmartenUpLabel(Label, Path) & sz, uIcon(Path), , , Path, _
+                 nPercentUsed, "action=My Computer,shell:::{20D04FE0-3AEA-1069-A2D8-08002B30309D}" & _
+                 "&callback-label=Open"
 
 '    snarl_ez_notify App.ProductName, CLASS_VOL_MNT, _
                  IIf(VolType = DRIVE_REMOTE, "Share connected", "Disk inserted"), _

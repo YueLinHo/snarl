@@ -29,8 +29,8 @@ Option Explicit
 
     ' /* our constants */
 
-Const EXT_DATE = "23-Dec-2011"
-Const EXT_REL = "3.01"
+Const EXT_DATE = "10-Feb-2012"
+Const EXT_REL = "3.02"
 
 Const UID_HOURLY = "_clock+_hourly"
 Const UID_TIMER = "_clock+_timer"
@@ -43,7 +43,7 @@ Const CLASS_ALARM = "alrm"
 Enum CLOCK_FORMAT_TYPES
     CFT_NUMERIC = 0
     CFT_TEXT = 1
-    CFT_SPECIAL = 2
+'    CFT_SPECIAL = 2
 
 End Enum
 
@@ -128,7 +128,7 @@ Dim pc As BControl
         With mPanel
             .SetHandler Me
             .SetTitle App.Title & " Preferences"
-            .SetWidth 500
+            .SetWidth 390
             .SetWindow 1                    ' // so calling Go() doesn't show the window
 
             Set pPage = new_BPrefsPage("General", uPanelIcon("general"), Me)
@@ -137,23 +137,19 @@ Dim pc As BControl
 
             With pPage
                 .SetMargin 90
+                .SetWidth 390
                 .Add new_BPrefsControl("banner", "", "Startup")
-            
                 .Add new_BPrefsControl("fancytoggle2", "show_time_on_load", "Show current time?", , mConfigFile.ValueOf("show_time_on_load"))
                 .Add new_BPrefsControl("fancytoggle2", "show_cookie_on_load", "Display random cookie?", , mConfigFile.ValueOf("show_cookie_on_load"))
 
                 .Add new_BPrefsControl("banner", "", "Cookies")
                 .Add new_BPrefsControl("fancytoggle2", "show_cookie", "Include random cookie in notification?", , mConfigFile.ValueOf("show_cookie"))
-                .Add new_BPrefsControl("fancyfilepicker", "cookie_file", mConfigFile.ValueOf("cookie_file"), "Cookie file:")
+                .Add new_BPrefsControl("fancyfilepicker", "cookie_file", mConfigFile.ValueOf("cookie_file"), "Cookies:")
 
                 .Add new_BPrefsControl("banner", "", "Other")
-                .Add new_BPrefsControl("fancytoggle2", "show_time_on_key", "Show time when the Tab key is pressed?", , mConfigFile.ValueOf("show_time_on_key"))
-                .Add new_BPrefsControl("fancytoggle2", "show_time_on_hotspot", "Show time when the mouse pointer moves to the:", , mConfigFile.ValueOf("show_time_on_hotspot"))
+                .Add new_BPrefsControl("fancytoggle2", "show_time_on_key", "Show time when the Tab key is held?", , mConfigFile.ValueOf("show_time_on_key"))
+                .Add new_BPrefsControl("fancytoggle2", "show_time_on_hotspot", "Show time when the pointer moves to the:", , mConfigFile.ValueOf("show_time_on_hotspot"))
                 .Add new_BPrefsControl("fancycycle", "hotspot_corner", "Top-left corner|Top-right corner|Bottom-left corner|Bottom-right corner", , mConfigFile.ValueOf("hotspot_corner"), , (mConfigFile.ValueOf("show_time_on_hotspot") = "1"))
-
-                .Add new_BPrefsControl("banner", "", "About " & App.Title)
-                .Add new_BPrefsControl("label", "", "V" & CStr(App.Major) & "." & CStr(App.Revision), "Version:")
-                .Add new_BPrefsControl("fancybutton2", "go_website", "www.fullphat.net", "Website:")
 
             End With
 
@@ -190,9 +186,9 @@ Dim pc As BControl
                 .Add new_BPrefsControl("fancyedit", "timer_message", mConfigFile.ValueOf("timer_message"), "Message:", , pm)
                 .Add new_BPrefsControl("label", "", "(Leave either field blank to use the default)")
 
-                .Add new_BPrefsControl("fancytoggle2", "timer_10sec_warning", "Show notification during last 10 seconds?", "Other:", mConfigFile.ValueOf("timer_10sec_warning"))
-                .Add new_BPrefsControl("fancytoggle2", "show_meter", "Meter-friendly?", , mConfigFile.ValueOf("show_meter"))
-                .Add new_BPrefsControl("label", "", "Enabling this option causes " & App.Title & " to include text in the notification which some styles can display graphically.")
+                .Add new_BPrefsControl("fancytoggle2", "timer_10sec_warning", "Show notification during last 10 seconds?", "", mConfigFile.ValueOf("timer_10sec_warning"))
+'                .Add new_BPrefsControl("fancytoggle2", "show_meter", "Meter-friendly?", , mConfigFile.ValueOf("show_meter"))
+'                .Add new_BPrefsControl("label", "", "Enabling this option causes " & App.Title & " to include text in the notification which some styles can display graphically.")
 
             End With
 
@@ -204,7 +200,7 @@ Dim pc As BControl
 
             Set pPage = new_BPrefsPage("Alarms", uPanelIcon("alarms"), Me)
             With pPage
-                .SetMargin 10
+                .SetMargin 0
 '                .Add new_BPrefsControl("banner", "", "Alarms")
 
                 Set pm = New CTempMsg
@@ -213,7 +209,7 @@ Dim pc As BControl
                 pm.Add "item-height", 36&
 
                 Set pc = new_BPrefsControl("listbox", "alarms_list", , , , pm)
-                pc.SizeTo 0, (9 * 36) + 4
+                pc.SizeTo 0, (6 * 36) + 2
                 .Add pc
                 .Add new_BPrefsControl("fancyplusminus", "add_alarm")
     
@@ -255,14 +251,14 @@ Dim pc As BControl
 
             Set pPage = new_BPrefsPage("Formats", uPanelIcon("format"), Me)
             With pPage
-                .SetMargin 90
+                .SetMargin 24
                 .Add new_BPrefsControl("banner", "", "General Time Format")
 
                 Set pm = New CTempMsg
                 pm.Add "inset_by", CLng(Fix(.GetMargin() / 2))
 
 '                .Add new_BPrefsControl("fancytoggle2", "show_as_words", "Show as text?", , IIf(mconfigfile.show_as_words, "1", "0"), pm)
-                .Add new_BPrefsControl("fancycycle", "format_type", "Numeric|Text|YYYYMMDDHHMMSS", , CStr(Val(mConfigFile.ValueOf("format_type")) + 1))
+                .Add new_BPrefsControl("fancycycle", "format_type", "Numeric|Text", , CStr(Val(mConfigFile.ValueOf("format_type")) + 1))
 
                 .Add new_BPrefsControl("banner", "", "Numeric Time Format")
                 .Add new_BPrefsControl("fancytoggle2", "use_12_hour_clock", "Use 12 hour clock?", , mConfigFile.ValueOf("use_12_hour_clock"))
@@ -272,14 +268,14 @@ Dim pc As BControl
     
     '            .Add new_BPrefsControl("fancytoggle2", "custom_am_pm", "Custom AM/PM values?", , IIf(1, "1", "0"), pm, Not mconfigfile.show_as_words)
 
-                .Add new_BPrefsControl("banner", "", "Custom Abbreviations")
-                Set pc = new_BPrefsControl("fancyedit", "am_val", mConfigFile.ValueOf("am_val"), "AM:")
-                pc.SizeTo 48, pc.Height
-                .Add pc
-    
-                Set pc = new_BPrefsControl("fancyedit", "pm_val", mConfigFile.ValueOf("pm_val"), "PM:")
-                pc.SizeTo 48, pc.Height
-                .Add pc
+'                .Add new_BPrefsControl("banner", "", "Custom Abbreviations")
+'                Set pc = new_BPrefsControl("fancyedit", "am_val", mConfigFile.ValueOf("am_val"), "AM:")
+'                pc.SizeTo 48, pc.Height
+'                .Add pc
+'
+'                Set pc = new_BPrefsControl("fancyedit", "pm_val", mConfigFile.ValueOf("pm_val"), "PM:")
+'                pc.SizeTo 48, pc.Height
+'                .Add pc
 
                 .Add new_BPrefsControl("separator", "")
     '            .Add new_BPrefsControl("label", "", "These settings affect the time format used in any notifications this extension displays")
@@ -293,8 +289,19 @@ Dim pc As BControl
             .AddPage pPage
 
             
+            ' /* about */
+
+            Set pPage = new_BPrefsPage("About", uPanelIcon("about"), Me)
+            With pPage
+                .SetMargin 90
+                .Add new_BPrefsControl("banner", "", "About " & App.Title)
+                .Add new_BPrefsControl("label", "", "V" & CStr(App.Major) & "." & CStr(App.Revision), "Version:")
+                .Add new_BPrefsControl("fancybutton2", "go_website", "www.fullphat.net", "Website:")
 
             
+            End With
+
+            .AddPage pPage
             
             
             ' /* create it */
@@ -394,7 +401,8 @@ Private Sub ISnarlExtension_Pulse()
     If (Minute(Now()) = 0) And (Second(Now()) = 0) And (Hour(Now()) <> mLastHour) Then
         snDoRequest "notify?app-sig=" & App.ProductName & "&replace-uid=" & UID_HOURLY & "&uid=" & UID_HOURLY & _
                     "&class=" & CLASS_HOUR_CHIME & "&title=Hourly Reminder&text=" & uGetTimeString() & _
-                    "&icon=" & g_MakePath(App.Path) & "hourly.png" & "&password=" & mPassword & "&log=0"
+                    "&icon=" & g_MakePath(App.Path) & "hourly.png" & "&password=" & mPassword & "&log=0" & _
+                    "&value-date-packed=" & uGetPackedDate(Now())
 
         mLastHour = Hour(Now)
 
@@ -720,7 +728,9 @@ Private Sub KPrefsPage_ControlInvoked(Control As BControl)
     Select Case Control.GetName()
 
     Case "test"
-        snarl_ez_notify App.ProductName, CLASS_HOUR_CHIME, _
+        uShowCurrentTime
+
+'        snarl_ez_notify App.ProductName, CLASS_HOUR_CHIME, _
                         "Hourly Reminder", uGetTimeString(), _
                         g_MakePath(App.Path) & IIf(g_IsIDE(), "bin\", "") & "hourly.png", , , mPassword
 
@@ -1067,17 +1077,11 @@ Dim b2dh As Boolean
     b2dh = (mConfigFile.ValueOf("two_digit_hour") = "1")
     bAmPm = (mConfigFile.ValueOf("show_am_pm") = "1")
 
-    If lType <> CFT_SPECIAL Then _
-        txt = "It's now "
+    txt = "It's now "
 
     If lType = CFT_TEXT Then
         ' /* as text */
         txt = txt & LCase$(pt.AsText(Not b12hr, bSecs))
-
-    ElseIf lType = CFT_SPECIAL Then
-        ' /* special "YYYYMMDDHHMMSS" format */
-        txt = Format$(pt.Year, "0000") & Format$(pt.Month, "00") & Format$(pt.Day, "00") & _
-              Format$(pt.Hour, "00") & Format$(pt.Minutes, "00") & IIf(bSecs, Format$(pt.Seconds, "00"), "XX")
 
     Else
         ' /* numerically */
@@ -1109,83 +1113,13 @@ Dim b2dh As Boolean
 
             End If
         End If
-
-
-'    If HoursOnly Then
-'        If TwentyFourHourClock Then
-'            ' /* 24 hour clock */
-'            AsText = HourText() & " hundred hours"
-'
-'        Else
-'            ' /* 12 hour clock */
-'
-'            If Me.Hour12 = 12 Then
-'                AsText = "Noon"
-'
-'            ElseIf Me.Hour12 = 0 Then
-'                AsText = "Midnight"
-'
-'            Else
-'                AsText = HourText() & " o'clock"
-'
-'            End If
-'
-'        End If
-'
-'    Else
-'        If TwentyFourHourClock Then
-'            AsText = HourText()
-'
-'        Else
-'
-'
-'        End If
-'
-'    End If
-
-
-
     End If
-
-'        Else
-'
-'            ' /* for the hourly reminder, show_seconds means we display as hh:mm:ss instead of h o'clock... */
-'
-'            If m_Config.show_seconds Then
-'
-'                ' /* display as h[h]:mm:ss [ampm] */
-'
-'                i = IIf(m_Config.use_12_hour_clock, .Hour12, .Hour)
-'
-'                txt = IIf(m_Config.two_digit_hour, Format$(i, "00"), CStr(i))
-'                txt = txt & ":00:00"          ' // we _know_ it's 00:00 as it's an hourly reminder...
-'
-'                If (m_Config.show_am_pm) And (m_Config.use_12_hour_clock) Then
-'                    ' /* only show am/pm value if we're using 12 hour format */
-'
-'                    If .IsAfternoon Then
-'                        txt = txt & " " & m_Config.pm_val
-'
-'                    Else
-'                        txt = txt & " " & m_Config.am_val
-'
-'                    End If
-'
-'                End If
-'            Else
-'                txt = CStr(.Hour12) & " o'clock"
-'
-'            End If
-'
-'        End If
-'
-'    End With
 
 Dim a As Long
 
     ' /* R2.06: suppress in-line cookie if using the packed time format */
 
-    If (mConfigFile.ValueOf("show_cookie") = "1") And (mCookies > 0) And (lType <> CFT_SPECIAL) Then
+    If (mConfigFile.ValueOf("show_cookie") = "1") And (mCookies > 0) Then
         Randomize Timer
         a = Rnd * mCookies
         txt = txt & vbCrLf & vbCrLf & mCookie(a)
@@ -1328,9 +1262,13 @@ End Sub
 
 Private Sub uShowCurrentTime()
 
-    snarl_ez_notify App.ProductName, CLASS_HOUR_CHIME, _
-                    App.Title, uGetTimeString(), g_MakePath(App.Path) & IIf(g_IsIDE(), "bin\", "") & "icon.png", , , _
-                    mPassword, UID_HOURLY
+'    snarl_ez_notify App.ProductName, CLASS_HOUR_CHIME, _
+'                    App.Title, uGetTimeString(), g_MakePath(App.Path) & IIf(g_IsIDE(), "bin\", "") & "icon.png", , , _
+'                    mPassword, UID_HOURLY
+
+    snarl_notify App.ProductName, CLASS_HOUR_CHIME, UID_HOURLY, mPassword, App.Title, uGetTimeString(), _
+                 g_MakePath(App.Path) & IIf(g_IsIDE(), "bin\", "") & "icon.png", , , , , _
+                 "value-date-packed=" & uGetPackedDate(Now()) & "&log=0"
 
 End Sub
 
@@ -1420,5 +1358,32 @@ End Sub
 Private Function uGetReminderOffset() As Long
 
     uGetReminderOffset = g_SafeLong(mConfigFile.ValueOf("reminder_offset"))
+
+End Function
+
+Private Function uGetPackedDate(ByVal aDate As Date) As String
+
+    With New CTime
+        .SetTo aDate
+        
+        ' /* YYYYMMDD */
+        uGetPackedDate = Format$(.Year, "0000") & Format$(.Month, "00") & Format$(.Day, "00")
+
+        ' /* HH */
+        If mConfigFile.ValueOf("use_12_hour_clock") = "1" Then
+            uGetPackedDate = uGetPackedDate & Format$(.Hour12, "00")
+
+        Else
+            uGetPackedDate = uGetPackedDate & Format$(.Hour, "00")
+
+        End If
+
+        ' /* MM */
+        uGetPackedDate = uGetPackedDate & Format$(.Minutes, "00")
+
+        ' /* SS */
+        uGetPackedDate = uGetPackedDate & IIf(mConfigFile.ValueOf("show_seconds") = "1", Format$(.Seconds, "00"), "XX")
+
+    End With
 
 End Function
