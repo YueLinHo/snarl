@@ -162,8 +162,7 @@ Dim pm As CTempMsg
 
             Case "r"
                 ' /* Run File */
-
-                Set pPage = new_BPrefsPage("Schemes", load_image_obj(g_MakePath(App.Path) & "etc\icons\runfile.png"), Me)
+                Set pPage = new_BPrefsPage("Templates", load_image_obj(g_MakePath(App.Path) & "etc\icons\runfile.png"), Me)
                 With pPage
                     .SetMargin 0
                     Set pm = New CTempMsg
@@ -290,7 +289,7 @@ Dim n As Long
 
     End Select
 
-    pc.SetValue CStr(MAX(n, 1))
+    pc.SetValue CStr(Max(n, 1))
 
 End Sub
 
@@ -356,7 +355,7 @@ Dim i As Long
     
                 End Select
 
-                prefskit_SetItem ListControl, i, "image-file", g_MakePath(App.Path) & "etc\icons\runfile" & szType & ".png"
+                prefskit_SetItemObject ListControl, i, "image-object", load_image_obj(g_MakePath(App.Path) & "etc\icons\runfile" & szType & ".png")
     
             Loop
         End With

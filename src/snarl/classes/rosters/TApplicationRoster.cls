@@ -252,14 +252,14 @@ Dim sz As String
 
     If (szTitle = "") Or (sz = "") Then
         g_Debug "required arg missing", LEMON_LEVEL_CRITICAL Or LEMON_LEVEL_PROC_EXIT
-        gSetLastError SNARL_ERROR_ARG_MISSING
+        g_SetLastError SNARL_ERROR_ARG_MISSING
         Exit Function
 
     End If
 
     If InStr(sz, " ") Then
         g_Debug "application signature cannot contain spaces", LEMON_LEVEL_CRITICAL Or LEMON_LEVEL_PROC_EXIT
-        gSetLastError SNARL_ERROR_ARG_MISSING
+        g_SetLastError SNARL_ERROR_ARG_MISSING
         Exit Function
 
     End If
@@ -268,7 +268,7 @@ Dim sz As String
 
     If (g_ConfigGet("only_allow_secure_apps") = "1") And (Data.ValueOf("password") = "") Then
         g_Debug "user settings require app must provide a password", LEMON_LEVEL_CRITICAL Or LEMON_LEVEL_PROC_EXIT
-        gSetLastError SNARL_ERROR_AUTH_FAILURE
+        g_SetLastError SNARL_ERROR_AUTH_FAILURE
         Exit Function
 
     End If
@@ -284,7 +284,7 @@ Dim i As Long
                 ' /* R2.4 DR7: check same password provided */
                 If (mApp(i).Password <> "") And (mApp(i).Password <> Data.ValueOf("password")) Then
                     g_Debug "'" & sz & "' already registered: password mismatch", LEMON_LEVEL_CRITICAL Or LEMON_LEVEL_PROC_EXIT
-                    gSetLastError SNARL_ERROR_AUTH_FAILURE
+                    g_SetLastError SNARL_ERROR_AUTH_FAILURE
                     Add41 = 0
                     Exit Function
 
@@ -331,7 +331,7 @@ Dim pInfo As T_SNARL_APP
 
         ElseIf g_IsURL(.Icon) Then
             ' /* R2.4.2: initiate an async download (user will get either previously cached, or "no icon" icon in the meanwhile) */
-            sz = g_MakePath(App.Path) & "etc\icons\app-cache\" & g_MakeFilename(.Signature) '& g_GetExtension(.Icon)
+            sz = g_GetUserFolderPathStr(False) & "etc\app-cache\" & g_MakeFilename(.Signature) '& g_GetExtension(.Icon)
             uStartRemoteIconDownload .Icon, sz
             .Icon = sz
 
@@ -534,9 +534,9 @@ Dim i As Long
 
         If i Then
             ' /* add the action(s) */
-            g_QuickAddAction i, "Manage Notifications...", "!snarl cfg " & pa.Signature
+            g_QuickAddAction i, "Manage Notifications...", "!notifications " & pa.Signature
             If pa.HasConfig Then _
-                g_QuickAddAction i, pa.Name & " Preferences...", "!snarl manage " & pa.Signature
+                g_QuickAddAction i, pa.Name & " Preferences...", "!app_settings " & pa.Signature
 
         End If
     End If
@@ -764,13 +764,13 @@ End Function
 Public Function FindByToken(ByVal Token As Long, ByRef App As TApp, ByVal Password As String) As Boolean
 
     If Token = 0 Then
-        gSetLastError SNARL_ERROR_ARG_MISSING
+        g_SetLastError SNARL_ERROR_ARG_MISSING
         Exit Function
 
     End If
 
     If mCount = 0 Then
-        gSetLastError SNARL_ERROR_NOT_REGISTERED
+        g_SetLastError SNARL_ERROR_NOT_REGISTERED
         Exit Function
 
     End If
@@ -782,10 +782,10 @@ Static i As Long
             ' /* V42: validate password, if the app has one */
             If (mApp(i).Password <> "") And (mApp(i).Password <> Password) Then
                 g_Debug "TApplicationRoster.FindByToken(): incorrect password", LEMON_LEVEL_CRITICAL
-                gSetLastError SNARL_ERROR_AUTH_FAILURE
+                g_SetLastError SNARL_ERROR_AUTH_FAILURE
 
             Else
-                gSetLastError SNARL_SUCCESS
+                g_SetLastError SNARL_SUCCESS
                 Set App = mApp(i)
                 FindByToken = True
 
@@ -797,20 +797,20 @@ Static i As Long
     Next i
 
     g_Debug "TApplicationRoster.FindByToken(): " & g_HexStr(Token) & " not found", LEMON_LEVEL_CRITICAL
-    gSetLastError SNARL_ERROR_NOT_REGISTERED
+    g_SetLastError SNARL_ERROR_NOT_REGISTERED
 
 End Function
 
 Public Function FindBySignature(ByVal Signature As String, ByRef App As TApp, ByVal Password As String) As Boolean
 
     If Signature = "" Then
-        gSetLastError SNARL_ERROR_ARG_MISSING
+        g_SetLastError SNARL_ERROR_ARG_MISSING
         Exit Function
 
     End If
 
     If mCount = 0 Then
-        gSetLastError SNARL_ERROR_NOT_REGISTERED
+        g_SetLastError SNARL_ERROR_NOT_REGISTERED
         Exit Function
 
     End If
@@ -822,10 +822,10 @@ Static i As Long
             ' /* V42: validate password, if the app has one */
             If (mApp(i).Password <> "") And (mApp(i).Password <> Password) Then
                 g_Debug "TApplicationRoster.FindBySignature(): incorrect password", LEMON_LEVEL_CRITICAL
-                gSetLastError SNARL_ERROR_AUTH_FAILURE
+                g_SetLastError SNARL_ERROR_AUTH_FAILURE
 
             Else
-                gSetLastError SNARL_SUCCESS
+                g_SetLastError SNARL_SUCCESS
                 Set App = mApp(i)
                 FindBySignature = True
 
@@ -837,7 +837,7 @@ Static i As Long
     Next i
 
     g_Debug "TApplicationRoster.FindBySignature(): " & Signature & " not found", LEMON_LEVEL_CRITICAL
-    gSetLastError SNARL_ERROR_NOT_REGISTERED
+    g_SetLastError SNARL_ERROR_NOT_REGISTERED
 
 End Function
 
@@ -1056,7 +1056,7 @@ Static i As Long
     i = IndexOfSig(Signature)
     If i = 0 Then
         g_Debug "TApplicationRoster.UnregisterBySig(): '" & Signature & "' not found", LEMON_LEVEL_CRITICAL
-        gSetLastError SNARL_ERROR_NOT_REGISTERED
+        g_SetLastError SNARL_ERROR_NOT_REGISTERED
 
     Else
         UnregisterBySig = uUnregister(i, Password, False)
@@ -1071,7 +1071,7 @@ Static i As Long
     i = uIndexOfToken(Token)
     If i = 0 Then
         g_Debug "TApplicationRoster.Unregister(): '" & CStr(Token) & "' not found", LEMON_LEVEL_CRITICAL
-        gSetLastError SNARL_ERROR_NOT_REGISTERED
+        g_SetLastError SNARL_ERROR_NOT_REGISTERED
 
     Else
         Unregister = uUnregister(i, Password, RemoveSettings)
@@ -1087,7 +1087,7 @@ Private Function uUnregister(ByVal Index As Long, ByVal Password As String, ByVa
     ' /* V42: password must match */
     If mApp(Index).Password <> "" Then
         If mApp(Index).Password <> Password Then
-            gSetLastError SNARL_ERROR_AUTH_FAILURE
+            g_SetLastError SNARL_ERROR_AUTH_FAILURE
             Exit Function
 
         End If
@@ -1122,7 +1122,7 @@ Public Function Update(ByVal Token As Long, ByRef Data As BPackedData) As Long
 
     If (Data Is Nothing) Then
         g_Debug "TApplicationRoster.Update(): arg missing", LEMON_LEVEL_CRITICAL
-        gSetLastError SNARL_ERROR_ARG_MISSING
+        g_SetLastError SNARL_ERROR_ARG_MISSING
         Exit Function
 
     End If
@@ -1132,7 +1132,7 @@ Static i As Long
     i = uIndexOfToken(Token)
     If i = 0 Then
         g_Debug "TApplicationRoster.Update(): '" & CStr(Token) & "' not found", LEMON_LEVEL_CRITICAL
-        gSetLastError SNARL_ERROR_NOT_REGISTERED
+        g_SetLastError SNARL_ERROR_NOT_REGISTERED
         Exit Function
 
     End If
@@ -1142,7 +1142,7 @@ Static i As Long
     If mApp(i).Password <> "" Then
         If mApp(i).Password <> Data.ValueOf("password") Then
             g_Debug "TApplicationRoster.Update(): '" & CStr(Token) & "' password mismatch", LEMON_LEVEL_CRITICAL
-            gSetLastError SNARL_ERROR_AUTH_FAILURE
+            g_SetLastError SNARL_ERROR_AUTH_FAILURE
             Exit Function
 
         End If
@@ -1250,7 +1250,7 @@ Dim rt As Long
     
             ElseIf g_IsURL(sz) Then
                 ' /* R2.4.2: initiate an async download (user will get either previously cached, or "no icon" icon in the meanwhile) */
-                szPath = g_MakePath(App.Path) & "etc\icons\app-cache\" & g_MakeFilename(.Signature) '& g_GetExtension(sz)
+                szPath = g_GetUserFolderPathStr(False) & "etc\icons\app-cache\" & g_MakeFilename(.Signature) '& g_GetExtension(sz)
                 uStartRemoteIconDownload sz, szPath
                 sz = szPath
     

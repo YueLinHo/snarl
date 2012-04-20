@@ -16,13 +16,7 @@ Option Explicit
 Public Index As Long                ' // set by AlertAt() or FindAlert()
 
     ' /* Class defaults - set by snSetAlertClassDefault()  (V38) */
-
-Public DefaultTitle As String
-Public DefaultText As String
-Public DefaultTimeout As Long
-Public DefaultSound As String
 Public DefaultIcon As String
-Public DefaultAck As String
 
 Public Token As Long                '// V41
 Dim mLastToken As Long              '// V41: returned in certain cases (e.g. during duplicate suppression)
@@ -58,8 +52,10 @@ End Type
 Dim mContent As T_ALERT
 
     ' /* R2.31 */
-
 Public LastNotificationGeneratedTick As Long
+
+    ' /* R2.6 */
+Dim mData As BPackedData
 
 Implements mObject
 
@@ -73,7 +69,9 @@ Private Sub Class_Initialize()
 
     End With
 
-    Me.DefaultTimeout = -1
+    ' /* 44.51: create a blank pack */
+    Set mData = New BPackedData
+    mData.Add "duration", "-1"
 
 End Sub
 
@@ -109,30 +107,39 @@ Dim bEnabled As Boolean
         ' /* set defaults - if a default value is blank, we don't need to include it here */
 
         Set .Defaults = New BPackedData
-        .Defaults.SetTo "enabled::" & IIf(bEnabled, "1", "0") & "#?" & _
-                        "show_on_screen::1#?" & _
-                        "position::" & CStr(SN_SP_DEFAULT_POS) & "#?" & _
-                        "duration::" & CStr(SN_ND_APP_DECIDES) & "#?" & _
-                        "custom_timeout::10#?" & _
-                        "custom_priority::0#?priority::0#?" & _
-                        "use_style::0#?style::#?" & _
-                        "duplicates::" & CStr(SN_CD_ALLOW) & "#?" & _
-                        "log_during_dnd::1#?block_spam::0#?" & _
-                        "normal_mode::1#?away_mode::1#?busy_mode::1#?" & _
-                        "override-normal::1#?override-away::1#?override-busy::1#?" & _
-                        "block_if_foreground::0#?" & _
-                        "log_in_history::3#?" & _
-                        "colour-tint::" & CStr(rgba(0, 0, 0)) & "#?" & _
-                        "send_to_subscribers::0"
+        With .Defaults
+            .Add "enabled", IIf(bEnabled, "1", "0")
+            .Add "show_on_screen", "1"
+            .Add "position", CStr(SN_SP_DEFAULT_POS)
+            .Add "duration", CStr(SN_ND_APP_DECIDES)
+            .Add "custom_timeout", "10"
+            .Add "custom_priority", "0"
+            .Add "priority", "0"
+            .Add "use_style", "0"
+            .Add "duplicates", CStr(SN_CD_ALLOW)
+            .Add "log_during_dnd", "1"
+            .Add "block_spam", "0"
+            .Add "normal_mode", "1"
+            .Add "away_mode", "1"
+            .Add "busy_mode", "1"
+            .Add "override-normal", "1"
+            .Add "override-away", "1"
+            .Add "override-busy", "1"
+            .Add "block_if_foreground", "0"
+            .Add "log_in_history", "3"
+            .Add "colour-tint", CStr(rgba(0, 0, 0))
+            .Add "send_to_subscribers", "0"
+            .Add "redact-when", "0"
+            .Add "send_to_redirects", "1"
+            .Add "redact-always", "0"
 
-        Set .Redirectors = new_BTagList()
-        Set .NetForwards = new_BTagList()
-
-        ' /* read redirection info */
+        End With
 
 Dim sn As String
 Dim sv As String
 
+        ' /* read redirection info */
+        Set .Redirectors = new_BTagList()
         If Not (Settings Is Nothing) Then
             With New BPackedData
                 .SetTo Settings.GetValueWithDefault("forward", "")
@@ -146,7 +153,7 @@ Dim sv As String
         End If
 
         ' /* read forwarding info */
-
+        Set .NetForwards = new_BTagList()
         If Not (Settings Is Nothing) Then
             With New BPackedData
                 .SetTo Settings.GetValueWithDefault("netforward", "")
@@ -157,7 +164,6 @@ Dim sv As String
                 Loop
             End With
         End If
-
     End With
 
     g_Debug "", LEMON_LEVEL_PROC_EXIT
@@ -282,21 +288,25 @@ End Function
 
 Public Function IsClickThru() As Boolean
 
-    If Not (mContent.Config Is Nothing) Then _
+    If g_ConfigGet("ignore_input") = "1" Then
+        IsClickThru = True
+
+    ElseIf Not (mContent.Config Is Nothing) Then
         IsClickThru = (Me.GetValue("ignore_input") = "1")
+
+    End If
 
 End Function
 
 Public Function GetValue(ByVal Name As String) As String
 
     ' /* pre-set to default */
-
     If Not (mContent.Defaults Is Nothing) Then _
         GetValue = mContent.Defaults.ValueOf(Name)
 
 Dim sz As String
 
-    If Not (mContent.Config Is Nothing) Then
+    If NOTNULL(mContent.Config) Then
         If mContent.Config.Find(Name, sz) Then _
             GetValue = sz
 
@@ -323,27 +333,29 @@ Public Function App() As TApp
 
 End Function
 
-Public Sub TestNotification()
-Dim pInfo As T_NOTIFICATION_INFO
-
-    With pInfo
-        .Title = Me.Description
-        .Text = "Test Notification"
-        .Timeout = -1
-        .APIVersion = VB.App.Major
-        .IntFlags = VB.App.Major
-
-    End With
-
-    Me.ShowNotification pInfo, Nothing
-
-End Sub
+'Public Sub TestNotification()
+'Dim pInfo As T_NOTIFICATION_INFO
+'
+'    With pInfo
+'        .Title = Me.Description
+'        .Text = "Test Notification"
+'        .Timeout = -1
+'        .APIVersion = VB.App.Major
+'        .IntFlags = VB.App.Major
+'        Set .ClassObj = Me
+'.ClassObj.App.Show41
+'
+'    End With
+'
+'    Me.ShowNotification pInfo, Nothing
+'
+'End Sub
 
 Friend Function ShowNotification(ByRef Info As T_NOTIFICATION_INFO, ByRef Args As BPackedData) As Long
 
     ' /* IMPORTANT! This should *only* be called by TApp.Show(), TApp.Show41() and TAlert.TestNotification() */
 
-    gSetLastError SNARL_ERROR_SYSTEM
+    g_SetLastError SNARL_ERROR_SYSTEM
     If (g_NotificationRoster Is Nothing) Then _
         Exit Function
 
@@ -351,7 +363,7 @@ Friend Function ShowNotification(ByRef Info As T_NOTIFICATION_INFO, ByRef Args A
 
     If Me.GetValue("enabled") = "0" Then
         g_Debug "TAlert.ShowNotification(): class '" & mContent.Class & "' has been disabled by the user"
-        gSetLastError SNARL_ERROR_CLASS_BLOCKED
+        g_SetLastError SNARL_ERROR_CLASS_BLOCKED
         Exit Function
 
     End If
@@ -361,9 +373,7 @@ Friend Function ShowNotification(ByRef Info As T_NOTIFICATION_INFO, ByRef Args A
 Dim lDup As SN_CLASS_DUPLICATES
 
     If (Info.Title = mPrevTitle) And (Info.Text = mPrevText) Then
-
         lDup = Me.GetValue("duplicates")
-
         If lDup = SN_CD_BLOCK Then
             g_Debug "TAlert.ShowNotification(): blocked duplicate", LEMON_LEVEL_INFO
             ShowNotification = mLastToken
@@ -384,26 +394,22 @@ Dim lDup As SN_CLASS_DUPLICATES
 
     mPrevTick = GetTickCount()
 
-    ' /* figure out timeout */
-
 Dim lDur As SN_NOTIFICATION_DURATION
 
+    ' /* figure out timeout */
     lDur = Val(Me.GetValue("duration"))
-
     Select Case lDur
     Case SN_ND_APP_DECIDES
         ' /* V39: app can modify duration via class default */
-
-        Debug.Print "TIMEOUT: APP_DECIDES: " & Info.Timeout & " -> " & Me.DefaultTimeout
-
+'        Debug.Print "TIMEOUT: APP_DECIDES: " & Info.Timeout & " -> " & Me.DefaultTimeout
         If Info.Timeout = -1 Then _
-            Info.Timeout = Me.DefaultTimeout
+            Info.Timeout = g_SafeLong(mData.ValueOf("duration"))
 
 '        If Me.DefaultTimeout > 0 Then _
             Info.Timeout = Me.DefaultTimeout
 
     Case SN_ND_CUSTOM
-        Debug.Print "TIMEOUT: CUSTOM"
+'        Debug.Print "TIMEOUT: CUSTOM"
         Info.Timeout = Val(Me.GetValue("custom_timeout"))
 
 '    Case SN_ND_DEFAULT
@@ -418,10 +424,10 @@ Dim lDur As SN_NOTIFICATION_DURATION
     ' /* V38 - if any item isn't provided we use the class default */
 
     If Info.Title = "" Then _
-        Info.Title = Me.DefaultTitle
+        Info.Title = mData.ValueOf("title")
 
     If Info.Text = "" Then _
-        Info.Text = Me.DefaultText
+        Info.Text = mData.ValueOf("text")
 
     ' /* V40.25: custom icon */
 
@@ -447,23 +453,26 @@ Dim lDur As SN_NOTIFICATION_DURATION
 '    End If
 
     ' /* R2.4 DR7: if still no icon, use app's icon */
-
     If Info.IconPath = "" Then _
         Info.IconPath = Me.App.Icon
 
     ' /* R2.31d3: custom ack */
-
     If Me.GetValue("custom_ack") <> "" Then
-'    If Me.GetValue("use_custom_ack") = "1" Then
         Info.DefaultAck = Me.GetValue("custom_ack")
 
     ElseIf Info.DefaultAck = "" Then
-        Info.DefaultAck = Me.DefaultAck
+        ' /* R2.4 DR7: name change */
+        If mData.Exists("callback") Then
+            Info.DefaultAck = mData.ValueOf("callback")
+
+        ElseIf mData.Exists("ack") Then
+            Info.DefaultAck = mData.ValueOf("ack")
+
+        End If
 
     End If
 
     ' /* V40.25: custom priority */
-
     If Me.GetValue("custom_priority") = "1" Then _
         Info.Priority = Val(Me.GetValue("priority"))
 
@@ -483,7 +492,7 @@ Dim lDur As SN_NOTIFICATION_DURATION
 
     ElseIf Info.SndFile = "" Then
         ' /* R2.5.1: fixed logic */
-        Info.SndFile = Me.DefaultSound
+        Info.SndFile = mData.ValueOf("sound")
 
     End If
 
@@ -493,10 +502,8 @@ Dim lDur As SN_NOTIFICATION_DURATION
 '    MsgBox Me.GetValue("use_style"), , Me.Name & " > " & Me.Description
 
     If Me.GetValue("use_style") = "1" Then
-
         Info.StyleName = style_GetStyleName(Me.GetValue("style"))
         Info.SchemeName = style_GetSchemeName(Me.GetValue("style"))
-
 
     End If
 
@@ -566,8 +573,8 @@ Dim bLog As Boolean
     ' /* R2.5.1: if, after processing, the title, text and icon are all (still) NULL, fail */
 
     If (Info.Title = "") And (Info.Text = "") And (Info.IconPath = "") Then
-        g_Debug "TAlert.ShowNotification(): must supply at least a title, some text or any icon", LEMON_LEVEL_CRITICAL
-        gSetLastError SNARL_ERROR_ARG_MISSING
+        g_Debug "TAlert.ShowNotification(): must supply at least a title, some text or an icon", LEMON_LEVEL_CRITICAL
+        g_SetLastError SNARL_ERROR_ARG_MISSING
         Exit Function
 
     End If
@@ -589,9 +596,8 @@ Dim dw As Long
     ' /* send it to the notification roster */
 
     ShowNotification = g_NotificationRoster.Add(Info, Args, bLog)
-
     mLastToken = Info.Token
-    Debug.Print "TAlert.ShowNotification(): token=" & CStr(mLastToken) & " sender=" & CStr(mContent.App.Token) & " (" & mContent.App.Signature & ") title='" & Info.Title & "' text='" & Info.Text & "'"
+'    Debug.Print "TAlert.ShowNotification(): token=" & CStr(mLastToken) & " sender=" & CStr(mContent.App.Token) & " (" & mContent.App.Signature & ") title='" & Info.Title & "' text='" & Info.Text & "'"
 
 End Function
 
@@ -706,54 +712,54 @@ Dim szCmd As String
 
 End Sub
 
-Friend Sub DoRedirection(ByRef Info As T_NOTIFICATION_INFO)
-
-    If ISNULL(mContent.Redirectors) Then _
-        Exit Sub
-
-'Dim pCopyInfo As T_NOTIFICATION_INFO
-Dim fConditions As SN_REDIRECTION_FLAGS
-Dim pt As BTagItem
-
-    With mContent.Redirectors
-        .Rewind
-        Do While .GetNextTag(pt) = B_OK
-            fConditions = Val(pt.Value)
-
-            Debug.Print "TAlert.DoRedirection(): busy:" & g_IsDND() & " away:" & g_IsAway() & " cond:" & g_HexStr(fConditions)
-
-            If (g_IsDND()) And ((fConditions And SN_RF_WHEN_BUSY) <> 0) Then
-                ' /* redirect when busy */
-                fConditions = -1
-
-            ElseIf (g_IsAway()) And ((fConditions And SN_RF_WHEN_AWAY) <> 0) Then
-                ' /* redirect when away */
-                fConditions = -1
-
-            ElseIf (fConditions And SN_RF_WHEN_ACTIVE) <> 0 Then
-                ' /* redirect when active */
-                fConditions = -1
-
-            Else
-                ' /* no shadowing */
-                fConditions = 0
-
-            End If
-
-            If fConditions <> 0 Then
-                g_Debug "TAlert.DoRedirection(): redirecting to '" & pt.Name & "'..."
-                g_StyleRoster.RedirectTo pt.Name, Info
-'                LSet pCopyInfo = Info
-'                pCopyInfo.StyleName = LCase$(style_GetStyleName(pt.Name))
-'                pCopyInfo.SchemeName = LCase$(style_GetSchemeName(pt.Name))
-'                g_NotificationRoster.Redirect pCopyInfo
-
-            End If
-        Loop
-
-    End With
-
-End Sub
+'Friend Sub DoRedirection(ByRef Info As T_NOTIFICATION_INFO)
+'
+'    If ISNULL(mContent.Redirectors) Then _
+'        Exit Sub
+'
+''Dim pCopyInfo As T_NOTIFICATION_INFO
+'Dim fConditions As SN_REDIRECTION_FLAGS
+'Dim pt As BTagItem
+'
+'    With mContent.Redirectors
+'        .Rewind
+'        Do While .GetNextTag(pt) = B_OK
+'            fConditions = Val(pt.Value)
+'
+'            Debug.Print "TAlert.DoRedirection(): busy:" & g_IsDND() & " away:" & g_IsAway() & " cond:" & g_HexStr(fConditions)
+'
+'            If (g_IsDND()) And ((fConditions And SN_RF_WHEN_BUSY) <> 0) Then
+'                ' /* redirect when busy */
+'                fConditions = -1
+'
+'            ElseIf (g_IsAway()) And ((fConditions And SN_RF_WHEN_AWAY) <> 0) Then
+'                ' /* redirect when away */
+'                fConditions = -1
+'
+'            ElseIf (fConditions And SN_RF_WHEN_ACTIVE) <> 0 Then
+'                ' /* redirect when active */
+'                fConditions = -1
+'
+'            Else
+'                ' /* no shadowing */
+'                fConditions = 0
+'
+'            End If
+'
+'            If fConditions <> 0 Then
+'                g_Debug "TAlert.DoRedirection(): redirecting to '" & pt.Name & "'..."
+'                g_StyleRoster.RedirectTo pt.Name, Info
+''                LSet pCopyInfo = Info
+''                pCopyInfo.StyleName = LCase$(style_GetStyleName(pt.Name))
+''                pCopyInfo.SchemeName = LCase$(style_GetSchemeName(pt.Name))
+''                g_NotificationRoster.Redirect pCopyInfo
+'
+'            End If
+'        Loop
+'
+'    End With
+'
+'End Sub
 
 Friend Sub DoForwarding(ByRef Info As T_NOTIFICATION_INFO)
 
@@ -783,5 +789,45 @@ Dim i As Long
 
 End Sub
 
+Public Function RealIconPath() As String
 
+    If Me.DefaultIcon <> "" Then
+        RealIconPath = Me.DefaultIcon
 
+    Else
+        RealIconPath = mContent.App.RealIconPath()
+
+    End If
+
+End Function
+
+Public Sub Augment(ByRef Data As BPackedData)
+
+    If NOTNULL(Data) Then
+        Set mData = Data
+        If Not mData.Exists("duration") Then _
+            mData.Add "duration", "-1"
+
+    End If
+
+''        Debug.Print .Description & " >> " & Data.Exists("icon")
+'
+'        .DefaultIcon = Data.ValueOf("icon")
+'
+'        If (.DefaultIcon = "") And (Data.Exists("icon-base64")) Then
+'            ' /* R2.4 Beta 4: check for MIME encoded icon */
+'            .DefaultIcon = g_GetBase64Icon(Data.ValueOf("icon-base64"))
+'
+'        ElseIf (.DefaultIcon = "") And (Data.Exists("icon-phat64")) Then
+'            ' /* R2.4.2 DR3: phat64 encoding? */
+'            .DefaultIcon = g_GetPhat64Icon(Data.ValueOf("icon-phat64"))
+'
+'        End If
+
+End Sub
+
+Public Function AppProvidedSettings() As BPackedData
+
+    Set AppProvidedSettings = mData
+
+End Function

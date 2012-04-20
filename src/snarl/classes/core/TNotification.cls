@@ -50,7 +50,8 @@ Public Enum SN_NOTIFICATION_STATUS
 End Enum
 
 Dim mState As SN_NOTIFICATION_STATUS
-Dim mSeen As Boolean
+Dim mReplayed As Boolean
+Dim mIcon As MImage
 
 Dim WithEvents theIconRequest As BWebRequest
 Attribute theIconRequest.VB_VarHelpID = -1
@@ -74,6 +75,7 @@ Friend Function StartAsyncIconDownload(ByRef RemoteIcon As BTagItem, ByRef Info 
     LSet mInfo = Info
     mTempIcon = RemoteIcon.Value
     Set mArgs = Args
+    mInfo.IntFlags = mInfo.IntFlags Or SN_NF_TEMP_ICON
 
     g_Debug "TNotification.uStartAsyncIconDownload(): saving icon as '" & mTempIcon & "'..."
     StartAsyncIconDownload = theIconRequest.GetFile(RemoteIcon.Name, mTempIcon)
@@ -91,6 +93,7 @@ Friend Sub SetTo(ByVal State As SN_NOTIFICATION_STATUS, ByRef Info As T_NOTIFICA
 '    mSchemeName = SchemeName
 
     mState = State
+    Set mIcon = load_image_obj(g_TranslateIconPath(Info.IconPath, ""))
 
     If Not (mWindow Is Nothing) Then
         mWindow.Window.MoveTo Frame.Left, Frame.Top
@@ -113,13 +116,19 @@ Private Function BTagItem_Value() As String
 End Function
 
 Private Sub theIconRequest_Completed(ByVal WasSuccessful As Boolean)
-Dim pIcon As mfxBitmap
-Dim sz As String
 
-    Debug.Print "TNotification.Completed(): " & WasSuccessful
+    g_Debug "TNotification.theIconRequest_Completed()", LEMON_LEVEL_PROC_ENTER
+
+    g_Debug "removing from wait list..."
+    g_Debug "index is " & g_NotificationRoster.WaitList.IndexOf(CStr(mInfo.Token))
+    g_NotificationRoster.WaitList.Remove g_NotificationRoster.WaitList.IndexOf(CStr(mInfo.Token))
+
+Dim pIcon As MImage
+Dim sz As String
 
     If Not WasSuccessful Then
         ' /* didn't download for some reason so use the class default icon, if one exists */
+        g_Debug "failed: will use class default (if one exists)"
         If Not (mInfo.ClassObj Is Nothing) Then
             sz = mInfo.ClassObj.DefaultIcon
 
@@ -129,22 +138,35 @@ Dim sz As String
         End If
 
     Else
-        sz = mTempIcon
-        Set pIcon = style_MakeSquareImage(load_image_obj(sz))
-        With New mfxView
-            .SizeTo pIcon.Width, pIcon.Height
-            .Clear
-            .DrawScaledImage pIcon
-            .WriteToFile sz, "image/png"
+        g_Debug "success: creating squared-up icon..."
+        Set pIcon = style_MakeSquareImage(load_image_obj(mTempIcon))
+        If NOTNULL(pIcon) Then
+            g_Debug "success: writing as PNG image..."
+            With New mfxView
+                .SizeTo pIcon.Width, pIcon.Height
+                .Clear
+                .DrawScaledImage pIcon
+                .WriteToFile mTempIcon, "image/png"
 
-        End With
+            End With
+            sz = mTempIcon
+
+        Else
+            g_Debug "failed", LEMON_LEVEL_WARNING
+
+        End If
     End If
 
+    g_Debug "icon is now " & g_Quote(sz)
     mInfo.IconPath = sz
+    
+    g_Debug "fixing up content..."
     uFixupContent
 
-    If Not (g_NotificationRoster Is Nothing) Then _
-        g_NotificationRoster.Add mInfo, mArgs
+    g_Debug "adding to notification roster..."
+    g_NotificationRoster.Add mInfo, mArgs
+
+    g_Debug "", LEMON_LEVEL_PROC_EXIT
 
 End Sub
 
@@ -479,6 +501,9 @@ Public Function ClearActions() As Boolean
 End Function
 
 Public Function AddAction(ByVal Label As String, ByVal Command As String) As Boolean
+
+    g_Debug "TNotification.AddAction()", LEMON_LEVEL_PROC_ENTER
+
 Dim bCatch As Boolean
 Dim dw As Long
 
@@ -488,20 +513,25 @@ Dim dw As Long
         ' /* callback must be a signed 16-bit value */
         dw = g_SafeLong(g_SafeRightStr(Command, Len(Command) - 1), bCatch)
         If (bCatch) Or (dw < -32768) Or (dw > 32767) Or (Not g_IsNumeric(g_SafeRightStr(Command, Len(Command) - 1))) Then
-            gSetLastError SNARL_ERROR_INVALID_ARG
+            g_Debug "dynamic callback " & g_Quote(Command) & " must be UINT16", LEMON_LEVEL_CRITICAL Or LEMON_LEVEL_PROC_EXIT
+            g_SetLastError SNARL_ERROR_INVALID_ARG
             Exit Function
 
         End If
     End If
 
+    If ISNULL(mInfo.Actions) Then _
+        Set mInfo.Actions = new_BTagList()
 
     With mInfo.Actions
         If .IndexOf(Label) Then
             ' /* replace */
+            g_Debug "replacing existing action " & g_Quote(Label) & " with " & g_Quote(Command)
             .Update Label, Command
 
         Else
             ' /* add new */
+            g_Debug "adding new action " & g_Quote(Label) & " / " & g_Quote(Command)
             .Add new_BTagItem(Label, Command)
 
         End If
@@ -510,17 +540,22 @@ Dim dw As Long
 
     Select Case mState
     Case SN_NS_ACTIVE
+        g_Debug "state is SN_NS_ACTIVE: rethinking actions..."
         mWindow.RethinkActions
 
     Case SN_NS_MISSED
         ' /* need to update the missed notifications panel, if it's open */
+        g_Debug "state is SN_NS_MISSED: updating missed list..."
         frmAbout.bUpdateMissedList
 
     Case SN_NS_WAITING
+        g_Debug "state is SN_NS_WAITING: nothing to do"
 
     End Select
 
     AddAction = True
+
+    g_Debug "", LEMON_LEVEL_PROC_EXIT
 
 End Function
 
@@ -626,17 +661,11 @@ Public Function CanMerge(ByRef Class As TAlert, ByVal Title As String) As Boolea
 
 End Function
 
-Public Sub MarkAsSeen()
-
-    mSeen = True
-
-End Sub
-
-Public Function WasSeen() As Boolean
-
-    WasSeen = mSeen
-
-End Function
+'Public Sub MarkAsReplayed()
+'
+'    mReplayed = True
+'
+'End Sub
 
 Private Function uUnescape(ByVal Text As String, ByVal Replacement As String) As String
 Dim sz As String
@@ -769,7 +798,7 @@ End Function
 '        g_Debug "TNotification.ApplyPresence(): Busy (aka DND) mode enabled: priority=" & CStr(mInfo.Priority)
 '        If mInfo.Priority < 0 Then
 '            ' /* low priority = ignored */
-'            gSetLastError SNARL_ERROR_DO_NOT_DISTURB
+'            g_SetLastError SNARL_ERROR_DO_NOT_DISTURB
 '            ApplyPresence = SN_PA_LAST_ERROR_SET
 '
 '        ElseIf Info.Priority = 0 Then
@@ -856,3 +885,21 @@ Public Function AppName() As String
 
 End Function
 
+Public Sub Replay()
+
+    g_NotificationRoster.Add mInfo, Nothing, False, True
+    mReplayed = True
+
+End Sub
+
+Public Function WasReplayed() As Boolean
+
+    WasReplayed = mReplayed
+
+End Function
+
+Public Function Icon() As MImage
+
+    Set Icon = mIcon
+
+End Function

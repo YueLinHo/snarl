@@ -59,8 +59,8 @@ Dim i As Long
 
         Next i
 
-        mCount = 0
         ReDim mExt(0)
+        mCount = 0
 
     End If
 
@@ -190,33 +190,15 @@ Private Sub MLibrary_Uninitialize()
 End Sub
 
 Private Function MRoster_CountItems() As Long
-
     MRoster_CountItems = mCount
-
 End Function
 
 Private Function MRoster_FindItem(ByVal Name As String) As Long
-Dim i As Long
-
-    Name = LCase$(Name)
-
-    If mCount Then
-        For i = 1 To mCount
-            If LCase$(mExt(i).Class) = Name Then
-                MRoster_FindItem = i
-                Exit Function
-
-            End If
-        Next i
-    End If
-
+    MRoster_FindItem = Me.IndexOf(Name)
 End Function
 
 Private Function MRoster_ItemAt(ByVal Index As Long) As melon.mObject
-
-    If (Index > 0) And (Index <= mCount) Then _
-        Set MRoster_ItemAt = mExt(Index)
-
+    Set MRoster_ItemAt = Me.ExtensionAt(Index)
 End Function
 
 Private Function MRoster_NextItem(Item As melon.mObject) As Boolean
@@ -231,9 +213,7 @@ Private Function MRoster_NextItem(Item As melon.mObject) As Boolean
 End Function
 
 Private Sub MRoster_Rewind()
-
     mIndex = 1
-
 End Sub
 
 Private Property Get MVersionInfo_Date() As String
@@ -380,27 +360,24 @@ End Function
 '
 'End Sub
 
-Public Sub Reload()
+Public Sub Restart()
 
     g_AppRoster.LockRegister
-
     MLibrary_Close
 
     ' /* wait */
-
     g_Debug "TExtensionRoster.Reload(): waiting..."
     Sleep 500
 
     MLibrary_Open
-
     g_AppRoster.UnlockRegister
 
 End Sub
 
-Public Function Find(ByVal Name As String, ByRef Extension As TExtension) As Boolean
+Public Function Find(ByVal Class As String, ByRef Extension As TExtension) As Boolean
 Dim i As Long
 
-    i = MRoster_FindItem(Name)
+    i = Me.IndexOf(Class)
     If i Then
         Set Extension = mExt(i)
         Find = True
@@ -409,16 +386,26 @@ Dim i As Long
 
 End Function
 
-Public Function IndexOf(ByVal Name As String) As Long
+Public Function IndexOf(ByVal Class As String) As Long
+Dim i As Long
 
-    IndexOf = MRoster_FindItem(Name)
+    If mCount Then
+        Class = LCase$(Class)
+        For i = 1 To mCount
+            If LCase$(mExt(i).Class) = Class Then
+                IndexOf = i
+                Exit Function
+
+            End If
+        Next i
+    End If
 
 End Function
 
-Public Function ItemAt(ByVal Index As Long) As TExtension
+Public Function ExtensionAt(ByVal Index As Long) As TExtension
 
     If (Index > 0) And (Index <= mCount) Then _
-        Set ItemAt = mExt(Index)
+        Set ExtensionAt = mExt(Index)
 
 End Function
 
@@ -441,7 +428,7 @@ Dim i As Long
         If mCount Then
             For i = 1 To mCount
                 ' /* bit of weird logic here: if the extension is *not* loaded, then it's ClassId should be added */
-                If mExt(i).State <> SN_ES_LOADED Then _
+                If mExt(i).State = SN_ES_NOT_LOADED Then _
                     .Add mExt(i).Class
 
             Next i
@@ -464,64 +451,162 @@ Private Sub uGetExcludeList()
 
 End Sub
 
-Public Function LoadExtension(ByVal Name As String) As M_RESULT
-Dim pn As storage_kit.Node
-
-    ' /* 'Name' should be the full path of the folder which contains the extension to be loaded */
-
-    If g_GetPath(Name) = "" Then
-        If g_GetUserFolder(pn, False) Then
-            Name = g_MakePath(pn.File) & "extensions\" & Name
-
-        Else
-            g_Debug "TExtensionRoster.LoadExtension(): couldn't get user folder", LEMON_LEVEL_CRITICAL
-            LoadExtension = M_FAILED
-            Exit Function
-
-        End If
-    End If
-
-    Set pn = get_node(Name)
-    If uGetExtension(pn, True) Then
-        frmAbout.bUpdateExtList
-        frmAbout.bUpdateAppList
-        LoadExtension = M_OK
-
-    Else
-        LoadExtension = M_NOT_FOUND
-
-    End If
-
-End Function
-
-'Public Function UnloadExtension(ByVal Name As String) As M_RESULT
-'Dim i As Long
+'Public Function LoadExtension(ByVal Name As String) As M_RESULT
+'Dim pn As storage_kit.Node
 '
-'    ' /* looks for the specified extension and, if it exists, unloads it cleanly */
+'    ' /* 'Name' should be the full path of the folder which contains the extension to be loaded */
 '
-'    i = uFind(Name)
-'    If i = 0 Then
-'        g_Debug "TExtensionRoster.UnloadExtension(): '" & Name & "' not found", LEMON_LEVEL_CRITICAL
-'        UnloadExtension = M_NOT_FOUND
-'        Exit Function
+'    If g_GetPath(Name) = "" Then
+'        If g_GetUserFolder(pn, False) Then
+'            Name = g_MakePath(pn.File) & "extensions\" & Name
+'
+'        Else
+'            g_Debug "TExtensionRoster.LoadExtension(): couldn't get user folder", LEMON_LEVEL_CRITICAL
+'            LoadExtension = M_FAILED
+'            Exit Function
+'
+'        End If
+'    End If
+'
+'    Set pn = get_node(Name)
+'    If uGetExtension(pn, True) Then
+'        frmAbout.bUpdateExtList
+'        frmAbout.bUpdateAppList
+'        LoadExtension = M_OK
+'
+'    Else
+'        LoadExtension = M_NOT_FOUND
 '
 '    End If
 '
-'    ' /* unload it but don't update the exclude file */
-'
-'    g_Debug "TExtensionRoster.UnloadExtension(): stopping '" & Name & "'..."
-''    mExt(i).SetEnabled2 False, , False
-'
-'    mExt(i).SetEnabled False
-'
-'    ' /* remove it from our list */
-'
-'    uRemove i
-'
-'    frmAbout.bUpdateExtList
-'    frmAbout.bUpdateAppList
-'
 'End Function
+
+Public Function Load(ByVal Name As String, ByVal NotifyItHappened As Boolean) As SNARL_STATUS_CODE
+Dim pe As TExtension
+
+    g_Debug "TExtensionRoster.Load()", LEMON_LEVEL_PROC_ENTER
+
+    If Me.Find(Name, pe) Then
+        g_Debug "loading " & g_Quote(Name) & "..."
+        If Not pe.SetEnabled(True) Then
+            g_Debug "failed", LEMON_LEVEL_CRITICAL
+            Load = SNARL_ERROR_FAILED
+
+        Else
+            g_Debug "ok"
+            frmAbout.bUpdateExtList
+            g_ExtnRoster.WriteExcludeList
+
+            If NotifyItHappened Then _
+                g_PrivateNotify , , Name & " started successfully", , ".good"
+
+            Load = SNARL_SUCCESS
+
+        End If
+    Else
+        g_Debug g_Quote(Name) & " not found", LEMON_LEVEL_CRITICAL
+        Load = SNARL_ERROR_ADDON_NOT_FOUND
+
+    End If
+
+    g_Debug "", LEMON_LEVEL_PROC_EXIT
+
+End Function
+
+Public Function Unload(ByVal Name As String, ByVal NotifyItHappened As Boolean) As SNARL_STATUS_CODE
+Dim pe As TExtension
+
+    g_Debug "TExtensionRoster.Unload()", LEMON_LEVEL_PROC_ENTER
+
+    If Me.Find(Name, pe) Then
+        g_Debug "unloading " & g_Quote(Name) & "..."
+        If Not pe.SetEnabled(False) Then
+            g_Debug "failed", LEMON_LEVEL_CRITICAL
+            Unload = SNARL_ERROR_FAILED
+
+        Else
+            g_Debug "ok"
+            frmAbout.bUpdateExtList
+            g_ExtnRoster.WriteExcludeList
+
+            If NotifyItHappened Then _
+                g_PrivateNotify , , Name & " stopped successfully", , ".good"
+
+            Unload = SNARL_SUCCESS
+
+        End If
+    Else
+        g_Debug g_Quote(Name) & " not found", LEMON_LEVEL_CRITICAL
+        Unload = SNARL_ERROR_ADDON_NOT_FOUND
+
+    End If
+
+    g_Debug "", LEMON_LEVEL_PROC_EXIT
+
+End Function
+
+Public Function Reload(ByVal Name As String, ByVal NotifyItHappened As Boolean) As SNARL_STATUS_CODE
+Dim pe As TExtension
+
+    g_Debug "TExtensionRoster.Reload()", LEMON_LEVEL_PROC_ENTER
+
+    If Me.Find(Name, pe) Then
+        g_Debug "stopping " & g_Quote(Name) & "..."
+        pe.SetEnabled False
+
+        g_Debug "starting " & g_Quote(Name) & "..."
+        If Not pe.SetEnabled(True) Then
+            g_Debug "failed", LEMON_LEVEL_CRITICAL
+            Reload = SNARL_ERROR_FAILED
+
+        Else
+            g_Debug "ok"
+            frmAbout.bUpdateExtList
+            g_ExtnRoster.WriteExcludeList
+
+            If NotifyItHappened Then _
+                g_PrivateNotify , , Name & " restarted successfully", , ".good"
+
+            Reload = SNARL_SUCCESS
+
+        End If
+    Else
+        g_Debug g_Quote(Name) & " not found", LEMON_LEVEL_CRITICAL
+        Reload = SNARL_ERROR_ADDON_NOT_FOUND
+
+    End If
+
+    g_Debug "", LEMON_LEVEL_PROC_EXIT
+
+End Function
+
+Public Function Configure(ByVal Name As String) As SNARL_STATUS_CODE
+Dim pe As TExtension
+
+    g_Debug "TExtensionRoster.Configure()", LEMON_LEVEL_PROC_ENTER
+
+    If g_ExtnRoster.Find(Name, pe) Then
+        If pe.IsConfigurable Then
+            g_Debug "launching configuration..."
+            pe.DoPrefs 0
+            Configure = SNARL_SUCCESS
+
+        Else
+            g_Debug g_Quote(Name) & " is not configurable", LEMON_LEVEL_CRITICAL
+            Configure = SNARL_ERROR_ACCESS_DENIED
+
+        End If
+
+    Else
+        g_Debug g_Quote(Name) & " not found", LEMON_LEVEL_CRITICAL
+        Configure = SNARL_ERROR_ADDON_NOT_FOUND
+
+    End If
+
+    g_Debug "", LEMON_LEVEL_PROC_EXIT
+
+End Function
+
 
 Private Sub uRemove(ByVal Index As Long)
 Dim i As Long
@@ -539,22 +624,22 @@ Dim i As Long
 
 End Sub
 
-Private Function uFind(ByVal Name As String) As Long
-Dim i As Long
-
-    Name = LCase$(Name)
-
-    If mCount Then
-        For i = 1 To mCount
-            If LCase$(mExt(i).Class) = Name Then
-                uFind = i
-                Exit Function
-
-            End If
-        Next i
-    End If
-
-End Function
+'Private Function uFind(ByVal Name As String) As Long
+'Dim i As Long
+'
+'    Name = LCase$(Name)
+'
+'    If mCount Then
+'        For i = 1 To mCount
+'            If LCase$(mExt(i).Class) = Name Then
+'                uFind = i
+'                Exit Function
+'
+'            End If
+'        Next i
+'    End If
+'
+'End Function
 
 Private Sub uGetExtensions(ByRef Folder As storage_kit.Node, Optional ByVal AbsolutePath As Boolean = False)
 
@@ -743,3 +828,13 @@ Public Function CountItems() As Long
 
 End Function
 
+Public Function Remove(ByVal Class As String) As Boolean
+Dim i As Long
+
+    i = Me.IndexOf(Class)
+    If i Then _
+        uRemove i
+
+    Remove = (i <> 0)
+
+End Function

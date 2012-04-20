@@ -27,11 +27,11 @@ Option Explicit
     '/
     '*********************************************************************************************/
 
-Private Const ENG_DATE = "18-Oct-2011"
+Private Const ENG_DATE = "23-Feb-2012"
 
 Private Const DEF_STYLE_NAME = "Default"
-Private Const DEF_STYLE_DATE = "25-Jul-2011"
-Private Const DEF_STYLE_COPY = "© 2011 full phat products"
+Private Const DEF_STYLE_DATE = "23-Feb-2012"
+Private Const DEF_STYLE_COPY = "© 2012 full phat products"
 
 'Private Const FORWARDER_STYLE_NAME = "Network Forwarder"
 'Private Const FORWARDER_STYLE_DATE = "1-Feb-2012"
@@ -438,7 +438,7 @@ Dim lWidth As Long
         If (NotificationInfo.Title <> "") And (NotificationInfo.Text <> "") Then _
             cy = cy + 4
 
-        cy = MAX((BORDER_SIZE * 2) + ICON_SIZE, cy)         ' // must be at least (ICON_SIZE + (2 x BORDER_SIZE)) high...
+        cy = Max((BORDER_SIZE * 2) + ICON_SIZE, cy)         ' // must be at least (ICON_SIZE + (2 x BORDER_SIZE)) high...
         .SizeTo lWidth, cy
         .EnableSmoothing True
 
@@ -463,8 +463,8 @@ Dim lWidth As Long
         .SetHighColour rgba(0, 0, 0, 146)
         .StrokeRoundRect .Bounds, RX, RX
 
-        .SetHighColour rgba(255, 255, 255)
-        .FillRoundRect .Bounds, RX, RX, MFX_DIAG_GRADIENT
+'        .SetHighColour rgba(255, 255, 255)
+'        .FillRoundRect .Bounds, RX, RX, MFX_DIAG_GRADIENT
 
         ' /* icon */
 

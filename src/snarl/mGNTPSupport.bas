@@ -65,6 +65,7 @@ End Type
 Dim mSection() As String
 Dim mDirective As String
 Dim mCustomHeaders As String
+Dim mRedactResponse As Boolean
 
 ' /*********************************************************************************************
 '   gntp_Process() -- Master GNTP request handler
@@ -90,6 +91,7 @@ Public Sub gntp_Process(ByVal Request As String, ByRef Sender As CSocket, ByRef 
 
     mCustomHeaders = ""
     KeepSocketOpen = False
+    mRedactResponse = False
 
     uOutput "gntp_Process()"
     uIndent
@@ -173,6 +175,12 @@ Dim pp As TPackedData
     uListPackedData pp
 #End If
 
+    ' /* 44.51: supports X-Response-Redacted: <bool> - credit to Viscount for suggesting this */
+
+    If pp.Exists("X-Response-Redacted") Then _
+        mRedactResponse = uBool(pp.ValueOf("X-Response-Redacted"))
+
+    uOutput "uDoRegistration(): redact_response = " & CStr(mRedactResponse)
 
     ' /* required items */
 
@@ -545,6 +553,13 @@ Dim pp As TPackedData
 
     End If
 
+    ' /* 44.51: supports X-Response-Redacted: <bool> - credit to Viscount for suggesting this */
+
+    If pp.Exists("X-Response-Redacted") Then _
+        mRedactResponse = uBool(pp.ValueOf("X-Response-Redacted"))
+
+    uOutput "redact_response = " & CStr(mRedactResponse)
+
     ' /* required items */
 
     If (Not pp.Exists("Application-Name")) Or (Not pp.Exists("Notification-Name")) Or (Not pp.Exists("Notification-Title")) Then
@@ -605,13 +620,20 @@ Dim px As TPackedData
         'Notification-Sticky: <boolean>
         'Optional - Indicates if the notification should remain displayed until dismissed by the user. (default to False)
         ' /* sticky == zero duration under Snarl */
-        If uBool(pp.ValueOf("Notification-Sticky")) Then _
+        If uBool(pp.ValueOf("Notification-Sticky")) Then
             .Add "timeout", "0"
+
+        ElseIf pp.Exists("X-Notification-Duration") Then
+            ' /* 44.51: supports X-Notification-Duration: <seconds> - credit to Viscount for suggesting this */
+            .Add "timeout", pp.ValueOf("X-Notification-Duration")
+
+        End If
 
         'Notification-Priority: <int>
         'Optional - A higher number indicates a higher priority. This is a display hint for the receiver which may be ignored. (valid
         'values are between -2 and 2, defaults to 0)
-        .Add "priority", g_SafeLong(pp.ValueOf("Notification-Priority"))
+        If pp.Exists("Notification-Priority") Then _
+            .Add "priority", pp.ValueOf("Notification-Priority")
 
         'Notification-Coalescing-ID: <string>
         'Optional - If present, should contain the value of the Notification-ID header of a previously-sent notification. This serves
@@ -909,6 +931,12 @@ End Function
 
 Private Sub uAddStandardHeaders(ByRef Response As String)
 
+    If mRedactResponse Then
+        g_Debug "uAddStandardHeaders(): redacting...", LEMON_LEVEL_INFO
+        Exit Sub
+
+    End If
+
     Response = Response & "Origin-Machine-Name: " & get_host_name() & vbCrLf
 
 #If GNTP_TEST = 1 Then
@@ -1050,4 +1078,62 @@ Dim hr As SNARL_STATUS_CODE
 
 End Function
 
+'SUBSCRIBE
+'Subscriber-ID: <string>
+'Required - A unique id (UUID) that identifies the subscriber
+'
+'Subscriber-Name: <string>
+'Required - The friendly name of the subscribing machine
+'
+'Subscriber-Port: <int>
+'Optional - The port that the subscriber will listen for notifications on (defaults to the standard 23053)
+'
+'Subscription requests MUST include the key hash (In practice, only instances subscribing from another machine make sense, so they would have to provide the key hash anyway since they are communicating over the network.)
+'
+'Once the subscription is made, the subscribed-to machine should forward requests to the subscriber, just as if the end user had configured the subscriber using the standard forwarding mechanisms, with one important distinction: the forwarding machine should use a specially-constructed password consisting of -its own- password plus the Subscriber-ID value when constructing the forwarded messages (as opposed to the usual behavior of using the receiver's password to construct the message - see example below). This is due to the fact that the subscribed-to machine does not know the subscriber's password (but the subscriber must know/provide the subscribed-to machine's password when subscribing). Note that the subscriber should be prepared to accept incoming requests using this password for the lifetime of the subscription. This also ensures that if the password is changed on the subscribed-to machine, the subscribed machine can no longer receive subscribed notifications.
+'
+'Example:
+'Subscribed-to Machine's password: foo
+'Subscriber-ID value sent by subscribing machine: 0f8e3530-7a29-11df-93f2-0800200c9a66
+'Resulting password used by subscribed-to machine when forwarding: foo0f8e3530-7a29-11df-93f2-0800200c9a66If the subscriber wants to remain subscribed, they must issue another SUBSCRIBE request before the TTL period has elapsed. It is recommended that the subscribed-to machine not set the TTL to less than 60 seconds to give the subscriber time to process notifications and issue their renewal requests.
+'
+'If the subscriber does not issue another SUBSCRIBE request before the TTL period has elapsed, the subscribed-to machine should stop forwarding requests to the subscriber.
+
+Public Function gntp_CreateSubscribeRequest(ByVal UUID As String, ByVal Name As String, ByVal Hash As String, Optional ByVal Port As Long = 23053) As String
+
+    gntp_CreateSubscribeRequest = "GNTP/1.0 SUBSCRIBE NONE " & Hash & vbCrLf & _
+                                  "Subscriber-ID: " & UUID & vbCrLf & _
+                                  "Subscriber-Name: " & Name & vbCrLf & _
+                                  "Subscriber-Port: " & CStr(Port) & vbCrLf & vbCrLf
+
+End Function
+
+Public Function gntp_IsResponse(ByVal RawData As String, Optional ByRef ResponseType As String) As Boolean
+Dim sz As String
+Dim s() As String
+
+    sz = uGetFirstLine(RawData)
+    If uIsResponseHeader(sz) Then
+        s() = Split(sz, " ")
+        ResponseType = s(1)
+        gntp_IsResponse = True
+
+    End If
+
+End Function
+
+Private Function uGetFirstLine(ByVal str As String, Optional ByVal EndMarker As String = vbCrLf) As String
+Dim i As Long
+
+    i = InStr(str, EndMarker)
+    If i Then _
+        uGetFirstLine = g_SafeLeftStr(str, i - 1)
+
+End Function
+
+Private Function uIsResponseHeader(ByVal Header As String) As Boolean
+
+    uIsResponseHeader = (InStr(Header, " -OK") > 0) Or (InStr(Header, " -ERROR") > 0)
+
+End Function
 

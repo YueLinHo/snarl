@@ -13,6 +13,9 @@ Attribute VB_PredeclaredId = False
 Attribute VB_Exposed = False
 Option Explicit
 
+Public Event Closed()
+
+Dim mhWndOwner As Long
 Dim mPanel As BPrefsPanel
 
 Implements KPrefsPanel
@@ -65,6 +68,12 @@ Private Sub KPrefsPanel_PageChanged(ByVal NewPage As Long)
 End Sub
 
 Private Sub KPrefsPanel_Quit()
+
+    If mhWndOwner <> 0 Then _
+        EnableWindow mhWndOwner, -1
+
+    RaiseEvent Closed
+
 End Sub
 
 Private Sub KPrefsPanel_Ready()
@@ -73,12 +82,7 @@ End Sub
 Private Sub KPrefsPanel_Selected(ByVal Command As String)
 End Sub
 
-Public Function Go(ByVal hWndPanel As Long) As Long
-Dim rcThis As RECT
-Dim rcOwner As RECT
-Dim dw As Long
-Dim sz As String
-Dim sza As String
+Public Function Go(ByVal hWndPanel As Long, Optional ByVal IsNC As Boolean) As Long
 Dim pp As BPrefsPage
 Dim pm As CTempMsg
 Dim pc As BControl
@@ -86,36 +90,58 @@ Dim pc As BControl
     Set mPanel = New BPrefsPanel
     With mPanel
         .SetHandler Me
-        .SetTitle "Style Defaults"
+        .SetTitle IIf(IsNC, "Notification Centre", "Default Style Settings")
         .SetWidth 430
         .SetWindow 1
 
-        ' /* page */
+        If IsNC Then
+            ' /* page */
+            Set pp = new_BPrefsPage("", , Me, 480)
+            With pp
+                .SetMargin 0
+                Set pm = New CTempMsg
+                pm.Add "height", 290
+                Set pc = new_BPrefsControl("tabstrip", "", , , , pm)
+                BTabStrip_AddPage pc, "General", new_BPrefsPage("nc-general", , New TNetSubPage)
+                .Add pc
+            End With
+            .AddPage pp
+            .Go
 
-        Set pp = new_BPrefsPage("", , Me, 480)
-        With pp
-            .SetMargin 0
-            Set pm = New CTempMsg
-            pm.Add "height", 290
-            Set pc = new_BPrefsControl("tabstrip", "", , , , pm)
-            BTabStrip_AddPage pc, "General", new_BPrefsPage("defs-general", , New TNetSubPage)
-            BTabStrip_AddPage pc, "Title", new_BPrefsPage("defs-title", , New TNetSubPage)
-            BTabStrip_AddPage pc, "Text", new_BPrefsPage("defs-text", , New TNetSubPage)
-            BTabStrip_AddPage pc, "Advanced", new_BPrefsPage("defs-adv", , New TNetSubPage)
-            .Add pc
+            SetWindowLong .hWnd, GWL_STYLE, GetWindowLong(mPanel.hWnd, GWL_STYLE) And (Not WS_MINIMIZEBOX)
+            g_SetWindowIconToAppResourceIcon .hWnd
 
-            .Add new_BPrefsControl("fancytoolbar", "toolbar", "Test Settings||Restore Defaults")
+            If hWndPanel <> 0 Then
+                mhWndOwner = g_GetTopLevel(hWndPanel)
+                SetWindowLong .hWnd, GWL_HWNDPARENT, mhWndOwner
+                EnableWindow mhWndOwner, 0
+                g_MoveWindow .hWnd, , , , , True, mhWndOwner
 
-        End With
+            End If
 
-        .AddPage pp
+            g_ShowWindow .hWnd, True, True
 
-        ' /* page */
+        Else
+            ' /* page */
+            Set pp = new_BPrefsPage("", , Me, 480)
+            With pp
+                .SetMargin 0
+                Set pm = New CTempMsg
+                pm.Add "height", 240
+                Set pc = new_BPrefsControl("tabstrip", "", , , , pm)
+                BTabStrip_AddPage pc, "General", new_BPrefsPage("defs-general", , New TNetSubPage)
+                BTabStrip_AddPage pc, "Title", new_BPrefsPage("defs-title", , New TNetSubPage)
+                BTabStrip_AddPage pc, "Text", new_BPrefsPage("defs-text", , New TNetSubPage)
+'                BTabStrip_AddPage pc, "Advanced", new_BPrefsPage("defs-adv", , New TNetSubPage)
+                .Add pc
+                .Add new_BPrefsControl("fancytoolbar", "toolbar", "Test Settings||Restore Defaults")
+            End With
+            .AddPage pp
+            .Go
+            g_SetWindowIconToAppResourceIcon .hWnd
+            Go = .hWnd
 
-        .Go
-        g_SetWindowIconToAppResourceIcon .hWnd
-
-        Go = .hWnd
+        End If
 
     End With
 

@@ -42,7 +42,7 @@ Begin VB.Form frmAbout
    End
    Begin VB.Label Label3 
       BackStyle       =   0  'Transparent
-      Caption         =   "UI icons: Faenza by Matthieu James (aka ~tiheum)"
+      Caption         =   "UI icons: PixeloPhilia by Ömer ÇETIN (aka ~omercetin) "
       Height          =   255
       Index           =   4
       Left            =   1980
@@ -238,7 +238,7 @@ Dim mKeyClose As Long
 Dim WithEvents theAppList As TAppsPopUpWindow
 Attribute theAppList.VB_VarHelpID = -1
 
-Dim mMarkMissedOnClose As Boolean
+'Dim mMarkMissedOnClose As Boolean
 
     ' /* icon ids */
 Private Const SN_II_NORMAL = 1&
@@ -251,6 +251,12 @@ Private Const SN_II_AWAY = 60&
 Dim WithEvents theGarbageTimer As BTimer
 Attribute theGarbageTimer.VB_VarHelpID = -1
 Private Const HISTORY_PAGE = 6
+
+Dim mTestStyleAndScheme As String
+
+
+Dim WithEvents theClassPanel As TConfigureClassPanel
+Attribute theClassPanel.VB_VarHelpID = -1
 
 Implements MMessageSink
 Implements KPrefsPanel
@@ -279,6 +285,13 @@ Dim n As Integer
 '        End If
 '
 '    Next n
+
+    With Me.Font
+        .Name = "Segoe UI"
+        If .Name <> "Segoe UI" Then _
+            .Name = "Tahoma"
+
+    End With
 
     ' /* R2.4 DR8: register for TS session events */
 
@@ -364,6 +377,9 @@ Dim i As Long
     g_Debug "_Unload()", LEMON_LEVEL_PROC
     Me.Hide
 
+    If NOTNULL(theClassPanel) Then _
+        theClassPanel.Quit
+
     ' /* R2.4 DR8: unregister session events */
 
     WTSUnRegisterSessionNotification Me.hWnd
@@ -403,10 +419,18 @@ Dim i As Long
 End Sub
 
 Private Sub GrowlUDPSocket_OnDataArrival(ByVal bytesTotal As Long)
+
+    g_Debug "GrowlUDPSocket.OnDataArrival()", LEMON_LEVEL_PROC_ENTER
+    g_Debug "received " & CStr(bytesTotal) & " byte(s)..."
+
 Dim b() As Byte
 
     GrowlUDPSocket.GetData b(), vbArray + vbByte
-    g_ProcessGrowlUDP b(), bytesTotal, GrowlUDPSocket.RemoteHost
+
+    g_Debug "processing request..."
+    g_ProcessGrowlUDP b(), bytesTotal, GrowlUDPSocket.RemoteHostIP
+
+    g_Debug "", LEMON_LEVEL_PROC_EXIT
 
 End Sub
 
@@ -519,6 +543,11 @@ End Sub
 
 Private Sub KPrefsPage_ControlInvoked(Control As prefs_kit_d2.BControl)
 Dim hWnd As Long
+Dim sz As String
+Dim ps As TStyle
+Dim szText As String
+Dim szIcon As String
+Dim i As Long
 
     Select Case Control.GetName()
 
@@ -529,10 +558,40 @@ Dim hWnd As Long
         g_ConfigInit
 
     Case "test_display_settings"
-        g_NotificationRoster.Hide 0, "_display_settings_test", App.ProductName, ""
-        g_NotificationRoster.Hide 0, "_display_settings_test_priority", App.ProductName, ""
-        g_PrivateNotify "", "Settings Test", "This is a test of the current display settings", 0, , , "!null", , SN_NF_REMOTE Or SN_NF_SECURE, True, "_display_settings_test", 50
-        g_PrivateNotify "", "Settings Test (Priority)", "This is a test of the current display settings", 0, , 1, "!null", , SN_NF_REMOTE Or SN_NF_SECURE, True, "_display_settings_test_priority", 50
+
+        If g_IsPressed(VK_SHIFT) Then
+            If g_StyleRoster.Find(style_GetStyleName(LCase$(mTestStyleAndScheme)), ps) Then
+                If Not ps.IsRedirect Then
+                    For i = 1 To ps.CountSchemes
+                        ps.DoSchemePreview ps.SchemeAt(i), False, 50, False
+
+                    Next i
+                End If
+            End If
+
+        Else
+            g_NotificationRoster.Hide 0, "_display_settings_test", App.ProductName, ""
+            g_NotificationRoster.Hide 0, "_display_settings_test_priority", App.ProductName, ""
+
+            If g_StyleRoster.Find(style_GetStyleName(LCase$(mTestStyleAndScheme)), ps) Then
+                ' /* store the current style */
+                sz = g_ConfigGet("default_style")
+                ' /* temporarily switch to the selected style */
+                g_ConfigSet "default_style", mTestStyleAndScheme
+                szIcon = IIf(ps.IconPath = "", g_MakePath(App.Path) & "etc\icons\style.png", ps.IconPath)
+                szText = "Lorem ipsum dolor sit amet, consectetur adipisicing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat."
+                ' /* test normal */
+                g_PrivateNotify , "Settings Test", szText, 0, szIcon, , "!test", , SN_NF_REMOTE Or SN_NF_SECURE, True, "_display_settings_test", 50, True
+
+                ' /* test priority */
+                If (ps.Flags And S_STYLE_SINGLE_INSTANCE) = 0 Then _
+                    g_PrivateNotify , "Settings Test (Priority)", szText, 0, szIcon, 1, "!test", , SN_NF_REMOTE Or SN_NF_SECURE, True, "_display_settings_test_priority", 50, True
+                
+                ' /* restore the current style */
+                g_ConfigSet "default_style", sz
+
+            End If
+        End If
 
     End Select
 
@@ -608,13 +667,13 @@ Dim dw As Long
             End If
 
         Case WM_LBUTTONDBLCLK
-            If g_NotificationRoster.HaveMissedNotifications Then
-                Me.bShowMissedPanel
-
-            Else
+'            If g_NotificationRoster.HaveMissedNotifications Then
+'                Me.bShowMissedPanel
+'
+'            Else
                 Me.NewDoPrefs
-
-            End If
+'
+'            End If
 
         End Select
 
@@ -677,6 +736,12 @@ Dim pi As OMMenuItem
 
         End If
 
+        .AddItem .CreateItem("about", "About Snarl...")
+        .AddSeparator
+
+        .AddItem .CreateItem("nc", "Notification Centre")
+        .AddSeparator
+
         .AddItem .CreateItem("hide_all", "Hide All Notifications")
         .AddItem .CreateItem("sticky", "Sticky Notifications", , , (g_ConfigGet("sticky_snarls") = "1"))
         .AddSeparator
@@ -693,14 +758,13 @@ Dim pi As OMMenuItem
 
         End If
 
-        .AddItem .CreateItem("quit", "Quit Snarl", , Not gSysAdmin.InhibitQuit)
         .AddSeparator
         .AddItem .CreateItem("prefs", "Settings...", , Not gSysAdmin.InhibitPrefs)
         .AddItem .CreateItem("missed", "Missed Notifications", , (g_NotificationRoster.RealMissedCount > 0), , , , uMissedNotificationsSubmenu())
         .AddItem .CreateItem("app_list", "Snarl Apps...", , (g_AppRoster.CountSnarlApps > 0))
 '        .AddItem .CreateItem("", "Snarl Apps", , , , , , g_AppRoster.SnarlAppsMenu())
         .AddSeparator
-        .AddItem .CreateItem("about", "About Snarl...")
+        .AddItem .CreateItem("quit", "Quit Snarl", , Not gSysAdmin.InhibitQuit)
 
         Set pi = .Track(Me.hWnd)
 
@@ -735,6 +799,18 @@ Dim pa As TApp
         Case "prefs"
             Me.NewDoPrefs
 
+        Case "nc"
+            With g_NotificationRoster.NC
+                If .IsVisible Then
+                    .Hide
+                
+                Else
+                    .Show
+                
+                End If
+            End With
+
+
 '        Case "app_mgr"
 '            ShellExecute 0, "open", g_MakePath(App.Path) & "SNARLAPP_Manager.exe", vbNullString, vbNullString, SW_SHOW
 
@@ -765,10 +841,23 @@ Dim pa As TApp
             ' /* R2.4.2 DR3 */
             SOS_invoke New TSOSHandler
 
+Dim i As Long
 
         Case "app_list"
             If (theAppList Is Nothing) Then
                 Set theAppList = New TAppsPopUpWindow
+                theAppList.Create 26
+                
+                With g_AppRoster
+                    If .CountApps Then
+                        For i = 1 To .CountApps
+                            If .AppAt(i).IncludeInMenu Then _
+                                theAppList.AddItem .AppAt(i).Name, .AppAt(i).Signature, .AppAt(i).CachedIcon
+
+                        Next i
+                    End If
+                End With
+
                 theAppList.Show
 
             End If
@@ -831,35 +920,34 @@ Dim pm As CTempMsg
 
     If (mPanel Is Nothing) Then
 
+'        mCurrentStyleAndScheme = g_ConfigGet("default_style")
+
         g_Debug "frmAbout.NewDoPrefs(): creating panel..."
 
         Set mPanel = New BPrefsPanel
         With mPanel
             .SetHandler Me
-
             mPanel.SetTitle "Snarl Preferences"
             mPanel.SetWidth 540
 
             ' /* apps */
-
             g_Debug "frmAbout.NewDoPrefs(): apps page..."
             Set mAppsPage = New TAppsPage
             .AddPage new_BPrefsPage("Applications", load_image_obj(g_MakePath(App.Path) & "etc\icons\apps.png"), mAppsPage)
 
             ' /* notifications page */
-
-            Set pp = new_BPrefsPage("Notifications", load_image_obj(g_MakePath(App.Path) & "etc\icons\notifications.png"), Me)
+            Set pp = new_BPrefsPage("Display", load_image_obj(g_MakePath(App.Path) & "etc\icons\notifications.png"), Me)
             With pp
                 .SetMargin 0
                 Set pm = New CTempMsg
                 pm.Add "height", 380
                 Set pc = new_BPrefsControl("tabstrip", "ts>display", , , , pm)
-                BTabStrip_AddPage pc, "The Basics", new_BPrefsPage("appearance1", , New TDisplaySubPage)
-                BTabStrip_AddPage pc, "Appearance", new_BPrefsPage("appearance2", , New TDisplaySubPage)
+                BTabStrip_AddPage pc, "Appearance", new_BPrefsPage("appearance1", , New TDisplaySubPage)
+                BTabStrip_AddPage pc, "Behaviour", new_BPrefsPage("behaviour", , New TDisplaySubPage)
+                BTabStrip_AddPage pc, "Layout", new_BPrefsPage("appearance2", , New TDisplaySubPage)
 '                BTabStrip_AddPage pc, "Layout", new_BPrefsPage("layout", , New TDisplaySubPage)
-                BTabStrip_AddPage pc, "Layout", new_BPrefsPage("behaviour", , New TDisplaySubPage)
                 BTabStrip_AddPage pc, "Sounds", new_BPrefsPage("sounds", , New TDisplaySubPage)
-                BTabStrip_AddPage pc, "Redirection", new_BPrefsPage("redirection", , New TDisplaySubPage)
+'                BTabStrip_AddPage pc, "Redirection", new_BPrefsPage("redirection", , New TDisplaySubPage)
                 BTabStrip_AddPage pc, "Advanced", new_BPrefsPage("advanced", , New TDisplaySubPage)
 
                 .Add pc
@@ -869,14 +957,14 @@ Dim pm As CTempMsg
             .AddPage pp
             
             ' /* network */
-
-            Set pp = new_BPrefsPage("Network", load_image_obj(g_MakePath(App.Path) & "etc\icons\network.png"), Me)
+            Set pp = new_BPrefsPage("Gateway", load_image_obj(g_MakePath(App.Path) & "etc\icons\gateway.png"), Me)
             With pp
                 .SetMargin 0
                 Set pm = New CTempMsg
                 pm.Add "height", 412
                 Set pc = new_BPrefsControl("tabstrip", "", , , , pm)
-                BTabStrip_AddPage pc, "General", new_BPrefsPage("net-general", , New TNetSubPage)
+'                BTabStrip_AddPage pc, "General", new_BPrefsPage("net-general", , New TNetSubPage)
+                BTabStrip_AddPage pc, "Redirection", new_BPrefsPage("redirection", , New TDisplaySubPage)
                 BTabStrip_AddPage pc, "Forwarding", new_BPrefsPage("net-clients", , New TNetSubPage)
                 BTabStrip_AddPage pc, "Subscriptions", new_BPrefsPage("net-subs", , New TNetSubPage)
 '                BTabStrip_AddPage pc, "Subscribers", new_BPrefsPage("net-subscribers", , New TNetSubPage)
@@ -904,15 +992,14 @@ Dim pm As CTempMsg
 '            .AddPage pp
 
             ' /* addons */
-
             Set pp = new_BPrefsPage("AddOns", load_image_obj(g_MakePath(App.Path) & "etc\icons\extensions.png"), Me)
             With pp
                 .SetMargin 0
                 Set pm = New CTempMsg
                 pm.Add "height", 412
                 Set pc = new_BPrefsControl("tabstrip", "", , , , pm)
-'                BTabStrip_AddPage pc, "Displays", new_BPrefsPage("sty-display", , New TNetSubPage)
-                BTabStrip_AddPage pc, "Redirectors", new_BPrefsPage("sty-redirect", , New TNetSubPage)
+                BTabStrip_AddPage pc, "Displays", new_BPrefsPage("sty-display", , New TNetSubPage)
+                BTabStrip_AddPage pc, "Redirects", new_BPrefsPage("sty-redirect", , New TNetSubPage)
                 BTabStrip_AddPage pc, "Extensions", new_BPrefsPage("sty-extensions", , New TExtPage)
                 BTabStrip_AddPage pc, "Style Engines", new_BPrefsPage("sty-engines", , New TNetSubPage)
                 .Add pc
@@ -921,19 +1008,18 @@ Dim pm As CTempMsg
             .AddPage pp
 
             ' /* settings page */
-
             g_Debug "frmAbout.NewDoPrefs(): general page..."
             Set pp = new_BPrefsPage("Options", load_image_obj(g_MakePath(App.Path) & "etc\icons\general.png"), Me)
-
             With pp
                 .SetMargin 0
                 Set pm = New CTempMsg
                 pm.Add "height", 412
                 Set pc = new_BPrefsControl("tabstrip", "", , , , pm)
                 BTabStrip_AddPage pc, "General", new_BPrefsPage("gen-basic", , New TNetSubPage)
-                BTabStrip_AddPage pc, "Advanced", new_BPrefsPage("gen-advanced", , New TNetSubPage)
                 BTabStrip_AddPage pc, "Presence", new_BPrefsPage("gen-presence", , New TNetSubPage)
+                BTabStrip_AddPage pc, "Network", new_BPrefsPage("net-general", , New TNetSubPage)
                 BTabStrip_AddPage pc, "Security", new_BPrefsPage("gen-security", , New TNetSubPage)
+                BTabStrip_AddPage pc, "Advanced", new_BPrefsPage("gen-advanced", , New TNetSubPage)
 
                 If gDebugMode Then _
                     BTabStrip_AddPage pc, "Debug", new_BPrefsPage("gen-debug", , New TNetSubPage)
@@ -944,7 +1030,6 @@ Dim pm As CTempMsg
             .AddPage pp
 
             ' /* R2.4.2 DR3: history */
-
             g_Debug "frmAbout.NewDoPrefs(): history page..."
             Set pp = new_BPrefsPage("History", load_image_obj(g_MakePath(App.Path) & "etc\icons\history.png"), Me)
             With pp
@@ -960,7 +1045,6 @@ Dim pm As CTempMsg
             .AddPage pp
 
             ' /* About page */
-
             g_Debug "frmAbout.NewDoPrefs(): about page..."
             Set pp = new_BPrefsPage("About", load_image_obj(g_MakePath(App.Path) & "etc\icons\about.png"), Me)
             With pp
@@ -987,7 +1071,6 @@ Dim pm As CTempMsg
                 .Add new_BPrefsControl("labelex", "", " Released under the Simplified BSD Licence.", , , pm)
 
             End With
-
             .AddPage pp
 
             ' /* Debug page */
@@ -1047,30 +1130,17 @@ Dim pm As CTempMsg
 End Sub
 
 Private Sub KPrefsPanel_PageChanged(ByVal NewPage As Long)
-
-    If NewPage = HISTORY_PAGE Then _
-        g_NotificationRoster.ResetMissed
-
-Dim pc As BControl
-
-    If NOTNULL(mPanel) Then
-        If mPanel.Find("cb>apps", pc) Then _
-            pc.Notify IIf(NewPage = 1, "show_sidebar", "hide_sidebar"), Nothing
-
-    End If
-
 End Sub
 
 Private Sub KPrefsPanel_Quit()
 
     ' /* prefs panel has been closed */
 
-    If mMarkMissedOnClose Then
-        g_NotificationRoster.MarkMissed
-        mMarkMissedOnClose = False
-
-    End If
-
+'    If mMarkMissedOnClose Then
+'        g_NotificationRoster.MarkMissed
+'        mMarkMissedOnClose = False
+'
+'    End If
 
     RevokeDragDrop mPanel.hWnd
 
@@ -1097,35 +1167,35 @@ Dim pc As BControl
 
     ' /* find our current style and select it in the 'Display' sub page */
 
-Dim i As Long
-Dim px As TStyle
-Dim j As Long
+'Dim i As Long
+'Dim px As TStyle
+'Dim j As Long
 
 '    Debug.Print gPrefs.default_style
 
-    If Not (g_StyleRoster Is Nothing) Then
-        i = g_StyleRoster.IndexOf(style_GetStyleName(g_ConfigGet("default_style")))
-        If i Then
-            Set px = g_StyleRoster.StyleAt(i)
-            j = px.SchemeIndex(style_GetSchemeName(g_ConfigGet("default_style")))
-
-            If j Then
-                ' /* R2.4 RC1: select default style and scheme in [Styles] page*/
-                prefskit_SetValue mPanel, "installed_styles", CStr(i)
-                prefskit_SetValue mPanel, "installed_schemes", CStr(j)
-
-'            prefskit_SetValue mPanel, "default_style", CStr(i)
-'            prefskit_SetValue mPanel, "default_scheme", CStr(j)
+'    If Not (g_StyleRoster Is Nothing) Then
+'        i = g_StyleRoster.IndexOf(style_GetStyleName(g_ConfigGet("default_style")))
+'        If i Then
+'            Set px = g_StyleRoster.StyleAt(i)
+'            j = px.SchemeIndex(style_GetSchemeName(g_ConfigGet("default_style")))
 '
-'            If mPanel.Find("default_style", pc) Then _
-'                pc.SetValue CStr(i)
+'            If j Then
+'                ' /* R2.4 RC1: select default style and scheme in [Styles] page*/
+'                prefskit_SetValue mPanel, "installed_styles", CStr(i)
+'                prefskit_SetValue mPanel, "installed_schemes", CStr(j)
 '
-'            If mPanel.Find("default_scheme", pc) Then _
-'                pc.SetValue CStr(j)
-
-            End If
-        End If
-    End If
+''            prefskit_SetValue mPanel, "default_style", CStr(i)
+''            prefskit_SetValue mPanel, "default_scheme", CStr(j)
+''
+''            If mPanel.Find("default_style", pc) Then _
+''                pc.SetValue CStr(i)
+''
+''            If mPanel.Find("default_scheme", pc) Then _
+''                pc.SetValue CStr(j)
+'
+'            End If
+'        End If
+'    End If
 
 '    If mPanel.Find("busy_style", pc) Then
 '        ' /* set the icons *
@@ -1297,41 +1367,34 @@ Private Sub uUnregisterHotkeys()
 End Sub
 
 Friend Sub bUpdateAppList()
+
+    If ISNULL(mPanel) Then _
+        Exit Sub
+
 Dim pc As BControl
 
-    If Not (mPanel Is Nothing) Then
-        If mPanel.Find("cb>apps", pc) Then _
-            pc.Notify "update_list", Nothing
-
-    End If
+    If mPanel.Find("cb>apps", pc) Then _
+        pc.Notify "update_list", Nothing
 
 End Sub
 
 Friend Sub bUpdateClassList(ByVal AppToken As Long)
-Dim pc As BControl
-Dim pm As CTempMsg
 
-    If Not (mPanel Is Nothing) Then
-        If mPanel.Find("cb>apps", pc) Then
-            Set pm = New CTempMsg
-            pm.What = AppToken
-            pc.Notify "update_classes", pm
-
-        End If
-    End If
+    If NOTNULL(theClassPanel) Then _
+        theClassPanel.Refresh
 
 End Sub
 
-Private Sub uUpdateStyleList()
-Dim pc As BControl
-
-    If Not (mPanel Is Nothing) Then
-        If mPanel.Find("installed_styles", pc) Then _
-            pc.Notify "update_list", Nothing
-
-    End If
-
-End Sub
+'Private Sub uUpdateStyleList()
+'Dim pc As BControl
+'
+'    If Not (mPanel Is Nothing) Then
+'        If mPanel.Find("installed_styles", pc) Then _
+'            pc.Notify "update_list", Nothing
+'
+'    End If
+'
+'End Sub
 
 'Friend Sub bUpdateRemoteComputerList()
 'Dim pc As BControl
@@ -1378,7 +1441,7 @@ Dim cb As Long
 
         End If
 
-        wreec = MIN(wreec, 675)
+        wreec = Min(wreec, 675)
 
     End If
 
@@ -1415,7 +1478,7 @@ Dim szScr As String
         If g_GetPrimaryMonitorInfo(pmi) Then _
             szScr = "Screen: " & CStr(pmi.rcPhysical.Right - pmi.rcPhysical.Left) & "x" & CStr(pmi.rcPhysical.Bottom - pmi.rcPhysical.Top)
 
-        g_PrivateNotify "", g_GetUserName() & " on " & g_GetComputerName(), _
+        g_PrivateNotify , g_GetUserName() & " on " & g_GetComputerName(), _
                         g_GetOSName() & " " & g_GetServicePackName() & vbCrLf & _
                         g_FileSizeToStringEx2(g_GetPhysMem(True), "GB", " ", "0.0") & " (" & g_FileSizeToStringEx2(g_GetPageMem(True) + g_GetPhysMem(True), "GB", " ", "0.0") & " total) RAM" & vbCrLf & _
                         szScr & vbCrLf & _
@@ -1596,7 +1659,7 @@ Dim i As Long
 
 '        Debug.Print pWindow.Window.hWnd & " " & pWindow.NotificationOnlyMode
 
-        If pWindow.NotificationOnlyMode Then
+        If pWindow.IsNonInteractive Then
             pWindow.MakeFuzzy True
             Set mClickThruOver = pWindow
 
@@ -1614,14 +1677,30 @@ Dim i As Long
 
 End Sub
 
-Friend Sub bUpdateStylesList()
+'Friend Sub bUpdateStylesList()
+'Dim pc As BControl
+'
+'    If Not (mPanel Is Nothing) Then
+'        If mPanel.Find("installed_styles", pc) Then _
+'            pc.Notify "update_list", Nothing
+'
+'    End If
+'
+'End Sub
+
+Friend Sub bNotifyStyleEnginesChanged()
+
+    If ISNULL(mPanel) Then _
+        Exit Sub
+
 Dim pc As BControl
 
-    If Not (mPanel Is Nothing) Then
-        If mPanel.Find("installed_styles", pc) Then _
-            pc.Notify "update_list", Nothing
+    ' /* listbox in [AddOns]->[Style Engines] */
+    If mPanel.Find("engine_list", pc) Then _
+        pc.Notify "refresh", Nothing
 
-    End If
+    ' /* also update style lists */
+    Me.bNotifyDisplaysChanged
 
 End Sub
 
@@ -1663,7 +1742,6 @@ Public Sub EnableSNP(ByVal Enabled As Boolean)
         ' /* R2.4: native Growl/UDP support */
 
         g_Debug "creating Growl UDP socket..."
-
         Set GrowlUDPSocket = New CSocket
         With GrowlUDPSocket
             .Protocol = sckUDPProtocol
@@ -1711,66 +1789,66 @@ Dim pExtList As BControl
 
 Dim pExt As TExtension
 
-    Set pExt = g_ExtnRoster.ItemAt(Index)
+    Set pExt = g_ExtnRoster.ExtensionAt(Index)
     DoExtensionConfig = pExt.DoPrefs(mPanel.hWnd)
 
 End Function
 
-Public Function DoStyleConfig(ByVal Index As Long) As Boolean
+'Public Function DoStyleConfig(ByVal Index As Long) As Boolean
+'
+'    If (mPanel Is Nothing) Then _
+'        Exit Function
+'
+'    If IsWindowEnabled(mPanel.hWnd) = 0 Then _
+'        Exit Function
+'
+'Dim pStyleList As BControl
+'
+''    If mPanel.Find("installed_styles", pStyleList) Then _
+''        pStyleList.SetValue CStr(Index)
+'
+'    If mPanel.Find("ftb>style", pStyleList) Then _
+'        pStyleList.Changed "1"
+'
+'    DoStyleConfig = True
+'
+'End Function
 
-    If (mPanel Is Nothing) Then _
-        Exit Function
-
-    If IsWindowEnabled(mPanel.hWnd) = 0 Then _
-        Exit Function
-
-Dim pStyleList As BControl
-
-    If mPanel.Find("installed_styles", pStyleList) Then _
-        pStyleList.SetValue CStr(Index)
-
-    If mPanel.Find("ftb>style", pStyleList) Then _
-        pStyleList.Changed "1"
-
-    DoStyleConfig = True
-
-End Function
-
-Public Sub DoAppConfig(ByVal AppName As String, Optional ByVal ClassName As String)
-
-    NewDoPrefs 1
-
-Dim i As Long
-
-    If Not (g_AppRoster Is Nothing) Then
-        i = g_AppRoster.IndexOf(AppName)
-        If i Then
-            ' /* select the application */
-            prefskit_SetValue mPanel, "cb>apps", CStr(i)
-
-            ' /* find the class */
-            i = g_AppRoster.AppAt(i).IndexOf(ClassName)
-            If i = 0 Then
-                ' /* not found/null - select _all */
-                prefskit_SetValue mPanel, "lb>classes", "1"
-
-            Else
-                ' /* select it */
-                prefskit_SetValue mPanel, "lb>classes", CStr(i)
-
-            End If
-
-        Else
-            g_Debug "frmAbout.DoAppConfig(): '" & AppName & "' not found", LEMON_LEVEL_CRITICAL
-
-        End If
-
-    Else
-        g_Debug "frmAbout.DoAppConfig(): app roster not available", LEMON_LEVEL_CRITICAL
-
-    End If
-
-End Sub
+'Public Sub DoAppConfig(ByVal AppName As String, Optional ByVal ClassName As String)
+'
+'    NewDoPrefs 1
+'
+'Dim i As Long
+'
+'    If Not (g_AppRoster Is Nothing) Then
+'        i = g_AppRoster.IndexOf(AppName)
+'        If i Then
+'            ' /* select the application */
+'            prefskit_SetValue mPanel, "cb>apps", CStr(i)
+'
+'            ' /* find the class */
+'            i = g_AppRoster.AppAt(i).IndexOf(ClassName)
+'            If i = 0 Then
+'                ' /* not found/null - select _all */
+'                prefskit_SetValue mPanel, "lb>classes", "1"
+'
+'            Else
+'                ' /* select it */
+'                prefskit_SetValue mPanel, "lb>classes", CStr(i)
+'
+'            End If
+'
+'        Else
+'            g_Debug "frmAbout.DoAppConfig(): '" & AppName & "' not found", LEMON_LEVEL_CRITICAL
+'
+'        End If
+'
+'    Else
+'        g_Debug "frmAbout.DoAppConfig(): app roster not available", LEMON_LEVEL_CRITICAL
+'
+'    End If
+'
+'End Sub
 
 Public Sub DoAppConfigBySignature(ByVal Signature As String)
 
@@ -1790,7 +1868,7 @@ Dim i As Long
 
     ' /* show the apps page */
 
-    NewDoPrefs 2
+    NewDoPrefs 1
 
     ' /* select the app */
 
@@ -1800,8 +1878,8 @@ Dim i As Long
 
 Dim pc As BControl
 
-    If mPanel.Find("fb>cfg_class", pc) Then _
-        mPanel.PageAt(2).ControlInvoked pc
+    If mPanel.Find("ftb>app", pc) Then _
+        mPanel.PageAt(1).ControlChanged pc, "1"
 
 End Sub
 
@@ -1815,34 +1893,34 @@ Private Function uIsFullScreenMode() As Boolean
 Static hWnd As Long
 Static h As Long
 
-    hWnd = uParentFromPoint(1, 1)
+    hWnd = uTopLevelFromPoint(1, 1)
 
 '    g_Debug g_ClassName(hWnd) & " " & _
             g_ClassName(uParentFromPoint(g_ScreenWidth() - 1, 1)) & " " & _
             g_ClassName(uParentFromPoint(1, g_ScreenHeight() - 1)) & " " & _
             g_ClassName(uParentFromPoint(g_ScreenWidth() - 1, g_ScreenHeight() - 1))
 
-    If hWnd = uParentFromPoint(uScreenWidth() - 1, 1) Then
-        If hWnd = uParentFromPoint(uScreenWidth() - 1, uScreenHeight() - 1) Then
-            If hWnd = uParentFromPoint(1, uScreenHeight() - 1) Then
-
+    If hWnd = uTopLevelFromPoint(uScreenWidth() - 1, 1) Then
+        If hWnd = uTopLevelFromPoint(uScreenWidth() - 1, uScreenHeight() - 1) Then
+            If hWnd = uTopLevelFromPoint(1, uScreenHeight() - 1) Then
 '                g_Debug "uIsFullScreenMode(): four points match: " & g_ClassName(hWnd) & " '" & g_WindowText(hWnd) & "'"
-
                 h = GetWindow(hWnd, GW_HWNDPREV)
                 Do While h
                     If uIsAppWindow(h) Then _
                         Exit Function
+'                        g_PrivateNotify , "Fullscreen abandoned", g_ClassName(h) & " " & g_Quote(g_WindowText(h))
 
                     h = GetWindow(h, GW_HWNDPREV)
 
                 Loop
 
+                If g_IsAlphaBuild Then _
+                    g_PrivateNotify , "Fullscreen detected", g_ClassName(hWnd) & " " & g_Quote(g_WindowText(hWnd))
 '                g_Debug "uIsFullScreenMode(): no higher app window"
 
-                ' /* filter out Windows7 Win+Tab class */
-
+                ' /* filter out Windows7 Win+Tab class and other system gubbins */
                 Select Case g_ClassName(hWnd)
-                Case "Flip3D"
+                Case "Flip3D", "Progman"
                     Exit Function
 
                 End Select
@@ -1868,14 +1946,12 @@ Static h As Long
 
 End Function
 
-Private Function uParentFromPoint(ByVal x As Long, ByVal y As Long) As Long
+Private Function uTopLevelFromPoint(ByVal x As Long, ByVal y As Long) As Long
 Static h As Long
 
     h = WindowFromPoint(x, y)
-    If IsWindow(h) = 0 Then _
-        Exit Function
-
-    uParentFromPoint = uGetTopLevel(h)
+    If IsWindow(h) <> 0 Then _
+        uTopLevelFromPoint = uGetTopLevel(h)
 
 End Function
 
@@ -1892,10 +1968,14 @@ Private Function uScreenHeight(Optional ByVal VirtualScreen As Boolean = False) 
 End Function
 
 Private Function uIsAppWindow(ByVal hWnd As Long) As Boolean
+
+    If hWnd = 0 Then _
+        Exit Function
+
 Static lExStyle As Long
 Static Style As Long
 
-    ' /* more reliable version (although can pick up the 'wrong' window in cases
+    ' /* more reliable version (although it can pick up the 'wrong' window in cases
     '    where there's a choice (e.g. VB IDE and Platform SDK) - code taken from
     '    here: http://shell.franken.de/~sky/explorer-doc/taskbar_8cpp-source.html */
 
@@ -1906,7 +1986,7 @@ Static Style As Long
     Style = GetWindowLong(hWnd, GWL_STYLE)
     lExStyle = GetWindowLong(hWnd, GWL_EXSTYLE)
 
-    If (Style And WS_VISIBLE) = 0 Then _
+    If ((Style And WS_VISIBLE) = 0) Or (IsIconic(hWnd)) Then _
         Exit Function
 
     If (lExStyle And WS_EX_APPWINDOW) Then
@@ -2007,25 +2087,30 @@ Friend Sub bSetTrayIcon()
 
 Dim hIcon As Long
 Dim sz As String
+
+     ' /* tooltip */
+
+    sz = "Snarl"
+    If g_NotificationRoster.HaveMissedNotifications Then _
+        sz = sz & " - " & CStr(g_NotificationRoster.RealMissedCount) & " missed notification" & IIf(g_NotificationRoster.RealMissedCount = 1, "", "s")
+
 Dim n As Long
 
     n = SN_II_NORMAL
-    sz = "Snarl"
 
     If Not g_IsRunning Then
         ' /* takes precedence */
         n = SN_II_STOPPED
-        sz = sz & " (stopped)"
+        sz = "Snarl (stopped)"
+
+    ElseIf g_NotificationRoster.HaveMissedNotifications Then
+        n = SN_II_MISSED
 
     ElseIf g_IsDND() Then
         n = SN_II_BUSY
 
     ElseIf g_IsAway() Then
         n = SN_II_AWAY
-
-    ElseIf g_NotificationRoster.HaveMissedNotifications Then
-        sz = sz & " - " & CStr(g_NotificationRoster.RealMissedCount) & " missed notification" & IIf(g_NotificationRoster.RealMissedCount = 1, "", "s")
-        n = SN_II_MISSED
 
     End If
 
@@ -2062,7 +2147,7 @@ Friend Sub bUpdateMissedList()
 Dim pItem As TNotification
 Dim pc As BControl
 Dim i As Long
-'Dim j As Long
+Dim j As Long
 
     If mPanel.Find("missed_list", pc) Then
         uUpdateList g_NotificationRoster.MissedList, pc
@@ -2070,14 +2155,11 @@ Dim i As Long
         With g_NotificationRoster.MissedList
             For i = .CountItems To 1 Step -1
                 prefskit_SetItem pc, i, "checked", 1&
-
-'                j = j + 1
-'                Set pItem = .TagAt(i)
-'                If pItem.WasSeen Then _
-'                    prefskit_SetItem pc, j, "greyscale", 1&
+                j = j + 1
+                Set pItem = .TagAt(i)
+                prefskit_SetItem pc, j, "greyscale", IIf(pItem.WasReplayed, 1&, 0&)
 
             Next i
-
         End With
     End If
 
@@ -2150,7 +2232,7 @@ End Sub
 Friend Sub bShowMissedPanel()
 
     Me.NewDoPrefs HISTORY_PAGE
-    mMarkMissedOnClose = True
+'    mMarkMissedOnClose = True
 
 Dim pc As BControl
 Dim rc As RECT
@@ -2200,7 +2282,8 @@ Dim j As Long
             For i = .CountItems To 1 Step -1
                 j = j + 1
                 Set pn = .TagAt(i)
-                prefskit_SetItem ListControl, j, "image-file", g_TranslateIconPath(pn.Info.IconPath, "")
+'                prefskit_SetItem ListControl, j, "image-file", g_TranslateIconPath(pn.Info.IconPath, "")
+                prefskit_SetItemObject ListControl, j, "image-object", pn.Icon
 
             Next i
 
@@ -2224,8 +2307,7 @@ Private Sub uFileDropped(ByVal Path As String, ByRef Text As String)
             Text = Text & g_Quote(g_RemoveExtension(g_FilenameFromPath(Path))) & " webforwarder installed" & vbCrLf
 
     Case "rsz"
-        If g_ExtractToAppData(Path, "styles\runnable") Then _
-            Text = Text & g_Quote(g_RemoveExtension(g_FilenameFromPath(Path))) & " runnable style installed" & vbCrLf
+        g_InstallRSZ Path, True
 
     End Select
 
@@ -2249,13 +2331,13 @@ Dim i As Long
 
     Next i
 
-    If szText <> "" Then
-        g_PrivateNotify , "Installation complete", szText, , "!system-yes"
-
-    Else
-        g_PrivateNotify , "Installation failed", "There was a problem installing the selected file" & IIf(c > 1, "s", ""), , "!system-no"
-
-    End If
+'    If szText <> "" Then
+'        g_PrivateNotify , "Installation complete", szText, , "!system-yes"
+'
+'    Else
+'        g_PrivateNotify , "Installation failed", "There was a problem installing the selected file" & IIf(c > 1, "s", ""), , "!system-no"
+'
+'    End If
 
     g_StyleRoster.Restart
 
@@ -2271,11 +2353,13 @@ Dim j As Integer
     With g_NotificationRoster.MissedList
         .Rewind
         Do While .GetNextTag(pt) = B_OK
-            j = j + 1
-            pm.AddItem pm.CreateItem("!missed" & CStr(j), g_Quote(g_FormattedMidStr(Replace$(pt.Info.Text, vbCrLf, " "), 48)) & " (" & pt.Info.ClassObj.App.NameEx & ")")
-            If j = 10 Then _
-                Exit Do
+            If Not pt.WasReplayed Then
+                j = j + 1
+                pm.AddItem pm.CreateItem("!missed" & CStr(pt.Info.Token), g_Quote(g_FormattedMidStr(Replace$(pt.Info.Text, vbCrLf, " "), 48)) & " (" & pt.Info.ClassObj.App.NameEx & ")")
+                If j = 10 Then _
+                    Exit Do
 
+            End If
         Loop
 
     End With
@@ -2290,3 +2374,41 @@ Dim j As Integer
 
 End Function
 
+Friend Sub bSetPrevewStyle(ByVal Style As String)
+
+    mTestStyleAndScheme = Style
+
+End Sub
+
+Friend Sub bNotifyDisplaysChanged()
+Dim pc As BControl
+
+    If NOTNULL(mPanel) Then
+        ' /* list in [AddOns]->[Displays] */
+        If mPanel.Find("display_styles_list", pc) Then _
+            pc.Notify "refresh", Nothing
+
+        ' /* combo box in [Display]->[Appearance] */
+        If mPanel.Find("default_style_list", pc) Then _
+            pc.Notify "refresh", Nothing
+
+    End If
+
+End Sub
+
+Private Sub theClassPanel_Done()
+
+    Set theClassPanel = Nothing
+
+End Sub
+
+Public Sub ShowClassConfigPanel(ByVal hWndOwner As Long, ByRef App As TApp, ByVal Class As String)
+
+    If NOTNULL(theClassPanel) Then _
+        theClassPanel.Quit
+
+    Set theClassPanel = New TConfigureClassPanel
+    theClassPanel.Go hWndOwner, App
+    theClassPanel.SelectClass Class
+
+End Sub

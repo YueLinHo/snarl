@@ -179,7 +179,7 @@ Dim i As Long
             SOS_printline ""
             With g_ExtnRoster
                 For i = 1 To .CountItems
-                    With .ItemAt(i)
+                    With .ExtensionAt(i)
                         SOS_printline IIf(.State = SN_ES_FAILED, "Failed  ", IIf(.State = SN_ES_LOADED, "Loaded  ", "Unloaded")) & "  " & g_Pad(.Class, 24, True) & .VerString
 
                     End With

@@ -97,6 +97,7 @@ Public Const SNARL_CLASS_ANON_NET = "_ANN"
 Public Const SNARL_CLASS_ANON = "_ANL"
 'Public Const SNARL_CLASS_LOW_PRIORITY = "_LOW"
 'Public Const SNARL_CLASS_SYSTEM = "_SYS"
+Public Const SNARL_CLASS_SYSTEM = "_SYS"
 
     ' /* internal notification flags */
 
@@ -106,6 +107,7 @@ Public Enum SN_NOTIFICATION_FLAGS
     SN_NF_IS_GNTP = &H20000000         ' // R2.4.2: GNTP-based notification
     SN_NF_IS_SNP3 = &H10000000         '// R2.4.2 DR3: SNP3
     SN_NF_FORWARD = &H8000000           ' // R2.5 Beta 2: notification has been forwarded
+    SN_NF_TEMP_ICON = &H4000000         ' // R2.6A4: icon is temporary
 
     SN_NF_MERGE = &H1000
 
@@ -156,6 +158,9 @@ Public Type T_NOTIFICATION_INFO
     ' /* V43 */
     ScriptFilename As String
     ScriptLanguage As String
+    ' /* V44 */
+    AckButtonLabel As String
+'    Content As BPackedData
 
 End Type
 
@@ -225,15 +230,15 @@ Public gSysAdmin As T_SNARL_ADMIN
 Public gExtDetailsToken As Long
 Public gStyleEngineDetailsToken As Long
 
-Public Type T_SNARL_ICON_THEME
-    Name As String
-    Path As String
-    IconFile As String
-
-End Type
-
-Public gIconTheme() As T_SNARL_ICON_THEME
-Public gIconThemes As Long
+'Public Type T_SNARL_ICON_THEME
+'    Name As String
+'    Path As String
+'    IconFile As String
+'
+'End Type
+'
+'Public gIconTheme() As T_SNARL_ICON_THEME
+'Public gIconThemes As Long
 
 Private Const SPI_GETFONTSMOOTHING = 74
 Private Const SPI_GETFONTSMOOTHINGTYPE = 8202
@@ -243,15 +248,18 @@ Private Const FE_FONTSMOOTHINGCLEARTYPE = 2
 
 Public Const HWND_SNARL = &H534E524C Or &H80000000
 
-Public bm_Close As MImage
 'Public bm_Menu As MImage
-Public bm_Actions As MImage
+Public bm_CloseGadget As MImage
+Public bm_ActionsGadget As MImage
 Public bm_HasActions As MImage
 Public bm_Remote As MImage
 Public bm_Secure As MImage
 Public bm_IsSticky As MImage
 Public bm_Priority As MImage
 Public bm_Forward As MImage
+
+Public bm_Button As mfxBitmap
+Public bm_CallbackButton As mfxBitmap
 
 Public Enum SN_START_POSITIONS
     ' /* IMPORTANT!! These have now changed under V41 */
@@ -328,7 +336,7 @@ Dim mWriteConfigOnUnlock As Boolean
 Dim m_Alerts As ConfigSection
 
 'Public g_IgnoreLock As Long         ' // if >0 don't alert when app registers - overrides class setting
-Public gSelectedClass As TAlert
+'Public gSelectedClass As TAlert
 Public gDebugMode As Boolean
 'Public mAwayCount As Long           ' // R2.4 DR8: renamed and reimplemented
 
@@ -441,17 +449,33 @@ Dim pArgs As BTagList
 Dim sz As String
 Dim i As Long
 
+    Set pArgs = g_MakeArgList(Command$)
+
     If Command$ <> "" Then
         ' /* command specified, but which? */
         Debug.Print "command line: " & Command$
+'        MsgBox Command$
 
-        Set pArgs = g_MakeArgList(Command$)
 
         i = 1
         
+        ' /* commands:
+        '       -c | --configure
+        '       -debug
+        '       -do
+        '       -l | --load
+        '       -p | --parse
+        '       -q | --quit | -quit
+        '       -u | --unload
+        '
+        ' */
+
         Do While i <= pArgs.CountItems
+        
+'            MsgBox pArgs.TagAt(i).Name
+        
             Select Case LCase$(pArgs.TagAt(i).Name)
-            Case "-quit"
+            Case "-quit", "-q", "--quit"
                 ' /* if we have an already running instance, tell it to quit */
                 If l <> 0 Then _
                     SendMessage l, WM_CLOSE, 0, ByVal 0&
@@ -463,7 +487,7 @@ Dim i As Long
                 ' /* enable debug mode */
                 gDebugMode = True
 
-            Case "-r", "-req"
+            Case "-p", "--parse"
                 ' /* -r <request> - process standard request */
                 i = i + 1
                 If i <= pArgs.CountItems Then
@@ -472,7 +496,7 @@ Dim i As Long
 
                 Else
                     ' /* arg missing: stop processing */
-                    MsgBox "Missing argument: use '-r <request>'", vbExclamation Or vbOKOnly, App.Title
+                    MsgBox "Missing argument: use '-p|--parse <request>'", vbExclamation Or vbOKOnly, App.Title
                     Exit Sub
 
                 End If
@@ -505,12 +529,12 @@ Dim i As Long
                 i = i + 1
                 If i <= pArgs.CountItems Then
                     ' /* send the request */
-                    sz = "system?action=unload&what=" & pArgs.TagAt(i).Name
+                    sz = "snarl?cmd=unload&what=" & pArgs.TagAt(i).Name
                     snDoRequest sz
                     fQuitWhenDone = True
 
                 Else
-                    ' /* arg missing */
+                    ' /* arg missing: stop processing */
                     MsgBox "Missing argument: use '--unload <AddOn>'", vbInformation Or vbOKOnly, App.Title
                     Exit Sub
 
@@ -521,11 +545,11 @@ Dim i As Long
                 i = i + 1
                 If i <= pArgs.CountItems Then
                     ' /* send the request */
-                    snDoRequest "system?action=load&what=" & pArgs.TagAt(i).Name
+                    snDoRequest "snarl?cmd=load&what=" & pArgs.TagAt(i).Name
                     fQuitWhenDone = True
 
                 Else
-                    ' /* arg missing */
+                    ' /* arg missing: stop processing */
                     MsgBox "Missing argument: use '--load <AddOn>'", vbInformation Or vbOKOnly, App.Title
                     Exit Sub
 
@@ -536,11 +560,11 @@ Dim i As Long
                 i = i + 1
                 If i <= pArgs.CountItems Then
                     ' /* send the request */
-                    snDoRequest "system?action=configure&what=" & pArgs.TagAt(i).Name
+                    snDoRequest "snarl?cmd=configure&what=" & pArgs.TagAt(i).Name
                     fQuitWhenDone = True
 
                 Else
-                    ' /* arg missing */
+                    ' /* arg missing: stop processing */
                     MsgBox "Missing argument: use '--configure <Extension|App|Style>'", vbInformation Or vbOKOnly, App.Title
                     Exit Sub
 
@@ -551,38 +575,34 @@ Dim i As Long
             Case Else
 
                 ' /* check to see if a particular file was dropped */
-
                 Select Case g_GetExtension(pArgs.TagAt(i).Name, True)
                 Case "webforward"
-                    MsgBox "webforward"
+                    fQuitWhenDone = True
+'                    MsgBox "webforward"
 '                    g_CopyToAppData Command$, "styles\webforward"
 '                    If l Then _
 '                        PostMessage l, WM_SNARL_COMMAND, SN_DP_RESTART_STYLE_ROSTER, ByVal 0&
 '
 '                    Exit Sub
-    
+
                 Case "rsz"
-                    MsgBox "packed runnable style"
-'                    g_ExtractToAppData Command$, "styles\runnable"
+                    ' /* packed runnable style: if it installs ok, tell the running instance to restart the engine */
+                    fQuitWhenDone = True
+                    If g_InstallRSZ(pArgs.TagAt(i).Name, False) Then _
+                        snDoRequest "snarl?cmd=reload&what=runnable.styleengine"
 
                 Case "ssz"
-                    MsgBox "packed scripted style"
-'                    g_ExtractToAppData Command$, "styles\script"
+                    ' /* packed scripted style: if it installs ok, tell the running instance to restart the engine */
+                    fQuitWhenDone = True
+                    If g_InstallSSZ(pArgs.TagAt(i).Name, False) Then _
+                        snDoRequest "snarl?cmd=reload&what=script.styleengine"
 
-
-'                    If l Then _
-'                        PostMessage l, WM_SNARL_COMMAND, SN_DP_RESTART_STYLE_ROSTER, ByVal 0&
-'
-'                    Exit Sub
-    
                 Case Else
                     MsgBox "unknown argument " & g_Quote(pArgs.TagAt(i).Name)
                     Exit Sub
 
                 End Select
-
             End Select
-
             i = i + 1
 
         Loop
@@ -642,7 +662,7 @@ Dim i As Long
 
     End If
 
-    If l <> 0 Then
+    If (l <> 0) And (NOTNULL(pArgs)) Then
         ' /* Snarl is already running (and no useful command-line arg specified) */
         If pArgs.CountItems = 0 Then _
             PostMessage l, WM_SNARL_COMMAND, 0, ByVal 0&    ' // tell the running instance to show its ui...
@@ -942,7 +962,7 @@ Dim szData As String
 
     ' /* get icon themes */
 
-    g_GetIconThemes
+'    g_GetIconThemes
 
     ' /* set master running flag */
 
@@ -953,7 +973,7 @@ Dim szData As String
 
     If (g_ConfigGet("show_msg_on_start") = "1") Or (gDebugMode) Then
         i = g_PrivateNotify(SNARL_CLASS_GENERAL, "Welcome to Snarl!", _
-                            "Snarl " & g_Version() & vbCrLf & App.LegalCopyright & vbCrLf & "http://www.getsnarl.info" & IIf(gDebugMode, vbCrLf & vbCrLf & "Debug mode enabled", ""), , _
+                            "Snarl " & g_Version() & vbCrLf & App.LegalCopyright & vbCrLf & "http://www.getsnarl.info" & IIf(gDebugMode, vbCrLf & vbCrLf & "Debug mode enabled", "") & IIf(g_IsAlphaBuild, vbCrLf & "Alpha build", ""), , _
                             g_MakePath(App.Path) & "etc\icons\snarl.png")
 
         If i Then
@@ -1205,8 +1225,15 @@ Public Function g_ConfigInit() As Boolean
         .Add "scaling", "1"
         .Add "global_redirect", ""
         .Add "garbage_collection", "1"
-        .Add "show_missed_notification", "1"
+        .Add "show_missed_notifications", "2"
         .Add "notify_when_subscriber_added", "1"
+        .Add "nc-col-background", CStr(rgba(31, 33, 33))
+        .Add "nc-col-text", CStr(rgba(255, 255, 255))
+        .Add "nc-font-typeface", "Tahoma"
+        .Add "nc-font-point", "9"
+        .Add "nc-opacity-percent", "90"
+        .Add "callback_as_button", "1"
+        .Add "block_net_control", "0"
 
     End With
 
@@ -1527,6 +1554,14 @@ Dim sz As String
 
 End Function
 
+Public Function g_GetUserFolderPathStr(Optional ByVal AllUsers As Boolean = False) As String
+Dim sz As String
+
+    If g_GetUserFolderPath(sz, AllUsers) Then _
+        g_GetUserFolderPathStr = g_MakePath(sz)
+
+End Function
+
 Public Function g_GetUserFolder(ByRef Folder As storage_kit.Node, Optional ByVal AllUsers As Boolean = False, Optional ByVal PathToAdd As String) As Boolean
 Dim sz As String
 
@@ -1661,22 +1696,27 @@ Dim pc As TAlert
     Select Case Element
 
     Case SNARL_ATTRIBUTE_TITLE
-        pc.DefaultTitle = Value
+        pc.AppProvidedSettings.Update "title", Value, True
+'        pc.DefaultTitle = Value
 
     Case SNARL_ATTRIBUTE_TEXT
-        pc.DefaultText = Value
+        pc.AppProvidedSettings.Update "text", Value, True
+'        pc.DefaultText = Value
 
     Case SNARL_ATTRIBUTE_TIMEOUT
-        pc.DefaultTimeout = Val(Value)
+        pc.AppProvidedSettings.Update "duration", CStr(Value), True
+'        pc.DefaultTimeout = Val(Value)
 
     Case SNARL_ATTRIBUTE_SOUND
-        pc.DefaultSound = Value
+        pc.AppProvidedSettings.Update "sound", Value, True
+'        pc.DefaultSound = Value
 
     Case SNARL_ATTRIBUTE_ICON
         pc.DefaultIcon = Value
 
     Case SNARL_ATTRIBUTE_ACK
-        pc.DefaultAck = Value
+        pc.AppProvidedSettings.Update "callback", Value, True
+'        pc.DefaultAck = Value
 
     Case Else
         g_Debug "gfSetAlertDefault(): unknown element '" & Element & "'", LEMON_LEVEL_CRITICAL
@@ -1705,80 +1745,110 @@ Dim n As Integer
 
 End Sub
 
-Public Sub g_GetIconThemes()
-Dim pn As storage_kit.Node
-
-    ReDim gIconTheme(0)
-    gIconThemes = 0
-
-    If g_GetUserFolder(pn) Then _
-        uGetIconThemes pn
-
-    If g_GetUserFolder(pn, True) Then _
-        uGetIconThemes pn
-
-End Sub
-
-Private Sub uGetIconThemes(ByRef Folder As storage_kit.Node)
-
-    If Not (Folder.SetTo(g_MakePath(Folder.File) & "themes")) Then _
-        Exit Sub
-
-    If Not (Folder.IsFolder) Then _
-        Exit Sub
-
-Dim i As Long
-Dim c As Long
-
-    With Folder
-        .ReadContents
-        c = .CountNodes
-        If c Then
-            For i = 1 To c
-                If .NodeAt(i).IsFolder Then _
-                    uGetIconTheme .NodeAt(i)
-
-            Next i
-        End If
-    End With
-
-End Sub
-
-Private Sub uGetIconTheme(ByRef Folder As storage_kit.Node)
-Dim pn As storage_kit.Node
-
-    Set pn = New storage_kit.Node
-    If Not (pn.SetTo(g_MakePath(Folder.File) & "icons")) Then _
-        Exit Sub
-
-    If Not (pn.IsFolder) Then _
-        Exit Sub
-
-    gIconThemes = gIconThemes + 1
-    ReDim Preserve gIconTheme(gIconThemes)
-    With gIconTheme(gIconThemes)
-        .Name = Folder.Filename
-        .Path = pn.File
-        .IconFile = g_MakePath(Folder.File) & "theme.png"
-
-    End With
-
-End Sub
-
-Public Function g_GetIconThemePath(ByVal Name As String, ByRef Path As String) As Boolean
-Dim i As Long
-
-    If gIconThemes Then
-        For i = 1 To gIconThemes
-            If LCase$(gIconTheme(i).Name) = LCase$(Name) Then
-                Path = g_MakePath(gIconTheme(i).Path)
-                g_GetIconThemePath = True
-
-            End If
-        Next i
-    End If
-
-End Function
+'Public Sub g_GetIconThemes()
+'Dim pn As storage_kit.Node
+'
+'    ReDim gIconTheme(0)
+'    gIconThemes = 0
+'
+'    If g_GetUserFolder(pn) Then _
+'        uGetIconThemes pn
+'
+'    If g_GetUserFolder(pn, True) Then _
+'        uGetIconThemes pn
+'
+'End Sub
+'
+'Private Sub uGetIconThemes(ByRef Folder As storage_kit.Node)
+'
+'    If Not (Folder.SetTo(g_MakePath(Folder.File) & "themes")) Then _
+'        Exit Sub
+'
+'    If Not (Folder.IsFolder) Then _
+'        Exit Sub
+'
+'Dim i As Long
+'Dim c As Long
+'
+'    With Folder
+'        .ReadContents
+'        c = .CountNodes
+'        If c Then
+'            For i = 1 To c
+'                If .NodeAt(i).IsFolder Then _
+'                    uGetIconTheme .NodeAt(i)
+'
+'            Next i
+'        End If
+'    End With
+'
+'End Sub
+'
+'Private Sub uGetIconTheme(ByRef Folder As storage_kit.Node)
+'Dim pn As storage_kit.Node
+'
+'    Set pn = New storage_kit.Node
+'    If Not (pn.SetTo(g_MakePath(Folder.File) & "icons")) Then _
+'        Exit Sub
+'
+'    If Not (pn.IsFolder) Then _
+'        Exit Sub
+'
+'Static i As Long
+'Static j As Long
+'
+'    ' /* add it alpha-sorted */
+'
+'    If gIconThemes Then
+'        For i = 1 To gIconThemes
+'            If LCase$(Folder.Filename) < LCase$(gIconTheme(i).Name) Then
+'                ' /* make a gap */
+'                gIconThemes = gIconThemes + 1
+'                ReDim Preserve gIconTheme(gIconThemes)
+'                For j = gIconThemes To (i + 1) Step -1
+'                    LSet gIconTheme(j) = gIconTheme(j - 1)
+'
+'                Next j
+'
+'                ' /* insert here */
+'                With gIconTheme(i)
+'                    .Name = Folder.Filename
+'                    .Path = pn.File
+'                    .IconFile = g_MakePath(Folder.File) & "theme.png"
+'
+'                End With
+'                Exit Sub
+'            End If
+'        Next i
+'    End If
+'
+'    ' /* drop through here if no other themes */
+'
+'    gIconThemes = gIconThemes + 1
+'    ReDim Preserve gIconTheme(gIconThemes)
+'    With gIconTheme(gIconThemes)
+'        .Name = Folder.Filename
+'        .Path = pn.File
+'        .IconFile = g_MakePath(Folder.File) & "theme.png"
+'
+'    End With
+'
+'End Sub
+'
+'Public Function g_GetIconThemePath(ByVal Name As String, ByRef Path As String) As Boolean
+'Dim i As Long
+'
+'    If gIconThemes Then
+'        For i = 1 To gIconThemes
+'            If LCase$(gIconTheme(i).Name) = LCase$(Name) Then
+'                Path = g_MakePath(gIconTheme(i).Path)
+'                g_GetIconThemePath = True
+'
+'            End If
+'        Next i
+'    End If
+'
+'End Function
 
 Public Function g_IsValidImage(ByRef Image As MImage) As Boolean
 
@@ -1814,42 +1884,12 @@ Dim pStyle As TStyle
             Exit Function
 
     End If
-
-Dim szText As String
-
-    If (Percent > 0) And (Percent <= 100) Then
-        ' /* text is actually just a number (i.e. meter-friendly) */
-        szText = CStr(Percent)
-
-    Else
-
-'        szText = "otification using the " & pStyle.Name
-'
-'        If Scheme <> "<Default>" Then
-'            szText = szText & "/" & Scheme & " style and scheme"
-'
-'        Else
-'            szText = szText & " style"
-'
-'        End If
-'
-'        If IsPriority Then
-'            szText = "Priority n" & szText
-'
-'        Else
-'            szText = "N" & szText
-'
-'        End If
-
-        szText = "Lorem ipsum dolor sit amet, consectetur adipisicing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat."
-
-    End If
-
+    
 Dim pInfo As T_NOTIFICATION_INFO
 
     With pInfo
         .Title = pStyle.Name & IIf(Scheme = "<Default>", "", "/" & Scheme) & IIf(IsPriority, " (Priority)", "")
-        .Text = szText
+        .Text = "Lorem ipsum dolor sit amet, consectetur adipisicing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat."
         .Timeout = -1
         .IconPath = IIf(pStyle.IconPath = "", g_MakePath(App.Path) & "etc\icons\style.png", pStyle.IconPath)
         .StyleName = pStyle.Name
@@ -1860,6 +1900,23 @@ Dim pInfo As T_NOTIFICATION_INFO
         .CustomUID = "style-preview" & IIf(IsPriority, "-priority", "")
         .APIVersion = App.Major
         .IntFlags = App.Major
+
+        If (pStyle.Flags And S_STYLE_V42_CONTENT) Then
+            ' /* set up for V42 style */
+            With New BPackedData
+                If (Percent >= 0) And (Percent <= 100) Then _
+                    .Add "value-percent", CStr(Percent)
+    
+                pInfo.OriginalContent = .AsString()
+
+            End With
+
+        Else
+            ' /* set up for pre-V42 style */
+            If (Percent > 0) And (Percent <= 100) Then _
+                .Text = CStr(Percent)
+        
+        End If
 
         g_NotificationRoster.Hide 0, .CustomUID, App.ProductName, ""
 
@@ -1946,11 +2003,11 @@ Dim pStyle As TStyle
 
 End Function
 
-Public Function g_RemoveForwarder(ByVal UID As Long)
-
-    Debug.Print "STUB: g_RemoveForwarder(" & CStr(UID) & ")"
-
-End Function
+'Public Function g_RemoveForwarder(ByVal uID As Long)
+'
+'    Debug.Print "STUB: g_RemoveForwarder(" & CStr(uID) & ")"
+'
+'End Function
 
 Public Function g_SettingsPath() As String
 
@@ -1960,95 +2017,71 @@ Public Function g_SettingsPath() As String
 End Function
 
 Public Sub g_ProcessAck(ByVal Ack As String)
-Dim Arg() As String
-Dim argC As Long
-Dim pti As BTagList
-Dim i As Long
-Dim sz As String
-
-    g_Debug "g_ProcessAck(): ACK is '" & Ack & "'", LEMON_LEVEL_INFO
 
     If g_SafeLeftStr(Ack, 1) = "!" Then
         ' /* bang command */
-
-        Arg = Split(g_SafeRightStr(Ack, Len(Ack) - 1), " ")
-        argC = UBound(Arg)
-
-        Set pti = new_BTagList
+        uDoBang g_SafeRightStr(Ack, Len(Ack) - 1)
         
-        ' /* if there are any args, make them into a taglist */
-
-        If argC > 0 Then
-            For i = 1 To argC
-                pti.Add new_BTagItem(Arg(i), "")
-
-            Next i
-        End If
-
-        Select Case LCase$(Arg(0))
-
-        Case "snarl"
-            uProcessSnarl pti
-
-        Case "system"
-            uProcessSystem pti
-
-        Case "configure"
-            If pti.CountItems > 0 Then
-                sz = pti.TagAt(1).Name
-                Select Case g_GetExtension(sz, True)
-                Case "extension"
-                    uManageAddOn Arg(0), sz
-
-                End Select
-            End If
-
-        Case Else
-            g_Debug "g_ProcessAck(): unknown command '" & Arg(0) & "'"
-
-        End Select
-
     Else
-        ' /* treat as launchable */
+        ' /* treat as URL/file/launchable */
         ShellExecute frmAbout.hWnd, vbNullString, Ack, vbNullString, vbNullString, SW_SHOW
-
+    
     End If
 
 End Sub
 
-Private Sub uProcessSnarl(ByRef Args As BTagList)
-Dim pti As BTagItem
-
-    Set pti = Args.TagAt(1)
-
-    If (pti Is Nothing) Then _
-        Exit Sub
-
-    Debug.Print pti.Name
-
+Private Sub uDoBang(ByVal Bang As String)
+Dim pti As BTagList
+Dim Arg() As String
+Dim sz As String
+Dim pa As TApp
+Dim c As Long
 Dim i As Long
 
-    Select Case LCase$(pti.Name)
+    Arg() = Split(Bang, " ")
+    c = UBound(Arg)
+    Set pti = new_BTagList
+    ' /* if there are any args, make them into a taglist */
+    If c > 0 Then
+        For i = 1 To c
+            pti.Add new_BTagItem(Arg(i), "")
 
-    Case "show_missed_panel"
+        Next i
+    End If
+
+    Select Case LCase$(Arg(0))
+
+    Case "missed"
         frmAbout.bShowMissedPanel
 
-    Case "cfg"
-        ' /* show our prefs panel targeted on the app in arg(2) */
-        Set pti = Args.TagAt(2)
-        If Not (pti Is Nothing) Then _
-            frmAbout.DoAppConfigBySignature pti.Name
+    Case "notifications"
+        ' /* show our prefs panel targeted on the app */
+        If pti.CountItems = 1 Then _
+            frmAbout.DoAppConfigBySignature pti.TagAt(1).Name
 
-
-    Case "manage"
-        ' /* ask the app in arg(2) to show it's GUI */
-        Set pti = Args.TagAt(2)
-        If Not (pti Is Nothing) Then
-            i = g_AppRoster.IndexOfSig(pti.Name)
-            If i Then _
-                g_AppRoster.AppAt(i).DoSettings 0
+    Case "app_settings"
+        ' /* ask the app to show its GUI */
+        If pti.CountItems = 1 Then
+            If g_AppRoster.PrivateFindBySignature(pti.TagAt(1).Name, pa) Then _
+                pa.DoSettings 0
 
         End If
+
+    Case "system"
+        uProcessSystem pti
+
+    Case "configure"
+        If pti.CountItems > 0 Then
+            sz = pti.TagAt(1).Name
+            Select Case g_GetExtension(sz, True)
+            Case "extension"
+                uManageExtension Arg(0), g_RemoveExtension(sz)
+
+            End Select
+        End If
+
+    Case Else
+        g_Debug "uDoBang(): unknown command '" & Arg(0) & "'"
 
     End Select
 
@@ -2149,7 +2182,7 @@ Dim pti As BTagItem
 
 End Sub
 
-Public Sub gSetLastError(ByVal Error As SNARL_STATUS_CODE)
+Public Sub g_SetLastError(ByVal Error As SNARL_STATUS_CODE)
 
     SetProp ghWndMain, "last_error", Error
 
@@ -2272,39 +2305,39 @@ Dim i As Long
 
 End Function
 
-Public Function g_CreateBadge(ByVal Content As String) As mfxBitmap
-Const RX = 6
-Dim pr As BRect
-
-    With New mfxView
-        .SetFont "Tahoma", 7, True
-        .TextMode = MFX_TEXT_ANTIALIAS
-
-        Set pr = new_BRect(0, 0, MAX(.StringWidth(Content), .StringHeight("A")), .StringHeight("A"))
-        pr.ExpandBy 8, 8
-
-        .SizeTo pr.Width, pr.Height
-        .EnableSmoothing True
-
-        .SetHighColour rgba(0, 0, 0, 190)
-        .SetLowColour rgba(0, 0, 0, 140)
-        .FillRoundRect pr, RX, RX, MFX_VERT_GRADIENT
-
-        .SetHighColour rgba(255, 255, 255)
-        .DrawString Content, pr, MFX_ALIGN_H_CENTER Or MFX_ALIGN_V_CENTER
-
-        .SetHighColour rgba(255, 255, 255)
-        .StrokeRoundRect pr.InsetByCopy(1, 1), RX, RX, 2
-
-        .SetHighColour rgba(0, 0, 0, 150)
-        .StrokeRoundRect pr, RX, RX, 1
-        .StrokeRoundRect pr.InsetByCopy(3, 3), RX, RX, 1
-
-        Set g_CreateBadge = .ConvertToBitmap()
-
-    End With
-
-End Function
+'Public Function g_CreateBadge(ByVal Content As String) As mfxBitmap
+'Const RX = 6
+'Dim pr As BRect
+'
+'    With New mfxView
+'        .SetFont "Tahoma", 7, True
+'        .TextMode = MFX_TEXT_ANTIALIAS
+'
+'        Set pr = new_BRect(0, 0, Max(.StringWidth(Content), .StringHeight("A")), .StringHeight("A"))
+'        pr.ExpandBy 8, 8
+'
+'        .SizeTo pr.Width, pr.Height
+'        .EnableSmoothing True
+'
+'        .SetHighColour rgba(0, 0, 0, 190)
+'        .SetLowColour rgba(0, 0, 0, 140)
+'        .FillRoundRect pr, RX, RX, MFX_VERT_GRADIENT
+'
+'        .SetHighColour rgba(255, 255, 255)
+'        .DrawString Content, pr, MFX_ALIGN_H_CENTER Or MFX_ALIGN_V_CENTER
+'
+'        .SetHighColour rgba(255, 255, 255)
+'        .StrokeRoundRect pr.InsetByCopy(1, 1), RX, RX, 2
+'
+'        .SetHighColour rgba(0, 0, 0, 150)
+'        .StrokeRoundRect pr, RX, RX, 1
+'        .StrokeRoundRect pr.InsetByCopy(3, 3), RX, RX, 1
+'
+'        Set g_CreateBadge = .ConvertToBitmap()
+'
+'    End With
+'
+'End Function
 
 Public Sub g_KludgeNotificationInfo(ByRef nInfo As T_NOTIFICATION_INFO, Optional ByRef pPacked As BPackedData)
 
@@ -2380,7 +2413,7 @@ Dim szv As String
 
     nInfo.OriginalContent = pPacked.AsString()
 
-
+'    Set nInfo.Content = pPacked
 
 
 
@@ -2584,7 +2617,7 @@ Public Sub g_PopRequest2()
 
 End Sub
 
-Public Function g_CreatePacked(ByVal ClassId As String, ByVal Title As String, ByVal Text As String, Optional ByVal Timeout As Long = -1, Optional ByVal Icon As String, Optional ByVal Priority As Long = 0, Optional ByVal Ack As String, Optional ByVal Flags As SNARL41_NOTIFICATION_FLAGS, Optional ByVal Password As String, Optional ByVal AddTestAction As Boolean, Optional ByVal UID As String, Optional ByVal Percent As Long = -1) As BPackedData
+Public Function g_CreatePacked(ByVal ClassId As String, ByVal Title As String, ByVal Text As String, Optional ByVal Timeout As Long = -1, Optional ByVal Icon As String, Optional ByVal Priority As Long = 0, Optional ByVal Ack As String, Optional ByVal Flags As SNARL41_NOTIFICATION_FLAGS, Optional ByVal Password As String, Optional ByVal AddTestAction As Boolean, Optional ByVal uID As String, Optional ByVal Percent As Long = -1) As BPackedData
 
     ' /* translate notification arguments into packed data
     '    currently this is only used by g_PrivateNotify()
@@ -2619,11 +2652,15 @@ Public Function g_CreatePacked(ByVal ClassId As String, ByVal Title As String, B
         If Password <> "" Then _
             .Add "password", Password
 
-        If AddTestAction Then _
+        If AddTestAction Then
             .Add "action", "Dummy Action,@1"
+            .Add "action", "Dummy Action,@2"
+            .Add "action", "Dummy Action,@3"
 
-        If UID <> "" Then _
-            .Add "uid", UID
+        End If
+
+        If uID <> "" Then _
+            .Add "uid", uID
 
         If Percent > -1 Then _
             .Add "value-percent", CStr(Percent)
@@ -2661,7 +2698,7 @@ End Function
 '
 'End Function
 
-Public Function g_PrivateNotify(Optional ByVal ClassId As String = SNARL_CLASS_GENERAL, Optional ByVal Title As String, Optional ByVal Text As String, Optional ByVal Timeout As Long = -1, Optional ByVal Icon As String, Optional ByVal Priority As Long = 0, Optional ByVal Ack As String, Optional ByVal Flags As SNARL41_NOTIFICATION_FLAGS, Optional ByVal IntFlags As SN_NOTIFICATION_FLAGS, Optional ByVal AddTestAction As Boolean, Optional ByVal UID As String, Optional ByVal Percent As Long = -1) As Long
+Public Function g_PrivateNotify(Optional ByVal ClassId As String = SNARL_CLASS_GENERAL, Optional ByVal Title As String, Optional ByVal Text As String, Optional ByVal Timeout As Long = -1, Optional ByVal Icon As String, Optional ByVal Priority As Long = 0, Optional ByVal Ack As String, Optional ByVal Flags As SNARL41_NOTIFICATION_FLAGS, Optional ByVal IntFlags As SN_NOTIFICATION_FLAGS, Optional ByVal AddTestAction As Boolean, Optional ByVal uID As String, Optional ByVal Percent As Long = -1, Optional ByVal IncludeNow As Boolean) As Long
 
     ' /* safe internal notification generator
     '
@@ -2673,8 +2710,16 @@ Public Function g_PrivateNotify(Optional ByVal ClassId As String = SNARL_CLASS_G
     If g_SafeLeftStr(Icon, 1) = "." Then _
         Icon = g_MakePath(App.Path) & "etc\icons\" & g_SafeRightStr(Icon, Len(Icon) - 1) & ".png"
 
+Dim ppd As BPackedData
+
+    Set ppd = g_CreatePacked(ClassId, Title, Text, Timeout, Icon, Priority, Ack, Flags, gSnarlPassword, AddTestAction, uID, Percent)
+    If IncludeNow Then _
+        ppd.Add "value-date-packed", Format$(Now(), "YYYYMMDDHHNNSS")
+
+    ppd.Add "log", "0"
+
     g_PrivateNotify = g_DoNotify(0, _
-                                 g_CreatePacked(ClassId, Title, Text, Timeout, Icon, Priority, Ack, Flags, gSnarlPassword, AddTestAction, UID, Percent), _
+                                 ppd, _
                                  Nothing, _
                                  IntFlags Or App.Major, _
                                  "", 0)
@@ -2691,14 +2736,14 @@ Public Function g_DoNotify(ByVal AppToken As Long, ByRef pData As BPackedData, B
 
     If (g_AppRoster Is Nothing) Or (g_NotificationRoster Is Nothing) Then
         g_Debug "g_DoNotify(): app and/or notification roster missing", LEMON_LEVEL_CRITICAL
-        gSetLastError SNARL_ERROR_SYSTEM
+        g_SetLastError SNARL_ERROR_SYSTEM
         Exit Function
 
     End If
 
     If (pData Is Nothing) Then
         g_Debug "g_DoNotify(): arg missing", LEMON_LEVEL_CRITICAL
-        gSetLastError SNARL_ERROR_ARG_MISSING
+        g_SetLastError SNARL_ERROR_ARG_MISSING
         Exit Function
 
     End If
@@ -2783,7 +2828,7 @@ Dim pn As TNotification
 
 '    If (Not pData.Exists("title")) And (Not pData.Exists("text")) And (Not pData.Exists("title")) Then
 '        g_Debug "g_DoNotify(): must supply at least one of 'title', 'text' or 'icon'", LEMON_LEVEL_CRITICAL
-'        gSetLastError SNARL_ERROR_ARG_MISSING
+'        g_SetLastError SNARL_ERROR_ARG_MISSING
 '        Exit Function
 '
 '    End If
@@ -2818,7 +2863,7 @@ Dim pApp As TApp
 
             If g_ConfigGet("apps_must_register") = "1" Then
                 g_Debug "g_DoNotify(): not allowed: applications must register first", LEMON_LEVEL_CRITICAL
-                gSetLastError SNARL_ERROR_NOT_REGISTERED
+                g_SetLastError SNARL_ERROR_NOT_REGISTERED
                 Exit Function
 
             ElseIf g_AppRoster.FindByToken(gSnarlToken, pApp, gSnarlPassword) Then
@@ -2829,7 +2874,7 @@ Dim pApp As TApp
             Else
                ' /* Snarl's registration not found */
                 g_Debug "g_DoNotify(): Snarl internal app not in roster", LEMON_LEVEL_CRITICAL
-                gSetLastError SNARL_ERROR_SYSTEM
+                g_SetLastError SNARL_ERROR_SYSTEM
                 Exit Function
 
             End If
@@ -2894,21 +2939,21 @@ Public Function g_DoAction(ByVal action As String, ByVal Token As Long, ByRef Ar
     '    called this will figure out what to do with the return value */
 
     If (g_AppRoster Is Nothing) Then
-        gSetLastError SNARL_ERROR_SYSTEM
+        g_SetLastError SNARL_ERROR_SYSTEM
         g_Trap SOS_MISSING_ROSTER, "AppRoster"
         Exit Function
 
     End If
 
     If (g_NotificationRoster Is Nothing) Then
-        gSetLastError SNARL_ERROR_SYSTEM
+        g_SetLastError SNARL_ERROR_SYSTEM
         g_Trap SOS_MISSING_ROSTER, "NotificationRoster"
         Exit Function
 
     End If
 
     If (Args Is Nothing) Then
-        gSetLastError SNARL_ERROR_ARG_MISSING
+        g_SetLastError SNARL_ERROR_ARG_MISSING
         Exit Function
 
     End If
@@ -2919,7 +2964,7 @@ Dim pApp As TApp
 
     ' /* assume all okay... */
 
-    gSetLastError 0
+    g_SetLastError 0
     If Not (ReplySocket Is Nothing) Then _
         szSource = ReplySocket.RemoteHostIP
 
@@ -3006,7 +3051,7 @@ Dim pApp As TApp
             g_DoAction = -1
 
         Else
-            gSetLastError SNARL_ERROR_UNKNOWN_COMMAND
+            g_SetLastError SNARL_ERROR_UNKNOWN_COMMAND
             g_DoAction = 0
 
         End If
@@ -3051,11 +3096,17 @@ Dim pApp As TApp
 
     ' /* undocumented/unsupported - either private or due for public release in a future revision */
 
-    Case "system"
+    Case "snarl"
         ' /* PRIVATE: for internal use only under V43, to be made public in V44 */
-        uDoSystemRequest Args
-        g_DoAction = (g_QuickLastError() = SNARL_SUCCESS)
+        If (g_ConfigGet("block_net_control") = "1") And (szSource <> "") Then
+            g_SetLastError SNARL_ERROR_ACCESS_DENIED
+            g_DoAction = 0
 
+        Else
+            uDoSystemRequest Args
+            g_DoAction = (g_QuickLastError() = SNARL_SUCCESS)
+
+        End If
 
     Case "request"
         ' /* PRIVATE: for internal use only under V42 */
@@ -3067,7 +3118,7 @@ Dim pApp As TApp
         If (ReplySocket Is Nothing) Then
             ' /* can be sent via SNP3 only as ReplySocket is required */
             g_Debug "g_DoAction(): {subscribe}: missing reply socket", LEMON_LEVEL_CRITICAL
-            gSetLastError SNARL_ERROR_BAD_SOCKET
+            g_SetLastError SNARL_ERROR_BAD_SOCKET
             g_DoAction = 0
 
         Else
@@ -3078,7 +3129,7 @@ Dim pApp As TApp
 
             Else
                 g_Debug "g_DoAction(): {subscribe}: failed (" & CStr(hr) & ")", LEMON_LEVEL_CRITICAL
-                gSetLastError hr
+                g_SetLastError hr
                 g_DoAction = 0
 
             End If
@@ -3090,7 +3141,7 @@ Dim pApp As TApp
         If (ReplySocket Is Nothing) Then
             ' /* can be sent via SNP3 only as ReplySocket is required */
             g_Debug "g_DoAction(): {unsubscribe}: missing reply socket", LEMON_LEVEL_CRITICAL
-            gSetLastError SNARL_ERROR_BAD_SOCKET
+            g_SetLastError SNARL_ERROR_BAD_SOCKET
             g_DoAction = 0
 
         Else
@@ -3102,7 +3153,7 @@ Dim pApp As TApp
 
 
     Case Else
-        gSetLastError SNARL_ERROR_UNKNOWN_COMMAND
+        g_SetLastError SNARL_ERROR_UNKNOWN_COMMAND
         g_DoAction = 0
 
     End Select
@@ -3142,7 +3193,7 @@ End Function
 '
 '    End If
 '
-'    gSetLastError SNARL_ERROR_UNKNOWN_COMMAND
+'    g_SetLastError SNARL_ERROR_UNKNOWN_COMMAND
 '    Exit Function
 '
 '
@@ -3174,14 +3225,14 @@ End Function
 '
 '    If (g_AppRoster Is Nothing) Or (g_NotificationRoster Is Nothing) Then
 '        g_Debug "g_DoNotify(): app and/or notification roster missing", LEMON_LEVEL_CRITICAL
-'        gSetLastError SNARL_ERROR_SYSTEM
+'        g_SetLastError SNARL_ERROR_SYSTEM
 '        Exit Function
 '
 '    End If
 '
 '    If (pData Is Nothing) Then
 '        g_Debug "g_DoNotify(): arg missing", LEMON_LEVEL_CRITICAL
-'        gSetLastError SNARL_ERROR_ARG_MISSING
+'        g_SetLastError SNARL_ERROR_ARG_MISSING
 '        Exit Function
 '
 '    End If
@@ -3200,7 +3251,7 @@ End Function
 '        Else
 '            ' /* Snarl's registration not found */
 '            g_Debug "g_DoNotify(): Snarl internal app not in roster", LEMON_LEVEL_CRITICAL
-'            gSetLastError SNARL_ERROR_SYSTEM
+'            g_SetLastError SNARL_ERROR_SYSTEM
 '            Exit Function
 '
 '        End If
@@ -3268,7 +3319,7 @@ End Function
 '
 '    ' /* return -1 on success, 0 on failure */
 '
-'    gSetLastError SNARL_ERROR_SYSTEM
+'    g_SetLastError SNARL_ERROR_SYSTEM
 '    If (g_NotificationRoster Is Nothing) Then _
 '        Exit Function
 '
@@ -3328,7 +3379,7 @@ Private Function uAddClass(ByVal Token As Long, ByRef Args As BPackedData) As Lo
 Dim pApp As TApp
 
     If (Token = 0) And (Not Args.Exists("app-sig")) Then
-        gSetLastError SNARL_ERROR_ARG_MISSING
+        g_SetLastError SNARL_ERROR_ARG_MISSING
 
     ElseIf Token Then
         ' /* FindByToken() will set lasterror for us */
@@ -3413,7 +3464,7 @@ Dim dw As SNARL_SYSTEM_FLAGS
 
     ' /* if we've gone from Active to non-Active, log the current missed count */
 
-    If (fWasActive) And (mPresFlags <> 0) Then _
+'    If (fWasActive) And (mPresFlags <> 0) Then _
         g_NotificationRoster.SaveCurrentMissedCount
 
 
@@ -3576,7 +3627,7 @@ Dim pApp As TApp
 
     If (pApp Is Nothing) Then
         g_Debug "uSetBusy(): no returned app object", LEMON_LEVEL_CRITICAL
-        gSetLastError SNARL_ERROR_SYSTEM
+        g_SetLastError SNARL_ERROR_SYSTEM
         Exit Function
 
     End If
@@ -3594,7 +3645,7 @@ Dim pApp As TApp
 
     Case Else
         ' /* error */
-        gSetLastError SNARL_ERROR_INVALID_ARG
+        g_SetLastError SNARL_ERROR_INVALID_ARG
 
     End Select
 
@@ -3675,8 +3726,8 @@ Dim sz As String
 
     sz = g_MakePath(App.Path) & "etc\icons\" & sz
 
-    uSafeLoadImage sz, "widget-close.png", bm_Close
-    uSafeLoadImage sz, "widget-actions.png", bm_Actions
+    uSafeLoadImage sz, "widget-close.png", bm_CloseGadget
+    uSafeLoadImage sz, "widget-actions.png", bm_ActionsGadget
     uSafeLoadImage sz, "emblem-actions.png", bm_HasActions
     uSafeLoadImage sz, "emblem-remote.png", bm_Remote
     uSafeLoadImage sz, "emblem-secure.png", bm_Secure
@@ -3684,22 +3735,13 @@ Dim sz As String
     uSafeLoadImage sz, "emblem-priority.png", bm_Priority
     uSafeLoadImage sz, "emblem-forward.png", bm_Forward
 
+    Set bm_CallbackButton = g_CreateButton(new_BPoint(66, 24))
+    Set bm_Button = g_CreateButton(new_BPoint(24, 24))
+
 '    load_image sz & "menu.png", bm_Menu                 ' // no longer used
 
-
-    If Not g_IsValidImage(bm_Close) Then
-        Set bm_Close = g_CreateBadge("X")
-'        With New mfxView
-'            .SizeTo 24, 24
-'            .EnableSmoothing False
-'            .SetHighColour rgba(255, 0, 0)
-'            .FillRect .Bounds
-'            .SetHighColour rgba(0, 0, 0)
-'            .StrokeRect .Bounds
-'            Set bm_Close = .ConvertToBitmap()
-'
-'        End With
-    End If
+'    If Not g_IsValidImage(bm_CloseGadget) Then _
+        Set bm_CloseGadget = g_CreateBadge("X")
 
 End Sub
 
@@ -3817,7 +3859,7 @@ Public Function g_DoV42Request(ByVal Request As String, ByVal SenderPID As Long,
     ' /* must at least have an action */
 
     If Request = "" Then
-        gSetLastError SNARL_ERROR_BAD_PACKET
+        g_SetLastError SNARL_ERROR_BAD_PACKET
         Exit Function
 
     End If
@@ -4034,6 +4076,9 @@ Dim sz As String
     Case SOS_PATH_NOT_FOUND
         sz = sz & "Path >" & Data & "< not found"
 
+    Case SOS_MISSING_ROSTER
+        sz = sz & ">" & Data & "_roster< not found"
+    
     Case Else
         sz = sz & "Undefined error"
 
@@ -4076,15 +4121,9 @@ Dim sz As String
     If g_GetUserFolderPath(sz) Then
         sz = g_MakePath(sz) & g_MakePath(DestPath)
         With New CZippedContent
-            If .OpenZip(Source) Then
+            If .OpenZip(Source) Then _
                 g_ExtractToAppData = .Extract(sz, True, True)
-                'Then _
-                    MsgBox " Style '" & g_FilenameFromPath(Source) & "' was installed successfully", vbInformation Or vbOKOnly, App.Title
 
-            Else
-                MsgBox "'" & Source & "' is not valid", vbExclamation Or vbOKOnly, App.Title
-    
-            End If
         End With
     End If
 
@@ -4133,6 +4172,9 @@ Dim sz As String
 
     If Not g_Exists(sz & "\etc") Then _
         g_CreateDirectory sz & "\etc"
+
+    If Not g_Exists(sz & "\etc\app-cache") Then _
+        g_CreateDirectory sz & "\etc\app-cache"
 
     If Not g_Exists(sz & "\styles") Then _
         g_CreateDirectory sz & "\styles"
@@ -4238,20 +4280,20 @@ End Sub
 
 Private Sub uDoSystemRequest(ByRef pArgs As BPackedData)
 
-    ' /* sets lasterror on exit */
+    ' /* syntax is "snarl?cmd=" - sets lasterror on exit */
 
     g_Debug "uDoSystemRequest()", LEMON_LEVEL_PROC_ENTER
-    gSetLastError SNARL_SUCCESS
+    g_SetLastError SNARL_SUCCESS
 
-    ' /* must have at least an "action" argument */
+    ' /* must have at least an "cmd" argument */
 
 '    MsgBox "request: " & pArgs.AsString
 
 Dim hr As Long
 
-    If Not pArgs.Exists("action") Then
+    If Not pArgs.Exists("cmd") Then
         g_Debug "command missing", LEMON_LEVEL_CRITICAL Or LEMON_LEVEL_PROC_EXIT
-        gSetLastError SNARL_ERROR_ARG_MISSING
+        g_SetLastError SNARL_ERROR_ARG_MISSING
         Exit Sub
 
     End If
@@ -4261,47 +4303,80 @@ Dim szCmd As String
 
     ' /* get the command - defined commands thus far:
     '
-    '   load what=<addon> - <addon> is either an extension or styleengine as defined by it's extension
-    '   unload what=<addon> - <addon> is either an extension or styleengine as defined by it's extension
-    '
-    '
+    '       cmd
+    '   ----------------------------------------------------
+    '       load            extension|styleengine
+    '       unload          extension|styleengine
+    '       reload          extension|styleengine
+    '       configure       extension|styleengine|application|style
+    '       reload_styles
+    '       reload_extensions
     '
     '
     ' */
 
-    szCmd = LCase$(pArgs.ValueOf("action"))
+    szCmd = LCase$(pArgs.ValueOf("cmd"))
 
     Select Case szCmd
-    Case "load", "unload"
+    Case "reload_styles"
+        melonLibClose g_StyleRoster
+        melonLibOpen g_StyleRoster
+        g_SetLastError SNARL_SUCCESS
+
+    Case "reload_extensions"
+        melonLibClose g_ExtnRoster
+        melonLibOpen g_ExtnRoster
+        g_SetLastError SNARL_SUCCESS
+
+    Case "load", "unload", "reload"
         ' /* can be an extension or style engine */
-        szData = pArgs.ValueOf("what")
-        Select Case g_GetExtension(szData, True)
-        Case "extension", "styleengine"
-            gSetLastError uManageAddOn(szCmd, szData)
-
-        Case Else
-            g_Debug "invalid addon " & g_Quote(szData), LEMON_LEVEL_CRITICAL
-            gSetLastError SNARL_ERROR_INVALID_ARG
-
-        End Select
-
-    Case "configure"
-        ' /* can be a style, extension or application */
-
         If pArgs.Exists("what") Then
-            gSetLastError uManageAddOn(szCmd, pArgs.ValueOf("what"))
+            szData = pArgs.ValueOf("what")
+            Select Case g_GetExtension(szData, True)
+            Case "extension"
+                g_SetLastError uManageExtension(szCmd, g_RemoveExtension(szData))
+    
+            Case "styleengine"
+                g_SetLastError uManageStyleEngine(szCmd, szData)
+    
+            Case Else
+                g_Debug g_Quote(szData) & ": not supported", LEMON_LEVEL_CRITICAL
+                g_SetLastError SNARL_ERROR_INVALID_ARG
+    
+            End Select
 
-        ElseIf pArgs.Exists("app-sig") Then
-            g_Debug "configuring app: " & g_Quote(pArgs.ValueOf("app-sig")) & "..."
-            gSetLastError uConfigureApp(pArgs.ValueOf("app-sig"))
-
-        
         Else
-            g_Debug "configure: missing argument", LEMON_LEVEL_CRITICAL
-            gSetLastError SNARL_ERROR_ARG_MISSING
+            g_Debug "argument missing", LEMON_LEVEL_CRITICAL
+            g_SetLastError SNARL_ERROR_ARG_MISSING
 
         End If
 
+
+    Case "configure"
+        ' /* can be a style, styleengine, extension or application */
+        If pArgs.Exists("what") Then
+            szData = pArgs.ValueOf("what")
+            Select Case g_GetExtension(szData, True)
+            Case "extension"
+                g_SetLastError uManageExtension(szCmd, g_RemoveExtension(szData))
+    
+            Case "styleengine"
+                g_SetLastError uManageStyleEngine(szCmd, g_RemoveExtension(szData))
+    
+            Case "style"
+            
+            
+            Case Else
+                ' /* assume its an application signature */
+                g_SetLastError uConfigureApp(szData)
+    
+            End Select
+
+        Else
+            g_Debug "argument missing", LEMON_LEVEL_CRITICAL
+            g_SetLastError SNARL_ERROR_ARG_MISSING
+
+        End If
 
     Case "reboot"
         ' /* ends Snarl, runs DelayLoad.exe */
@@ -4310,7 +4385,7 @@ Dim szCmd As String
 
     Case Else
         g_Debug "invalid comand " & g_Quote(szCmd), LEMON_LEVEL_CRITICAL Or LEMON_LEVEL_PROC_EXIT
-        gSetLastError SNARL_ERROR_INVALID_ARG
+        g_SetLastError SNARL_ERROR_INVALID_ARG
 
     End Select
 
@@ -4340,25 +4415,35 @@ Dim pa As TApp
 
 End Function
 
-Private Function uManageAddOn(ByVal Command As String, ByVal AddOn As String) As SNARL_STATUS_CODE
+Private Function uManageExtension(ByVal Command As String, ByVal Name As String) As SNARL_STATUS_CODE
 
-    g_Debug "uManageAddOn()", LEMON_LEVEL_PROC_ENTER
+    g_Debug "uManageExtension()", LEMON_LEVEL_PROC_ENTER
 
-    If (g_ExtnRoster Is Nothing) Or (g_StyleRoster Is Nothing) Then
-        g_Debug "fatal: style or extension roster not started", LEMON_LEVEL_CRITICAL Or LEMON_LEVEL_PROC_EXIT
-        uManageAddOn = SNARL_ERROR_SYSTEM
+    If (g_ExtnRoster Is Nothing) Then
+        g_Debug "fatal: extension roster not started", LEMON_LEVEL_CRITICAL Or LEMON_LEVEL_PROC_EXIT
+        g_Trap SOS_MISSING_ROSTER, "extension"
+        uManageExtension = SNARL_ERROR_SYSTEM
         Exit Function
 
     End If
 
 Dim pe As TExtension
-Dim ps As TStyle
 
-    Select Case g_GetExtension(AddOn)
-    Case "extension"
-        AddOn = g_RemoveExtension(AddOn)
+    Select Case Command
 
-        Select Case Command
+    Case "unload"
+        uManageExtension = g_ExtnRoster.Unload(Name, True)
+
+    Case "load"
+        uManageExtension = g_ExtnRoster.Load(Name, True)
+
+    Case "reload"
+        uManageExtension = g_ExtnRoster.Reload(Name, True)
+
+    Case "configure"
+        uManageExtension = g_ExtnRoster.Configure(Name)
+
+
 '        Case SN_DP_RESTART
 '            If g_ExtnRoster.Find(Item, pe) Then
 '                pe.SetEnabled False
@@ -4366,79 +4451,59 @@ Dim ps As TStyle
 '
 '            End If
 
-        Case "install"
-            ' /* 1. create link file - doesn't matter if it exists? - use "allusers=1"? */
-            ' /* 2. refresh extensions */
-            ' /* 3. load it */
-            ' /* 4. show config? */
-            MsgBox "installing extensions is not yet implemented"
+    Case "install"
+        ' /* 1. create link file - doesn't matter if it exists? - use "allusers=1"? */
+        ' /* 2. refresh extensions */
+        ' /* 3. load it */
+        ' /* 4. show config? */
+        MsgBox "installing extensions is not yet implemented"
 
-        Case "uninstall"
-            ' /* 1. unload
-            '    2. delete link file
-            ' */
-            MsgBox "uninstalling extensions is not yet implemented"
-
-        Case "unload"
-            If g_ExtnRoster.Find(AddOn, pe) Then
-                g_Debug "unloading " & g_Quote(AddOn) & "..."
-                If Not pe.SetEnabled(False) Then
-                    uManageAddOn = SNARL_ERROR_FAILED
-                    g_Debug "failed", LEMON_LEVEL_CRITICAL
-
-                Else
-                    frmAbout.bUpdateExtList
-                    g_ExtnRoster.WriteExcludeList
-
-                End If
-            Else
-                g_Debug "extension " & g_Quote(AddOn) & " not found", LEMON_LEVEL_CRITICAL
-                uManageAddOn = SNARL_ERROR_ADDON_NOT_FOUND
-
-            End If
-
-        Case "load"
-            If g_ExtnRoster.Find(AddOn, pe) Then
-                g_Debug "loading " & g_Quote(AddOn) & "..."
-                If Not pe.SetEnabled(True) Then
-                    uManageAddOn = SNARL_ERROR_FAILED
-                    g_Debug "failed", LEMON_LEVEL_CRITICAL
-
-                Else
-                    frmAbout.bUpdateExtList
-                    g_ExtnRoster.WriteExcludeList
-
-                End If
-            Else
-                g_Debug "extension " & g_Quote(AddOn) & " not found", LEMON_LEVEL_CRITICAL
-                uManageAddOn = SNARL_ERROR_ADDON_NOT_FOUND
-
-            End If
-
-        Case "configure"
-            If g_ExtnRoster.Find(AddOn, pe) Then
-                If pe.IsConfigurable Then
-                    g_Debug "launching configuration for extension " & g_Quote(AddOn) & "..."
-                    pe.DoPrefs 0
-
-                Else
-                    g_Debug g_Quote(AddOn) & " is not configurable", LEMON_LEVEL_CRITICAL
-                    uManageAddOn = SNARL_ERROR_ACCESS_DENIED
-
-                End If
-
-            Else
-                g_Debug "extension " & g_Quote(AddOn) & " not found", LEMON_LEVEL_CRITICAL
-                uManageAddOn = SNARL_ERROR_ADDON_NOT_FOUND
-
-            End If
-
-        End Select
+    Case "uninstall"
+        ' /* 1. unload
+        '    2. delete link file
+        ' */
+        MsgBox "uninstalling extensions is not yet implemented"
 
 
-    Case "styleengine"
+    Case Else
+        g_Debug g_Quote(Command) & ": unknown command", LEMON_LEVEL_CRITICAL
+        uManageExtension = SNARL_ERROR_INVALID_ARG
 
-'        Select Case Arg
+    End Select
+
+    g_Debug "", LEMON_LEVEL_PROC_EXIT
+
+End Function
+
+Private Function uManageStyleEngine(ByVal Command As String, ByVal Name As String) As SNARL_STATUS_CODE
+
+    g_Debug "uManageStyleEngine()", LEMON_LEVEL_PROC_ENTER
+
+    If (g_ExtnRoster Is Nothing) Then
+        g_Debug "fatal: style roster not started", LEMON_LEVEL_CRITICAL Or LEMON_LEVEL_PROC_EXIT
+        g_Trap SOS_MISSING_ROSTER, "style"
+        uManageStyleEngine = SNARL_ERROR_SYSTEM
+        Exit Function
+
+    End If
+
+Dim pe As TStyleEngine
+
+    Select Case Command
+
+    Case "install"
+        ' /* 1. create link file - doesn't matter if it exists? - use "allusers=1"? */
+        ' /* 2. refresh extensions */
+        ' /* 3. load it */
+        ' /* 4. show config? */
+        MsgBox "installing style engines is not yet implemented"
+
+    Case "uninstall"
+        ' /* 1. unload
+        '    2. delete link file
+        ' */
+        MsgBox "uninstalling style engines is not yet implemented"
+
 '        Case SN_DP_RESTART
 '            g_StyleRoster.Unload Item, True
 '            g_StyleRoster.Load Item, True, True
@@ -4449,7 +4514,58 @@ Dim ps As TStyle
 '        Case SN_DP_LOAD
 '            g_StyleRoster.Load Item, True, True
 '
-'        End Select
+
+    Case "unload"
+        g_Debug "unloading " & g_Quote(Name) & "..."
+        If g_StyleRoster.Unload(Name, False) Then
+            g_Debug "ok"
+
+        Else
+            uManageStyleEngine = SNARL_ERROR_FAILED
+            g_Debug "failed", LEMON_LEVEL_CRITICAL
+
+        End If
+
+    Case "load"
+        g_Debug "loading " & g_Quote(Name) & "..."
+        If g_StyleRoster.Load(Name, True, False) Then
+            g_Debug "ok"
+
+        Else
+            uManageStyleEngine = SNARL_ERROR_FAILED
+            g_Debug "failed", LEMON_LEVEL_CRITICAL
+
+        End If
+
+    Case "reload"
+        ' /* just do a stop/start
+        g_Debug "unloading " & g_Quote(Name) & "..."
+        g_StyleRoster.Unload Name, False
+        g_Debug "loading " & g_Quote(Name) & "..."
+        g_StyleRoster.Load Name, True, False
+
+
+    Case "configure"
+        g_Debug "finding " & g_Quote(Name) & "..."
+        If g_StyleRoster.FindEngine(Name, pe) Then
+            g_Debug "launching config for " & g_Quote(Name) & "..."
+            If pe.IsConfigurable Then
+                pe.Configure
+
+            Else
+                g_Debug "not configurable", LEMON_LEVEL_CRITICAL
+                uManageStyleEngine = SNARL_ERROR_FAILED
+
+            End If
+        Else
+            g_Debug "not found", LEMON_LEVEL_CRITICAL
+            uManageStyleEngine = SNARL_ERROR_ADDON_NOT_FOUND
+        
+        End If
+
+    Case Else
+        g_Debug g_Quote(Command) & ": unknown command", LEMON_LEVEL_CRITICAL
+        uManageStyleEngine = SNARL_ERROR_INVALID_ARG
 
     End Select
 
@@ -4464,12 +4580,18 @@ Public Sub g_AddGlobalRedirect(ByVal StyleAndScheme As String, ByVal Flags As SN
 
 End Sub
 
-Public Sub g_UpdateRedirectList(ByRef ListControl As BControl, ByRef List As BTagList)
+Public Sub g_RemGlobalRedirect(ByVal StyleAndScheme As String)
+
+    gGlobalRedirectList.Remove gGlobalRedirectList.IndexOf(StyleAndScheme)
+    g_ConfigSet "global_redirect", taglist_as_string(gGlobalRedirectList)
+
+End Sub
+
+Public Sub g_UpdateRedirectList(ByRef ListControl As BControl, ByRef List As BTagList, ByVal LargeIcons As Boolean)
 
     If (ISNULL(ListControl)) Or (ISNULL(List)) Then _
         Exit Sub
 
-'Dim pc As BControl
 Dim pt As BTagItem
 Dim ps As TStyle
 Dim sz As String
@@ -4513,8 +4635,9 @@ Dim i As Long
                 bWhen = False
 
             End Select
-    
-            sz = sz & style_MakeFriendly(pt.Name) & " (" & IIf(bWhen, "When ", "") & szr & ")" & "#?" & pt.Name & "|"
+
+            szr = IIf(LargeIcons, "", "(") & IIf(bWhen, "When ", "") & szr & IIf(LargeIcons, "", ")")
+            sz = sz & style_MakeFriendly(pt.Name) & IIf(LargeIcons, "", " " & szr) & "#?" & pt.Name & IIf(LargeIcons, "#?" & szr, "") & "|"
         
         Loop
     
@@ -4532,15 +4655,15 @@ Dim i As Long
                 i = i + 1
                 If g_StyleRoster.Find(style_GetStyleName(pt.Name), ps) Then
                     If Not g_Exists(ps.IconPath) Then
-                        prefskit_SetItem ListControl, i, "image-file", g_MakePath(App.Path) & "etc\icons\class-fwd.png"
-                    
+                        prefskit_SetItemObject ListControl, i, "image-object", load_image_obj(g_MakePath(App.Path) & "etc\icons\class-fwd.png")
+
                     Else
-                        prefskit_SetItem ListControl, i, "image-file", ps.IconPath
-                        
+                        prefskit_SetItemObject ListControl, i, "image-object", ps.Icon
+
                     End If
 
                 Else
-                    prefskit_SetItem ListControl, i, "image-file", g_MakePath(App.Path) & "etc\icons\no_icon.png"
+                    prefskit_SetItemObject ListControl, i, "image-object", load_image_obj(g_MakePath(App.Path) & "etc\icons\no_icon.png")
 
                 End If
             Loop
@@ -4548,3 +4671,291 @@ Dim i As Long
     End If
 
 End Sub
+
+Public Function g_ButtonLabelFromAck(ByVal Ack As String) As String
+
+    If g_IsURL(Ack) Then
+        g_ButtonLabelFromAck = "Go"
+
+    ElseIf g_SafeLeftStr(Ack, 1) = "@" Then
+        g_ButtonLabelFromAck = "Show"
+
+    ElseIf g_SafeLeftStr(Ack, 1) = "!" Then
+        g_ButtonLabelFromAck = uBangLabel(g_SafeRightStr(Ack, Len(Ack) - 1))
+
+    Else
+'    ElseIf (g_SafeLeftStr(Ack, 1) = "!") Or (g_IsFileURI(Ack)) Or (g_Exists(Ack)) Then
+        g_ButtonLabelFromAck = "Open"
+
+    End If
+
+End Function
+
+Private Function uBangLabel(ByVal Bang As String)
+Dim i As Long
+
+    i = InStr(Bang, " ")
+    If i Then _
+        Bang = g_SafeLeftStr(Bang, i - 1)
+
+    Select Case Bang
+    Case "missed"
+        uBangLabel = "View"
+
+    Case "test"
+        uBangLabel = "Okay"
+
+    Case Else
+        uBangLabel = "Open"
+
+    End Select
+
+End Function
+
+Public Function g_CreateButton(ByRef Size As BPoint) As mfxBitmap
+Const RX = 6
+Dim pr As BRect
+
+    With New mfxView
+        .SizeTo Size.x, Size.y
+        .EnableSmoothing True
+
+'        .SetHighColour rgba(0, 0, 0, 100)
+'        .FillRoundRect .Bounds, RX, RX
+'        .StrokeRoundRect .Bounds.InsetByCopy(2, 2), RX, RX
+'
+''        .SetHighColour rgba(0, 0, 0, 0)
+''        .SetLowColour rgba(0, 0, 0, 48)
+''        .FillRoundRect .Bounds, RX, RX, MFX_VERT_GRADIENT
+'        .SetHighColour rgba(255, 255, 255, 150)
+'        .StrokeRoundRect .Bounds, RX, RX, 2
+'
+'        .TextMode = MFX_TEXT_ANTIALIAS
+'        If Label = "*" Then
+'            .DrawScaledImage bm_HasActions, new_BPoint(Fix((.Width - bm_HasActions.Width) / 2), Fix((.Height - bm_HasActions.Height) / 2))
+'
+'        Else
+'            .SetFont "Arial", 8, True
+'            .SetHighColour rgba(255, 255, 255)
+'            .DrawString Label, .Bounds, MFX_ALIGN_H_CENTER Or MFX_ALIGN_V_CENTER ' Or MFX_SIMPLE_OUTLINE
+'
+'        End If
+
+'        .SetHighColour rgba(0, 0, 0, 110)
+'        .FillRoundRect .Bounds, RX, RX
+'
+'        .SetLowColour rgba(255, 255, 255, 120)
+'        .SetHighColour rgba(0, 0, 0, 0)
+'        .StrokeFancyRoundRect .Bounds, RX, RX
+'
+'        .SetHighColour rgba(240, 240, 240)
+'        .FillRoundRect .Bounds.InsetByCopy(1, 1), RX, RX
+'
+''        .SetHighColour rgba(255, 255, 255, 32)
+''        .SetLowColour rgba(255, 255, 255, 0)
+''        .FillRoundRect .Bounds.InsetByCopy(1, 1), RX, RX, MFX_VERT_GRADIENT
+'
+'        .SetHighColour rgba(0, 0, 0, 0)
+'        .SetLowColour rgba(0, 0, 0, 48)
+'        .FillRoundRect .Bounds.InsetByCopy(1, 1), RX, RX, MFX_VERT_GRADIENT
+'        .SetHighColour rgba(0, 0, 0, 100)
+'        .StrokeRoundRect .Bounds.InsetByCopy(1, 1), RX, RX
+
+
+
+
+'        .SetHighColour rgba(255, 255, 255, 0)
+'        .SetLowColour rgba(255, 255, 255, 110)
+'        .FillRoundRect .Bounds.InsetByCopy(0, 1).OffsetByCopy(0, 1), RX, RX, MFX_VERT_GRADIENT
+'
+'        Set pr = .Bounds.InsetByCopy(1, 1)
+'        .SetHighColour rgba(240, 240, 240)
+'        .FillRoundRect pr, RX, RX
+''        pr.Top = Fix(.Bounds.Height / 2)
+'        .SetHighColour rgba(0, 0, 0, 0)
+'        .SetLowColour rgba(0, 0, 0, 48)
+'        .FillRoundRect pr, RX, RX, MFX_VERT_GRADIENT
+'        .SetHighColour rgba(0, 0, 0, 90)
+'        .StrokeRoundRect .Bounds.InsetByCopy(1, 1), RX, RX
+
+
+
+        .SetHighColour rgba(230, 230, 230)
+        .FillRoundRect .Bounds, RX, RX
+        .SetHighColour rgba(0, 0, 0, 150)
+        .StrokeRoundRect .Bounds.InsetByCopy(0, 0), RX, RX
+
+        .SetHighColour rgba(255, 255, 255, 170)
+        .SetLowColour rgba(0, 0, 0, 2)
+        .StrokeFancyRoundRect .Bounds.InsetByCopy(1, 1), RX, RX
+
+        Set g_CreateButton = .ConvertToBitmap()
+
+    End With
+
+End Function
+
+Public Function g_InstallRSZ(ByVal Path As String, ByVal FromRunningInstance As Boolean) As Boolean
+Dim pzc As CZippedContent
+Dim pse As TStyleEngine
+Dim szAuthor As String
+Dim szName As String
+Dim sz As String
+Dim i As Long
+
+    ' /* packed runnable style */
+    Set pzc = New CZippedContent
+    With pzc
+        If .OpenZip(Path) Then
+            If (.ContainsFile("runnable.conf")) And (.ContainsFile("style.exe")) Then
+                sz = g_GetTempPath(True)
+                sz = sz & g_CreateGUID(True)
+                If g_CreateDirectory(sz) Then
+                    .Extract sz, False, True
+                    With New ConfigFile
+                        .File = g_MakePath(sz) & "runnable.conf"
+                        .Load
+                        ' /* must have a [general] section */
+                        If .SectionExists("general") Then
+                            With .SectionAt(.FindSection("general"))
+                                ' /* must have a name */
+                                If .Find("name", szName) Then
+                                    .Find "author", szAuthor
+
+                                    If MsgBox("Do you want to install the following Runnable style?" & vbCrLf & vbCrLf & _
+                                              "Name: " & szName & vbCrLf & _
+                                              IIf(szAuthor <> "", "Author: " & szAuthor & vbCrLf, ""), vbQuestion Or vbYesNo, App.Title) = vbYes Then
+
+                                        If g_ExtractToAppData(Path, "styles\runnable") Then
+                                            If FromRunningInstance Then
+                                                g_PrivateNotify , "Style installed", szName & " Runnable style was installed successfully", , ".good"
+                                                g_StyleRoster.Unload "runnable.styleengine", False
+                                                g_StyleRoster.Load "runnable.styleengine", False, False
+                                                frmAbout.bNotifyDisplaysChanged
+
+                                            Else
+                                                MsgBox szName & " was installed successfully!", vbInformation Or vbOKOnly, App.Title
+
+                                            End If
+                                            g_InstallRSZ = True
+
+                                        Else
+                                            MsgBox "There was a problem installing the style.", vbExclamation Or vbOKOnly, App.Title
+                                        
+                                        End If
+                                    End If
+                                    Exit Function
+
+                                Else
+                                    g_Debug "g_InstallRSZ(): missing style name", LEMON_LEVEL_CRITICAL
+
+                                End If
+                            End With
+                        Else
+                            g_Debug "g_InstallRSZ(): missing [general] section", LEMON_LEVEL_CRITICAL
+
+                        End If
+                    End With
+                Else
+                    g_Debug "g_InstallRSZ(): failed to create temp folder", LEMON_LEVEL_CRITICAL
+
+                End If
+            Else
+                g_Debug "g_InstallRSZ(): missing conf or exe", LEMON_LEVEL_CRITICAL
+
+            End If
+        Else
+            g_Debug "g_InstallRSZ(): failed to open zip file", LEMON_LEVEL_CRITICAL
+        
+        End If
+    End With
+
+    MsgBox Path & " appears to be corrupt.  Try downloading it again.", vbExclamation Or vbOKOnly, App.Title
+
+End Function
+
+Public Function g_InstallSSZ(ByVal Path As String, ByVal FromRunningInstance As Boolean) As Boolean
+Dim pzc As CZippedContent
+Dim pse As TStyleEngine
+Dim szAuthor As String
+Dim szName As String
+Dim sz As String
+Dim i As Long
+
+    ' /* packed runnable style */
+    Set pzc = New CZippedContent
+    With pzc
+        If .OpenZip(Path) Then
+            If (.ContainsFile("script.vbs")) And (.ContainsFile("script.conf")) Then
+                sz = g_GetTempPath(True)
+                sz = sz & g_CreateGUID(True)
+                If g_CreateDirectory(sz) Then
+                    .Extract sz, False, True
+                    With New ConfigFile
+                        .File = g_MakePath(sz) & "script.conf"
+                        .Load
+                        ' /* must have a [general] section */
+                        If .SectionExists("general") Then
+                            With .SectionAt(.FindSection("general"))
+                                ' /* must have a name */
+                                If .Find("name", szName) Then
+                                    .Find "author", szAuthor
+
+                                    If MsgBox("Do you want to install the following Scripted style?" & vbCrLf & vbCrLf & _
+                                              "Name: " & szName & vbCrLf & _
+                                              IIf(szAuthor <> "", "Author: " & szAuthor & vbCrLf, ""), vbQuestion Or vbYesNo, App.Title) = vbYes Then
+
+                                        If g_ExtractToAppData(Path, "styles\script") Then
+                                            If FromRunningInstance Then
+                                                g_PrivateNotify , "Style installed", szName & " Scripted style was installed successfully", , ".good"
+                                                g_StyleRoster.Unload "script.styleengine", False
+                                                g_StyleRoster.Load "script.styleengine", False, False
+                                                frmAbout.bNotifyDisplaysChanged
+
+                                            Else
+                                                MsgBox szName & " was installed successfully!", vbInformation Or vbOKOnly, App.Title
+
+                                            End If
+                                            g_InstallSSZ = True
+
+                                        Else
+                                            MsgBox "There was a problem installing the style.", vbExclamation Or vbOKOnly, App.Title
+                                        
+                                        End If
+                                    End If
+                                    Exit Function
+
+                                Else
+                                    g_Debug "g_InstallSSZ(): missing style name", LEMON_LEVEL_CRITICAL
+
+                                End If
+                            End With
+                        Else
+                            g_Debug "g_InstallSSZ(): missing [general] section", LEMON_LEVEL_CRITICAL
+
+                        End If
+                    End With
+                Else
+                    g_Debug "g_InstallSSZ(): failed to create temp folder", LEMON_LEVEL_CRITICAL
+
+                End If
+            Else
+                g_Debug "g_InstallSSZ(): missing conf or exe", LEMON_LEVEL_CRITICAL
+
+            End If
+        Else
+            g_Debug "g_InstallSSZ(): failed to open zip file", LEMON_LEVEL_CRITICAL
+        
+        End If
+    End With
+
+    MsgBox Path & " appears to be corrupt.  Try downloading it again.", vbExclamation Or vbOKOnly, App.Title
+
+End Function
+
+Public Function g_IsAlphaBuild() As Boolean
+
+    g_IsAlphaBuild = (InStr(App.Comments, "Alpha") <> 0)
+
+End Function
+

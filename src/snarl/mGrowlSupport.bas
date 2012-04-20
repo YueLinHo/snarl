@@ -50,35 +50,43 @@ Dim i As Long
 Dim z As Byte
 Dim p As Byte
 
+    g_Debug "g_ProcessGrowlUDP()", LEMON_LEVEL_PROC_ENTER
+
     b() = Data()
 
-    For i = 0 To cb - 1
-'        Debug.Print b(i) & Chr$(b(i)) & " ";
-        Debug.Print Chr$(b(i));
+    g_Debug "packet_len=" & CStr(cb) & " sender=" & Sender
 
-    Next i
-    Debug.Print
+'    For i = 0 To cb - 1
+''        Debug.Print b(i) & Chr$(b(i)) & " ";
+'        Debug.Print Chr$(b(i));
+'
+'    Next i
+'    Debug.Print
 
     ' /* get version */
 
+    g_Debug "getting version..."
     CopyMemory z, b(0), 1
 '    Debug.Print "version: " & CStr(z)
     If z <> 1 Then
-        Debug.Print "bad version"
+        g_Debug "bad version " & g_Quote(CStr(z)), LEMON_LEVEL_CRITICAL Or LEMON_LEVEL_PROC_EXIT
         Exit Function
 
     End If
 
     ' /* get packet type */
 
+    g_Debug "getting packet type..."
     CopyMemory z, b(1), 1
 '    Debug.Print "type: " & CStr(z)
+
+Dim pgr As T_GROWL_REGISTRATION
+Dim pgn As T_GROWL_NOTIFICATION
 
     Select Case z
     Case 0
         ' /* registration */
-
-Dim pgr As T_GROWL_REGISTRATION
+        g_Debug "registration packet"
 
         ' /* Byte   Description
         '     0     Protocol version (always 1)
@@ -98,17 +106,20 @@ Dim pgr As T_GROWL_REGISTRATION
         W = uGetInt(l)
         l = l + 2                   ' // skip types and enabled counts...
 
+        g_Debug "getting application name..."
         pgr.ApplicationName = uGetString(l, W)
         pgr.RemoteHost = Sender
-        Debug.Print "REGISTER: App=" & pgr.ApplicationName & " sender=" & pgr.RemoteHost
+        g_Debug "got application name " & g_Quote(pgr.ApplicationName)
 
         ' /* get number of notification types */
 
+        g_Debug "getting number of notification types..."
         CopyMemory z, b(4), 1
-        Debug.Print "Notification types: " & z
+        g_Debug "got " & CStr(z) & " type(s)"
 
         ' /* read each notification type record */
 
+        g_Debug "reading type records..."
         l = VarPtr(b(6)) + W
         For i = 0 To (z - 1)
             With pgr
@@ -118,7 +129,7 @@ Dim pgr As T_GROWL_REGISTRATION
                     W = uGetInt(l)                  ' // name length (bytes)
                     .Name = uGetString(l, W)        ' // name (decoded from UTF8)
                     .Enabled = False
-                    Debug.Print CStr(i + 1) & "='" & .Name & "'"
+                    g_Debug "type " & CStr(i + 1) & " is " & g_Quote(.Name)
 
                 End With
             End With
@@ -126,25 +137,26 @@ Dim pgr As T_GROWL_REGISTRATION
 
         ' /* get number of enabled notifications */
 
+        g_Debug "getting enabled notifications..."
         CopyMemory z, b(5), 1
-        Debug.Print "Enabled notifications: " & z
+        g_Debug "got " & CStr(z) & " enabled notifications"
 
         For i = 0 To (z - 1)
             CopyMemory p, ByVal l, 1
-            Debug.Print "Notification '" & CStr(p) & "' is enabled"
+            g_Debug "type " & g_Quote(CStr(p)) & " is enabled"
             pgr.NotificationType(p + 1).Enabled = True
             l = l + 1
 
         Next i
 
         ' /* register with Snarl */
+        g_Debug "registering with Snarl..."
         uRegister pgr
 
 
     Case 1
         ' /* notification */
-
-Dim pgn As T_GROWL_NOTIFICATION
+        g_Debug "notification packet"
 
         ' /* Byte   Description
         '     0     Protocol version (always 1)
@@ -158,21 +170,12 @@ Dim pgn As T_GROWL_NOTIFICATION
         '
         ' */
 
-        Debug.Print "NOTIFICATION"
-
         ' /* get flags */
 
         l = VarPtr(b(2))
         W = uGetInt(l)
         pgn.Sticky = (W And 1)
-
-'        If (w And 1) Then
-'            Debug.Print "sticky"
-'
-'        Else
-'            Debug.Print "not sticky"
-'
-'        End If
+        g_Debug "sticky=" & CStr(pgn.Sticky)
 
 Dim fNeg As Boolean
 
@@ -182,47 +185,54 @@ Dim fNeg As Boolean
             W = (-(W Xor 7)) - 1
 
         pgn.Priority = W
+        g_Debug "priority=" & CStr(pgn.Priority)
 
 Dim sptr As Long
 
         sptr = VarPtr(b(12))                        ' // start of string table
 
         W = uGetInt(l)
-        Debug.Print "type name len: " & W
+        g_Debug "getting type name..."
         pgn.TypeName = uGetString(sptr, W)
+        g_Debug g_Quote(pgn.TypeName)
 
         W = uGetInt(l)
-        Debug.Print "title len: " & W
+        g_Debug "getting title..."
         pgn.Title = uGetString(sptr, W)
+        g_Debug g_Quote(pgn.Title)
 
         W = uGetInt(l)
-        Debug.Print "description len: " & W
+        g_Debug "getting description..."
         pgn.Description = uGetString(sptr, W)
+        g_Debug g_Quote(pgn.Description)
 
         W = uGetInt(l)
-        Debug.Print "app name len: " & W
+        g_Debug "getting app name..."
         pgn.AppName = uGetString(sptr, W)
+        g_Debug g_Quote(pgn.AppName)
 
-        Debug.Print "sticky=" & CStr(pgn.Sticky) & " priority=" & CStr(pgn.Priority)
-        Debug.Print "type name=" & pgn.TypeName & " app=" & pgn.AppName
-        Debug.Print "title=" & pgn.Title & " desc=" & pgn.Description
+'        Debug.Print "sticky=" & CStr(pgn.Sticky) & " priority=" & CStr(pgn.Priority)
+'        Debug.Print "type name=" & pgn.TypeName & " app=" & pgn.AppName
+'        Debug.Print "title=" & pgn.Title & " desc=" & pgn.Description
 
         pgn.Sender = Sender
 
         i = uIndexOfApp(pgn.AppName)
         If i = 0 Then
-            g_Debug "mGrowlSupport.g_ProcessGrowlUDP(): '" & pgn.AppName & "' is not registered", LEMON_LEVEL_CRITICAL
+            g_Debug "not showing: " & g_Quote(pgn.AppName) & " is not registered", LEMON_LEVEL_CRITICAL
 
         Else
+            g_Debug "notifying..."
             uNotify mGrowlReg(i).SnarlToken, pgn
 
         End If
 
-
     Case Else
-        Debug.Print "bad packet type"
+        g_Debug "bad packet type " & g_Quote(z), LEMON_LEVEL_CRITICAL
 
     End Select
+
+    g_Debug "", LEMON_LEVEL_PROC_EXIT
 
 End Function
 
@@ -247,13 +257,13 @@ Private Function uGetInt(ByRef lptr As Long) As Integer
 
 End Function
 
-Private Function uGetString(ByRef lptr As Long, ByVal Length As Long) As String
+Private Function uGetString(ByRef lptr As Long, ByVal length As Long) As String
 Dim sz As String
 
-    sz = String$(Length, 0)
-    CopyMemory ByVal StrPtr(sz), ByVal lptr, Length
+    sz = String$(length * 2, 0)
+    CopyMemory ByVal StrPtr(sz), ByVal lptr, length
     uGetString = g_toUnicodeUTF8(g_TrimStr(StrConv(sz, vbUnicode)))
-    lptr = lptr + Length
+    lptr = lptr + length
 
 End Function
 

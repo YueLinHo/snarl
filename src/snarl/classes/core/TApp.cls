@@ -43,6 +43,7 @@ Dim mCurrentLP As Long          ' // DR3: token of current low priority notifica
 Public PopupFrame As BRect
 
 Dim mCachedIcon As mfxBitmap
+Dim mRealIconPath As String
 
     ' /* R2.5.1 */
 
@@ -84,7 +85,7 @@ Dim f As Boolean
     ' /* R2.5.1: if admin setting "BlockUnknownApps" is set, check that the class file exists and fail if it doesn't */
 
     If (gSysAdmin.BlockUnknownApps) And (Not g_Exists(gPrefs.SnarlConfigPath & "etc\" & g_MakeFilename(Info.Signature) & ".class")) Then
-        gSetLastError SNARL_ERROR_ACCESS_DENIED
+        g_SetLastError SNARL_ERROR_ACCESS_DENIED
         g_Debug "blocked by admininstrative setting", LEMON_LEVEL_CRITICAL Or LEMON_LEVEL_PROC_EXIT
         Exit Function
 
@@ -146,6 +147,10 @@ Dim f As Boolean
 
     End With
 
+    mRealIconPath = g_TranslateIconPath(mInfo.Icon, "")
+    If Not g_Exists(mRealIconPath) Then _
+        mRealIconPath = g_MakePath(App.Path) & "etc\icons\no_icon.png"
+
     ' /* all apps get this class */
 
     AddAlert "_all", ""
@@ -160,10 +165,9 @@ Public Function AddAlert(ByVal Class As String, ByVal Description As String, Opt
     g_Debug "TApp.AddAlert()", LEMON_LEVEL_PROC_ENTER
 
     ' /* check the class isn't already registered */
-
     If Me.FindAlert(Class, Nothing) Then
         g_Debug "class '" & Class & "' already exists", LEMON_LEVEL_CRITICAL Or LEMON_LEVEL_PROC_EXIT
-        gSetLastError SNARL_ERROR_CLASS_ALREADY_EXISTS
+        g_SetLastError SNARL_ERROR_CLASS_ALREADY_EXISTS
         AddAlert = M_ALREADY_EXISTS
         Exit Function
 
@@ -174,7 +178,6 @@ Dim pClassSettings As ConfigSection
 Dim i As Long
 
     ' /* load up persistent settings if any exist */
-
     g_Debug "checking persistent settings..."
 
     With mSettings
@@ -193,7 +196,6 @@ Dim i As Long
     End With
 
     ' /* add and intialize it */
-
     g_Debug "creating class object..."
     Set ClassObject = New TAlert
     ClassObject.bInit Class, Description, Me, pClassSettings, Flags
@@ -201,7 +203,6 @@ Dim i As Long
     mAlerts = mAlerts + 1
     ReDim Preserve mAlert(mAlerts)
     Set mAlert(mAlerts) = ClassObject
-
     AddAlert = M_OK
 
     g_Debug "", LEMON_LEVEL_PROC_EXIT
@@ -423,7 +424,7 @@ Dim pClass As TAlert
 
     If (pClass Is Nothing) Then
         g_Debug "TApp.Show41(): couldn't find a suitable class", LEMON_LEVEL_CRITICAL
-        gSetLastError SNARL_ERROR_SYSTEM
+        g_SetLastError SNARL_ERROR_SYSTEM
         Exit Function
 
     End If
@@ -433,11 +434,20 @@ Dim pClass As TAlert
     If pClass.GetValue("block_if_foreground") = "1" Then
         If (mInfo.Pid <> 0) And (uGetForegroundPID() = mInfo.Pid) Then
             g_Debug "TApp.Show41(): discarded: application is foreground", LEMON_LEVEL_INFO
-            gSetLastError SNARL_ERROR_DISCARDED
+            g_SetLastError SNARL_ERROR_DISCARDED
             Exit Function
 
         End If
     End If
+
+
+    ' /* NEW: for long-term work - construct a TNotificationInfo object */
+
+'Dim pni As TNotificationInfo
+'
+'    Set pni = New TNotificationInfo
+'    pni.SetTo Me, pClass, pData, ReplySocket, IntFlags
+
 
     ' /* convert the packed data into a T_NOTIFICATION_INFO struct */
 
@@ -587,7 +597,7 @@ End Function
 '
 '    If (pc Is Nothing) Then
 '        g_Debug "TApp.Show(): couldn't find a suitable class", LEMON_LEVEL_CRITICAL
-'        gSetLastError SNARL_ERROR_FAILED
+'        g_SetLastError SNARL_ERROR_FAILED
 '        Exit Function
 '
 '    End If
@@ -623,15 +633,14 @@ Public Sub SetIcon(ByVal Path As String)
 
 End Sub
 
-Public Function AddClass(ByRef Data As BPackedData, Optional ByRef ClassObject As TAlert) As Long
+Public Function AddClass(ByRef Data As BPackedData) As Long
 
 '//ByVal Name As String, ByVal Flags As E_ALERT_CLASS_FLAGS, Optional ByRef ClassObject As TAlert
 
     ' /* validate some key stuff */
-
     If (Data Is Nothing) Then
         g_Debug "TApp.AddClass(): config error", LEMON_LEVEL_CRITICAL
-        gSetLastError SNARL_ERROR_FAILED
+        g_SetLastError SNARL_ERROR_FAILED
         Exit Function
 
     End If
@@ -639,7 +648,6 @@ Public Function AddClass(ByRef Data As BPackedData, Optional ByRef ClassObject A
 Dim szId As String
 
     ' /* R2.5 Beta 2: support for adding classes via NOTIFY */
-
     If Data.Exists("class-id") Then
         szId = Data.ValueOf("class-id")
 
@@ -652,16 +660,14 @@ Dim szId As String
 
     If szId = "" Then
         g_Debug "TApp.AddClass(): required arg 'class-id/id' missing", LEMON_LEVEL_CRITICAL
-        gSetLastError SNARL_ERROR_ARG_MISSING
+        g_SetLastError SNARL_ERROR_ARG_MISSING
         Exit Function
 
     End If
 
-
 Dim szName As String
 
     ' /* R2.5 Beta 2: support for adding classes via NOTIFY */
-
     If Data.Exists("class-name") Then
         szName = Data.ValueOf("class-name")
 
@@ -687,44 +693,13 @@ Dim lFlags As SN_CLASS_FLAGS
 
     ' /* Use AddAlert() to actually add the class to our app - LastError will be set on failure */
 
-    If AddAlert(szId, szName, ClassObject, lFlags) <> M_OK Then _
+Dim pClass As TAlert
+
+    If AddAlert(szId, szName, pClass, lFlags) <> M_OK Then _
         Exit Function
 
-    ' /* do some V41 post-initialization */
-
-    With ClassObject
-        If Data.Exists("callback") Then
-            ' /* R2.4 DR7: name change */
-            .DefaultAck = Data.ValueOf("callback")
-
-        Else
-            .DefaultAck = Data.ValueOf("ack")
-
-        End If
-
-'        Debug.Print .Description & " >> " & Data.Exists("icon")
-
-        .DefaultIcon = Data.ValueOf("icon")
-
-        If (.DefaultIcon = "") And (Data.Exists("icon-base64")) Then
-            ' /* R2.4 Beta 4: check for MIME encoded icon */
-            .DefaultIcon = g_GetBase64Icon(Data.ValueOf("icon-base64"))
-
-        ElseIf (.DefaultIcon = "") And (Data.Exists("icon-phat64")) Then
-            ' /* R2.4.2 DR3: phat64 encoding? */
-            .DefaultIcon = g_GetPhat64Icon(Data.ValueOf("icon-phat64"))
-
-        End If
-
-        .DefaultSound = Data.ValueOf("sound")
-        .DefaultText = Data.ValueOf("text")
-
-        If Data.Exists("duration") Then _
-            .DefaultTimeout = Val(Data.ValueOf("duration"))
-
-        .DefaultTitle = Data.ValueOf("title")
-
-    End With
+    ' /* do V41 post-initialization */
+    pClass.Augment Data
 
     frmAbout.bUpdateClassList mInfo.Token
     AddClass = -1
@@ -739,7 +714,7 @@ Static j As Long
 
     If (Data Is Nothing) Then
         g_Debug "TApp.RemClass(): config error", LEMON_LEVEL_CRITICAL
-        gSetLastError SNARL_ERROR_FAILED
+        g_SetLastError SNARL_ERROR_FAILED
         Exit Function
 
     End If
@@ -754,21 +729,21 @@ Static j As Long
         AddAlert "_all", ""
         RemClass = -1
         frmAbout.bUpdateClassList mInfo.Token
-        gSetLastError SNARL_SUCCESS
+        g_SetLastError SNARL_SUCCESS
 
     ElseIf Not Data.Exists("id") Then
         g_Debug "TApp.RemClass(): required arg 'id' missing", LEMON_LEVEL_CRITICAL
-        gSetLastError SNARL_ERROR_ARG_MISSING
+        g_SetLastError SNARL_ERROR_ARG_MISSING
 
     ElseIf Data.ValueOf("id") = "_all" Then
         g_Debug "TApp.RemClass(): cannot remove '_all' class", LEMON_LEVEL_CRITICAL
-        gSetLastError SNARL_ERROR_FAILED
+        g_SetLastError SNARL_ERROR_FAILED
 
     Else
         i = uIndexOf(Data.ValueOf("id"))
         If i = 0 Then
             g_Debug "TApp.RemClass(): class '" & Data.ValueOf("id") & "' not found", LEMON_LEVEL_CRITICAL
-            gSetLastError SNARL_ERROR_CLASS_NOT_FOUND
+            g_SetLastError SNARL_ERROR_CLASS_NOT_FOUND
 
         Else
 
@@ -784,7 +759,7 @@ Static j As Long
             ReDim Preserve mAlert(mAlerts)
             frmAbout.bUpdateClassList mInfo.Token
             RemClass = -1
-            gSetLastError SNARL_SUCCESS
+            g_SetLastError SNARL_SUCCESS
 
         End If
     End If
@@ -837,6 +812,9 @@ Dim pe As TExtension
         If g_ExtnRoster.Find(mExtension, pe) Then _
             HasAbout = True
 
+    ElseIf mInfo.RemoteHostName <> "" Then
+        HasAbout = True
+
     Else
         HasAbout = (mInfo.Token = gSnarlToken) Or (mInfo.Hint <> "") Or _
                    ((Not (mInfo.Socket Is Nothing)) And (mInfo.IncludeInMenu)) Or _
@@ -873,8 +851,19 @@ Dim pe As TExtension
         frmAbout.Show
 
     ElseIf mExtension <> "" Then
+        '/ * extension */
         If g_ExtnRoster.Find(mExtension, pe) Then _
             pe.ShowDetails
+
+    ElseIf mInfo.RemoteHostName <> "" Then
+
+        g_PrivateNotify , _
+                        mInfo.Name & " on " & mInfo.RemoteHostName, _
+                        mInfo.Hint, , _
+                        mInfo.Icon, , , , _
+                        SN_NF_REMOTE, , _
+                        "_about"
+
 
     ElseIf mInfo.Hint <> "" Then
         ' /* display the hint text */
@@ -886,7 +875,7 @@ Dim pe As TExtension
         If mInfo.Password <> "" Then _
             fApp = fApp Or SN_NF_SECURE
 
-        g_PrivateNotify "", _
+        g_PrivateNotify , _
                         mInfo.Name, _
                         mInfo.Hint, , _
                         mInfo.Icon, , , , _
@@ -1118,48 +1107,63 @@ End Function
 
 Private Function uCheckDOS() As Boolean
 
-    ' /* R2.5 Beta 2: ignore if app's "never_ban" setting is enabled */
-
-    If (g_ConfigGet("block_dos_attempt") = "0") Or (mAppConfig.GetValueWithDefault("never_ban", "0") = "1") Then _
-        Exit Function
-
-Const BAN_NUMBER = 10                           ' // this many...
-Const BAN_LIMIT = 500                           ' // ...within this time (in ms) = a ban
-Const BAN_QUANTUM = BAN_LIMIT / BAN_NUMBER      ' // so this is the per-notification trigger
-
     If mIsBanned Then
         g_Debug "TApp.uCheckDOS(): '" & mInfo.Signature & "' is banned", LEMON_LEVEL_CRITICAL
-        gSetLastError SNARL_ERROR_ACCESS_DENIED
+        g_SetLastError SNARL_ERROR_ACCESS_DENIED
+        uCheckDOS = True
+
+    ElseIf g_NotificationRoster.CountActiveBySignature(mInfo.Signature) > 9 Then
+        g_Debug "TApp.uCheckDOS(): '" & mInfo.Signature & "' has too many active notifications", LEMON_LEVEL_CRITICAL
+        g_SetLastError SNARL_ERROR_FLOODING
+        uCheckDOS = True
 
     Else
-        ' /* if we get BAN_NUMBER within BAN_QUANTUM, that's a ban */
+        g_SetLastError SNARL_SUCCESS
 
-        If (GetTickCount() - mLastNotificationTick) < BAN_QUANTUM Then
-            mDoSCount = mDoSCount + 1
-            g_Debug "TApp.uCheckDOS(): notification within ban quantum (" & GetTickCount() - mLastNotificationTick & ") count=" & mDoSCount
-
-            If mDoSCount >= BAN_NUMBER Then
-                g_Debug "TApp.uCheckDOS(): possible DoS attack by '" & mInfo.Signature & "' detected", LEMON_LEVEL_CRITICAL
-                If gDebugMode Then _
-                    g_PrivateNotify SNARL_CLASS_GENERAL, "Application blocked", mInfo.Name & " (" & mInfo.Signature & ") generated a large number of notifications within a short period of time and has been blocked"
-
-                mIsBanned = True
-                mAppConfig.Update "banned", "1"
-                uWriteSettings
-
-            End If
-
-        Else
-            ' /* reset */
-            mDoSCount = 0
-
-        End If
-    
-        mLastNotificationTick = GetTickCount()
-    
     End If
 
-    uCheckDOS = mIsBanned
+'    ' /* R2.5 Beta 2: ignore if app's "never_ban" setting is enabled */
+'
+'    If (g_ConfigGet("block_dos_attempt") = "0") Or (mAppConfig.GetValueWithDefault("never_ban", "0") = "1") Then _
+'        Exit Function
+'
+'Const BAN_NUMBER = 10                           ' // this many...
+'Const BAN_LIMIT = 500                           ' // ...within this time (in ms) = a ban
+'Const BAN_QUANTUM = BAN_LIMIT / BAN_NUMBER      ' // so this is the per-notification trigger
+'
+'    If mIsBanned Then
+'        g_Debug "TApp.uCheckDOS(): '" & mInfo.Signature & "' is banned", LEMON_LEVEL_CRITICAL
+'        g_SetLastError SNARL_ERROR_ACCESS_DENIED
+'
+'    Else
+'        ' /* if we get BAN_NUMBER within BAN_QUANTUM, that's a ban */
+'
+'        If (GetTickCount() - mLastNotificationTick) < BAN_QUANTUM Then
+'            mDoSCount = mDoSCount + 1
+'            g_Debug "TApp.uCheckDOS(): notification within ban quantum (" & GetTickCount() - mLastNotificationTick & ") count=" & mDoSCount
+'
+'            If mDoSCount >= BAN_NUMBER Then
+'                g_Debug "TApp.uCheckDOS(): possible DoS attack by '" & mInfo.Signature & "' detected", LEMON_LEVEL_CRITICAL
+'                If gDebugMode Then _
+'                    g_PrivateNotify SNARL_CLASS_GENERAL, "Application blocked", mInfo.Name & " (" & mInfo.Signature & ") generated a large number of notifications within a short period of time and has been blocked"
+'
+'                mIsBanned = True
+'                mAppConfig.Update "banned", "1"
+'                uWriteSettings
+'
+'            End If
+'
+'        Else
+'            ' /* reset */
+'            mDoSCount = 0
+'
+'        End If
+'
+'        mLastNotificationTick = GetTickCount()
+'
+'    End If
+'
+'    uCheckDOS = mIsBanned
 
 End Function
 
@@ -1243,3 +1247,37 @@ Public Function KeepAlive() As Boolean
 
 End Function
 
+Public Function RealIconPath() As String
+
+    RealIconPath = mRealIconPath
+
+End Function
+
+Public Sub TestNotification(ByRef Class As TAlert)
+Dim ppd As BPackedData
+
+    Set ppd = New BPackedData
+    With ppd
+        .Add "title", Class.Description
+        .Add "text", "Test Notification"
+
+    End With
+    
+    Me.Show41 Class.Name, ppd, , App.Major
+
+
+'Dim pInfo As T_NOTIFICATION_INFO
+'
+'    With pInfo
+'        .Title = Me.Description
+'        .Text = "Test Notification"
+'        .Timeout = -1
+'        .APIVersion = VB.App.Major
+'        .IntFlags = VB.App.Major
+'        Set .ClassObj = Me
+'.ClassObj.App.Show41
+'
+'    End With
+'
+'    Me.ShowNotification pInfo, Nothing
+End Sub

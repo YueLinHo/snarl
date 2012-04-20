@@ -212,7 +212,7 @@ Private Property Get MVersionInfo_Version() As Long
 
 End Property
 
-Public Function uGetStyleEngine(ByVal ClassId As String, Optional ByVal Flags As Long) As Boolean
+Private Function uGetStyleEngine(ByVal ClassId As String, Optional ByVal Flags As Long) As Boolean
 
     If mList.IndexOf(ClassId, False) <> 0 Then
         g_Debug "TStyleRoster.uGetStyleEngine(): '" & ClassId & "' is already in roster", LEMON_LEVEL_CRITICAL
@@ -359,63 +359,63 @@ Dim i As Long
 
 End Function
 
-Public Function GetNonWindowStyleList(Optional ByRef Result As Boolean) As String
-Dim pt As TStyle
-Dim i As Long
-Dim j As Long
+'Public Function GetNonWindowStyleList(Optional ByRef Result As Boolean) As String
+'Dim pt As TStyle
+'Dim i As Long
+'Dim j As Long
+'
+'    If mItems Then
+'        For i = 1 To mItems
+'            Set pt = mItem(i)
+'            If (pt.Flags And S_STYLE_IS_WINDOWLESS) Then
+'                If pt.CountSchemes Then
+'                    For j = 1 To pt.CountSchemes
+'                        GetNonWindowStyleList = GetNonWindowStyleList & pt.Name & ": " & pt.SchemeAt(j) & "#?" & _
+'                                                LCase$(pt.Name & "/" & pt.SchemeAt(j)) & "|"
+'
+'                    Next j
+'                End If
+'            End If
+'        Next i
+'
+'        GetNonWindowStyleList = g_SafeLeftStr(GetNonWindowStyleList, Len(GetNonWindowStyleList) - 1)
+'
+'    End If
+'
+'    If GetNonWindowStyleList = "" Then _
+'        GetNonWindowStyleList = "<None>"
+'
+'    Result = (GetNonWindowStyleList <> "<None>")
+'
+'End Function
 
-    If mItems Then
-        For i = 1 To mItems
-            Set pt = mItem(i)
-            If (pt.Flags And S_STYLE_IS_WINDOWLESS) Then
-                If pt.CountSchemes Then
-                    For j = 1 To pt.CountSchemes
-                        GetNonWindowStyleList = GetNonWindowStyleList & pt.Name & ": " & pt.SchemeAt(j) & "#?" & _
-                                                LCase$(pt.Name & "/" & pt.SchemeAt(j)) & "|"
-
-                    Next j
-                End If
-            End If
-        Next i
-
-        GetNonWindowStyleList = g_SafeLeftStr(GetNonWindowStyleList, Len(GetNonWindowStyleList) - 1)
-
-    End If
-
-    If GetNonWindowStyleList = "" Then _
-        GetNonWindowStyleList = "<None>"
-
-    Result = (GetNonWindowStyleList <> "<None>")
-
-End Function
-
-Public Sub SetNonWindowStyleIcons(ByRef Control As BControl)
-
-    If (mItems = 0) Or (Control Is Nothing) Then _
-        Exit Sub
-
-Dim sz As String
-Dim i As Long
-Dim j As Long
-Dim n As Long
-
-    For i = 1 To mItems
-        If (mItem(i).Flags And S_STYLE_IS_WINDOWLESS) Then
-            sz = Me.StyleAt(i).IconPath
-            If Not g_Exists(sz) Then _
-                sz = g_MakePath(App.Path) & "etc\icons\style.png"
-
-            If mItem(i).CountSchemes Then
-                For j = 1 To mItem(i).CountSchemes
-                    n = n + 1
-                    prefskit_SetItem Control, n, "image-file", sz
-
-                Next j
-            End If
-        End If
-    Next i
-
-End Sub
+'Public Sub SetNonWindowStyleIcons(ByRef Control As BControl)
+'
+'    If (mItems = 0) Or (Control Is Nothing) Then _
+'        Exit Sub
+'
+'Dim sz As String
+'Dim i As Long
+'Dim j As Long
+'Dim n As Long
+'
+'    For i = 1 To mItems
+'        If (mItem(i).Flags And S_STYLE_IS_WINDOWLESS) Then
+'            sz = Me.StyleAt(i).IconPath
+'            If Not g_Exists(sz) Then _
+'                sz = g_MakePath(App.Path) & "etc\icons\style.png"
+'
+'            If mItem(i).CountSchemes Then
+'                For j = 1 To mItem(i).CountSchemes
+'                    n = n + 1
+'                    prefskit_SetItem Control, n, "image-file", sz
+'
+'                Next j
+'            End If
+'        End If
+'    Next i
+'
+'End Sub
 
 Public Function IndexOf(ByVal Style As String) As Long
 Dim i As Long
@@ -452,7 +452,7 @@ End Function
 Public Function Find(ByVal Name As String, ByRef Style As TStyle) As Boolean
 Dim i As Long
 
-    i = Me.IndexOf(Name)
+    i = Me.IndexOf(LCase$(Name))
     If i Then
         Set Style = mItem(i)
         Find = True
@@ -511,10 +511,12 @@ Dim pse As TStyleEngine
         ' /* if it was loaded ok, add the styles it provides */
         uCheckVersion pse.Engine, NotifyVersionChange
         uAddStyles pse.Engine
-        frmAbout.bUpdateStylesList
+        frmAbout.bNotifyStyleEnginesChanged
+
         uWriteStartupList
         If NotifyItHappened Then _
-            g_PrivateNotify SNARL_CLASS_GENERAL, , ClassId & " started successfully"
+            g_PrivateNotify SNARL_CLASS_GENERAL, , ClassId & " started successfully", , ".good"
+
         Load = True
 
     Else
@@ -566,10 +568,11 @@ Dim j As Long
     If g_IsWinXPOrBetter() Then _
         CoFreeUnusedLibrariesEx 0, 0
 
-    frmAbout.bUpdateStylesList
+    frmAbout.bNotifyStyleEnginesChanged
+
     uWriteStartupList
     If NotifyItHappened Then _
-        g_PrivateNotify SNARL_CLASS_GENERAL, , Engine & " stopped successfully"
+        g_PrivateNotify SNARL_CLASS_GENERAL, , Engine & " stopped successfully", , ".good"
 
     Unload = True
 
@@ -732,55 +735,54 @@ Public Sub Restart()
 
     MLibrary_Close
     MLibrary_Open
-    frmAbout.bUpdateStylesList
 
 End Sub
 
-Public Function GetNonWindowStyleList2(Optional ByRef Result As Boolean) As String
-Dim pt As TStyle
-Dim i As Long
-
-    If mItems Then
-        For i = 1 To mItems
-            Set pt = mItem(i)
-            If (pt.Flags And S_STYLE_IS_WINDOWLESS) Then _
-                GetNonWindowStyleList2 = GetNonWindowStyleList2 & pt.Name & "#?" & LCase$(pt.Name) & "|"
-
-        Next i
-
-        GetNonWindowStyleList2 = g_SafeLeftStr(GetNonWindowStyleList2, Len(GetNonWindowStyleList2) - 1)
-
-    End If
-
-    If GetNonWindowStyleList2 = "" Then _
-        GetNonWindowStyleList2 = "<None>"
-
-    Result = (GetNonWindowStyleList2 <> "<None>")
-
-End Function
-
-Public Sub SetNonWindowStyleIcons2(ByRef Control As BControl)
-
-    If (mItems = 0) Or (Control Is Nothing) Then _
-        Exit Sub
-
-Dim sz As String
-Dim i As Long
-Dim n As Long
-
-    For i = 1 To mItems
-        If (mItem(i).Flags And S_STYLE_IS_WINDOWLESS) Then
-            sz = Me.StyleAt(i).IconPath
-            If Not g_Exists(sz) Then _
-                sz = g_MakePath(App.Path) & "etc\icons\style.png"
-
-            n = n + 1
-            prefskit_SetItem Control, n, "image-file", sz
-
-        End If
-    Next i
-
-End Sub
+'Public Function GetNonWindowStyleList2(Optional ByRef Result As Boolean) As String
+'Dim pt As TStyle
+'Dim i As Long
+'
+'    If mItems Then
+'        For i = 1 To mItems
+'            Set pt = mItem(i)
+'            If (pt.Flags And S_STYLE_IS_WINDOWLESS) Then _
+'                GetNonWindowStyleList2 = GetNonWindowStyleList2 & pt.Name & "#?" & LCase$(pt.Name) & "|"
+'
+'        Next i
+'
+'        GetNonWindowStyleList2 = g_SafeLeftStr(GetNonWindowStyleList2, Len(GetNonWindowStyleList2) - 1)
+'
+'    End If
+'
+'    If GetNonWindowStyleList2 = "" Then _
+'        GetNonWindowStyleList2 = "<None>"
+'
+'    Result = (GetNonWindowStyleList2 <> "<None>")
+'
+'End Function
+'
+'Public Sub SetNonWindowStyleIcons2(ByRef Control As BControl)
+'
+'    If (mItems = 0) Or (Control Is Nothing) Then _
+'        Exit Sub
+'
+'Dim sz As String
+'Dim i As Long
+'Dim n As Long
+'
+'    For i = 1 To mItems
+'        If (mItem(i).Flags And S_STYLE_IS_WINDOWLESS) Then
+'            sz = Me.StyleAt(i).IconPath
+'            If Not g_Exists(sz) Then _
+'                sz = g_MakePath(App.Path) & "etc\icons\style.png"
+'
+'            n = n + 1
+'            prefskit_SetItem Control, n, "image-file", sz
+'
+'        End If
+'    Next i
+'
+'End Sub
 
 Public Function GetSchemeList(ByVal Style As String) As String
 Static i As Long
@@ -942,4 +944,9 @@ Dim i As Long
 
 End Function
 
+Public Function FindEngine(ByVal Name As String, ByRef Engine As TStyleEngine) As Boolean
+
+    FindEngine = mList.Find(Name, Engine, False)
+
+End Function
 

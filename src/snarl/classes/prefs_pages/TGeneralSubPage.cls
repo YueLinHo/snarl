@@ -27,6 +27,8 @@ Option Explicit
 
 Dim WithEvents theAddPanel As TAddForwardOrSubscriptionPanel
 Attribute theAddPanel.VB_VarHelpID = -1
+Dim WithEvents theNCPanel As TStyleDefaultsPanel
+Attribute theNCPanel.VB_VarHelpID = -1
 
 Dim mSelMissed As TNotification
 Dim mSelHistory As TNotification
@@ -36,6 +38,8 @@ Dim mSelectedForward As String              ' // guid of highlighted network for
 Dim mSelectedSubscription As String
 Dim mCurrentItem As ConfigSection
 
+Dim mDisplayStyle As TStyle
+Dim mDisplayScheme As String
 Dim WithEvents mRedirectStyle As TStyle
 Attribute mRedirectStyle.VB_VarHelpID = -1
 Dim mRedirectScheme As String
@@ -51,41 +55,55 @@ Dim sz As String
 
     g_ConfigLock
 
-    uRefreshForwards
-    uRefreshSubscriptions
-    uRefreshSubscribers
-    uRefreshListeners
+    Select Case mPage.GetName
+    Case "sty-display"
+        uUpdateDisplayStyleList
+        prefskit_SetValue mPage.Panel, "display_styles_list", "1"
+
+    Case "sty-redirect"
+        uUpdateRedirectList
+
+    Case "sty-engines"
+        uUpdateEngineList
+
+    Case "net-clients"
+        uRefreshForwards
+
+    Case "net-subs"
+        uRefreshSubscriptions
+        uRefreshSubscribers
+
+    End Select
+
+'    uRefreshListeners
 '    uRefreshPassThruList
 
-'    uUpdateDisplayList
-    uUpdateRedirectList
-
-    uUpdateStyleEngineList
 
 
-    If mPage.Find("busy_style", pc) Then
-        ' /* set the icons *
-        g_StyleRoster.SetNonWindowStyleIcons2 pc
-        ' /* select the right item */
-        sz = style_GetSchemeName(g_ConfigGet("busy_style"))
-        pc.SetValue CStr(uGetListIndex(style_GetStyleName(g_ConfigGet("busy_style")), pc.GetText))
 
-        If mPage.Find("busy_scheme_list", pc) Then _
-            pc.SetValue CStr(uGetListIndex(sz, pc.GetText))
-
-    End If
-
-    If mPage.Find("away_style", pc) Then
-        ' /* set the icons *
-        g_StyleRoster.SetNonWindowStyleIcons2 pc
-        ' /* select the right item */
-        sz = style_GetSchemeName(g_ConfigGet("away_style"))
-        pc.SetValue CStr(uGetListIndex(style_GetStyleName(g_ConfigGet("away_style")), pc.GetText))
-
-        If mPage.Find("away_scheme_list", pc) Then _
-            pc.SetValue CStr(uGetListIndex(sz, pc.GetText))
-
-    End If
+'    If mPage.Find("busy_style", pc) Then
+'        ' /* set the icons *
+'        g_StyleRoster.SetNonWindowStyleIcons2 pc
+'        ' /* select the right item */
+'        sz = style_GetSchemeName(g_ConfigGet("busy_style"))
+'        pc.SetValue CStr(uGetListIndex(style_GetStyleName(g_ConfigGet("busy_style")), pc.GetText))
+'
+'        If mPage.Find("busy_scheme_list", pc) Then _
+'            pc.SetValue CStr(uGetListIndex(sz, pc.GetText))
+'
+'    End If
+'
+'    If mPage.Find("away_style", pc) Then
+'        ' /* set the icons *
+'        g_StyleRoster.SetNonWindowStyleIcons2 pc
+'        ' /* select the right item */
+'        sz = style_GetSchemeName(g_ConfigGet("away_style"))
+'        pc.SetValue CStr(uGetListIndex(style_GetStyleName(g_ConfigGet("away_style")), pc.GetText))
+'
+'        If mPage.Find("away_scheme_list", pc) Then _
+'            pc.SetValue CStr(uGetListIndex(sz, pc.GetText))
+'
+'    End If
 
     g_ConfigUnlock True
 
@@ -99,48 +117,39 @@ Dim pm As CTempMsg
 
         Select Case mPage.GetName
 
-        ' /* [Options->Basics] */
+        ' /* [Options->Basic] */
 
         Case "gen-basic"
             .SetMargin 48
-
-            ' /* launch options */
-
             .Add new_BPrefsControl("banner", "", "Launch Options")
             .Add new_BPrefsControl("fancytoggle2", "run_on_logon", "Start at login?", "", g_ConfigGet("run_on_logon"))
             .Add new_BPrefsControl("fancytoggle2", "show_msg_on_start", "Show Welcome Message on startup?", "", g_ConfigGet("show_msg_on_start"), pm)
             .Add new_BPrefsControl("fancytoggle2", "auto_update", "Check for updates on launch?", "", g_ConfigGet("auto_update"))
             .Add new_BPrefsControl("fancybutton2", "update_now", "Check now...")
-
-            ' /* applications */
-
-'            .Add new_BPrefsControl("banner", "", "Applications")
-            .Add new_BPrefsControl("banner", "", "Miscellaneous")
-            .Add new_BPrefsControl("fancytoggle2", "notify_on_first_register", "Notify each time an application registers?", , uSwap(g_ConfigGet("notify_on_first_register")))
-            .Add new_BPrefsControl("fancytoggle2", "garbage_collection", "Periodically unregister orphaned applications?", , g_ConfigGet("garbage_collection"))
-            .Add new_BPrefsControl("fancytoggle2", "log_only", "Log only (don't display)?", , g_ConfigGet("log_only"))
-
-    '        .Add new_BPrefsControl("fancytoggle2", "sticky_snarls", "Sticky notifications?", , g_ConfigGet("sticky_snarls"))
+            ' /* hotkeys */
+            .Add new_BPrefsControl("banner", "", "Hotkeys")
+            .Add new_BPrefsControl("fancytoggle2", "use_hotkey", "Use a hotkey to activate Snarl's Preferences?", "", g_ConfigGet("use_hotkey"))
+            .Add new_BPrefsControl("label", "", "Type key you want to use in the box below (the modifiers used are automatically set):")
+            .Add new_BPrefsControl("key_picker", "hotkey_prefs", , , CStr(MOD_CONTROL) & "," & g_ConfigGet("hotkey_prefs"), , (g_ConfigGet("use_hotkey") = "1"))
+'            .Add new_BPrefsControl("fancytoggle2", "", "Use a hotkey to activate Snarl's menu?", "", "0", , False)
+'            .Add new_BPrefsControl("key_picker", "", , , CStr(MOD_WIN) & "," & g_ConfigGet("hotkey_prefs"), , False)
+            .Add new_BPrefsControl("fancytoggle2", "use_notification_hotkey", "Use Windows+Esc key combination to close notifications?", , g_ConfigGet("use_notification_hotkey"))
+            .Add new_BPrefsControl("label", "", "Windows+Esc closes the most recent notification; Windows+Ctrl+Esc closes all notifications.")
 
         ' /* [Options->Advanced] */
 
         Case "gen-advanced"
             .SetMargin 48
-            ' /* hotkeys */
-            .Add new_BPrefsControl("banner", "", "Hotkeys")
-            .Add new_BPrefsControl("fancytoggle2", "use_hotkey", "Use a hotkey to activate Snarl's Preferences?", "", g_ConfigGet("use_hotkey"))
-            .Add new_BPrefsControl("key_picker", "hotkey_prefs", , , CStr(MOD_CONTROL) & "," & g_ConfigGet("hotkey_prefs"), , (g_ConfigGet("use_hotkey") = "1"))
-'            .Add new_BPrefsControl("fancytoggle2", "", "Use a hotkey to activate Snarl's menu?", "", "0", , False)
-'            .Add new_BPrefsControl("key_picker", "", , , CStr(MOD_WIN) & "," & g_ConfigGet("hotkey_prefs"), , False)
-            .Add new_BPrefsControl("label", "", "Press the key you want to use in the box above.  Note that the modifiers (the combination of SHIFT and CTRL keys) used are automatically set.")
-            .Add new_BPrefsControl("fancytoggle2", "use_notification_hotkey", "Use Windows+Esc key combination to close notifications?", , g_ConfigGet("use_notification_hotkey"))
-            .Add new_BPrefsControl("label", "", "This closes the most recent notification and Windows+Ctrl+Esc closes all notifications.")
-
+            .Add new_BPrefsControl("banner", "", "Miscellaneous")
+            .Add new_BPrefsControl("fancytoggle2", "notify_on_first_register", "Notify each time an application registers?", , uSwap(g_ConfigGet("notify_on_first_register")))
+            .Add new_BPrefsControl("fancytoggle2", "garbage_collection", "Periodically unregister orphaned applications?", , g_ConfigGet("garbage_collection"))
+            .Add new_BPrefsControl("fancytoggle2", "log_only", "Log only (don't display)?", , g_ConfigGet("log_only"))
+    '        .Add new_BPrefsControl("fancytoggle2", "sticky_snarls", "Sticky notifications?", , g_ConfigGet("sticky_snarls"))
             ' /* legacy support */
             .Add new_BPrefsControl("banner", "", "Legacy Support")
             .Add new_BPrefsControl("fancytoggle2", "allow_right_clicks", "Allow notification right and middle clicks?", "", g_ConfigGet("allow_right_clicks"))
             .Add new_BPrefsControl("label", "", "This only applies to notifications created using the V42 API; notifications created using a previous version of the API always receive these events.")
-
+                        
             ' /* other */
             .Add new_BPrefsControl("banner", "", "Other")
             .Add new_BPrefsControl("fancytoolbar", "general_toolbar", "Recreate Tray Icon|Empty Icon Cache||Restore Factory Settings")
@@ -149,7 +158,6 @@ Dim pm As CTempMsg
 
         Case "gen-presence"
             .SetMargin 48
-
             ' /* away determination */
             .Add new_BPrefsControl("banner", "", "Assume I'm Away...")
             .Add new_BPrefsControl("label", "", "After the following period of inactivity:")
@@ -161,23 +169,22 @@ Dim pm As CTempMsg
             .Add new_BPrefsControl("fancyslider", "idle_minutes", "", "", IIf(g_ConfigGet("idle_minutes") = "2", "1", "2"), pm)
             .Add new_BPrefsControl("fancytoggle2", "away_when_locked", "When the computer is locked?", , g_ConfigGet("away_when_locked"))
             .Add new_BPrefsControl("fancytoggle2", "away_when_screensaver", "When the screensaver starts?", , g_ConfigGet("away_when_screensaver"))
-
             ' /* busy determination */
             .Add new_BPrefsControl("banner", "", "Assume I'm Busy...")
             .Add new_BPrefsControl("fancytoggle2", "away_when_fullscreen", "When the foreground application is fullscreen?", , g_ConfigGet("away_when_fullscreen"))
-            .Add new_BPrefsControl("label", "", "")
-            .Add new_BPrefsControl("label", "", "")
-            .Add new_BPrefsControl("label", "", "Note that the above settings only apply to normal priority notifications.")
-
             ' /* on return */
             .Add new_BPrefsControl("banner", "", "When I'm Back...")
-            .Add new_BPrefsControl("fancytoggle2", "show_missed_notification", "Tell me if I missed any notifications?", "", g_ConfigGet("show_missed_notification"))
+            .Add new_BPrefsControl("fancycycle", "show_missed_notifications", "Do nothing|Tell me if I missed notifications|Show Notification Centre", , g_ConfigGet("show_missed_notifications"))
+            .Add new_BPrefsControl("fancybutton2", "do_nc_settings", "Notification Centre Settings...")
+'            .Add new_BPrefsControl("fancytoggle2", "show_missed_notification", "Tell me if I missed any notifications?", "", g_ConfigGet("show_missed_notification"))
+'            .Add new_BPrefsSeparator()
+'            .Add new_BPrefsControl("label", "", "The above settings affect normal priority notifications only; high priority notifications are always displayed and low priority notifications are always discarded while Do Not Disturb mode is enabled.")
 
 
         ' /* [Options->Security] */
 
         Case "gen-security"
-            .SetMargin 48
+            .SetMargin 24
             .Add new_BPrefsControl("banner", "", "Applications")
             .Add new_BPrefsControl("fancytoggle2", "apps_must_register", "Applications must register before creating notifications?", "", g_ConfigGet("apps_must_register"))
             .Add new_BPrefsControl("fancytoggle2", "only_allow_secure_apps", "Only allow password-protected applications?", "", g_ConfigGet("only_allow_secure_apps"))
@@ -185,6 +192,8 @@ Dim pm As CTempMsg
             .Add new_BPrefsControl("banner", "", "Notifications")
             .Add new_BPrefsControl("fancytoggle2", "no_callback_urls", "Prevent URLs being used as the default callback?", "", g_ConfigGet("no_callback_urls"))
             .Add new_BPrefsControl("fancytoggle2", "ignore_style_requests", "Ignore requests for specific styles?", "", g_ConfigGet("ignore_style_requests"))
+'            .Add new_BPrefsControl("banner", "", "Network")
+
 
         ' /* [Options->Debug] */
 
@@ -198,6 +207,29 @@ Dim pm As CTempMsg
             .Add new_BPrefsControl("banner", "", "Diagnostics")
             .Add new_BPrefsControl("fancybutton2", "test", "Test Notification")
             .Add new_BPrefsControl("label", "", "Sends a special test message to the Snarl engine which should result in a notification appearing.  This message is sent using the same mechanism a 3rd party application would use and therefore should prove (or otherwise) that the Snarl notification engine is running correctly.")
+
+
+
+        Case "sty-display"
+            .SetMargin 0
+            .Add new_BPrefsControl("label", "", "These are the currently installed styles:")
+
+            Set pm = New CTempMsg
+            pm.Add "item-height", 36&
+            Set pc = new_BPrefsControl("listbox", "display_styles_list", , , , pm)
+            pc.SizeTo 0, (4 * 36) + 2
+            .Add pc
+        
+            .Add new_BPrefsControl("label", "display_schemes_count")
+            .Add new_BPrefsControl("fancytoolbar", "display_style_configure_toolbar", "Configure...|")
+        
+            Set pm = New CTempMsg
+            pm.Add "item-height", 24&
+            Set pc = new_BPrefsControl("listbox", "display_schemes_list", , , , pm)
+            pc.SizeTo 0, (4 * 24) + 2
+            .Add pc
+
+            .Add new_BPrefsControl("fancytoolbar", "display_style_toolbar", "Preview|Preview Priority|Make Default")
 
 
 
@@ -234,7 +266,7 @@ Dim pm As CTempMsg
         Case "sty-redirect"
 
             .SetMargin 0
-            .Add new_BPrefsControl("label", "", "Redirectors typically send the notification content to an external source (such as a web forwarding service, a mobile phone, etc.) or a different medium (such as speaking the notification).")
+            .Add new_BPrefsControl("label", "", "Redirects typically send the notification content to an external source (such as a web forwarding service, a mobile phone, etc.) or a different medium (such as speaking the notification).")
 
             Set pm = New CTempMsg
             pm.Add "item-height", 36&
@@ -245,21 +277,23 @@ Dim pm As CTempMsg
             pc.SizeTo 0, 26
             .Add pc
 
+            .Add new_BPrefsControl("fancytoolbar", "redirect_configure_toolbar", "Configure...|")
+
             ' /* 'the <style> has <n> schemes' label */
             .Add new_BPrefsControl("label", "redirect_scheme_label", "   ")
 
             Set pm = New CTempMsg
             pm.Add "item-height", 24&
             Set pc = new_BPrefsControl("listbox", "redirect_schemes", , , , pm)
-            pc.SizeTo 0, (6 * 26) + 2 + 6
+            pc.SizeTo 0, (6 * 24) + 2
             .Add pc
 
-            .Add new_BPrefsControl("fancytoolbar", "redirect_toolbar", "Configure...|Test|Test Priority")
+            .Add new_BPrefsControl("fancytoolbar", "redirect_toolbar", "Test|Test Priority")
         
 
         Case "sty-engines"
             .SetMargin 0
-            .Add new_BPrefsControl("label", "", "Style Engines provide the Displays and Redirectors which Snarl uses to generate the on-screen (or off-screen) notification content.")
+            .Add new_BPrefsControl("label", "", "Style Engines provide the Displays and Redirects which Snarl uses to generate the on-screen (or off-screen) notification content.")
 
             Set pm = New CTempMsg
             pm.Add "item-height", 36&
@@ -286,25 +320,20 @@ Dim pm As CTempMsg
 
         Case "net-general"
             .SetMargin 78
-
             .Add new_BPrefsControl("banner", "", "Receiving")
             .Add new_BPrefsControl("fancytoggle2", "listen_for_snarl", "Listen for incoming Growl or Snarl notifications?", , g_ConfigGet("listen_for_snarl"), pm)
             .Add new_BPrefsControl("fancytoggle2", "listen_for_json", "Listen for incoming JSON notifications?", , g_ConfigGet("listen_for_json"), pm)
             .Add new_BPrefsControl("label", "", "Snarl will listen on ports 9887 and 23053 for incoming notifications, and port 9889 for incoming JSON notifications.  You may need to adjust your firewall settings in order to receive these.")
-
             .Add new_BPrefsControl("banner", "", "Sending")
 '            .Add new_BPrefsControl("fancytoggle2", "include_host_name_when_forwarding", "Include computer name when forwarding notifications?", , g_ConfigGet("include_host_name_when_forwarding"))
             .Add new_BPrefsControl("fancytoggle2", "include_icon_when_forwarding", "Include icon when forwarding notifications?", , g_ConfigGet("include_icon_when_forwarding"))
-
             .Add new_BPrefsControl("banner", "", "Security")
-            .Add new_BPrefsControl("fancytoggle2", "allow_subs", "Allow remote computers to subscribe to notifications?", "", g_ConfigGet("allow_subs"))
-            .Add new_BPrefsControl("fancytoggle2", "notify_when_subscriber_added", "Notify me when remote computers subscribe to this computer?", "", g_ConfigGet("notify_when_subscriber_added"))
-
             .Add new_BPrefsControl("fancytoggle2", "require_password", "Require a password for remote applications?", "", g_ConfigGet("require_password"))
             Set pm = New CTempMsg
             pm.Add "password", 1&
             .Add new_BPrefsControl("fancyedit", "network_password", g_GetPassword(), "Password:", , pm)
-            .Add new_BPrefsControl("label", "", "This setting applies to applications registering via SNP3 or GNTP from a remote source.")
+            .Add new_BPrefsControl("label", "", "This setting applies to applications registering via SNP3 or GNTP from a remote source.  Note that enabling a password will prevent SNP 1.0 and SNP 2.0 applications from registering.")
+            .Add new_BPrefsControl("fancytoggle2", "block_net_control", "Prevent access to system functions via the network?", "", g_ConfigGet("block_net_control"))
 
     
         Case "net-clients"
@@ -339,7 +368,7 @@ Dim pm As CTempMsg
             pm.Add "item-height", 36&
 '            pm.Add "checkboxes", 1&
             Set pc = new_BPrefsControl("listbox", "net_subscription_list", , , , pm)
-            pc.SizeTo 0, (5 * 36) + 2
+            pc.SizeTo 0, (4 * 36) + 2
             .Add pc
             .Add new_BPrefsControl("fancyplusminus", "add_rem_subscription")
 
@@ -348,8 +377,11 @@ Dim pm As CTempMsg
             Set pm = New CTempMsg
             pm.Add "item-height", 26&
             Set pc = new_BPrefsControl("listbox", "net_subscriber_list", , , , pm)
-            pc.SizeTo 0, (4 * 26) + 2
+            pc.SizeTo 0, (3 * 26) + 2
             .Add pc
+
+            .Add new_BPrefsControl("fancytoggle2", "allow_subs", "Allow remote computers to subscribe to notifications?", "", g_ConfigGet("allow_subs"))
+            .Add new_BPrefsControl("fancytoggle2", "notify_when_subscriber_added", "Notify me when remote computers subscribe to this computer?", "", g_ConfigGet("notify_when_subscriber_added"))
 
     
 '        Case "net-subscribers"
@@ -407,32 +439,20 @@ Dim pm As CTempMsg
             .Add new_BPrefsControl("fancytoolbar", "missed_toolbar", "Select All|Deselect All|Invert Selection||Remove Selected")
             .Add new_BPrefsControl("fancybutton2", "missed_more", "Actions...")
             .Add new_BPrefsControl("label", "", "Double-click to replay the notification")
-        
-        
-        
-        ' /* ---------- style defaults panel ---------- */
-        
-        
+
+
+        ' /* [ Default Style panel ] */
+
         Case "defs-general"
             .SetMargin 90
             .Add new_BPrefsControl("banner", "", "Size")
-
-            Set pm = New CTempMsg
-            pm.Add "min", 80&
-            pm.Add "max", 560&
-            pm.Add "freq", 60&
-            .Add new_BPrefsControl("fancyslider", "style:width", "", "Width:", gStyleDefaults.ValueOf("width"), pm)
-            
-            Set pm = New CTempMsg
-            pm.Add "min", 20&
-            pm.Add "max", 300&
-            pm.Add "freq", 40&
-            .Add new_BPrefsControl("fancyslider", "style:height", "", "Height:", gStyleDefaults.ValueOf("height"), pm, False)
-
+            .Add prefskit_NewSlider("style:width", "Width:", 80, 560, 60, , Val(gStyleDefaults.ValueOf("width")))
+            Set pc = prefskit_NewSlider("style:height", "Height:", 20, 300, 40, , Val(gStyleDefaults.ValueOf("height")))
+            pc.SetEnabled False
+            .Add pc
             .Add new_BPrefsControl("banner", "", "Background")
             .Add new_BPrefsControl("fancycolourpicker", "style:background-colour", , "Normal:", gStyleDefaults.ValueOf("background-colour"))
             .Add new_BPrefsControl("fancycolourpicker", "style:background-colour-priority", , "Priority:", gStyleDefaults.ValueOf("background-colour-priority"))
-
 
         Case "defs-title"
             .SetMargin 90
@@ -440,16 +460,7 @@ Dim pm As CTempMsg
             .Add new_BPrefsControl("fancycolourpicker", "style:title-colour", , "Normal:", gStyleDefaults.ValueOf("title-colour"))
             .Add new_BPrefsControl("fancycolourpicker", "style:title-colour-priority", , "Priority:", gStyleDefaults.ValueOf("title-colour-priority"))
 '            .Add new_BPrefsControl("fancycycle", "style:title-weight", "Normal|Bold", "Weight:", gStyleDefaults.ValueOf("title-weight"))
-            Set pm = New CTempMsg
-            With pm
-                .Add "min", 0&
-                .Add "max", 100&
-                .Add "freq", 10&
-                .Add "suffix", "%"
-
-            End With
-            .Add new_BPrefsControl("fancyslider", "style:title-opacity", "", "Opacity:", gStyleDefaults.ValueOf("title-opacity"), pm)
-
+            .Add prefskit_NewSlider("style:title-opacity", "Opacity:", 0, 100, 10, , Val(gStyleDefaults.ValueOf("title-opacity")), "%")
         
         Case "defs-text"
             .SetMargin 90
@@ -457,16 +468,7 @@ Dim pm As CTempMsg
             .Add new_BPrefsControl("fancycolourpicker", "style:text-colour", , "Normal:", gStyleDefaults.ValueOf("text-colour"))
             .Add new_BPrefsControl("fancycolourpicker", "style:text-colour-priority", , "Priority:", gStyleDefaults.ValueOf("text-colour-priority"))
 '            .Add new_BPrefsControl("fancycycle", "style:text-weight", "Normal|Bold", "Weight:", gStyleDefaults.ValueOf("text-weight"))
-            Set pm = New CTempMsg
-            With pm
-                .Add "min", 0&
-                .Add "max", 100&
-                .Add "freq", 10&
-                .Add "suffix", "%"
-
-            End With
-            .Add new_BPrefsControl("fancyslider", "style:text-opacity", "", "Opacity:", gStyleDefaults.ValueOf("text-opacity"), pm)
-
+            .Add prefskit_NewSlider("style:text-opacity", "Opacity:", 0, 100, 10, , Val(gStyleDefaults.ValueOf("text-opacity")), "%")
 
         Case "defs-adv"
             .SetMargin 24
@@ -475,57 +477,83 @@ Dim pm As CTempMsg
 '            .Add new_BPrefsControl("fancytoggle2", "style:animate", "Enable animations?", "", gStyleDefaults.ValueOf("animate"))
         
         
+        ' /* [Notification Centre settings panel] */
+        
+        Case "nc-general"
+            .SetMargin 90
+            .Add new_BPrefsControl("banner", "", "Colours")
+            .Add new_BPrefsControl("fancycolourpicker", "nc-col-background", , "Background:", g_ConfigGet("nc-col-background"))
+            .Add new_BPrefsControl("fancycolourpicker", "nc-col-text", , "Text:", g_ConfigGet("nc-col-text"))
+            .Add prefskit_NewSlider("nc-opacity-percent", "Opacity:", 5, 100, 5, , g_SafeLong(g_ConfigGet("nc-opacity-percent")), "%")
+            .Add new_BPrefsControl("fancybutton2", "nc-restore_defaults", "Restore defaults")
+
+
+
+
+
+        
+        
+'            Set pm = New CTempMsg
+'            pm.Add "min", 80&
+'            pm.Add "max", 560&
+'            pm.Add "freq", 60&
+'            .Add new_BPrefsControl("fancyslider", "style:width", "", "Width:", gStyleDefaults.ValueOf("width"), pm)
+''            Set pm = New CTempMsg
+''            pm.Add "min", 20&
+''            pm.Add "max", 300&
+''            pm.Add "freq", 40&
+''            .Add new_BPrefsControl("fancyslider", "style:height", "", "Height:", gStyleDefaults.ValueOf("height"), pm, False)
         
         ' /* [Presence] */
 
-        Case "pre-active"
-            ' /* Pass-Through settings */
-            .SetMargin 24
-            .Add new_BPrefsControl("banner", "", "When I'm At My Computer")
-            .Add new_BPrefsControl("label", "", "In addition to displaying the notification using the selected style, Snarl will also redirect it to the following:")
-
-            Set pm = New CTempMsg
-            pm.Add "checkboxes", 1
-            pm.Add "item-height", CLng(30)
-            Set pc = new_BPrefsControl("listbox", "global_shadow_list", g_StyleRoster.GetNonWindowStyleList(), "", "", pm)
-            pc.SizeTo 0, (9 * 30) + 2
-            .Add pc
-
-        Case "pre-away"
-            .SetMargin 24
-            .Add new_BPrefsControl("banner", "", "When Away")
-            .Add new_BPrefsControl("fancycycle", "away_mode", "Log notification as missed|Display sticky|Discard notification|Display normally|Display as high priority|Redirect to...", "", g_ConfigGet("away_mode"))
-            .Add new_BPrefsCombo("away_style", g_StyleRoster.GetNonWindowStyleList2(), "", , 24, , , , (g_ConfigGet("away_mode") = "6"))
-            .Add new_BPrefsCombo("away_scheme_list", "", "", , 24, , , , (g_ConfigGet("away_mode") = "6"))
-            
-'            Set pc = new_BPrefsControl("listbox", "away_scheme_list", , , , , (g_ConfigGet("away_mode") = "6"))
-'            .Add pc
-
-'            .Add new_BPrefsControl("banner", "", "Assume I'm Away...")
-'            .Add new_BPrefsControl("label", "", "After the following period of inactivity:")
+'        Case "pre-active"
+'            ' /* Pass-Through settings */
+'            .SetMargin 24
+'            .Add new_BPrefsControl("banner", "", "When I'm At My Computer")
+'            .Add new_BPrefsControl("label", "", "In addition to displaying the notification using the selected style, Snarl will also redirect it to the following:")
+'
 '            Set pm = New CTempMsg
-'            pm.Add "min", 0&
-'            pm.Add "max", 30&
-'            pm.Add "freq", 5&
-'            pm.Add "label_size", 56&
-'            .Add new_BPrefsControl("fancyslider", "idle_minutes", "", "", IIf(g_ConfigGet("idle_minutes") = "2", "1", "2"), pm)
-'            .Add new_BPrefsControl("fancytoggle2", "away_when_locked", "When the computer is locked?", , g_ConfigGet("away_when_locked"))
-'            .Add new_BPrefsControl("fancytoggle2", "away_when_screensaver", "When the screensaver starts?", , g_ConfigGet("away_when_screensaver"))
-'            .Add new_BPrefsControl("label", "", "Note that the above settings only apply to normal priority notifications.  More granular settings are available in the class configuration preferences panel.")
-
-        Case "pre-busy"
-            .SetMargin 24
-            .Add new_BPrefsControl("banner", "", "When Busy")
-            .Add new_BPrefsControl("fancycycle", "busy_mode", "Log notification as missed|Display sticky|Discard notification|Display normally|Display as high priority|Redirect to...", "", g_ConfigGet("busy_mode"))
-            .Add new_BPrefsCombo("busy_style", g_StyleRoster.GetNonWindowStyleList2(), "", , 24, , , , (g_ConfigGet("busy_mode") = "6"))
-            .Add new_BPrefsCombo("busy_scheme_list", "", "", , 24, , , , (g_ConfigGet("busy_mode") = "6"))
-            
-''            Set pc = new_BPrefsControl("listbox", "busy_scheme_list", , , , , (g_ConfigGet("away_mode") = "6"))
+'            pm.Add "checkboxes", 1
+'            pm.Add "item-height", CLng(30)
+'            Set pc = new_BPrefsControl("listbox", "global_shadow_list", g_StyleRoster.GetNonWindowStyleList(), "", "", pm)
+'            pc.SizeTo 0, (9 * 30) + 2
+'            .Add pc
+'
+'        Case "pre-away"
+'            .SetMargin 24
+'            .Add new_BPrefsControl("banner", "", "When Away")
+'            .Add new_BPrefsControl("fancycycle", "away_mode", "Log notification as missed|Display sticky|Discard notification|Display normally|Display as high priority|Redirect to...", "", g_ConfigGet("away_mode"))
+'            .Add new_BPrefsCombo("away_style", g_StyleRoster.GetNonWindowStyleList2(), "", , 24, , , , (g_ConfigGet("away_mode") = "6"))
+'            .Add new_BPrefsCombo("away_scheme_list", "", "", , 24, , , , (g_ConfigGet("away_mode") = "6"))
+'
+''            Set pc = new_BPrefsControl("listbox", "away_scheme_list", , , , , (g_ConfigGet("away_mode") = "6"))
 ''            .Add pc
 '
-'            .Add new_BPrefsControl("banner", "", "Assume I'm Busy...")
-'            .Add new_BPrefsControl("fancytoggle2", "away_when_fullscreen", "When the foreground application is fullscreen?", , g_ConfigGet("away_when_fullscreen"))
-'            .Add new_BPrefsControl("label", "", "Note that the above settings only apply to normal priority notifications.  More granular settings are available in the class configuration preferences panel.")
+''            .Add new_BPrefsControl("banner", "", "Assume I'm Away...")
+''            .Add new_BPrefsControl("label", "", "After the following period of inactivity:")
+''            Set pm = New CTempMsg
+''            pm.Add "min", 0&
+''            pm.Add "max", 30&
+''            pm.Add "freq", 5&
+''            pm.Add "label_size", 56&
+''            .Add new_BPrefsControl("fancyslider", "idle_minutes", "", "", IIf(g_ConfigGet("idle_minutes") = "2", "1", "2"), pm)
+''            .Add new_BPrefsControl("fancytoggle2", "away_when_locked", "When the computer is locked?", , g_ConfigGet("away_when_locked"))
+''            .Add new_BPrefsControl("fancytoggle2", "away_when_screensaver", "When the screensaver starts?", , g_ConfigGet("away_when_screensaver"))
+''            .Add new_BPrefsControl("label", "", "Note that the above settings only apply to normal priority notifications.  More granular settings are available in the class configuration preferences panel.")
+'
+'        Case "pre-busy"
+'            .SetMargin 24
+'            .Add new_BPrefsControl("banner", "", "When Busy")
+'            .Add new_BPrefsControl("fancycycle", "busy_mode", "Log notification as missed|Display sticky|Discard notification|Display normally|Display as high priority|Redirect to...", "", g_ConfigGet("busy_mode"))
+'            .Add new_BPrefsCombo("busy_style", g_StyleRoster.GetNonWindowStyleList2(), "", , 24, , , , (g_ConfigGet("busy_mode") = "6"))
+'            .Add new_BPrefsCombo("busy_scheme_list", "", "", , 24, , , , (g_ConfigGet("busy_mode") = "6"))
+'
+'''            Set pc = new_BPrefsControl("listbox", "busy_scheme_list", , , , , (g_ConfigGet("away_mode") = "6"))
+'''            .Add pc
+''
+''            .Add new_BPrefsControl("banner", "", "Assume I'm Busy...")
+''            .Add new_BPrefsControl("fancytoggle2", "away_when_fullscreen", "When the foreground application is fullscreen?", , g_ConfigGet("away_when_fullscreen"))
+''            .Add new_BPrefsControl("label", "", "Note that the above settings only apply to normal priority notifications.  More granular settings are available in the class configuration preferences panel.")
         
         End Select
 
@@ -570,30 +598,52 @@ Dim i As Long
         mSelectedSubscription = prefskit_GetItem(Control, "data")
         Exit Sub
 
+    Case "display_styles_list"
+        sz = prefskit_GetItem(Control, "data")
+        Set mDisplayStyle = Nothing
+        g_StyleRoster.Find sz, mDisplayStyle
+        prefskit_SetItemEx mPage.Panel, "display_style_configure_toolbar", "enabled", 1, IIf(mDisplayStyle.IsConfigurable, 1&, 0&)
+        uUpdateDisplaySchemes
+        Exit Sub
 
+    Case "display_schemes_list"
+        mDisplayScheme = prefskit_GetItem(Control, "data")
+        Exit Sub
 
-'    Case "display_styles"
-'        uDisplayStyleChanged Control
-'        Exit Sub
-'
-'    Case "display_schemes"
-'        uDisplaySchemeChanged Val(Value)
-'        Exit Sub
-'
-'    Case "display_toolbar"
-'        uDisplayToolbarClicked Val(Value)
-'        Exit Sub
+    Case "display_style_configure_toolbar"
+        If Val(Value) = 1 Then _
+            mDisplayStyle.ShowPrefs mPage.Panel.hWnd
+
+    Case "display_style_toolbar"
+        If NOTNULL(mDisplayStyle) Then
+            Select Case Val(Value)
+            Case 1
+                mDisplayStyle.DoSchemePreview mDisplayScheme, False, 50
+
+            Case 2
+                mDisplayStyle.DoSchemePreview mDisplayScheme, True, 50
+
+            Case 3
+                g_ConfigSet "default_style", LCase$(mDisplayStyle.Name & "/" & mDisplayScheme)
+
+            End Select
+        End If
+        Exit Sub
 
     Case "redirect_styles"
         uRedirectStyleChanged Control
         Exit Sub
 
     Case "redirect_schemes"
-        uRedirectSchemeChanged Val(Value)
+        mRedirectScheme = prefskit_GetItem(Control, "data")
+        Exit Sub
+
+    Case "redirect_configure_toolbar"
+        uRedirectToolbarClicked Val(Value)
         Exit Sub
 
     Case "redirect_toolbar"
-        uRedirectToolbarClicked Val(Value)
+        uRedirectToolbarClicked Val(Value) + 1
         Exit Sub
 
     Case "add_remove_forward"
@@ -615,7 +665,6 @@ Dim i As Long
 
         Else
             ' /* remove selected entry */
-            MsgBox mSelectedSubscription
             If g_SubsRoster.Remove(mSelectedSubscription) Then _
                 uRefreshSubscriptions
 
@@ -817,29 +866,29 @@ Dim i As Long
         g_ConfigSet Control.GetName, Value
 
 
-    Case "away_style"
-        ' /* away style combo */
-        If mPage.Find("away_scheme_list", pc) Then
-            pc.SetText g_StyleRoster.GetSchemeList(prefskit_GetItem(Control, "data"))
-            pc.SetValue "1"
-
-        End If
-
-    Case "away_scheme_list"
-        If mPage.Find("away_style", pc) Then _
-            g_ConfigSet pc.GetName, prefskit_GetItem(pc, "data") & "/" & prefskit_GetItem(Control, "data")
-
-    Case "busy_style"
-        ' /* busy style combo */
-        If mPage.Find("busy_scheme_list", pc) Then
-            pc.SetText g_StyleRoster.GetSchemeList(prefskit_GetItem(Control, "data"))
-            pc.SetValue "1"
-
-        End If
-
-    Case "busy_scheme_list"
-        If mPage.Find("busy_style", pc) Then _
-            g_ConfigSet pc.GetName, prefskit_GetItem(pc, "data") & "/" & prefskit_GetItem(Control, "data")
+'    Case "away_style"
+'        ' /* away style combo */
+'        If mPage.Find("away_scheme_list", pc) Then
+'            pc.SetText g_StyleRoster.GetSchemeList(prefskit_GetItem(Control, "data"))
+'            pc.SetValue "1"
+'
+'        End If
+'
+'    Case "away_scheme_list"
+'        If mPage.Find("away_style", pc) Then _
+'            g_ConfigSet pc.GetName, prefskit_GetItem(pc, "data") & "/" & prefskit_GetItem(Control, "data")
+'
+'    Case "busy_style"
+'        ' /* busy style combo */
+'        If mPage.Find("busy_scheme_list", pc) Then
+'            pc.SetText g_StyleRoster.GetSchemeList(prefskit_GetItem(Control, "data"))
+'            pc.SetValue "1"
+'
+'        End If
+'
+'    Case "busy_scheme_list"
+'        If mPage.Find("busy_style", pc) Then _
+'            g_ConfigSet pc.GetName, prefskit_GetItem(pc, "data") & "/" & prefskit_GetItem(Control, "data")
 
 
 
@@ -857,14 +906,18 @@ Dim i As Long
         Case 1
             ' /* start */
             If g_StyleRoster.Load(mCurrentEngine.Name, True, True) Then _
-                uUpdateStyleEngineList
+                uUpdateEngineList
+
+            uUpdateDisplayStyleList
 
         Case 2
             ' /* stop */
             sz = mCurrentEngine.Name
             Set mCurrentEngine = Nothing
             If g_StyleRoster.Unload(sz, True) Then _
-                uUpdateStyleEngineList
+                uUpdateEngineList
+
+            uUpdateDisplayStyleList
 
         Case 3
             ' /* details */
@@ -911,13 +964,17 @@ Dim i As Long
         frmAbout.EnableSNP (Value = "1")
 
     Case "away_mode"
-        prefskit_SafeEnable mPage.Panel, "away_style", (Value = "6")
-        prefskit_SafeEnable mPage.Panel, "away_scheme_list", (Value = "6")
+'        prefskit_SafeEnable mPage.Panel, "away_style", (Value = "6")
+'        prefskit_SafeEnable mPage.Panel, "away_scheme_list", (Value = "6")
 
     Case "busy_mode"
-        prefskit_SafeEnable mPage.Panel, "busy_style", (Value = "6")
-        prefskit_SafeEnable mPage.Panel, "busy_scheme_list", (Value = "6")
+'        prefskit_SafeEnable mPage.Panel, "busy_style", (Value = "6")
+'        prefskit_SafeEnable mPage.Panel, "busy_scheme_list", (Value = "6")
 
+    ' /* [NC settings panel] */
+
+    Case "nc-col-background", "nc-col-text", "nc-opacity-percent"
+        g_NotificationRoster.NC.Repaint
 
     ' /* [Options] */
 
@@ -954,19 +1011,29 @@ Private Sub KPrefsPage_ControlInvoked(Control As prefs_kit_d2.BControl)
     Case "redirect_schemes"
         uRedirectToolbarClicked 2
 
+    Case "do_nc_settings"
+        Set theNCPanel = New TStyleDefaultsPanel
+        theNCPanel.Go mPage.Panel.hWnd, True
+
+    Case "nc-restore_defaults"
+        prefskit_SetValue mPage.Panel, "nc-col-background", CStr(rgba(31, 33, 33))
+        prefskit_SetValue mPage.Panel, "nc-col-text", CStr(rgba(255, 255, 255))
 
     Case "history_list"
         ' /* replay the selected item */
-        g_NotificationRoster.Add mSelHistory.Info, Nothing, False, True
+        If NOTNULL(mSelHistory) Then _
+            g_NotificationRoster.Add mSelHistory.Info, Nothing, False, True
 
     Case "missed_list"
         ' /* replay the selected item */
-        g_NotificationRoster.Add mSelMissed.Info, Nothing, False, True
+        If NOTNULL(mSelMissed) Then
+            mSelMissed.Replay
+            frmAbout.bUpdateMissedList
 
+        End If
 
     Case "history_more", "missed_more"
         uDoHistoryMoreButton Control, (Control.GetName = "history_more")
-
 
     Case "open_config"
         ShellExecute 0, "open", g_GetPath(g_SettingsPath()), vbNullString, vbNullString, SW_SHOW
@@ -1012,6 +1079,12 @@ Dim ps As ConfigSection
 
         End If
 
+'    Case "engine_style_list"
+'        If NOTNULL(mCurrentEngine) Then
+'            MsgBox prefskit_GetItem(Control)
+'
+'        End If
+
     End Select
 
 End Sub
@@ -1048,6 +1121,13 @@ Dim i As Long
         If Notification = "refresh" Then _
             uRefreshSubscribers
 
+    Case "display_styles_list"
+        If Notification = "refresh" Then _
+            uUpdateDisplayStyleList
+
+    Case "engine_list"
+        If Notification = "refresh" Then _
+            uUpdateEngineList
 
 
     Case "global_shadow_list"
@@ -1302,7 +1382,7 @@ Dim sz As String
     With g_SubsRoster.Subscribers
         .Rewind
         Do While .GetNextTag(ps) = B_OK
-            sz = sz & ps.FormattedName & " via " & UCase$(ps.Protocol) & "#?" & ps.AddressAndPort & "|"
+            sz = sz & ps.FormattedName & " using " & UCase$(ps.Protocol) & "#?" & ps.AddressAndPort & "|"
 
         Loop
 
@@ -1424,27 +1504,13 @@ Dim pc As BControl
 '    If mPage.Find("redirect_scheme_label", pc) Then _
         pc.SetText CStr(mRedirectStyle.CountSchemes) & " scheme" & IIf(mRedirectStyle.CountSchemes = 1, "", "s") & ":"
 
-    If mPage.Find("redirect_toolbar", pc) Then _
+    If mPage.Find("redirect_configure_toolbar", pc) Then _
         prefskit_SetItem pc, 1, "enabled", IIf((mRedirectStyle.Flags And S_STYLE_IS_CONFIGURABLE), 1&, 0&)
 
     uUpdateRedirectSchemeList
 
     If mPage.Find("redirect_desc", pc) Then _
         pc.SetText mRedirectStyle.Description
-
-End Sub
-
-Private Sub uRedirectSchemeChanged(ByVal NewIndex As Long)
-
-    If ISNULL(mRedirectStyle) Then _
-        Exit Sub
-
-    If mRedirectStyle.Name = "" Then _
-        Exit Sub
-
-    mRedirectScheme = mRedirectStyle.SchemeAt(NewIndex)
-    If mRedirectScheme = "<Default>" Then _
-        mRedirectScheme = ""
 
 End Sub
 
@@ -1457,23 +1523,17 @@ Dim pc As BControl
     ' /* set the listbox content */
 
     pc.SetText mRedirectStyle.GetSchemeList(True)
-'    MsgBox "selected item: " & pc.GetValue
 
     ' /* set the icons */
 
-Dim pm As CTempMsg
 Dim i As Long
 
-    Set pm = New CTempMsg
     With mRedirectStyle
-
         prefskit_SafeSetText mPage.Panel, "redirect_scheme_label", CStr(.CountSchemes) & " scheme" & IIf(.CountSchemes = 1, "", "s") & ":"
-
         If .CountSchemes Then
             For i = 1 To .CountSchemes
-                pm.Replace "index", i
-                pm.Replace "image-file", g_MakePath(.Path) & .SchemeAt(i) & ".icon"
-                pc.DoExCmd B_SET_ITEM, pm
+                prefskit_SetItemObject pc, i, "image-object", .SchemeIconIcon(i)
+'                prefskit_SetItem pc, i, "image-file", .SchemeIcon(i)
 
             Next i
         End If
@@ -1484,32 +1544,23 @@ Dim i As Long
 End Sub
 
 Private Sub uRedirectToolbarClicked(ByVal Index As Long)
-Dim pc As BControl
-Dim dw As Long
+
+    If ISNULL(mRedirectStyle) Then _
+        Exit Sub
 
     Select Case Index
     Case 1
         ' /* configure style */
-        If NOTNULL(mRedirectStyle) Then _
-            mRedirectStyle.ShowPrefs mPage.Panel.hWnd
+        mRedirectStyle.ShowPrefs mPage.Panel.hWnd
 
     Case 2, 3
         ' /* test or test priority */
-        If (mRedirectStyle.Name = "") Or (Not mPage.Find("redirect_schemes", pc)) Then _
-            Exit Sub
+        mRedirectStyle.DoSchemePreview mRedirectScheme, (Index = 3), 50
 
-        ' /* must have a selected scheme - this should *always* be the case, but... */
-
-        dw = Val(pc.GetValue())
-        If dw <> 0 Then
-            g_DoSchemePreview2 mRedirectStyle.Name, mRedirectStyle.SchemeAt(dw), (Index = 3), 0
-
-            ' /* check private (for now) flag */
-            If (mRedirectStyle.Flags And S_STYLE_REDIRECT_TO_SCREEN) = 0 Then _
-                g_PrivateNotify , "Redirect test", "A " & IIf(Index = 3, "priority ", "") & "notification has been created using " & _
-                                mRedirectStyle.Name & " (" & mRedirectStyle.SchemeAt(dw) & ")."
-
-        End If
+        ' /* check private (for now) flag */
+        If (mRedirectStyle.Flags And S_STYLE_REDIRECT_TO_SCREEN) = 0 Then _
+            g_PrivateNotify , "Redirect test", "A " & IIf(Index = 3, "priority ", "") & "notification has been created using " & _
+                            mRedirectStyle.Name & " (" & mRedirectScheme & ")."
 
     End Select
 
@@ -1617,18 +1668,18 @@ Dim c As Long
 
 End Sub
 
-Private Function uUpdateStyleEngineList() As String
+Private Sub uUpdateEngineList()
 Dim pc As BControl
 
     If Not (mPage.Find("engine_list", pc)) Then _
-        Exit Function
+        Exit Sub
 
 Dim pse As TStyleEngine
 Dim sz As String
 Dim n As Long
 Dim i As Long
 
-    n = MAX(Val(pc.GetValue), 1)
+    n = Max(Val(pc.GetValue), 1)
 
     If Not (g_StyleRoster Is Nothing) Then
         If g_StyleRoster.CountEngines > 0 Then
@@ -1636,7 +1687,7 @@ Dim i As Long
             With g_StyleRoster.EngineList
                 .Rewind
                 Do While .GetNextTag(pse) = B_OK
-                    sz = sz & pse.InfoString & "#?0#?"
+                    sz = sz & g_Capitalise(g_RemoveExtension(pse.Name)) & "#?0#?"
                     Select Case pse.State
                     Case SN_SE_LOADED
                         sz = sz & IIf(pse.Description <> "", pse.Description, " ")
@@ -1658,12 +1709,11 @@ Dim i As Long
             pc.SetText g_SafeLeftStr(sz, Len(sz) - 1)
 
             ' /* set the icons */
-
             With g_StyleRoster.EngineList
                 .Rewind
                 Do While .GetNextTag(pse) = B_OK
                     i = i + 1
-                    prefskit_SetItem pc, i, "image-file", g_MakePath(App.Path) & "etc\icons\" & IIf(pse.State = SN_SE_LOADED, "good", "bad") & ".png"
+                    prefskit_SetItemObject pc, i, "image-object", load_image_obj(g_MakePath(App.Path) & "etc\icons\" & IIf(pse.State = SN_SE_LOADED, "good", "bad") & ".png")
 
                 Loop
 
@@ -1683,7 +1733,7 @@ Dim i As Long
 
     pc.SetValue CStr(n)
 
-End Function
+End Sub
 
 Private Sub uUpdateEngineStyleList()
 Dim pc As BControl
@@ -1696,7 +1746,6 @@ Dim pi As BTagItem
 Dim sz As String
 
     Set pl = mCurrentEngine.StyleList
-
     With pl
         .Rewind
         Do While .GetNextTag(pi) = B_OK
@@ -1715,12 +1764,14 @@ Dim i As Long
         Do While .GetNextTag(pi) = B_OK
             i = i + 1
             If g_Exists(pi.Value) Then
-                prefskit_SetItem pc, i, "image-file", pi.Value
+                sz = pi.Value
 
             Else
-                prefskit_SetItem pc, i, "image-file", g_MakePath(App.Path) & "etc\icons\style.png"
+                sz = g_MakePath(App.Path) & "etc\icons\style.png"
 
             End If
+            prefskit_SetItemObject pc, i, "image-object", load_image_obj(sz)
+
         Loop
 
     End With
@@ -1903,25 +1954,124 @@ Private Function uSwap(ByVal Value As String) As String
 
 End Function
 
-Private Sub theAddPanel_Saved(ByVal Name As String, ByVal Hosts As String, ByVal Protocol As String, ByVal ItemType As String)
+Private Function uUpdateDisplayStyleList() As String
+Dim pc As BControl
+
+    If Not (mPage.Panel.Find("display_styles_list", pc)) Then _
+        Exit Function
+
+Dim ps As TStyle
+Dim sz As String
+Dim n As Long
+Dim i As Long
+
+    n = Max(Val(pc.GetValue), 1)
+    If Not (g_StyleRoster Is Nothing) Then
+        With g_StyleRoster
+            If .CountStyles > 0 Then
+                .Rewind
+                Do While .GetNextStyle(ps)
+                    If Not ps.IsRedirect() Then _
+                        sz = sz & ps.NameEx & "#?" & ps.Name & "#?" & IIf(ps.Description = "", IIf(ps.Copyright <> "", ps.Copyright, " "), ps.Description) & "|"
+
+                Loop
+
+                pc.SetText g_SafeLeftStr(sz, Len(sz) - 1)
+
+                ' /* set the icons */
+                .Rewind
+                Do While .GetNextStyle(ps)
+                    If Not ps.IsRedirect Then
+                        i = i + 1
+                        prefskit_SetItemObject pc, i, "image-object", ps.Icon
+
+'                        prefskit_SetItem pc, i, "image-file", ps.SafeIconPath
+
+                    End If
+                Loop
+
+            Else
+                pc.SetText "<None>"
+                n = 1
+
+            End If
+        End With
+    Else
+        pc.SetText "<Style Roster not available>"
+        n = 1
+
+    End If
+
+    pc.SetValue CStr(n)
+
+End Function
+
+Private Sub uUpdateDisplaySchemes()
+Dim pc As BControl
+
+    If Not (mPage.Panel.Find("display_schemes_list", pc)) Then _
+        Exit Sub
+
+Dim sz As String
+Dim i As Long
+
+    If NOTNULL(mDisplayStyle) Then
+        With mDisplayStyle
+            If .CountSchemes Then
+                For i = 1 To .CountSchemes
+                    sz = sz & .SchemeAt(i) & "#?" & LCase$(.SafeSchemeAt(i)) & "|"
+
+                Next i
+
+                pc.SetText g_SafeLeftStr(sz, Len(sz) - 1)
+
+                For i = 1 To .CountSchemes
+                    prefskit_SetItemObject pc, i, "image-object", .SchemeIconIcon(i)
+'                    prefskit_SetItem pc, i, "image-file", .SchemeIcon(i)
+
+                Next i
+
+                pc.SetValue "1"
+
+            Else
+                pc.SetText "<None>"
+
+            End If
+
+            prefskit_SafeSetText mPage.Panel, "display_schemes_count", CStr(.CountSchemes) & " scheme" & IIf(.CountSchemes = 1, "", "s") & ".  Provider: " & .Engine.Name
+
+        End With
+
+    Else
+        pc.SetText "<None>"
+
+    End If
+
+End Sub
+
+Private Sub theAddPanel_Saved(ByVal Name As String, ByVal Hosts As String, ByVal Protocol As String, ByVal ItemType As String, ByVal Password As String)
 Dim ps As ConfigSection
 
+    ' /* sort out the config file */
+
     If ISNULL(mCurrentItem) Then
-        ' /* create a new one */
+        ' /* create a new section */
         With g_SubsRoster.Config
             Set ps = .AddSectionObj(g_CreateGUID(True))
             ps.Add "type", ItemType
             ps.Add "name", Name
             ps.Add "hosts", Hosts
             ps.Add "protocol", Protocol
+            ps.Add "password", Password
 
         End With
     Else
-        ' /* update existing */
+        ' /* update existing section */
         With mCurrentItem
             .Update "name", Name
             .Update "hosts", Hosts
             .Update "protocol", Protocol
+            .Update "password", Password
 
         End With
 
@@ -1929,10 +2079,16 @@ Dim ps As ConfigSection
 
     g_SubsRoster.Config.Save
 
+    ' /* sort out rosters */
+
     If ItemType = "forwarder" Then
         uRefreshForwards
 
     Else
+        ' /* subscription */
+        If ISNULL(mCurrentItem) Then _
+            g_SubsRoster.AddSubscription Name, Hosts, Protocol, ps.Name, Password
+
         uRefreshSubscriptions
     
     End If

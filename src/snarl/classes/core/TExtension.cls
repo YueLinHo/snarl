@@ -40,7 +40,6 @@ Implements mObject
 Implements MWndProcSink
 
 Private Property Get MObject_Type() As String
-
 End Property
 
 Public Sub SetTo(ByVal Class As String, ByVal Path As String)
@@ -219,6 +218,7 @@ Dim pi As BIcon
     End If
 
     uInit = True
+    g_Debug "", LEMON_LEVEL_PROC_EXIT
 
 End Function
 
@@ -254,7 +254,7 @@ End Function
 
 Public Function IsConfigurable() As Boolean
 
-    If mState = SN_ES_LOADED Then _
+    If (mState = SN_ES_LOADED) Or (mState = SN_ES_FAILED) Then _
         IsConfigurable = (mInfo.Flags And SNARL_EXTN_IS_CONFIGURABLE)
 
 End Function
@@ -378,10 +378,12 @@ End Function
 
 Private Function uDisable(ByVal UnloadNow As Boolean) As Boolean
 
-    ' /* can't disable a failed extension */
-
-    If mState = SN_ES_FAILED Then _
+    ' /* can't disable a failed extension - set it as unloaded */
+    If mState = SN_ES_FAILED Then
+        mState = SN_ES_NOT_LOADED
         Exit Function
+
+    End If
 
     If Not (mObj41 Is Nothing) Then
         ' /* V41 */
@@ -458,7 +460,7 @@ Public Function DoPrefs(ByVal hWndOwner As Long) As Boolean
     End If
 
     If mhWndConfig <> 0 Then
-        g_ShowWindow mhWndConfig, True, True
+        g_WindowToFront mhWndConfig, True
         g_Debug "TExtension.DoPrefs(): config already open", LEMON_LEVEL_INFO
         Exit Function
 
@@ -500,7 +502,8 @@ Dim hWndConfig As Long
         End If
 
         ' /* show it */
-        g_ShowWindow hWndConfig, True, True
+'        g_ShowWindow hWndConfig, True, True
+        g_WindowToFront hWndConfig, True
 
         ' /* subclass the provided window */
         AddSubClass hWndConfig, Me
@@ -508,7 +511,7 @@ Dim hWndConfig As Long
         If hWndOwner <> 0 Then
             ' /* assign the owner as our owner and disable it */
             SetWindowLong hWndConfig, GWL_HWNDPARENT, hWndOwner
-            EnableWindow hWndOwner, 0
+'            EnableWindow hWndOwner, 0
 
         End If
 
@@ -617,8 +620,8 @@ Private Function MWndProcSink_WndProc(ByVal hWnd As Long, ByVal uMsg As Long, By
     If uMsg = WM_DESTROY Then
         ' /* config window has gone */
         RemoveSubClass hWnd                     ' // really necessary?
-        EnableWindow mhWndPrefsPanel, -1
-        g_ShowWindow mhWndPrefsPanel, True, True
+'        EnableWindow mhWndPrefsPanel, -1
+'        g_ShowWindow mhWndPrefsPanel, True, True
         mhWndPrefsPanel = 0
         mhWndConfig = 0
 
@@ -688,7 +691,7 @@ Dim sz As String
 
     g_NotificationRoster.Hide gExtDetailsToken, "", "", ""
 
-    gExtDetailsToken = g_PrivateNotify("", mInfo.Name & " " & mInfo.Release, sz, , mInfo.IconPath)
+    gExtDetailsToken = g_PrivateNotify(, mInfo.Name & " " & mInfo.Release, sz, , mInfo.IconPath)
 
     If gExtDetailsToken <> 0 Then
         If (mInfo.SupportEmail <> "") And (InStr(mInfo.SupportEmail, "@") <> 0) Then _

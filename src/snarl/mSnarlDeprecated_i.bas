@@ -194,6 +194,21 @@ Public Function g_XCommandStr(ByVal Command As Long) As String
     Case SNARL_REGISTER_CONFIG_WINDOW_2
         g_XCommandStr = "SNARL_REGISTER_CONFIG_WINDOW_2"
 
+
+
+    Case SNARL_LOAD_EXTENSION
+        g_XCommandStr = "SNARL_LOAD_EXTENSION"
+
+    Case SNARL_UNLOAD_EXTENSION
+        g_XCommandStr = "SNARL_UNLOAD_EXTENSION"
+
+    Case SNARL_LOAD_STYLE_ENGINE
+        g_XCommandStr = "SNARL_LOAD_STYLE_ENGINE"
+    
+    Case SNARL_UNLOAD_STYLE_ENGINE
+        g_XCommandStr = "SNARL_UNLOAD_STYLE_ENGINE"
+
+
     Case Else
         g_XCommandStr = "unknown: " & CStr(Command)
 
@@ -391,4 +406,17 @@ End Function
 '
 'End Sub
 
+Public Sub snOldRebootStyleEngine(ByVal StyleEngine As String)
+Dim pss As SNARLSTRUCT
 
+    pss.Text = uToUTF8(StyleEngine)
+
+    ' /* stop */
+    pss.Cmd = SNARL_UNLOAD_STYLE_ENGINE
+    uSend pss
+
+    ' /* start */
+    pss.Cmd = SNARL_LOAD_STYLE_ENGINE
+    uSend pss
+
+End Sub

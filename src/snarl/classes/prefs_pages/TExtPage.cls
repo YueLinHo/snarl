@@ -51,17 +51,19 @@ Dim i As Long
         pc.SizeTo 0, 200
         .Add pc
 
-        .Add new_BPrefsControl("fancytoolbar", "extension_toolbar", "Start|Stop|Details|Configure...||Show in Explorer")
+        .Add new_BPrefsControl("fancytoolbar", "extension_toolbar", "Start|Stop|Details|Configure...||Show in Explorer||Uninstall")
         .Add new_BPrefsSeparator
         .Add new_BPrefsControl("fancytoolbar", "toolbar-general", "Reload Extensions|")
 '        .Add new_BPrefsControl("fancytoolbar", "toolbar-general", "Reload Extensions|Install Extension...")
 '        .Add new_BPrefsSeparator
 
-        Set pm = New CTempMsg
-        pm.Add "image-file", g_MakePath(App.Path) & "etc\icons\info_emblem.png"
-        Set pc = new_BPrefsControl("labelex", "", "To prevent extensions from being loaded, hold down the 'E' key while Snarl loads.", , , pm)
-        pc.SizeTo 0, 24
-        .Add pc
+        .Add new_BPrefsControl("label", "", "To prevent extensions from being loaded, hold down the 'E' key while Snarl loads.")
+
+'        Set pm = New CTempMsg
+'        pm.Add "image-file", g_MakePath(App.Path) & "etc\icons\info_emblem.png"
+'        Set pc = new_BPrefsControl("labelex", "", "To prevent extensions from being loaded, hold down the 'E' key while Snarl loads.", , , pm)
+'        pc.SizeTo 0, 24
+'        .Add pc
 
     End With
 
@@ -157,6 +159,10 @@ Dim b As Boolean
 '
 '            End With
 
+        Case 8
+            ' /* uininstall */
+            uUninstall
+
         End Select
 
 
@@ -166,7 +172,7 @@ Dim b As Boolean
         Case 1
             ' /* reload */
             If Not (g_ExtnRoster Is Nothing) Then
-                g_ExtnRoster.Reload
+                g_ExtnRoster.Restart
                 uUpdateExtensions
 
             End If
@@ -199,10 +205,7 @@ End Sub
 Private Sub KPrefsPage_ControlNotify(Control As BControl, ByVal Notification As String, Data As melon.MMessage)
 Dim bEnable As Boolean
 Dim pc As BControl
-Dim px As TExtension
 Dim pm As CTempMsg
-Dim sz As String
-Dim i As Long
 
     Debug.Print "[" & mPage.GetName() & "]: ControlNotify '" & Control.GetName() & "' >> '" & Notification & "'"
 
@@ -224,34 +227,14 @@ Dim i As Long
             g_ExtnRoster.WriteExcludeList
             uUpdateStatus
 
-            pm.Add "image-file", IIf(mCurrent.State = SN_ES_FAILED, _
-                                     g_MakePath(App.Path) & "etc\icons\bad.png", mCurrent.Icon)
-
-            pm.Add "subtext", IIf(mCurrent.State = SN_ES_FAILED, _
-                                    "Failed to start: " & mCurrent.LastError, mCurrent.Description)
-
+            pm.Add "image-object", load_image_obj(IIf(mCurrent.State = SN_ES_FAILED, g_MakePath(App.Path) & "etc\icons\bad.png", mCurrent.Icon))
+            pm.Add "subtext", IIf(mCurrent.State = SN_ES_FAILED, "Failed to start: " & mCurrent.LastError, mCurrent.Description)
             pm.Add "greyscale", IIf(mCurrent.State = SN_ES_NOT_LOADED, -1&, 0&)
-
             Control.DoExCmd B_SET_ITEM, pm
 
             If Control.Page.Panel.Find("cb>apps", pc) Then _
                 pc.Notify "update_list", Nothing
 
-'                Else
-'                    ' /* failed to enable/disable the extension */
-'
-'
-'                    If bEnable Then _
-'                        MsgBox "The " & px.FriendlyName & " extension failed to start." & vbCrLf & _
-'                               "The following information may be of use:" & vbCrLf & vbCrLf & _
-'                               "Name: " & uStr(px.Name) & vbCrLf & _
-'                               "Error: " & uStr(px.LastError) & vbCrLf & _
-'                               "Version: " & uStr(px.VerString) & vbCrLf & _
-'                               "Support contact: " & uStr(px.SupportURL), _
-'                               vbCritical Or vbOKOnly, "Extension Failed to Load"
-'
-'                End If
-'            End If
         End Select
     End If
 
@@ -307,7 +290,7 @@ Dim i As Long
     Set pr = g_ExtnRoster
     pr.Rewind
     Do While pr.NextItem(px)
-        list_content = list_content & px.Name & " " & px.VerString(False) & "#?" & CStr(0) & "#?" & px.Description & "|"
+        list_content = list_content & px.Name & "#?" & CStr(0) & "#?" & px.Description & "|"
 
     Loop
 
@@ -333,14 +316,14 @@ Dim i As Long
             pm.Add "greyscale", IIf(px.State = SN_ES_NOT_LOADED, 1&, 0&)
     
             If px.State = SN_ES_FAILED Then
-                pm.Add "image-file", g_MakePath(App.Path) & "etc\icons\bad.png"
+                pm.Add "image-object", load_image_obj(g_MakePath(App.Path) & "etc\icons\bad.png")
     
     '        ElseIf InStr(px.Icon, ",") Then
     '            pm.Add "image-icon", px.Icon
     
             Else
-                pm.Add "image-file", g_TranslateIconPath(px.Icon, "")
-        
+                pm.Add "image-object", load_image_obj(g_TranslateIconPath(px.Icon, ""))
+
             End If
     
             pc.DoExCmd B_SET_ITEM, pm
@@ -367,7 +350,7 @@ Dim pc As BControl
     If mPage.Find("extension_toolbar", pc) Then
         '//"Start|Stop|Details|Configure...||Show in Explorer"
         prefskit_SetItem pc, 1, "enabled", IIf(mCurrent.State = SN_ES_LOADED, 0&, 1&)
-        prefskit_SetItem pc, 2, "enabled", IIf(mCurrent.State = SN_ES_LOADED, 1&, 0&)
+        prefskit_SetItem pc, 2, "enabled", IIf(mCurrent.State <> SN_ES_NOT_LOADED, 1&, 0&)
         prefskit_SetItem pc, 3, "enabled", IIf(mCurrent.State <> SN_ES_FAILED, 1&, 0&)
         prefskit_SetItem pc, 4, "enabled", IIf(mCurrent.IsConfigurable, 1&, 0&)
         prefskit_SetItem pc, 6, "enabled", IIf(mCurrent.State <> SN_ES_FAILED, 1&, 0&)
@@ -428,5 +411,49 @@ Dim n As Integer
     n = FreeFile()
     Open File For Output As #n
     Close #n
+
+End Sub
+
+Private Sub uUninstall()
+
+    If MsgBox("Are you sure you want to uninstall " & mCurrent.Name & "?", vbYesNo Or vbQuestion, App.Title) = vbNo Then _
+        Exit Sub
+
+Dim bFailed As Boolean
+Dim sz As String
+
+    sz = mCurrent.Class & ".extension"
+
+    mCurrent.SetEnabled False
+
+    ' /* delete from program files first */
+    If g_Exists(g_MakePath(App.Path) & "extensions\" & sz) Then
+        If DeleteFile(g_MakePath(App.Path) & "extensions\" & sz) = 0 Then _
+            bFailed = True
+
+    End If
+
+    ' /* %COMMONAPPDATA% */
+    If g_Exists(g_GetUserFolderPathStr(True) & "extensions\" & sz) Then
+        If DeleteFile(g_GetUserFolderPathStr(True) & "extensions\" & sz) = 0 Then _
+            bFailed = True
+
+    End If
+
+    ' /* %APPDATA% */
+    If g_Exists(g_GetUserFolderPathStr(False) & "extensions\" & sz) Then
+        If DeleteFile(g_GetUserFolderPathStr(False) & "extensions\" & sz) = 0 Then _
+            bFailed = True
+
+    End If
+
+    If Not bFailed Then
+        g_ExtnRoster.Remove mCurrent.Class
+        uUpdateExtensions
+
+    Else
+        MsgBox "Unable to uninstall " & mCurrent.Name & ".  You might not have sufficient permissions.", vbExclamation Or vbOKOnly, App.Title
+
+    End If
 
 End Sub

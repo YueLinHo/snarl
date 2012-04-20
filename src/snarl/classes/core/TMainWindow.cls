@@ -255,7 +255,7 @@ Private Function uManageSnarl(ByVal wParam As Long, ByVal lParam As Long) As Lon
     Case 5
         ' /* reload extensions */
         If Not (g_ExtnRoster Is Nothing) Then _
-            g_ExtnRoster.Reload
+            g_ExtnRoster.Restart
 
         frmAbout.bUpdateExtList
 
@@ -402,7 +402,7 @@ Dim pss As SNARLSTRUCTI
             End If
         Else
             g_Debug "TMainWindow.uCopyData(): notification engine is not running", LEMON_LEVEL_WARNING
-            gSetLastError SNARL_ERROR_NOT_RUNNING
+            g_SetLastError SNARL_ERROR_NOT_RUNNING
             uCopyData = 0
 
         End If
@@ -415,12 +415,11 @@ Dim pss As SNARLSTRUCTI
                 g_Debug "TMainWindow.uCopyData(): source PID not provided", LEMON_LEVEL_CRITICAL
     '                If gDebugMode Then _
                     g_PrivateNotify SNARL_CLASS_GENERAL, "V40 Request Blocked", "No PID"
-            
+
             Else
                 ' /* retrieve the SNARLSTRUCT so we can get the command */
                 CopyMemory pss, ByVal pcds.lpData, Len(pss)
                 g_Debug "TMainWindow.uCopyData(): cmd=" & g_XCommandStr(pss.Cmd) & " id=" & pss.Id & " lngdata2=" & g_HexStr(pss.LngData2), LEMON_LEVEL_PROC
-    
                 If pss.Cmd >= SNARL_EX_SHOW Then
                     ' /* extended command */
                     uCopyData = uDoCmdEx(pcds.lpData, hwndFrom)
@@ -611,22 +610,26 @@ Dim sz As String
         ' /* ------------------------------ V40 (private) ------------------------------ */
 
     Case SNARL_LOAD_EXTENSION
-        ' /* added as private in V38, will be doc'd in V40 */
+        ' /* undocumented: used by snarlm but deprecated in favour of using snarl.exe --load */
+        sz = g_UTF8(pss.Text)
+        g_Debug "TMainWindow.uDoCmd(): SNARL_LOAD_EXTENSION: " & g_Quote(sz), LEMON_LEVEL_INFO
         If Not (g_ExtnRoster Is Nothing) Then
-            uDoCmd = g_ExtnRoster.LoadExtension(g_UTF8(pss.Text))
+            uDoCmd = IIf(g_ExtnRoster.Load(sz, True) = SNARL_SUCCESS, M_OK, M_FAILED)
 
         Else
-            g_Debug "uDoCmd(): [SNARL_LOAD_EXTENSION] extension roster is not available", LEMON_LEVEL_CRITICAL
+            g_Debug "TMainWindow.uDoCmd(): SNARL_LOAD_EXTENSION: extension roster is not available", LEMON_LEVEL_CRITICAL
 
         End If
 
     Case SNARL_UNLOAD_EXTENSION
-        ' /* added as private in V38, will be doc'd in V40 */
+        ' /* undocumented: used by snarlm but deprecated in favour of using snarl.exe --load */
+        sz = g_UTF8(pss.Text)
+        g_Debug "TMainWindow.uDoCmd(): SNARL_UNLOAD_EXTENSION: " & g_Quote(sz), LEMON_LEVEL_INFO
         If Not (g_ExtnRoster Is Nothing) Then
-'            uDoCmd = g_ExtnRoster.UnloadExtension(g_UTF8(pss.Text))
+            uDoCmd = IIf(g_ExtnRoster.Unload(sz, False) = SNARL_SUCCESS, M_OK, M_FAILED)
 
         Else
-            g_Debug "uDoCmd(): [SNARL_UNLOAD_EXTENSION] extension roster is not available", LEMON_LEVEL_CRITICAL
+            g_Debug "TMainWindow.uDoCmd(): SNARL_UNLOAD_EXTENSION: extension roster is not available", LEMON_LEVEL_CRITICAL
 
         End If
 
@@ -647,28 +650,31 @@ Dim sz As String
         '  * snarlcmd->lngdata2 = flags (only 0x0001 [priority] defined)
         '  * snarlcmd->id = percent value (must be 1><100 to have any effect)
         '  */
-
         g_DoSchemePreview2 g_UTF8(pss.Title), g_UTF8(pss.Text), ((pss.LngData2 And 1) <> 0), pss.Id
 
 
     Case SNARL_LOAD_STYLE_ENGINE
-        ' /* private - not due for documentation */
+        ' /* undocumented: used by snarlm but deprecated in favour of using snarl.exe --load */
+        sz = g_UTF8(pss.Text)
+        g_Debug "TMainWindow.uDoCmd(): SNARL_LOAD_STYLE_ENGINE: " & g_Quote(sz), LEMON_LEVEL_INFO
         If Not (g_StyleRoster Is Nothing) Then
-            uDoCmd = IIf(g_StyleRoster.Load(g_UTF8(pss.Text), True, False), M_OK, M_NOT_FOUND)
+            uDoCmd = IIf(g_StyleRoster.Load(sz, True, True), M_OK, M_NOT_FOUND)
 
         Else
-            g_Debug "uDoCmd(): [SNARL_LOAD_STYLE_ENGINE] style roster is not available", LEMON_LEVEL_CRITICAL
+            g_Debug "TMainWindow.uDoCmd(): SNARL_LOAD_STYLE_ENGINE: style roster is not available", LEMON_LEVEL_CRITICAL
             uDoCmd = M_FAILED
 
         End If
 
     Case SNARL_UNLOAD_STYLE_ENGINE
-        ' /* private - not due for documentation */
-        If Not (g_ExtnRoster Is Nothing) Then
-            uDoCmd = IIf(g_StyleRoster.Unload(g_UTF8(pss.Text), False), M_OK, M_NOT_FOUND)
+        ' /* undocumented: used by snarlm but deprecated in favour of using snarl.exe --load */
+        sz = g_UTF8(pss.Text)
+        g_Debug "TMainWindow.uDoCmd(): SNARL_UNLOAD_STYLE_ENGINE: " & g_Quote(sz), LEMON_LEVEL_INFO
+        If Not (g_StyleRoster Is Nothing) Then
+            uDoCmd = IIf(g_StyleRoster.Unload(sz, False), M_OK, M_NOT_FOUND)
 
         Else
-            g_Debug "uDoCmd(): [SNARL_UNLOAD_STYLE_ENGINE] style roster is not available", LEMON_LEVEL_CRITICAL
+            g_Debug "TMainWindow.uDoCmd(): SNARL_UNLOAD_STYLE_ENGINE: style roster is not available", LEMON_LEVEL_CRITICAL
             uDoCmd = M_FAILED
 
         End If
@@ -798,7 +804,7 @@ Dim pData As BPackedData
 
     Case Else
         ' /* no need to process these */
-        gSetLastError SNARL_ERROR_UNKNOWN_COMMAND
+        g_SetLastError SNARL_ERROR_UNKNOWN_COMMAND
         Exit Function
 
     End Select
@@ -850,33 +856,34 @@ Dim i As Long
 
     Item = Replace$(Item, "%20", " ")
     Debug.Print "TMainWindow.uConfigure(): " & Item
+    MsgBox "TMainWindow.uConfigure: " & Item
 
-    Select Case LCase$(g_GetExtension(Item))
-    Case "extension"
-        If (g_ExtnRoster Is Nothing) Then _
-            Exit Function
-
-        i = g_ExtnRoster.IndexOf(g_RemoveExtension(Item))
-        If i Then
-            frmAbout.NewDoPrefs 5
-            uConfigure = frmAbout.DoExtensionConfig(i)
-
-        End If
-
-    Case "style"
-        If (g_StyleRoster Is Nothing) Then _
-            Exit Function
-
-        i = g_StyleRoster.IndexOf(g_RemoveExtension(Item))
-        Debug.Print "style: " & i
-
-        If i Then
-            frmAbout.NewDoPrefs 4
-            uConfigure = frmAbout.DoStyleConfig(i)
-
-        End If
-
-    End Select
+'    Select Case LCase$(g_GetExtension(Item))
+'    Case "extension"
+'        If (g_ExtnRoster Is Nothing) Then _
+'            Exit Function
+'
+'        i = g_ExtnRoster.IndexOf(g_RemoveExtension(Item))
+'        If i Then
+'            frmAbout.NewDoPrefs 5
+'            uConfigure = frmAbout.DoExtensionConfig(i)
+'
+'        End If
+'
+'    Case "style"
+'        If (g_StyleRoster Is Nothing) Then _
+'            Exit Function
+'
+'        i = g_StyleRoster.IndexOf(g_RemoveExtension(Item))
+'        Debug.Print "style: " & i
+'
+'        If i Then
+'            frmAbout.NewDoPrefs 4
+'            uConfigure = frmAbout.DoStyleConfig(i)
+'
+'        End If
+'
+'    End Select
 
 End Function
 

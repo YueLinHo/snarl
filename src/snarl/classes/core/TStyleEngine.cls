@@ -210,18 +210,18 @@ Dim i As Long
 
         ' /* list of styles it provides */
 
-        If .CountStyles > 0 Then
-            sz = sz & vbCrLf & vbCrLf & "Styles: "
-
-            For i = 1 To .CountStyles
-                .StyleAt i, ps
-                szs = szs & ps.Name & ", "
-
-            Next i
-
-            sz = sz & g_SafeLeftStr(szs, Len(szs) - 2)
-
-        End If
+'        If .CountStyles > 0 Then
+'            sz = sz & vbCrLf & vbCrLf & "Styles: "
+'
+'            For i = 1 To .CountStyles
+'                .StyleAt i, ps
+'                szs = szs & ps.Name & ", "
+'
+'            Next i
+'
+'            sz = sz & g_SafeLeftStr(szs, Len(szs) - 2)
+'
+'        End If
 
         g_NotificationRoster.Hide gStyleEngineDetailsToken, "", "", ""
         gStyleEngineDetailsToken = g_PrivateNotify(SNARL_CLASS_GENERAL, g_RemoveExtension(.Name), sz, , g_MakePath(App.Path) & "etc\icons\style_engine.png")
@@ -261,6 +261,8 @@ Public Sub Configure()
         Exit Sub
 
 Dim hWnd As Long
+
+    g_Debug "WARNING: style engine configuration is not currently supported", LEMON_LEVEL_CRITICAL
 
     hWnd = mObject.GetConfigWindow(".global")
     If IsWindow(hWnd) <> 0 Then

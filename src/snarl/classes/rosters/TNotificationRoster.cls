@@ -47,6 +47,8 @@ Dim mHistory As BTagList            ' // R2.4.2 DR3
 '
 'End Enum
 
+Dim mNotificationCentre As TNotificationCentre
+
 Implements MLibrary
 Implements MVersionInfo
 
@@ -55,13 +57,13 @@ Private Function MLibrary_Close() As melon.M_RESULT
     g_Debug "TNotificationRoster.Close()", LEMON_LEVEL_PROC
 
     mRefs = mRefs - 1
-    If mRefs > 0 Then
-        ' /* still open */
+    If mRefs > 0 Then _
         Exit Function
 
-    End If
-
     ' /* run tidyup code */
+
+'    mNotificationCentre.Hide
+    Set mNotificationCentre = Nothing
 
 Dim i As Long
 
@@ -108,6 +110,8 @@ Private Function MLibrary_Open() As melon.M_RESULT
 
 '        mMonitorCount = g_CountMonitors()
 
+        Set mNotificationCentre = New TNotificationCentre
+
     End If
 
 End Function
@@ -150,7 +154,7 @@ Friend Function Add(ByRef Info As T_NOTIFICATION_INFO, ByRef Args As BPackedData
     '
     ' */
 
-    gSetLastError SNARL_ERROR_FAILED
+    g_SetLastError SNARL_ERROR_FAILED
     If g_IsQuitting Then _
         Exit Function               ' // shutting down - can't do anything
 
@@ -159,7 +163,7 @@ Friend Function Add(ByRef Info As T_NOTIFICATION_INFO, ByRef Args As BPackedData
     If g_ConfigGet("log_only") = "1" Then
         g_WriteToLog Info.Title, Info.Text
         Add = -1                    ' // V40.7 - changed from M_OK to -1 (indicates success but no token available)
-        gSetLastError SNARL_SUCCESS
+        g_SetLastError SNARL_SUCCESS
         Exit Function               ' // TO-DO: determine if we should return 0 and set last_error instead
 
     End If
@@ -172,50 +176,47 @@ Friend Function Add(ByRef Info As T_NOTIFICATION_INFO, ByRef Args As BPackedData
 
     End If
 
+    ' /* R2.6 - minor kludge, but saves us doing constant error checking */
+
+    If ISNULL(Args) Then _
+        Set Args = New BPackedData
+
     ' /* R2.5.1: can direct notifications to the current user */
 
-    If NOTNULL(Args) Then
-        If Args.Exists("recipient") Then
-            If LCase$(Args.ValueOf("recipient")) <> LCase$(g_GetUserName()) Then
-                g_Debug "TNotificationRoster.Add(): notification not intended for this user", LEMON_LEVEL_INFO
-                gSetLastError SNARL_ERROR_DISCARDED
-                Exit Function
+    If Args.Exists("recipient") Then
+        If LCase$(Args.ValueOf("recipient")) <> LCase$(g_GetUserName()) Then
+            g_Debug "TNotificationRoster.Add(): notification not intended for this user", LEMON_LEVEL_INFO
+            g_SetLastError SNARL_ERROR_DISCARDED
+            Exit Function
 
-            End If
         End If
     End If
+
+
+'    ' /* R2.31: 'duplicates' is now a simple 'stop spam' toggle - what we do with the potential
+'    '    spam is for future releases; for now we just discard it */
+'
+'Dim lQuantum As Long
+'
+'    lQuantum = g_SafeLong(g_ConfigGet("flood_quantum"))
+'    If lQuantum < 100 Then _
+'        lQuantum = 750
+'
+'    If (Info.ClassObj.GetValue("block_spam") = "1") And ((GetTickCount() - Info.ClassObj.LastNotificationGeneratedTick) < lQuantum) Then
+'        ' /* R2.31 - for now, block and return a failure code.  For the future, it would be lovely to
+'        '    allow more functionality (e.g. update notification, append to notification, send to missed log, etc. */
+'        Debug.Print "TNotificationRoster.Add(): flooding detected (quantum=" & CStr(lQuantum) & ")"
+'        g_SetLastError SNARL_ERROR_FLOODING
+'        Exit Function
+'
+'    End If
+
+    ' /* ===== end of error checking ===== */
 
     ' /* R2.31: log last time a notification was generated */
 
     gLastNotification = Now()
-
-    ' /* R2.31: 'duplicates' is now a simple 'stop spam' toggle - what we do with the potential
-    '    spam is for future releases; for now we just discard it */
-
-Dim lQuantum As Long
-
-    lQuantum = g_SafeLong(g_ConfigGet("flood_quantum"))
-    If lQuantum < 100 Then _
-        lQuantum = 750
-
-    If (Info.ClassObj.GetValue("block_spam") = "1") And ((GetTickCount() - Info.ClassObj.LastNotificationGeneratedTick) < lQuantum) Then
-        ' /* R2.31 - for now, block and return a failure code.  For the future, it would be lovely to
-        '    allow more functionality (e.g. update notification, append to notification, send to missed log, etc. */
-        Debug.Print "TNotificationRoster.Add(): flooding detected (quantum=" & CStr(lQuantum) & ")"
-        gSetLastError SNARL_ERROR_FLOODING
-        Exit Function
-
-    End If
-
-
-    ' /* ===== end of error checking ===== */
-
-
-
-    gSetLastError SNARL_SUCCESS
-
-
-
+    g_SetLastError SNARL_SUCCESS
 
     If (Info.Actions Is Nothing) Then _
         Set Info.Actions = new_BTagList()                   ' // create list even if there are no actions defined
@@ -229,6 +230,17 @@ Dim lQuantum As Long
 
     ' /* R2.3: set timestamp */
     Info.DateStamp = Now()
+
+    ' /* R2.6: redaction */
+
+    If (uShouldRedact(Args, Info.ClassObj)) And (Info.ClassObj.GetValue("redact-always") = "1") Then
+        g_Debug "TNotificationRoster.Add(): redacting on-screen content...", LEMON_LEVEL_INFO
+        Info.Text = Info.ClassObj.GetValue("redact-with")
+
+    End If
+
+    ' /* R2.6: callback button label */
+    Info.AckButtonLabel = Args.ValueOf("callback-label")
 
     ' /* R2.4: overflow trimming */
     Info.Title = g_TrimLines(Info.Title)
@@ -299,39 +311,46 @@ Dim pt As BTagItem
 
     End If
 
-
     ' /* R2.4: generate the "OriginalContent" content */
     g_KludgeNotificationInfo Info
 
-    ' /* R2.6: do redirects irrespective of user presence */
-    uDoGlobalRedirect Info
+Dim pInfo As T_NOTIFICATION_INFO
 
-'    If (Not g_IsDND()) And (Not g_IsAway()) Then _
-        uDoPassThrough Info
+    ' /* ----------------------------------------------------------------- */
+    ' /* send to external destinations: redirectors, forwards, subscribers */
 
-    ' /* R2.6: do redirection and forwarding */
+    LSet pInfo = Info
+    If uShouldRedact(Args, pInfo.ClassObj) Then _
+        pInfo.Text = pInfo.ClassObj.GetValue("redact-with")
 
-    With Info.ClassObj
-        .DoRedirection Info
-        .DoForwarding Info
+    ' /* R2.6: redirect content */
+    If Info.ClassObj.GetValue("send_to_redirects") = "1" Then _
+        uDoGlobalRedirect pInfo
 
-        If .GetValue("send_to_subscribers") = "1" Then _
-            g_SubsRoster.BroadcastToSubscribers Info
+    ' /* R2.6: forward it */
+    Info.ClassObj.DoForwarding pInfo
 
-    End With
+    ' /* R2.6: send it to subscribed computers */
+    If Info.ClassObj.GetValue("send_to_subscribers") = "1" Then _
+        g_SubsRoster.BroadcastToSubscribers pInfo
+
+    ' /* ----------------------------------------------------------------- */
 
 
-    ' /*
-    '   R2.4 DR8: presence management, as follows:
+    ' /* ----------------------------------------------------------------- */
+    '   R2.4 DR8: presence management, as follows (in order of priority):
+    '       1. Make Sticky
+    '       2. DND
+    '       3. Away
+    '       4. Active
     '
-    '   Make Sticky takes priority over Do Not Disturb Mode, which in turn takes priority over Away Mode
+    '   End result is thus:
     '
-    '   End result is:
-    '                       Low         Normal      High
-    '                       ----------------------------------
-    '   Sticky              Sticky      Sticky      Sticky
-    '   Busy (DND=true)     Discarded   <user>      Displayed
-    '   Away                Discarded   <user>      Missed
+    '       State \ Priority |  Low         Normal      High
+    '       -----------------+------------------------------------
+    '       Make Sticky      |  Sticky      Sticky      Sticky
+    '       Busy (DND=true)  |  Discarded   <user>      Displayed
+    '       Away             |  Discarded   <user>      Missed
     '
     '   Items marked <user> are user configurable.
     '
@@ -339,7 +358,8 @@ Dim pt As BTagItem
 
 '    Debug.Print "++ current presence: " & g_HexStr(g_GetPresence())
 
-
+    If (g_IsIDE()) And (gDebugMode) Then _
+        uAddToMissedList Info, Args
 
     ' /* sticky snarls take precendence, then DND mode setting, then Away mode setting */
 
@@ -355,7 +375,7 @@ Dim lWhatToDo As SN_PRESENCE_ACTIONS
             Case SN_PA_LOG_AS_MISSED
                 ' /* put in missed list (unless class setting says otherwise) and return the token */
     '            If Info.ClassObj.GetValue("log_during_dnd") = "1" Then
-                    uAddToMissedList Info
+                    uAddToMissedList Info, Args
                     Add = Info.Token
                     Exit Function
     
@@ -363,7 +383,7 @@ Dim lWhatToDo As SN_PRESENCE_ACTIONS
     
             Case SN_PA_DO_NOTHING
                 ' /* bin it */
-                gSetLastError SNARL_ERROR_CLASS_BLOCKED
+                g_SetLastError SNARL_ERROR_CLASS_BLOCKED
                 Exit Function
     
             Case SN_PA_MAKE_STICKY
@@ -399,7 +419,7 @@ Dim lWhatToDo As SN_PRESENCE_ACTIONS
         If uFindMergeCandidate(Info.ClassObj, Info.Title, pz) Then
             ' /* update content */
             pz.UpdateOrMerge Args, True
-            gSetLastError SNARL_WAS_MERGED                      ' // set LastError to indicate the merge
+            g_SetLastError SNARL_WAS_MERGED                      ' // set LastError to indicate the merge
             Add = pz.Info.Token                                 ' // return existing token
             Exit Function
 
@@ -591,28 +611,60 @@ Dim i As Long
     ' /* figure out its location on screen */
 
     If Not uGetNotificationPosition(psw, Info.Position, ar, i) Then
-        g_Debug "TNotificationRoster.Add(): couldn't display notification", LEMON_LEVEL_CRITICAL
-        gSetLastError SNARL_ERROR_COULD_NOT_DISPLAY
-        
-        ' /* V42: couldn't find suitable position - mostly likely no room left on-screen */
+        g_Debug "TNotificationRoster.Add(): no free space on-screen", LEMON_LEVEL_CRITICAL
 
-        If Info.Priority >= 0 Then
-            ' /* normal and high priority notifications are added to missed list */
-            uAddToMissedList Info
+        If Info.Priority < 0 Then
+            ' /* low priority, so just add as missed and we're done */
+            g_SetLastError SNARL_ERROR_COULD_NOT_DISPLAY
+            uAddToMissedList Info, Args
             Add = Info.Token
-
+            ' /* zap the notification window */
+            psw.Remove
+            Set psw = Nothing
+            Exit Function
+        
         Else
-            Add = 0
+            Do
+                ' /* remove oldest (i.e. notification at head of list) */
+                If Not uHide(1) Then
+                    g_SetLastError SNARL_ERROR_COULD_NOT_DISPLAY
+                    uAddToMissedList Info, Args
+                    Add = Info.Token
+                    ' /* zap the notification window */
+                    psw.Remove
+                    Set psw = Nothing
+                    Exit Function
 
+                End If
+            Loop While Not uGetNotificationPosition(psw, Info.Position, ar, i)
         End If
-
-        ' /* zap the notification window */
-
-        psw.Remove
-        Set psw = Nothing
-        Exit Function
-
     End If
+
+
+'    If Not uGetNotificationPosition(psw, Info.Position, ar, i) Then
+'        g_Debug "TNotificationRoster.Add(): no free space on-screen", LEMON_LEVEL_CRITICAL
+'        g_SetLastError SNARL_ERROR_COULD_NOT_DISPLAY
+'
+'        ' /* V42: couldn't find suitable position - mostly likely no room left on-screen */
+'
+'        If Info.Priority >= 0 Then
+'            ' /* normal and high priority notifications are added to missed list */
+'            uAddToMissedList Info
+'            Add = Info.Token
+'
+'        Else
+'            Add = 0
+'
+'        End If
+'
+'        ' /* zap the notification window */
+'
+'        psw.Remove
+'        Set psw = Nothing
+'        Exit Function
+'
+'    End If
+
 
     g_Debug "TNotificationRoster.Add(): placing at " & ar.Left & "," & ar.Top & "-" & ar.Right & "," & ar.Bottom
 
@@ -662,6 +714,21 @@ Public Function Remove(ByVal Token As Long) As Boolean
 
 End Function
 
+Private Function uHide(ByVal Index As Long) As Boolean
+
+    If (Index < 1) Or (Index > mActive.CountItems) Then
+        g_Debug "TNotificationRoster.uHide(): bad index #" & CStr(Index), LEMON_LEVEL_CRITICAL
+        Exit Function
+
+    End If
+
+    uAsNotification(mActive.TagAt(Index)).Quit
+    uAsNotification(mActive.TagAt(Index)).Unset
+    mActive.Remove Index
+    uHide = True
+
+End Function
+
 Private Function uRemove(ByVal Index As Long) As Boolean
 
     If (Index < 1) Or (Index > mActive.CountItems) Then
@@ -685,7 +752,7 @@ Dim pn As TNotification
 
 End Function
 
-Public Function Find(ByVal Token As Long, ByVal UID As String, ByVal AppSig As String, ByVal Password As String, ByRef Notification As TNotification) As Boolean
+Public Function Find(ByVal Token As Long, ByVal uID As String, ByVal AppSig As String, ByVal Password As String, ByRef Notification As TNotification) As Boolean
 
     ' /* searches all notification lists for the specified notification (token takes priority)
     '    and returns True if it's found, and sets Notification to it */
@@ -702,13 +769,13 @@ Static i As Long
                 ' /* password ok */
                 Set Notification = pn
                 g_Debug "TNotificationRoster.Find(): token found"
-                gSetLastError SNARL_SUCCESS
+                g_SetLastError SNARL_SUCCESS
                 Find = True
 
             Else
                 ' /* password failure */
                 g_Debug "TNotificationRoster.Find(): token found but auth failure", LEMON_LEVEL_CRITICAL
-                gSetLastError SNARL_ERROR_AUTH_FAILURE
+                g_SetLastError SNARL_ERROR_AUTH_FAILURE
 
             End If
 
@@ -720,12 +787,12 @@ Static i As Long
                 If pn.Info.ClassObj.App.Password = Password Then
                     ' /* password ok */
                     Set Notification = pn
-                    gSetLastError SNARL_SUCCESS
+                    g_SetLastError SNARL_SUCCESS
                     Find = True
 
                 Else
                     ' /* password failure */
-                    gSetLastError SNARL_ERROR_AUTH_FAILURE
+                    g_SetLastError SNARL_ERROR_AUTH_FAILURE
 
                 End If
 
@@ -737,42 +804,42 @@ Static i As Long
                     If pn.Info.ClassObj.App.Password = Password Then
                         ' /* password ok */
                         Set Notification = pn
-                        gSetLastError SNARL_SUCCESS
+                        g_SetLastError SNARL_SUCCESS
                         Find = True
 
                     Else
                         ' /* password failure */
-                        gSetLastError SNARL_ERROR_AUTH_FAILURE
+                        g_SetLastError SNARL_ERROR_AUTH_FAILURE
 
                     End If
 
                 Else
-                    gSetLastError SNARL_ERROR_NOTIFICATION_NOT_FOUND
+                    g_SetLastError SNARL_ERROR_NOTIFICATION_NOT_FOUND
 
                 End If
             End If
         End If
 
-    ElseIf UID <> "" Then
+    ElseIf uID <> "" Then
         ' /* search on UID/App-Sig pair */
-        UID = AppSig & UID
+        uID = AppSig & uID
 
         With mActive
             .Rewind
             Do While .GetNextTag(pn) = B_OK
-                Debug.Print "looking for '" & UID & "' found '" & pn.AppSigAndUID & "'"
-                If pn.AppSigAndUID = UID Then
+                Debug.Print "looking for '" & uID & "' found '" & pn.AppSigAndUID & "'"
+                If pn.AppSigAndUID = uID Then
                     If pn.Info.ClassObj.App.Password = Password Then
                         ' /* password ok */
                         g_Debug "TNotificationRoster.Find(): uid/app found"
                         Set Notification = pn
-                        gSetLastError SNARL_SUCCESS
+                        g_SetLastError SNARL_SUCCESS
                         Find = True
 
                     Else
                         ' /* password failure */
                         g_Debug "TNotificationRoster.Find(): uid/app found but auth failure", LEMON_LEVEL_CRITICAL
-                        gSetLastError SNARL_ERROR_AUTH_FAILURE
+                        g_SetLastError SNARL_ERROR_AUTH_FAILURE
 
                     End If
 
@@ -786,16 +853,16 @@ Static i As Long
         With mWait
             .Rewind
             Do While .GetNextTag(pn) = B_OK
-                If pn.AppSigAndUID = UID Then
+                If pn.AppSigAndUID = uID Then
                     If pn.Info.ClassObj.App.Password = Password Then
                         ' /* password ok */
                         Set Notification = pn
-                        gSetLastError SNARL_SUCCESS
+                        g_SetLastError SNARL_SUCCESS
                         Find = True
 
                     Else
                         ' /* password failure */
-                        gSetLastError SNARL_ERROR_AUTH_FAILURE
+                        g_SetLastError SNARL_ERROR_AUTH_FAILURE
 
                     End If
 
@@ -811,16 +878,16 @@ Static i As Long
         With mMissedX
             .Rewind
             Do While .GetNextTag(pn) = B_OK
-                If pn.AppSigAndUID = UID Then
+                If pn.AppSigAndUID = uID Then
                     If pn.Info.ClassObj.App.Password = Password Then
                         ' /* password ok */
                         Set Notification = pn
-                        gSetLastError SNARL_SUCCESS
+                        g_SetLastError SNARL_SUCCESS
                         Find = True
 
                     Else
                         ' /* password failure */
-                        gSetLastError SNARL_ERROR_AUTH_FAILURE
+                        g_SetLastError SNARL_ERROR_AUTH_FAILURE
 
                     End If
 
@@ -831,28 +898,34 @@ Static i As Long
 
         End With
 
-        gSetLastError SNARL_ERROR_NOTIFICATION_NOT_FOUND
+        g_SetLastError SNARL_ERROR_NOTIFICATION_NOT_FOUND
 
     Else
         ' /* no token or UID */
-        gSetLastError SNARL_ERROR_ARG_MISSING
+        g_SetLastError SNARL_ERROR_ARG_MISSING
 
     End If
 
 End Function
 
-Public Function Hide(ByVal Token As Long, ByVal UID As String, ByVal AppSig As String, ByVal Password As String) As Boolean
+Public Function Hide(ByVal Token As Long, ByVal uID As String, ByVal AppSig As String, ByVal Password As String) As Boolean
 Dim pn As TNotification
 
     ' /* uFind() will set LastError for us */
 
-    If Find(Token, UID, AppSig, Password, pn) Then
-
+    If Find(Token, uID, AppSig, Password, pn) Then
         Select Case pn.State
         Case SN_NS_ACTIVE
-'            MsgBox "removing"
-            pn.Remove
-            Hide = True
+            If pn.Info.ClassObj.GetValue("prevent_close") = "1" Then
+                g_Debug "TNotificationRoster.Hide(): user has blocked notification closure", LEMON_LEVEL_WARNING
+                g_SetLastError SNARL_ERROR_ACCESS_DENIED
+                Exit Function
+
+            Else
+                pn.Remove
+                Hide = True
+
+            End If
 
         Case SN_NS_MISSED
             ' /* remove from missed list */
@@ -868,17 +941,17 @@ Dim pn As TNotification
 
 End Function
 
-Public Function IsVisible(ByVal Token As Long, ByVal UID As String, ByVal AppSig As String, ByVal Password As String) As Boolean
+Public Function IsVisible(ByVal Token As Long, ByVal uID As String, ByVal AppSig As String, ByVal Password As String) As Boolean
 
     ' /* uFind sets lasterror for us */
-    IsVisible = Find(Token, UID, AppSig, Password, Nothing)
+    IsVisible = Find(Token, uID, AppSig, Password, Nothing)
 
 End Function
 
-Public Function WasMissed(ByVal Token As Long, ByVal UID As String, ByVal AppSig As String, ByVal Password As String) As Long
+Public Function WasMissed(ByVal Token As Long, ByVal uID As String, ByVal AppSig As String, ByVal Password As String) As Long
 Dim pn As TNotification
 
-    If Find(Token, UID, AppSig, Password, pn) Then _
+    If Find(Token, uID, AppSig, Password, pn) Then _
         WasMissed = CLng(pn.State = SN_NS_MISSED)
 
 End Function
@@ -1062,12 +1135,12 @@ Public Function HaveMissedNotifications() As Boolean
 
 End Function
 
-Public Sub ResetMissed()
-
-    mMissedCount2 = 0
-    frmAbout.bSetTrayIcon
-
-End Sub
+'Public Sub ResetMissed()
+'
+'    mMissedCount2 = 0
+'    frmAbout.bSetTrayIcon
+'
+'End Sub
 
 'Private Sub uResetMissedList()
 '
@@ -1399,31 +1472,33 @@ Dim pn As TNotification
 End Function
 
 Public Function AddAction(ByVal Token As Long, ByRef Data As BPackedData) As Long
-Dim pn As TNotification
 
-    ' /* uFind sets lasterror for us */
-
-    If Not Find(Token, Data.ValueOf("uid"), Data.ValueOf("app-sig"), Data.ValueOf("password"), pn) Then _
-        Exit Function
-
-    Debug.Print "*** AddAction: found " & Token & " - state = " & CStr(pn.State)
+    g_Debug "TNotificationRoster.AddAction()", LEMON_LEVEL_PROC_ENTER
 
     ' /* param checking... */
 
     If (Data Is Nothing) Then
-        gSetLastError SNARL_ERROR_FAILED
+        g_Debug "missing data", LEMON_LEVEL_CRITICAL Or LEMON_LEVEL_PROC_EXIT
+        g_SetLastError SNARL_ERROR_FAILED
         Exit Function
 
     End If
 
     If (Data.ValueOf("label") = "") Or (Data.ValueOf("cmd") = "") Then
-        g_Debug "TNotificationRoster.AddAction(): missing label and/or command", LEMON_LEVEL_CRITICAL
-        gSetLastError SNARL_ERROR_ARG_MISSING
+        g_Debug "TNotificationRoster.AddAction(): missing label and/or command", LEMON_LEVEL_CRITICAL Or LEMON_LEVEL_PROC_EXIT
+        g_SetLastError SNARL_ERROR_ARG_MISSING
         Exit Function
 
     End If
 
-    AddAction = CLng(pn.AddAction(Data.ValueOf("label"), Data.ValueOf("cmd")))
+Dim pn As TNotification
+
+    ' /* uFind sets lasterror for us */
+
+    If Find(Token, Data.ValueOf("uid"), Data.ValueOf("app-sig"), Data.ValueOf("password"), pn) Then _
+        AddAction = CLng(pn.AddAction(Data.ValueOf("label"), Data.ValueOf("cmd")))
+
+    g_Debug "", LEMON_LEVEL_PROC_EXIT
 
 End Function
 
@@ -1440,7 +1515,29 @@ Dim pn As TNotification
 
 End Function
 
-Private Sub uAddToMissedList(ByRef Info As T_NOTIFICATION_INFO)
+Private Sub uAddToMissedList(ByRef Info As T_NOTIFICATION_INFO, ByRef Args As BPackedData)
+Dim n As SN_THREE_STATE
+
+    ' /* check class setting */
+
+    n = g_SafeLong(Info.ClassObj.GetValue("log_in_history"))
+
+    Select Case n
+    Case SN_TS_NEVER
+        Exit Sub
+
+    Case SN_TS_APP_DECIDES
+        If NOTNULL(Args) Then
+            If Args.Exists("log") Then
+                If Args.ValueOf("log") = "0" Then _
+                    Exit Sub
+            End If
+        End If
+
+    Case Else
+        ' /* assume "always" */
+
+    End Select
 
     If Info.Token = 0 Then
         ' /* allocate a token now */
@@ -1449,7 +1546,7 @@ Private Sub uAddToMissedList(ByRef Info As T_NOTIFICATION_INFO)
 
     End If
 
-    ' /* if more than 1000 items in the missed list, remove the oldest */
+    ' /* if 1000 items in the missed list, remove the oldest */
 
     If mMissedX.CountItems > 999 Then _
         mMissedX.Remove 1000
@@ -1463,12 +1560,17 @@ Dim pn As TNotification
     mMissedX.Add pn
 
     mMissedCount2 = mMissedCount2 + 1
-'    mActualMissed = mActualMissed + 1
     frmAbout.bUpdateMissedList
 
     ' /* tell the tray icon */
 
     frmAbout.bSetTrayIcon
+
+'    mNotificationCentre.AddItem Info.ClassObj.App, _
+                                Info.Title, _
+                                Info.Text, _
+                                load_image_obj(g_TranslateIconPath(Info.IconPath, "")), _
+                                Info.Token
 
 End Sub
 
@@ -1489,38 +1591,38 @@ Dim pn As TNotification
 End Function
 
 Public Sub CheckMissed()
-
-'    If mActualMissed < 1 Then _
-        Exit Sub
-
-    If mMissedCount2 < 1 Then _
-        Exit Sub
-
-'Dim n As Long
-'
-'    n = mMissedX.CountItems - mMissedCount
-'    If n < 1 Then _
-'        Exit Sub
-
-    ' /* we have some missed notifications, so... */
-
-'    mHaveMissed = True              ' // set our flag
-    frmAbout.bSetTrayIcon           ' // update the tray icon
-
 Static iToken As Long
 
-    If iToken Then _
-        Me.Hide iToken, "", "", gSnarlPassword
+    If mMissedCount2 > 0 Then
+        ' /* we have some missed notifications, so figure out what to do */
 
-    ' /* and notify... */
+        Select Case g_SafeLong(g_ConfigGet("show_missed_notifications"))
+        Case 1
+            ' /* do nothing */
 
-    If g_ConfigGet("show_missed_notification") = "1" Then _
-        iToken = g_PrivateNotify(SNARL_CLASS_GENERAL, "While you were away...", _
-                                 "You missed " & CStr(mMissedCount2) & " notification" & IIf(mMissedCount2 > 1, "s", ""), _
-                                 -1, _
-                                 g_MakePath(App.Path) & "etc\icons\snarl.png", _
-                                 , _
-                                 "!snarl show_missed_panel")
+        Case 2
+            ' /* show notification */
+
+            If iToken Then _
+                Me.Hide iToken, "", "", gSnarlPassword
+
+            iToken = g_PrivateNotify(SNARL_CLASS_GENERAL, "While you were away...", _
+                                     "You missed " & CStr(mMissedCount2) & " notification" & IIf(mMissedCount2 > 1, "s", "") & ".", _
+                                     -1, _
+                                     g_MakePath(App.Path) & "etc\icons\snarl.png", _
+                                     , _
+                                     "!missed")
+
+        Case 3
+            ' /* show notification centre */
+            mNotificationCentre.Show
+
+        End Select
+
+        mMissedCount2 = 0               ' // reset missed count...
+        frmAbout.bSetTrayIcon           ' // update the tray icon
+
+    End If
 
 End Sub
 
@@ -1612,15 +1714,20 @@ Dim n As SN_THREE_STATE
     ' /* check class setting */
 
     n = g_SafeLong(Notification.Info.ClassObj.GetValue("log_in_history"))
-    
+
     Select Case n
     Case SN_TS_NEVER
         Exit Sub
 
     Case SN_TS_APP_DECIDES
-        ' /* if notification includes "log=0" then we don't log */
+        ' /* if notification includes "log=0" or its class includes "log=0" then we don't log */
         If Notification.PackedArgs.Exists("log") Then
             If g_SafeLong(Notification.PackedArgs.ValueOf("log")) = 0 Then _
+                Exit Sub
+
+        ElseIf Notification.Info.ClassObj.AppProvidedSettings.Exists("log") Then
+            ' /* 44.51: class object can now provide log setting */
+            If g_SafeLong(Notification.Info.ClassObj.AppProvidedSettings.ValueOf("log")) = 0 Then _
                 Exit Sub
 
         End If
@@ -1713,7 +1820,7 @@ Private Function uApplyPresence(ByRef Info As T_NOTIFICATION_INFO) As SN_PRESENC
         g_Debug "TNotificationRoster.uApplyPresence(): Busy (aka DND) mode enabled: priority=" & CStr(Info.Priority)
         If Info.Priority < 0 Then
             ' /* low priority = ignored */
-            gSetLastError SNARL_ERROR_DO_NOT_DISTURB
+            g_SetLastError SNARL_ERROR_DO_NOT_DISTURB
             uApplyPresence = SN_PA_DO_NOTHING
 
         ElseIf Info.Priority = 0 Then
@@ -1729,7 +1836,7 @@ Private Function uApplyPresence(ByRef Info As T_NOTIFICATION_INFO) As SN_PRESENC
         g_Debug "TNotificationRoster.uApplyPresence(): Away mode enabled: priority=" & CStr(Info.Priority)
         If Info.Priority < 0 Then
             ' /* low priority = binned */
-            gSetLastError SNARL_ERROR_CLASS_BLOCKED
+            g_SetLastError SNARL_ERROR_CLASS_BLOCKED
             uApplyPresence = SN_PA_DO_NOTHING
 
         ElseIf Info.Priority = 0 Then
@@ -1754,24 +1861,54 @@ Private Function uApplyPresence(ByRef Info As T_NOTIFICATION_INFO) As SN_PRESENC
 
 End Function
 
-Public Sub SaveCurrentMissedCount()
-
-'    mMissedCount = mMissedX.CountItems
-
-End Sub
-
-Public Sub MarkMissed()
-'Dim pItem As TNotification
+'Public Sub MarkMissed()
+''Dim pItem As TNotification
+''
+''    ' /* mark existing notifications as seen */
+''
+''    With mMissedX
+''        .Rewind
+''        Do While .GetNextTag(pItem) = B_OK
+''            pItem.MarkAsSeen
+''
+''        Loop
+''
+''    End With
 '
-'    ' /* mark existing notifications as seen */
-'
-'    With mMissedX
-'        .Rewind
-'        Do While .GetNextTag(pItem) = B_OK
-'            pItem.MarkAsSeen
-'
-'        Loop
-'
-'    End With
+'End Sub
 
-End Sub
+Public Function CountActiveBySignature(ByVal Signature As String) As Long
+Dim pn As TNotification
+
+    With mActive
+        .Rewind
+        Do While .GetNextTag(pn) = B_OK
+            If pn.Info.ClassObj.App.Signature = Signature Then _
+                CountActiveBySignature = CountActiveBySignature + 1
+
+        Loop
+    End With
+
+End Function
+
+Public Function NC() As TNotificationCentre
+
+    Set NC = mNotificationCentre
+
+End Function
+
+Private Function uShouldRedact(ByRef Args As BPackedData, ByRef Class As TAlert) As Boolean
+
+    If ISNULL(Args) Then _
+        Exit Function
+
+Dim l As Long
+
+    l = g_SafeLong(Args.ValueOf("sensitivity"))
+    If l = 0 Then _
+        Exit Function
+
+    Debug.Print "uShouldRedact(): sensitivity: " & CStr(l) & "; redact at: " & Class.GetValue("redact-when")
+    uShouldRedact = (l >= g_SafeLong(Class.GetValue("redact-when")))
+
+End Function

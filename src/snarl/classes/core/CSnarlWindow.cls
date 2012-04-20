@@ -13,15 +13,16 @@ Attribute VB_PredeclaredId = False
 Attribute VB_Exposed = False
 Option Explicit
 
-Private Const OFFSET_ICON = 0
+Dim WithEvents theActionsPopup As TAppsPopUpWindow
+Attribute theActionsPopup.VB_VarHelpID = -1
 
 Private Const TIMER_MAIN_TICK = 22
 Private Const TIMER_ASYNC_FADE = 23
 Private Const TIMER_TRACK_POINTER = 24
 Private Const TIMER_PULSE = 25
 
-Dim theView As mfxView
 Dim theWindow As NitroWindow
+Dim mView As mfxView
 
 Dim m_Alpha As Integer
 Dim mOriginalTimeout As Long            ' // in seconds!
@@ -36,38 +37,33 @@ Dim mAlphaStep As Single
 Dim m_Disable As Long                   ' // >0 = timer paused, <=0 timer running
     ' /* 37.80
 Dim mVisible As Boolean
-
     ' /* 39.62 */
 Dim mInstance As IStyleInstance
-
     ' /* 38.9 */
-Dim theBitmap As mfxBitmap
-Dim mCloseButtonVisible As Boolean
-
+'Dim theBitmap As mfxBitmap
+Dim mPointerInside As Boolean
     ' /* 38.132 */
 Dim mMenu As OMMenu                     ' // set by calling snChangeAttribute(SNARL_ATTRIBUTE_MENU)
-
     ' /* R2.2 */
 Dim mStyleFlags As S_STYLE_FLAGS
-
 Dim mFuzzy As Boolean
 Dim mQuitting As Boolean
-
 Dim mTick As Long                       '// timeout/100
-
     ' /* R2.3 */
 Dim mClickThru As Boolean               '// set during Create() - taken from class settings and then modified by style flags
 Dim mStylePath As String
 Dim mMenuOpen As Boolean
-
     ' /* R2.4 */
 Dim mCloseRect As BRect
 Dim mActionsRect As BRect
 Dim mFadeStart As Long
 Dim mOriginalAlpha As Long
-
     ' /* R2.5 */
 Dim mScriptCallback As TScriptCallback
+    ' /* R2.6 */
+Dim mCallbackRect As BRect
+Dim mContent As mfxBitmap
+Dim mGadgetPressed As String
 
 Implements MWndProcSink
 
@@ -86,6 +82,24 @@ Friend Function Create(ByRef Info As T_NOTIFICATION_INFO, ByRef Instance As ISty
     LSet mInfo = Info
     mClickThru = mInfo.ClassObj.IsClickThru
     mStylePath = StylePath
+
+'    Set mOpenButton = g_CreateButton(new_BPoint(66, 26))
+'    Set mActionsGadget = uCreateButton(new_BPoint(24, 24), True)
+
+    ' /* R2.6 - style can provide customised gadgets */
+
+'    Set mCloseGadget = load_image_obj(g_MakePath(StylePath) & "gadgets\close.png")
+'    If Not is_valid_image(mCloseGadget) Then _
+'        Set mCloseGadget = bm_Close
+
+
+'    Set mActionsGadget = load_image_obj(g_MakePath(StylePath) & "gadgets\actions.png")
+'    If Not is_valid_image(mActionsGadget) Then _
+        Set mActionsGadget = bm_Actions
+
+    If mInfo.AckButtonLabel = "" Then _
+        mInfo.AckButtonLabel = g_ButtonLabelFromAck(mInfo.DefaultAck)
+
 
     ' /* R2.5 Beta 2 */
 
@@ -136,19 +150,11 @@ Dim dwExStyle As Long
     End If
 
     If nto_CreateWindow(theWindow, Me, N_POPUP_WINDOW, , , , dwExStyle) = M_OK Then
-        Set theView = New mfxView
-
-        ' /* configure our size from the style */
-
-        Set theBitmap = uGetContent2()
-        If Not (theBitmap Is Nothing) Then
-            theView.SizeTo theBitmap.Width + OFFSET_ICON, theBitmap.Height + OFFSET_ICON
-'            theView.SizeTo theBitmap.Width + 0, theBitmap.Height + 0
-
-            mCloseButtonVisible = False
-            uDrawContent 0
+        uGetContent
+        If NOTNULL(mContent) Then
+            mPointerInside = False
+            uRedraw 0
             theWindow.MakeVisible
-
             If (StyleFlags And S_STYLE_PULSE_NEEDED) Then _
                 SetTimer theWindow.hWnd, TIMER_PULSE, 100, 0
 
@@ -183,39 +189,29 @@ Dim pt As POINTAPI
 
                 ' /* if S_STYLE_WILL_RESIZE flag is set, ask the instance for a new bitmap each time */
 
-                If (mStyleFlags And S_STYLE_WILL_RESIZE) Then
-                    Set theBitmap = uGetContent2()
-                    theView.SizeTo theBitmap.Width + OFFSET_ICON, theBitmap.Height + OFFSET_ICON
+'                If (mStyleFlags And S_STYLE_WILL_RESIZE) Then
+''                    Set theBitmap = uGetContent2()
+''                    theView.SizeTo theBitmap.Width + OFFSET_ICON, theBitmap.Height + OFFSET_ICON
+'
+'                End If
 
-                End If
-
-                uDrawContent m_Alpha, pt.x, pt.y
+                uRedraw m_Alpha, pt.x, pt.y
+                DoEvents
 
                 ' /* keep going until the instance leaves bDone as True */
 
             Loop While Not bDone
 
             Me.SetTimeout mOriginalTimeout
-            
-'Debug.Print "TIMEOUT " & mOriginalTimeout
-            
             mVisible = True
-
             Exit Sub
 
         End If
-
     End If
-
-'Debug.Print "SHOW: " & m_Alpha
 
     If Not (theWindow Is Nothing) Then
         uSetTargetAlpha m_Alpha
-
         Me.SetTimeout mOriginalTimeout
-
-Debug.Print "TIMEOUT " & mOriginalTimeout
-
 '        If m_Timeout > 0 Then _
             theWindow.AddTimer TIMER_MAIN_TICK, m_Timeout * 1000
 
@@ -258,7 +254,7 @@ Public Sub Remove()
         KillTimer theWindow.hWnd, TIMER_ASYNC_FADE
 
     nto_DestroyWindow theWindow
-    Set theView = Nothing
+'    Set theView = Nothing
 
         ' /* R2.4: if this was a low priority notification, check the queue */
 
@@ -274,39 +270,32 @@ Private Sub Class_Terminate()
 End Sub
 
 Private Function MWndProcSink_WndProc(ByVal hWnd As Long, ByVal uMsg As Long, ByVal wParam As Long, ByVal lParam As Long, ByVal PrevWndProc As Long, ReturnValue As Long) As Boolean
+Static fPressed As Boolean
 Static bPaused As Boolean
 Static pt As POINTAPI
-Static sz As String
-Static f As Boolean
 Static t As Long
 
     Select Case uMsg
     Case WM_SETCURSOR
         SetCursor LoadCursor(0, IDC_ARROW)
-
-'    Debug.Print gNotificationMenuOpen
-
-        If (LoWord(lParam) = HTERROR) Then
+        If LoWord(lParam) = HTERROR Then
             ' /* window is disabled which means a menu is active */
             Select Case HiWord(lParam)
             Case WM_LBUTTONDOWN, WM_RBUTTONDOWN, WM_MBUTTONDOWN
-                Debug.Print "-- enabling --"
                 ' /* enable the window but don't process the message */
-'                gNotificationMenuOpen = False
                 EnableWindow hWnd, -1
                 ReturnValue = -1
                 MWndProcSink_WndProc = True
 
             End Select
 
-        ElseIf Not mCloseButtonVisible Then
-            mCloseButtonVisible = True
-            uDrawContent mCurrent
-
+        ElseIf Not mPointerInside Then
             If Not mClickThru Then _
                 SetWindowPos hWnd, HWND_TOP, 0, 0, 0, 0, SWP_NOSIZE Or SWP_NOMOVE Or SWP_NOACTIVATE
 
             SetTimer hWnd, TIMER_TRACK_POINTER, 100, 0
+            mPointerInside = True
+            uRedraw
 
         End If
 
@@ -314,60 +303,48 @@ Static t As Long
     Case WM_LBUTTONDOWN, WM_RBUTTONDOWN, WM_MBUTTONDOWN
         ' /* V38.131: better way of working - button pressed now does a SetCapture() and we only respond
         '    if the mouse button is released over the same item */
-        sz = uHitTest(lParam)
-        Debug.Print "--> " & sz
-        f = True
+        mGadgetPressed = uHitTest(lParam)
+        Debug.Print "--> " & mGadgetPressed
+        Select Case mGadgetPressed
+        Case "action", "open_button"
+            uRedraw
+
+        End Select
+        fPressed = True
         SetCapture hWnd
 
 
     Case WM_LBUTTONUP
-        If f Then
+        If fPressed Then
             ReleaseCapture
-            If sz = uHitTest(lParam) Then
-                Select Case sz
+            If mGadgetPressed = uHitTest(lParam) Then
+                Select Case mGadgetPressed
                 Case "close"
-                    g_Debug "CSnarlWindow.WndProc(): close button invoked - not sending ACK"
-                    If (g_IsPressed(VK_LCONTROL)) Or (g_IsPressed(VK_RCONTROL)) Then
-                        ' /* CTRL held down... */
-                        If (g_IsPressed(VK_LSHIFT)) Or (g_IsPressed(VK_RSHIFT)) Then
-                            ' /* SHIFT held down: close all */
-                            g_NotificationRoster.CloseMultiple 0
+                    g_Debug "CSnarlWindow.WndProc(): close button clicked"
+                    uDoClose bPaused
 
-                        ElseIf mInfo.hWndReply <> 0 Then
-                            ' /* just from the provided window */
-                            g_NotificationRoster.CloseMultiple mInfo.hWndReply
-    
-                        Else
-                            ' /* no reply window so just close ourselves */
-                            Hide
-    
-                        End If
+                Case "open_button"
+                    g_Debug "CSnarlWindow.WndProc(): callback button clicked"
+                    uDoInvoke bPaused
 
-                    Else
-                        ' /* just close ourself */
-                        bPaused = True                  ' // don't count down while we're doing this...
-                        uNotify SNARL_CALLBACK_CLOSED
-                        bPaused = False
-                        Hide
-
-                    End If
-    
                 Case "client"
                     g_Debug "CSnarlWindow.WndProc(): client area invoked"
-                    bPaused = True                  ' // don't count down while we're doing this...
-
-                    If mInfo.DefaultAck <> "" Then
-                        ' /* V38.94 - if an ACK string has been specified, launch it now */
-                        g_ProcessAck mInfo.DefaultAck
+                    If g_ConfigGet("callback_as_button") = "1" Then
+                        ' /* new mode: close */
+                        g_Debug "V44 mode: doing close..."
+                        uDoClose bPaused
 
                     Else
-                        ' /* R2.4 DR7: only do the callback if no static callback defined */
-                        uNotify SNARL_CALLBACK_INVOKED
+                        ' /* old mode: invoke */
+                        g_Debug "legacy mode: doing invoke..."
+                        uDoInvoke bPaused
 
                     End If
 
+                Case "actions_button"
+                    bPaused = True
+                    uDoActionsMenu
                     bPaused = False
-                    Hide
 
                 Case "action"
                     bPaused = True
@@ -385,8 +362,11 @@ Static t As Long
 
         End If
 
-        sz = ""
+        If mGadgetPressed <> "" Then
+            mGadgetPressed = ""
+            uRedraw
 
+        End If
 
 '    Case WM_LBUTTONDBLCLK
 '        ' /* R2.4 beta 4: make sticky if not already */
@@ -395,10 +375,10 @@ Static t As Long
 
 
     Case WM_RBUTTONUP
-        If f Then
+        If fPressed Then
             ReleaseCapture
-            If sz = uHitTest(lParam) Then
-                Select Case sz
+            If mGadgetPressed = uHitTest(lParam) Then
+                Select Case mGadgetPressed
                 Case "close"
                     g_Debug "CSnarlWindow.WndProc(): close button invoked (right-click)"
                     bPaused = True
@@ -441,16 +421,16 @@ Static t As Long
 
         End If
 
-        sz = ""
+        mGadgetPressed = ""
 
 
     Case WM_MBUTTONUP
         ' /* 38.133 - support the middle button */
-        If f Then
+        If fPressed Then
             ReleaseCapture
 
-            If sz = uHitTest(lParam) Then
-                Select Case sz
+            If mGadgetPressed = uHitTest(lParam) Then
+                Select Case mGadgetPressed
                 Case "close"
     
                 Case "client"
@@ -477,15 +457,15 @@ Static t As Long
             g_Debug "CSnarlWindow.WndProc(): WM_MBUTTONUP ignored: outside window"
 
         End If
-        sz = ""
+        mGadgetPressed = ""
 
 
     Case WM_TIMER
 
 '        If (wParam = TIMER_MAIN_TICK) Then _
-'            Debug.Print (bPaused) & " " & (mCloseButtonVisible) & " " & (mFuzzy) & " " & CStr(mTick) & " " & g_SafeLeftStr(mInfo.Text, 20)
+            Debug.Print (bPaused) & " " & (mPointerInside) & " " & (mFuzzy) & " " & CStr(mTick) & " " & g_SafeLeftStr(mInfo.Text, 20)
 
-        If (wParam = TIMER_MAIN_TICK) And (Not bPaused) And (Not mCloseButtonVisible) And (Not mFuzzy) Then
+        If (wParam = TIMER_MAIN_TICK) And (Not bPaused) And (Not mPointerInside) And (Not mFuzzy) Then
             mTick = mTick - 1
 '            Debug.Print CStr(mTick) & ": " & mInfo.Text
             If mTick = 0 Then
@@ -498,6 +478,9 @@ Static t As Long
             End If
 
         ElseIf wParam = TIMER_ASYNC_FADE Then
+
+'            Debug.Print "target: " & mTargetAlpha & " current: " & mCurrent
+
             If mAlphaStep < 0 Then
                 ' /* fading down */
                 If mCurrent <= mTargetAlpha Then
@@ -517,10 +500,10 @@ Static t As Long
                 ' /* fading up */
                 If mCurrent >= mTargetAlpha Then
                     ' /* done! */
-                    Debug.Print "*** Fading took: " & GetTickCount() - mFadeStart & " ms ***"
+'                    Debug.Print "*** Fading took: " & GetTickCount() - mFadeStart & " ms ***"
                     mCurrent = mTargetAlpha
                     KillTimer hWnd, wParam
-                    apply_view_to_window theView, hWnd, mCurrent        ' // re-apply in case we've overshot
+                    apply_view_to_window mView, hWnd, mCurrent        ' // re-apply in case we've overshot
                     mAlphaStep = 0
                     Exit Function
 
@@ -532,16 +515,25 @@ Static t As Long
 
             ' /* keep fading */
             mCurrent = mCurrent + mAlphaStep
-            apply_view_to_window theView, hWnd, mCurrent
+            apply_view_to_window mView, hWnd, mCurrent
 
-        ElseIf (wParam = TIMER_TRACK_POINTER) And (Not f) And (Not mMenuOpen) Then
-            GetCursorPos pt
-            If Not theWindow.Frame.Contains(nto_NewPoint(pt.x, pt.y)) Then
+        ElseIf (wParam = TIMER_TRACK_POINTER) And (Not fPressed) And (Not mMenuOpen) Then
+
+            If WindowFromPoint(GET_X_LPARAM(GetMessagePos()), GET_Y_LPARAM(GetMessagePos())) <> hWnd Then
                 KillTimer hWnd, wParam
-                mCloseButtonVisible = False
-                uDrawContent mCurrent
+                mPointerInside = False
+                uRedraw
 
             End If
+            
+
+'            GetCursorPos pt
+'            If Not theWindow.Frame.Contains(nto_NewPoint(pt.x, pt.y)) Then
+'                KillTimer hWnd, wParam
+'                mPointerInside = False
+'                uRedraw
+'
+'            End If
 
         ElseIf wParam = TIMER_PULSE Then
             uPulse
@@ -553,13 +545,13 @@ Static t As Long
 '
 '        Debug.Print "NCHITTEST"
 '
-'        mCloseButtonVisible = True
-'        uDrawContent mCurrent
+'        mPointerInside = True
+'        uRedraw
 '        SetTimer hWnd, TIMER_TRACK_POINTER, 100, 0
 
 
     Case WM_CAPTURECHANGED
-        f = False
+        fPressed = False
 
     Case WM_NCACTIVATE
         If wParam = 0 Then _
@@ -574,7 +566,8 @@ End Function
 
 Private Function uHitTest(ByVal lParam As Long) As String
 Dim pp As BPoint
-Dim pr As BRect
+Dim s As Single
+Dim n As Long
 
     ' /* returns:
     '       "close" if the pointer is over the close button
@@ -584,49 +577,35 @@ Dim pr As BRect
     ' */
 
     Set pp = new_BPointFromInt32(lParam)
-    Set pr = BW_Bounds(theWindow.hWnd)
+    If uWantsDropshadow(n) Then _
+        pp.OffsetBy -n, -n
 
-    If Not pr.Contains(pp) Then
-        g_Debug "CSnarlWindow.uHitTest(): not inside window"
-        Exit Function
+    s = Val(g_ConfigGet("scaling"))
+    If s <= 0# Then _
+        s = 1#                  ' // must NOT be zero!
 
-    End If
-'mActions = 1
-
-    If mCloseRect.Contains(pp) Then
-        uHitTest = "close"
-
-    ElseIf (mInfo.Actions.CountItems > 0) And (mActionsRect.Contains(pp)) Then
-        uHitTest = "action"
+    pp.x = pp.x / s
+    pp.y = pp.y / s
+    
+    If BW_Bounds(theWindow.hWnd).Contains(pp) Then
+        If pp.IsInRect(mCallbackRect) Then
+            uHitTest = "open_button"
+    
+        ElseIf pp.IsInRect(mActionsRect) Then
+            uHitTest = "action"
+            
+        ElseIf pp.IsInRect(mCloseRect) Then
+            uHitTest = "close"
+    
+        Else
+            uHitTest = "client"
+    
+        End If
 
     Else
-        uHitTest = "client"
+        g_Debug "CSnarlWindow.uHitTest(): not inside window"
 
     End If
-
-'    Debug.Print uHitTest
-
-'Dim n As Integer
-'
-'    If uDrawDropshadow() Then _
-'        n = Val(g_ConfigGet("dropshadow_size"))
-'
-'    If (pt.x >= rc.Left) And (pt.x <= rc.Right) And (pt.y >= rc.Top) And (pt.y <= rc.Bottom) Then
-'
-'        If (pt.x >= n) And (pt.y >= n) And (pt.x <= (n + bm_Close.Width)) And (pt.y <= (n + bm_Close.Height)) Then
-'            uHitTest = "close"
-'
-'        Else
-'            uHitTest = "client"
-'
-'        End If
-'
-'        Debug.Print uHitTest
-'
-'    Else
-'        g_Debug "CSnarlWindow(): not inside window"
-'
-'    End If
 
 End Function
 
@@ -653,24 +632,22 @@ Dim pt As POINTAPI
                 bDone = True
                 mInstance.AdjustPosition pt.x, pt.y, m_Alpha, bDone
 
-                If (mStyleFlags And S_STYLE_WILL_RESIZE) Then
-                    Set theBitmap = uGetContent2()
-                    theView.SizeTo theBitmap.Width + OFFSET_ICON, theBitmap.Height + OFFSET_ICON
-
-                End If
-                uDrawContent m_Alpha, pt.x, pt.y
+'                If (mStyleFlags And S_STYLE_WILL_RESIZE) Then
+''                    Set theBitmap = uGetContent2()
+''                    theView.SizeTo theBitmap.Width + OFFSET_ICON, theBitmap.Height + OFFSET_ICON
+'
+'                End If
+                uRedraw m_Alpha, pt.x, pt.y
+                DoEvents
 
             Loop While Not bDone
 
             Remove
-
             Exit Sub
-
         Else
             Debug.Print "CSnarlWindow.Hide(): no custom hide required"
 
         End If
-
     Else
         Debug.Print "CSnarlWindow.Hide(): no instance"
 
@@ -687,39 +664,7 @@ Public Property Get Id() As Long
 
 End Property
 
-'Friend Function Update(ByRef Info As T_NOTIFICATION_INFO) As M_RESULT
-''
-'''    MsgBox Info.StyleName & " > " & Info.SchemeName, , "Update"
-''
-''    ' /* pre-set these if they're missing */
-''
-'''    If Info.StyleName = "" Then _
-'''        Info.StyleName = mInfo.StyleName
-'''
-'''    If Info.SchemeName = "" Then _
-'''        Info.SchemeName = mInfo.SchemeName
-''
-''    ' /* tell the style handler to update its content */
-''
-''    uUpdateStyleContent Info
-''
-''    ' /* view is already set - don't bother resizing */
-''
-''    Set theBitmap = uGetContent2()
-''    uDrawContent mCurrent
-''
-''
-''
-''    SetTimeout mOriginalTimeout                 ' // V37.80 - reset timeout value
-''    Update = M_OK
-'
-'    Update2 Info
-'
-'    Update = M_OK
-'
-'End Function
-
-Public Sub uSetTargetAlpha(ByVal Alpha As Long)
+Public Sub uSetTargetAlpha(ByVal Alpha As Long, Optional Fast As Boolean = False)
 
     Debug.Print "CSnarlWindow.uSetTargetAlpha(): current=" & mCurrent & " requested=" & Alpha
 
@@ -743,7 +688,13 @@ Dim s As Single
 
 '    Debug.Print "alpha delta = " & s
 
-    s = (s / 300) * (10 + 6)
+    If Fast Then
+        s = (s / 150) * (10 + 6)
+    
+    Else
+        s = (s / 300) * (10 + 6)
+
+    End If
 
     If Alpha < mCurrent Then _
         s = -s
@@ -792,8 +743,11 @@ Public Function SetTimeout(ByVal Timeout As Long) As M_RESULT
 
     End If
 
-    mTick = Timeout * 10                    ' // timer frequency is 100ms...
-    theWindow.AddTimer TIMER_MAIN_TICK, 100
+'    mTick = Timeout * 10                    ' // timer frequency is 100ms...
+'    theWindow.AddTimer TIMER_MAIN_TICK, 100
+
+    mTick = Timeout
+    theWindow.AddTimer TIMER_MAIN_TICK, 1000
 
 End Function
 
@@ -805,162 +759,252 @@ End Property
 
 Public Function GetView() As mfxView
 
-    Set GetView = theView
+    Set GetView = mView
 
 End Function
 
-Private Sub uDrawContent(Optional ByVal Alpha As Long = -1, Optional ByVal x As Long = -1, Optional ByVal y As Long = -1)
+Private Sub uRedraw(Optional ByVal Alpha As Long = -1, Optional ByVal x As Long = -1, Optional ByVal y As Long = -1)
 
-    If (theView Is Nothing) Or (theBitmap Is Nothing) Or (theWindow Is Nothing) Then _
+    If (ISNULL(mContent)) Or (ISNULL(theWindow)) Then _
         Exit Sub
 
     If Alpha = -1 Then _
         Alpha = mCurrent
 
-    If uDrawDropshadow() Then
-        If (x = -1) And (y = -1) Then
+Dim n As Long
+
+    If (x = -1) And (y = -1) Then
 '            Set pr = theWindow.Frame
 '            x = pr.Left - 10
 '            y = pr.Top - 10
 
-        Else
-            ' /* specific position requested and dropshadow enabled */
-            x = x - Val(g_ConfigGet("dropshadow_size"))
-            y = y - Val(g_ConfigGet("dropshadow_size"))
+    ElseIf uWantsDropshadow(n) Then
+        ' /* specific position requested and dropshadow enabled so compensate */
+        x = x - n
+        y = y - n
 
-        End If
     End If
 
-Dim lSize As Long
-Dim pr As BRect
-Dim cy As Long
+    Set mActionsRect = Nothing
+    Set mCloseRect = Nothing
+    Set mCallbackRect = Nothing
 
-    With theView
-        .Clear
+    ' /* build the view up */
 
-        lSize = MIN(bm_Close.Height, .Height)
+Dim pt As BPoint
+Dim pv As mfxView
+Dim pb As mfxBitmap
 
-        .DrawScaledImage theBitmap, new_BPoint(OFFSET_ICON, OFFSET_ICON)
-        If (mCloseButtonVisible) And (Not mClickThru) Then
+Const EMBLEM_ALPHA = 230
+Const EMBLEM_SIZE = 14
 
-            ' /* draw close button */
-            .DrawScaledImage bm_Close, mCloseRect.TopLeft, new_BPoint(mCloseRect.Width, mCloseRect.Height)
+    Set mView = New mfxView
+    With mView
+        ' /* style-provided content */
+        .SizeTo mContent.Width, mContent.Height
+        Set pb = mContent.Duplicate
+'        If (mPointerInside) And (Not mClickThru) Then _
+            pb.ChangeBrightness -0.05
 
-            ' /* R2.4: if the notification has actions, draw the actions button */
-            If mInfo.Actions.CountItems > 0 Then _
-                .DrawScaledImage bm_Actions, mActionsRect.TopLeft, new_BPoint(mActionsRect.Width, mActionsRect.Height)
+        .DrawScaledImage pb
 
-            ' /* R2.4.2 DR3: draw emblems on mouseover only */
+        ' /* set top-right corner */
+        Set pt = new_BPoint(.Width - EMBLEM_SIZE - 4, 4)
 
-'            uDrawEmblems
+        ' /* emblems */
+
+        If mOriginalTimeout = 0 Then
+            ' /* sticky */
+            .DrawScaledImage bm_IsSticky, pt, new_BPoint(EMBLEM_SIZE, EMBLEM_SIZE), EMBLEM_ALPHA
+            pt.OffsetBy -(EMBLEM_SIZE + 1), 0
 
         End If
 
+        ' /* indicate notification has a callback - only if using legacy mode, it's interactive and there is a callback */
 
-Dim szHUD As String
+        If (g_ConfigGet("callback_as_button") = "0") And (Not mClickThru) And (mInfo.DefaultAck <> "") Then
+            .DrawScaledImage bm_HasActions, pt, new_BPoint(EMBLEM_SIZE, EMBLEM_SIZE), EMBLEM_ALPHA
+            pt.OffsetBy -(EMBLEM_SIZE + 1), 0
 
-        If (g_ConfigGet("show_timestamp") = "1") And (.Width > 79) Then
-            If ((mCloseButtonVisible) And (Not mClickThru)) Or (mFuzzy) Then
-                .SetFont "Tahoma", 8, True
-                .TextMode = MFX_TEXT_ANTIALIAS
-                .SetHighColour rgba(255, 255, 255, 230)
-                .SetLowColour rgba(0, 0, 0, 190)
-'                Set pr = .Bounds.InsetByCopy(2, 2)
-'                If uDrawDropshadow() Then _
-'                    pr.InsetBy Val(g_ConfigGet("dropshadow_size")), Val(g_ConfigGet("dropshadow_size"))
+        End If
 
-                szHUD = g_When(mInfo.DateStamp)
+        ' /* forwarded/remote - either/or */
 
-                ' /* timestamp overlay */
-                Set pr = new_BRect(0, 0, .StringWidth(szHUD) + 3, .StringHeight("A"))
-                pr.OffsetBy .Width - pr.Width, .Height - pr.Height
-                If uDrawDropshadow() Then _
-                    pr.OffsetBy -Val(g_ConfigGet("dropshadow_size")), -Val(g_ConfigGet("dropshadow_size"))
+        If (mInfo.IntFlags And SN_NF_FORWARD) Then
+            ' /* if the notification was forwarded */
+            .DrawScaledImage bm_Forward, pt, new_BPoint(EMBLEM_SIZE, EMBLEM_SIZE), EMBLEM_ALPHA
+            pt.OffsetBy -(EMBLEM_SIZE + 1), 0
 
-                cy = pr.Height
-                .FillRoundRect pr, 6, 6, MFX_SOLID_LOW
-                .DrawString szHUD, pr, MFX_ALIGN_H_CENTER Or MFX_ALIGN_V_CENTER
+        ElseIf (mInfo.IntFlags And SN_NF_REMOTE) Then
+            ' /* if the notification was generated by a remote app */
+            .DrawScaledImage bm_Remote, pt, new_BPoint(EMBLEM_SIZE, EMBLEM_SIZE), EMBLEM_ALPHA
+            pt.OffsetBy -(EMBLEM_SIZE + 1), 0
 
-                ' /* R2.4b4: app name overlay */
-                szHUD = mInfo.ClassObj.App.NameEx()
-                Set pr = new_BRect(0, 0, .StringWidth(szHUD) + 3, .StringHeight("A"))
-                pr.OffsetBy .Width - pr.Width, .Height - pr.Height - cy
-                If uDrawDropshadow() Then _
-                    pr.OffsetBy -Val(g_ConfigGet("dropshadow_size")), -Val(g_ConfigGet("dropshadow_size"))
+        End If
 
-                .FillRoundRect pr, 6, 6, MFX_SOLID_LOW
+Dim pr As BRect
 
-                ' /* R2.4.2 DR3: if secure app (or secure notification), draw app name in different colour */
+        If (mPointerInside) And (Not mClickThru) Then
+            ' /* HUD */
+            If (g_ConfigGet("show_timestamp") = "1") And (.Width > 79) Then _
+                uDrawHUDContent
 
-                If (mInfo.ClassObj.App.IsSecure) Or (mInfo.IntFlags And SN_NF_SECURE) Then _
-                    .SetHighColour rgba(240, 150, 255)
+            Set mActionsRect = new_BRect(0, 0, (24 - 1), (24 - 1)).OffsetByCopy(4, 4)
+'            Set mActionsRect = new_BRect(0, 0, (24 - 1), (24 - 1)).OffsetByCopy(.Width - (24 + 4), .Height - (24 + 4))
 
-                .DrawString szHUD, pr, MFX_ALIGN_H_CENTER Or MFX_ALIGN_V_CENTER
+            ' /* draw the close gadget if running in legacy mode */
+            If g_ConfigGet("callback_as_button") = "0" Then
+                Set mCloseRect = new_BRect(0, 0, (24 - 1), (24 - 1)).OffsetByCopy(4, 4)
+                mActionsRect.OffsetBy 0, 24 + 2
 
-'                ' /* timestamp overlay */
-'                .FillRoundRect new_BRect(pr.Right - , pr.Bottom - , pr.Right + 2, pr.Bottom + 2), 6, 6, MFX_SOLID_LOW
-'                .DrawString uTimeStamp(), pr, MFX_ALIGN_BOTTOM Or MFX_ALIGN_RIGHT
-'
-'                ' /* R2.4b4: app name overlay */
-'                .FillRoundRect new_BRect(pr.Left - 2, pr.Bottom - .StringHeight("A"), pr.Left + .StringWidth(mInfo.ClassObj.App.Name), pr.Bottom + 2), 6, 6, MFX_SOLID_LOW
-'                .DrawString mInfo.ClassObj.App.Name, pr, MFX_ALIGN_BOTTOM Or MFX_ALIGN_LEFT
+                Set pb = bm_Button.Duplicate
+                If mGadgetPressed = "close" Then _
+                    pb.ChangeBrightness -0.2
+
+                .DrawScaledImage pb, mCloseRect.TopLeft, mCloseRect.Size
+                .DrawScaledImage bm_CloseGadget, mCloseRect.TopLeft.OffsetByCopy(Fix((mCloseRect.Width - 16) / 2), Fix((mCloseRect.Height - 16) / 2)), new_BPoint(16, 16)
 
             End If
+
+            ' /* actions gadget */
+            If mInfo.Actions.CountItems > 0 Then
+'                Set pb = create_bitmap_from_image(IIf(g_ConfigGet("use_style_icons"), mActionsGadget, bm_Actions))
+                Set pb = bm_Button.Duplicate
+                If (mGadgetPressed = "action") Or (NOTNULL(theActionsPopup)) Then _
+                    pb.ChangeBrightness -0.2
+
+                .DrawScaledImage pb, mActionsRect.TopLeft, mActionsRect.Size
+                .DrawScaledImage bm_ActionsGadget, mActionsRect.TopLeft.OffsetByCopy(Fix((mActionsRect.Width - 16) / 2), Fix((mActionsRect.Height - 16) / 2)), new_BPoint(16, 16)
+
+'                If .Height > (mActionsButton.Height + 4 + 4) Then
+'                    ' /* gets the big button */
+'                    Set pb = mActionsButton.Duplicate
+'                    If mGadgetPressed = "action" Then _
+'                        pb.ChangeBrightness -0.15
+'
+'                    .DrawScaledImage pb, new_BPoint(.Width - mActionsButton.Width - 4, 4)
+'                    Set mActionsRect = pr.Duplicate
+'                    pr.OffsetBy 0, pr.Height + 2
+'
+'                ElseIf .Height > 47 Then
+'                    ' /* below close gadget */
+''                    Set mActionsRect = mCloseRect.OffsetByCopy(0, 20 * s)
+''                    .DrawScaledImage IIf(g_ConfigGet("use_style_icons"), mActionsGadget, bm_Actions), new_BPoint(0, 20), new_BPoint(20, 20)
+'
+'                Else
+'                    ' /* alongside close gadget */
+''                    Set mActionsRect = mCloseRect.OffsetByCopy(20 * s, 0)
+''                    .DrawScaledImage IIf(g_ConfigGet("use_style_icons"), mActionsGadget, bm_Actions), new_BPoint(20, 0), new_BPoint(20, 20)
+'
+'                End If
+
+            Else
+                ' /* no actions: no need for the rect */
+                Set mActionsRect = Nothing
+
+            End If
+
+            ' /* callback button */
+            If (g_ConfigGet("callback_as_button") = "1") And (uCanDoCallback()) Then
+                Set pr = new_BRect(0, 0, bm_CallbackButton.Width - 1, bm_CallbackButton.Height - 1)
+                pr.OffsetBy .Width - pr.Width - 4, .Height - pr.Height - 4
+                
+'                If NOTNULL(mActionsRect) Then _
+                    pr.OffsetBy -(24 + 2), 0
+
+                Set pb = bm_CallbackButton.Duplicate
+                If mGadgetPressed = "open_button" Then _
+                    pb.ChangeBrightness -0.2
+
+                .DrawScaledImage pb, pr.TopLeft
+                Set mCallbackRect = pr.Duplicate
+                pr.InsetBy 4, 0
+
+                .SetFont "Arial", 8 ', True
+                .SetHighColour rgba(0, 0, 0)
+                .SetLowColour rgba(0, 0, 0, 16)
+                .DrawString .GetFormattedText(mInfo.AckButtonLabel, pr.Width), pr, MFX_ALIGN_H_CENTER Or MFX_ALIGN_V_CENTER  ' Or MFX_SIMPLE_OUTLINE
+
+            End If
+
+            ' /* buttons */
+'            If (mInfo.DefaultAck <> "") And (mInfo.Actions.CountItems > 0) Then
+'                ' /* both */
+'                If .Height > ((mActionsButton.Height * 2) + 4 + 4 + 4) Then
+'                    .DrawScaledImage mOpenButton, new_BPoint(4, 4)      '//   new_BPoint(.Width - mActionsButton.Width - 4, 4)
+'                    .DrawScaledImage mActionsButton, new_BPoint(4, 4 + mActionsButton.Height + 4)  '// new_BPoint(.Width - mActionsButton.Width - 4, 4 + mActionsButton.Height + 4)
+'                    Set mCallbackRect = pr.Duplicate
+'                    pr.OffsetBy 0, pr.Height + 4
+'                    Set mActionsButtonRect = pr.Duplicate
+'
+'                End If
+'
+'            ElseIf mInfo.DefaultAck <> "" Then
+'                ' /* open only */
+'                If .Height > (mActionsButton.Height + 4 + 4) Then
+'                    .DrawScaledImage mOpenButton, new_BPoint(4, 4)      '//   new_BPoint(.Width - mActionsButton.Width - 4, 4)
+'                    Set mCallbackRect = pr.Duplicate
+'
+'                End If
+'
+'            ElseIf mInfo.Actions.CountItems > 0 Then
+'                ' /* actions only */
+'                If .Height > (mActionsButton.Height + 4 + 4) Then
+'                    .DrawScaledImage mActionsButton, new_BPoint(4, 4)      '//   new_BPoint(.Width - mActionsButton.Width - 4, 4)
+'                    Set mActionsButtonRect = pr.Duplicate
+'
+'                End If
+'            End If
+
         End If
 
-Const RX = 6
+        ' /* final content */
 
-Dim n As Long
-
-        ' /* can only ever have one low priority notification visible at any one time
-        '    (obviously this excludes visible non-windowed styles) */
-
-'        If mInfo.Priority < 0 Then _
-            n = g_NotificationRoster.QueueCount
-
-        ' /* if we have queued notifications, draw the number in a badge */
-
-        If n > 0 Then
-            .SetFont "Tahoma", 8, True
-            .TextMode = MFX_TEXT_ANTIALIAS
-            .EnableSmoothing True
-
-            ' /* figure out the badge size and position */
-
-            Set pr = new_BRect(0, 0, MAX(.StringWidth(CStr(n)), .StringHeight("A")), .StringHeight("A"))
-            pr.ExpandBy 8, 8
-            pr.OffsetBy .Width - pr.Width - 1, 1
-
-            If uDrawDropshadow() Then _
-                pr.OffsetBy -Val(g_ConfigGet("dropshadow_size")), Val(g_ConfigGet("dropshadow_size"))
-
-            ' /* background */
-
-            .SetHighColour rgba(0, 0, 64, 190)
-            .SetLowColour rgba(0, 0, 64, 100)
-            .FillRoundRect pr, RX, RX, MFX_VERT_GRADIENT
-
-            ' /* label */
-
-            .SetHighColour rgba(255, 255, 255)
-            .DrawString CStr(n), pr, MFX_ALIGN_H_CENTER Or MFX_ALIGN_V_CENTER
-
-            ' /* border */
-
-            .SetHighColour rgba(255, 255, 255)
-            .StrokeRoundRect pr.InsetByCopy(1, 1), RX, RX, 2
-
-            ' /* edge and inset */
-
-            .SetHighColour rgba(0, 0, 0, 150)
-            .StrokeRoundRect pr, RX, RX, 1
-            .StrokeRoundRect pr.InsetByCopy(3, 3), RX, RX, 1
-
-        End If
+        Set pb = .ConvertToBitmap()
 
     End With
 
-    apply_view_to_window theView, theWindow.hWnd, Alpha, x, y
+    ' /* scale */
+
+Dim s As Single
+
+    s = Val(g_ConfigGet("scaling"))
+    If s <= 0# Then _
+        s = 1#                  ' // must NOT be zero!
+
+    With mView
+        .SizeTo ROUNDUP(pb.Width * s), ROUNDUP(pb.Height * s)
+        .Clear
+        .DrawScaledImage pb, , new_BPoint(.Width, .Height)
+
+
+'        .SetHighColour rgba(255, 255, 255)
+'        .SetLowColour rgba(0, 128, 255)
+'        .DrawString CStr(mPointerInside), .Bounds, MFX_ALIGN_H_CENTER Or MFX_ALIGN_V_CENTER Or MFX_SIMPLE_OUTLINE
+
+    End With
+
+    ' /* draw with or without dropshadow */
+
+    If uWantsDropshadow(n) Then
+        ' /* has a drop shadow */
+'        If (mPointerInside) And (Not mClickThru) Then
+'            Set pb = create_dropshadow(mView, , n * 2, 1)
+'
+'        Else
+            Set pb = create_dropshadow(mView, , n * 2, Fix((Val(g_ConfigGet("dropshadow_strength")) / 100) * 255))
+'
+'        End If
+        ' /* re-create using new image */
+        With mView
+            .SizeTo pb.Width, pb.Height
+            .Clear
+            .DrawScaledImage pb
+
+        End With
+    End If
+
+    apply_view_to_window mView, theWindow.hWnd, Alpha, x, y
 
 End Sub
 
@@ -975,7 +1019,7 @@ Friend Sub bSetAlpha(ByVal Alpha As Integer)
     End If
 
     mCurrent = Alpha
-    uDrawContent mCurrent
+    uRedraw
 
 End Sub
 
@@ -987,11 +1031,10 @@ Dim pm As OMMenu
         ' /* R2.2 */
         .AddItem .CreateItem("stky", "Make sticky", , (mOriginalTimeout > 0))
         .AddItem .CreateItem(" ", "Details", , , , , , uDetailsMenu())          ' // R2.3
-
         .AddSeparator
         .AddItem .CreateItem("acfg", mInfo.ClassObj.App.Name & " settings...", , mInfo.ClassObj.App.HasConfig)
-        .AddItem .CreateItem("$" & mInfo.ClassObj.App.Name & "#?" & mInfo.ClassObj.Name, "Notification settings...")
-
+        .AddItem .CreateItem("ncfg", "Notification settings...")
+'        .AddItem .CreateItem("$" & mInfo.ClassObj.App.Name & "#?" & mInfo.ClassObj.Name, "Notification settings...")
         .AddSeparator
         Set pm = uGetRedirectorsMenu()
         .AddItem .CreateItem(" ", "Redirect using", , (pm.CountItems > 0), , , , pm)
@@ -999,12 +1042,13 @@ Dim pm As OMMenu
         .AddItem .CreateItem(" ", "Forward to", , (pm.CountItems > 0), , , , pm)
         .AddItem .CreateItem("wlog", "Write content to log")
         .AddItem .CreateItem("copy", "Copy content to Clipboard")
-
         .AddSeparator
-        .AddItem .CreateItem("clse", "Close")
+        .AddItem .CreateItem("blck", "Ignore further notifications")
         .AddSeparator
+'        .AddSeparator
         .AddItem .CreateItem("capp", "Close all from " & mInfo.ClassObj.App.Name)
         .AddItem .CreateItem("call", "Close all")
+        .AddItem .CreateItem("clse", "Close")
 
         If g_IsPressed(VK_CONTROL) Then
             .AddSeparator
@@ -1028,6 +1072,9 @@ Dim sz() As String
         Case "clse"
             Hide
 
+        Case "blck"
+            mInfo.ClassObj.SetEnabled False
+
         Case "capp"
             g_NotificationRoster.CloseMultiple mInfo.ClassObj.App.Token
 
@@ -1050,14 +1097,18 @@ Dim sz() As String
         Case "acfg"
             mInfo.ClassObj.App.DoSettings 0
 
+        Case "ncfg"
+            frmAbout.ShowClassConfigPanel 0, mInfo.ClassObj.App, mInfo.ClassObj.Name
+
+
         Case Else
             szData = g_SafeRightStr(pmi.Name, Len(pmi.Name) - 1)
             
             Select Case g_SafeLeftStr(pmi.Name, 1)
-            Case "$"
-                ' /* app settings */
-                sz = Split(szData, "#?")
-                frmAbout.DoAppConfig sz(0), sz(1)
+'            Case "$"
+'                ' /* notification settings */
+'                sz = Split(szData, "#?")
+'                frmAbout.DoAppConfig sz(0), sz(1)
 
             Case ">"
                 ' /* forward */
@@ -1101,20 +1152,20 @@ Dim c As Long
 
     Loop
 
-    mCloseButtonVisible = False
-    uDrawContent mCurrent
+    mPointerInside = False
+    uRedraw
 
     CaptureToFile sz
 
-    mCloseButtonVisible = True
-    uDrawContent mCurrent
+    mPointerInside = True
+    uRedraw
 
 End Sub
 
 Public Function CaptureToFile(ByVal Filename As String)
 
-    If Not (theView Is Nothing) Then _
-        theView.WriteToFile Filename, "image/png"
+    If Not (mView Is Nothing) Then _
+        mView.WriteToFile Filename, "image/png"
 
 End Function
 
@@ -1424,8 +1475,8 @@ End Function
 
 Private Sub uQuickUpdate()
 
-    Set theBitmap = uGetContent2()
-    uDrawContent
+    uGetContent
+    uRedraw
 
 End Sub
 
@@ -1443,14 +1494,7 @@ Friend Function Update(ByRef Info As T_NOTIFICATION_INFO) As Boolean
     ' /* ask our style instance to update */
 
     uUpdateStyleContent Info
-
-    ' /* get the new content */
-
-Dim pb As mfxBitmap
-
-    Set pb = uGetContent2()
-    If (pb Is Nothing) Then _
-        Exit Function
+    uGetContent
 
     ' /* ask the instance if it wants to change the notification's position */
 
@@ -1459,27 +1503,22 @@ Dim pt As POINTAPI
     pt.x = theWindow.Frame.Left
     pt.y = theWindow.Frame.Top
     Me.AdjustPosition pt.x, pt.y
+    g_MoveWindow theWindow.hWnd, pt.x, pt.y
 
     ' /* reset timeout */
 
     SetTimeout mOriginalTimeout
 
-    ' /* re-position and re-size it */
+    ' /* redraw */
 
-    Set theBitmap = pb
-    theView.SizeTo theBitmap.Width + OFFSET_ICON, theBitmap.Height + OFFSET_ICON
-    g_MoveWindow theWindow.hWnd, pt.x, pt.y
-
-    ' /* draw it */
-
-    uDrawContent mCurrent
+    uRedraw
     Update = True
 
 End Function
 
-Public Function NotificationOnlyMode() As Boolean
+Public Function IsNonInteractive() As Boolean
 
-    NotificationOnlyMode = mClickThru
+    IsNonInteractive = mClickThru
 
 End Function
 
@@ -1493,151 +1532,46 @@ Static bmOld As mfxBitmap
     mFuzzy = Enabled
 
     If mFuzzy Then
-        Set bmOld = theBitmap.Duplicate
-        theBitmap.MakeGreyscale
-        uDrawContent
+        Set bmOld = mContent.Duplicate
+        mContent.MakeGreyscale
+        uRedraw
 
         ' /* R2.4: bring window to front - required? */
 
         SetWindowPos theWindow.hWnd, HWND_TOP, 0, 0, 0, 0, SWP_NOSIZE Or SWP_NOMOVE Or SWP_NOACTIVATE
-        uSetTargetAlpha MIN(102, Fix(mOriginalAlpha / 2))
+        uSetTargetAlpha Min(64, Fix(mOriginalAlpha / 2)), True
 
     Else
 
-        Set theBitmap = bmOld.Duplicate
+        Set mContent = bmOld.Duplicate
         Set bmOld = Nothing
-        uDrawContent
+        uRedraw
 
         Debug.Print "CSnarlWindow.MakeFuzzy(): restoring to alpha " & mOriginalAlpha
-        uSetTargetAlpha mOriginalAlpha
+        uSetTargetAlpha mOriginalAlpha, True
 
     End If
 
 End Sub
 
-Private Function uGetContent2() As mfxBitmap
-Const EMBLEM_ALPHA = 230
-Const EMBLEM_SIZE = 14
-Dim pbm As mfxBitmap
+Private Sub uGetContent()
 
     On Error Resume Next
 
     If Not (mInstance Is Nothing) Then _
-        Set pbm = create_bitmap_from_image(mInstance.GetContent())
+        Set mContent = create_bitmap_from_image(mInstance.GetContent())
 
-    If (pbm Is Nothing) Then
-        ' /* managed style didn't provide content so we switch to the built-in one */
-        g_Debug "CSnarlWindow.uGetContent2(): selected style didn't provide usable content", LEMON_LEVEL_WARNING
+    If (mContent Is Nothing) Then
+        ' /* style didn't provide content so we switch to the built-in one */
+        g_Debug "CSnarlWindow.uGetContent(): selected style didn't provide usable content", LEMON_LEVEL_WARNING
         Set mInstance = New TInternalStyle
         mStyleFlags = S_STYLE_MULTI_INSTANCE
         uUpdateInstance
-        Set pbm = create_bitmap_from_image(mInstance.GetContent())
+        Set mContent = create_bitmap_from_image(mInstance.GetContent())
 
     End If
 
-    If (pbm Is Nothing) Then
-        g_Debug "CSnarlWindow.uGetContent2(): FATAL: couldn't not get notification content", LEMON_LEVEL_CRITICAL
-        Exit Function
-
-    End If
-
-    ' /* R2.4: apply scaling */
-
-Dim pt As BPoint
-'Dim pv As mfxView
-Dim s As Single
-Dim n As Long
-
-    s = Val(g_ConfigGet("scaling"))
-    If s <= 0 Then _
-        s = 1               ' // must NOT be zero!
-
-    ' /* button rectangles, scaled as well */
-
-    Set mCloseRect = new_BRect(0, 0, 19 * s, 19 * s)
-
-Dim pb As mfxBitmap
-
-    ' /* create a temporary view */
-
-    With New mfxView
-        .SizeTo pbm.Width, pbm.Height
-        .DrawScaledImage pbm                ' // style content
-
-        ' /* set top-right corner */
-        Set pt = new_BPoint(.Width - mCloseRect.Left - 3, mCloseRect.Top + 3)
-        pt.OffsetBy -(EMBLEM_SIZE + 1), 0
-
-        ' /* emblems */
-
-        If mOriginalTimeout = 0 Then
-            ' /* sticky */
-            .DrawScaledImage bm_IsSticky, pt, new_BPoint(EMBLEM_SIZE, EMBLEM_SIZE), EMBLEM_ALPHA
-            pt.OffsetBy -(EMBLEM_SIZE + 1), 0
-
-        End If
-
-        If (Not mClickThru) And (mInfo.DefaultAck <> "") Then
-            ' /* indicate notification has a callback */
-            .DrawScaledImage bm_HasActions, pt, new_BPoint(EMBLEM_SIZE, EMBLEM_SIZE), EMBLEM_ALPHA
-            pt.OffsetBy -(EMBLEM_SIZE + 1), 0
-
-        End If
-
-        If (mInfo.IntFlags And SN_NF_FORWARD) Then
-            ' /* if the notification was forwarded */
-            .DrawScaledImage bm_Forward, pt, new_BPoint(EMBLEM_SIZE, EMBLEM_SIZE), EMBLEM_ALPHA
-            pt.OffsetBy -(EMBLEM_SIZE + 1), 0
-
-        ElseIf (mInfo.IntFlags And SN_NF_REMOTE) Then
-            ' /* if the notification was generated by a remote app */
-            .DrawScaledImage bm_Remote, pt, new_BPoint(EMBLEM_SIZE, EMBLEM_SIZE), EMBLEM_ALPHA
-            pt.OffsetBy -(EMBLEM_SIZE + 1), 0
-
-        End If
-
-        ' /* convert final content to an image */
-        Set pb = .ConvertToBitmap()
-
-    End With
-
-Dim pv As mfxView
-
-    ' /* create another temporary view, scaled according to our settings */
-
-    Set pv = New mfxView
-    With pv
-        .SizeTo pbm.Width * s, pbm.Height * s
-        .Clear
-        .DrawScaledImage pb, , new_BPoint(.Width, .Height)
-
-    End With
-
-    ' /* draw with or without dropshadow */
-
-    If uDrawDropshadow() Then
-        ' /* has a drop shadow */
-        n = Val(g_ConfigGet("dropshadow_size"))
-        mCloseRect.OffsetBy n, n
-        Set uGetContent2 = create_dropshadow(pv, , n * 2, Fix((Val(g_ConfigGet("dropshadow_strength")) / 100) * 255))
-
-    Else
-        ' /* no drop shadow */
-        Set uGetContent2 = pv.ConvertToBitmap()
-
-    End If
-
-    ' /* set up the correct locations for the close and actions buttons */
-
-    If pbm.Height > 47 Then
-        Set mActionsRect = mCloseRect.OffsetByCopy(0, mCloseRect.Height)
-
-    Else
-        Set mActionsRect = mCloseRect.OffsetByCopy(mCloseRect.Width, 0)
-
-    End If
-
-End Function
+End Sub
 
 Private Sub uUpdateStyleContent(ByRef Info As T_NOTIFICATION_INFO)
 
@@ -1732,10 +1666,11 @@ Dim pInfo As notification_info
 End Sub
 
 Public Sub AdjustPosition(ByRef x As Long, ByRef y As Long)
+Dim n As Long
 
-    If uDrawDropshadow() Then
-        x = x + Val(g_ConfigGet("dropshadow_size"))
-        y = y + Val(g_ConfigGet("dropshadow_size"))
+    If uWantsDropshadow(n) Then
+        x = x + n
+        y = y + n
 
     End If
 
@@ -1743,19 +1678,21 @@ Public Sub AdjustPosition(ByRef x As Long, ByRef y As Long)
 
     ' /* compensate for dropshadow */
 
-    If uDrawDropshadow() Then
-        x = x - Val(g_ConfigGet("dropshadow_size"))
-        y = y - Val(g_ConfigGet("dropshadow_size"))
+    If uWantsDropshadow(n) Then
+        x = x - n
+        y = y - n
 
     End If
 
 End Sub
 
-Private Function uDrawDropshadow() As Boolean
+Private Function uWantsDropshadow(Optional ByRef ShadowSize As Long) As Boolean
 
     ' /* styles can veto the system drop shadow */
 
-    uDrawDropshadow = ((mStyleFlags And S_STYLE_NO_DROPSHADOW) = 0)
+    uWantsDropshadow = ((mStyleFlags And S_STYLE_NO_DROPSHADOW) = 0)
+    If uWantsDropshadow Then _
+        ShadowSize = g_SafeLong(g_ConfigGet("dropshadow_size"))
 
 End Function
 
@@ -1812,7 +1749,7 @@ End Function
 
 Public Sub QueueCountChanged()
 
-    uDrawContent
+    uRedraw
 
 End Sub
 
@@ -1826,20 +1763,6 @@ Public Function IsMergeCandidate(ByRef ComparisonClass As TAlert, ByVal Comparis
 
 End Function
 
-'Friend Sub MergeWith(ByRef Info As T_NOTIFICATION_INFO)
-''Dim t As Long
-'
-''    t = (mTick \ 10) + Info.Timeout
-'    Info.Text = mInfo.Text & vbCrLf & Info.Text
-'    Info.Text = g_TrimLines(Info.Text)              ' // still apply overflow trimming...
-'
-'    g_KludgeNotificationInfo Info
-'
-'    Update Info                                     ' // update icon and title (if applicable)
-'    SetTimeout mInfo.Timeout                        ' // set new timeout
-'
-'End Sub
-
 Public Sub RethinkActions()
 
     If (mInfo.Actions.CountItems = 1) Or (mInfo.Actions.CountItems = 0) Then _
@@ -1849,11 +1772,13 @@ End Sub
 
 Public Function HasActions() As Boolean
 
-    HasActions = (mInfo.Actions.CountItems <> 0)
+    HasActions = (mInfo.Actions.CountItems > 0)
 
 End Function
 
-Private Sub uDoActionsMenu()
+Private Sub uDoActionsMenu(Optional ByRef aRect As BRect)
+Dim pr As BRect
+Dim n As Long
 
     If mInfo.Actions.CountItems = 0 Then
         g_Debug "CSnarlWindow.uDoActionsMenu(): no actions defined", LEMON_LEVEL_CRITICAL
@@ -1861,106 +1786,75 @@ Private Sub uDoActionsMenu()
 
     End If
 
-'    If (IsWindow(mInfo.hWndReply) = 0) Or (mInfo.uReplyMsg = 0) Then
-'        g_Debug "CSnarlWindow.uDoActionsMenu(): bad reply-to window or reply message", LEMON_LEVEL_CRITICAL
-'        Exit Sub
-'
-'    End If
+    uWantsDropshadow n
+    Set pr = mActionsRect.Duplicate
+    pr.OffsetBy BW_Frame(theWindow.hWnd).Left + n, BW_Frame(theWindow.hWnd).Top + n
 
-    EnableWindow theWindow.hWnd, 0
+'    EnableWindow theWindow.hWnd, 0
 
-Dim pmi As OMMenuItem
-Dim i As Long
+    mMenuOpen = True
 
-    With New OMMenu
-        For i = 1 To mInfo.Actions.CountItems
-            .AddItem .CreateItem(CStr(i), mInfo.Actions.TagAt(i).Name)
-            If i < mInfo.Actions.CountItems Then _
-                .AddSeparator
+    Set theActionsPopup = New TAppsPopUpWindow
+    theActionsPopup.Create 24
 
-        Next i
+Dim pn As BTagItem
 
-        Set pmi = .Track(theWindow.hWnd, BW_Frame(theWindow.hWnd).TopLeft.OffsetByCopy(mActionsRect.Left, mActionsRect.Bottom))
+    With mInfo.Actions
+        .Rewind
+        Do While .GetNextTag(pn) = B_OK
+            theActionsPopup.AddItem pn.Name, pn.Value
 
+        Loop
+        
     End With
 
-    If (pmi Is Nothing) Then _
-        Exit Sub
+    theActionsPopup.Show pr
 
-    ' /* get selected command */
 
-Dim szCmd As String
-
-    i = Val(pmi.Name)
-    szCmd = mInfo.Actions.TagAt(i).Value
-
-    If g_SafeLeftStr(szCmd, 1) = "@" Then
-        uNotify SNARL_NOTIFY_ACTION, szCmd          ' /* dynamic callback */
-
-    Else
-        g_ProcessAck szCmd                          ' /* static callback - process but don't do a callback */
-
-    End If
-        
-    EnableWindow theWindow.hWnd, -1           ' // item was selected so re-enable the window
-
-'    If (mInfo.Flags And SNARL41_NOTIFICATION_AUTO_DISMISS) Then _
-        Me.Hide
-
+'Dim pmi As OMMenuItem
+''Dim n As Long
+'Dim i As Long
+'
+'    With New OMMenu
+'        For i = 1 To mInfo.Actions.CountItems
+'            .AddItem .CreateItem(CStr(i), mInfo.Actions.TagAt(i).Name)
+'            If i < mInfo.Actions.CountItems Then _
+'                .AddSeparator
+'
+'        Next i
+'
+'        ' /* get dropshadow compensation */
+''        uWantsDropshadow n
+'        Set pmi = .Track(theWindow.hWnd) '//, BW_Frame(theWindow.hWnd).TopLeft.OffsetByCopy(aRect.Left + n, aRect.Bottom + n))
+'
+'    End With
+'
+'    If (pmi Is Nothing) Then _
+'        Exit Sub
+'
+'    ' /* get selected command */
+'
+'Dim szCmd As String
+'
+'    i = Val(pmi.Name)
+'    szCmd = mInfo.Actions.TagAt(i).Value
+'
+'    If g_SafeLeftStr(szCmd, 1) = "@" Then
+'        ' /* dynamic callback */
+'        uNotify SNARL_NOTIFY_ACTION, szCmd
+'
+'    Else
+'        ' /* static callback - process but don't do a callback */
+'        g_ProcessAck szCmd
+'
+'    End If
+'
+'    EnableWindow theWindow.hWnd, -1
+'
+''    If (mInfo.Flags And SNARL41_NOTIFICATION_AUTO_DISMISS) Then _
+'        Me.Hide
+'
 End Sub
-
-'Public Sub ClearActions()
-'
-'    mActions = 0
-'    ReDim mAction(0)
-'
-'End Sub
-
-'Friend Function Update(ByRef Info As T_NOTIFICATION_INFO) As Boolean
-''Dim pInfo As T_NOTIFICATION_INFO
-''Dim sz As String
-'
-'    ' /* get our current content */
-'
-''    LSet pInfo = mInfo
-'
-'    ' /* update content with only what's provided */
-'
-''    With mInfo
-''
-''        If Args.Exists("title") Then
-''            sz = Replace$(Args.ValueOf("title"), "\n", vbCrLf)
-''            sz = Replace$(sz, "\+", .Title)                         ' // specfic to Update() - replace '\+' with existing title
-''            .Title = g_TrimLines(sz)
-''
-''        End If
-''
-''        If Args.Exists("text") Then
-''            sz = Replace$(Args.ValueOf("text"), "\n", vbCrLf)
-''            sz = Replace$(sz, "\+", .Text)                          ' // specfic to Update() - replace '\+' with existing text
-''            .Text = g_TrimLines(sz)
-''
-''        End If
-''
-''        If Args.Exists("icon") Then _
-''            .IconPath = Args.ValueOf("icon")
-''
-''        If Args.Exists("timeout") Then _
-''            .Timeout = g_SafeLong(Args.ValueOf("timeout"))          ' // g_SafeLong() returns 0 on error - not good...
-''
-''    End With
-''
-''    ' /* create the OriginalContent value */
-''
-''    uFixupContent
-''    g_KludgeNotificationInfo pInfo
-''    LSet mInfo = pInfo
-'
-'    ' /* tell the style to apply the changes and redraw */
-'
-'    Update = uUpdate(Info)
-'
-'End Function
 
 Private Function uGetSNP3Info() As String
 Dim ppd As BPackedData
@@ -1987,98 +1881,6 @@ Dim sz As String
     uGetSNP3Info = sz
 
 End Function
-
-'Private Sub uDrawEmblems()
-'Const EMBLEM_ALPHA = 190
-'Const EMBLEM_SIZE = 14
-'Dim pt As BPoint
-'Dim pr As BRect
-''Dim n As Integer
-'
-''    Debug.Print "** draw emblems **"
-'
-'    ' /* pre-process to determine how many are to be drawn */
-'
-''    If mOriginalTimeout = 0 Then _
-''        n = n + 1                       ' // sticky
-''
-''    If (mInfo.IntFlags And SN_NF_REMOTE) Or (mInfo.ClassObj.App.IsRemote) Then _
-''        n = n + 1                       ' // remote app
-'
-'    With theView
-'
-'        ' /* set top-right corner */
-'        Set pt = new_BPoint(.Width - mCloseRect.Left - 3, mCloseRect.Top + 3)
-'
-''        Set pr = new_BRect(pt.x - ((EMBLEM_SIZE + 1) * n), pt.y, pt.x, pt.y + EMBLEM_SIZE)
-''        .SetHighColour rgba(0, 0, 0, 190)
-''        .FillRoundRect pr.InsetByCopy(-2, -2), 6, 6
-'
-'        pt.OffsetBy -(EMBLEM_SIZE + 1), 0
-'
-'        ' /* if the notification is sticky */
-'
-'        If mOriginalTimeout = 0 Then
-'            .DrawScaledImage bm_IsSticky, pt, new_BPoint(EMBLEM_SIZE, EMBLEM_SIZE), EMBLEM_ALPHA
-'            pt.OffsetBy -(EMBLEM_SIZE + 1), 0
-'
-'        End If
-'
-'        ' /* if the notification is high priority */
-'
-'        If mInfo.Priority > 0 Then
-'            .DrawScaledImage bm_Priority, pt, new_BPoint(EMBLEM_SIZE, EMBLEM_SIZE), EMBLEM_ALPHA
-'            pt.OffsetBy -(EMBLEM_SIZE + 1), 0
-'
-'        End If
-'
-'        MsgBox mInfo.DefaultAck
-'
-'        ' /* if notification isn't click-through and the mouse pointer isn't
-'        '    over it, and it has actions or a default callback, draw the actions indicator emblem */
-'                        '//And (Not mCloseButtonVisible)
-'        If (Not mClickThru) And (mInfo.DefaultAck <> "") Then
-'
-'        MsgBox "!"
-'
-'            .DrawScaledImage bm_HasActions, pt, new_BPoint(EMBLEM_SIZE, EMBLEM_SIZE), EMBLEM_ALPHA
-'            pt.OffsetBy -(EMBLEM_SIZE + 1), 0
-'
-'        End If
-'
-''        If (Not mClickThru) And ((mInfo.Actions.CountItems > 0) Or (mInfo.DefaultAck <> "")) Then
-''            .DrawScaledImage bm_HasActions, pt, new_BPoint(EMBLEM_SIZE, EMBLEM_SIZE), EMBLEM_ALPHA
-''            pt.OffsetBy -(EMBLEM_SIZE + 1), 0
-''
-''        End If
-'
-'        ' /* if the notification was generated by a remote app */
-'
-'        If (mInfo.IntFlags And SN_NF_FORWARD) Then
-'            .DrawScaledImage bm_Forward, pt, new_BPoint(EMBLEM_SIZE, EMBLEM_SIZE), EMBLEM_ALPHA
-'            pt.OffsetBy -(EMBLEM_SIZE + 1), 0
-'
-'        End If
-'
-'        ' /* if the notification was generated by a remote app */
-'
-''        If (mInfo.IntFlags And SN_NF_REMOTE) Or (mInfo.ClassObj.App.IsRemote) Then
-''            .DrawScaledImage bm_Remote, pt, new_BPoint(EMBLEM_SIZE, EMBLEM_SIZE), EMBLEM_ALPHA
-''            pt.OffsetBy -(EMBLEM_SIZE + 1), 0
-''
-''        End If
-'
-'        ' /* if the notification was generated by a secure app */
-'
-''        If (mInfo.IntFlags And SN_NF_SECURE) Then
-''            .DrawScaledImage bm_Secure, pt, new_BPoint(EMBLEM_SIZE, EMBLEM_SIZE), EMBLEM_ALPHA
-''            pt.OffsetBy -(EMBLEM_SIZE + 1), 0
-''
-''        End If
-'
-'    End With
-'
-'End Sub
 
 Private Function uGetForwardersMenu() As OMMenu
 Dim ps As ConfigSection
@@ -2127,5 +1929,215 @@ Dim i As Long
 
 End Function
 
+Private Sub uDrawHUDContent()
+Dim szHUD As String
+Dim pr As BRect
+Dim cy As Long
 
+    With mView
+'        .SetFont "Tahoma", 8, True
+        .SetFont "Arial", 8, True
+        .TextMode = MFX_TEXT_ANTIALIAS
+        .SetHighColour rgba(255, 255, 255, 230)
+        .SetLowColour rgba(0, 0, 0, 160)
+
+        ' /* timestamp overlay */
+        szHUD = g_When(mInfo.DateStamp)
+        Set pr = new_BRect(0, 0, .StringWidth(szHUD) + 3, .StringHeight("A"))
+        If g_ConfigGet("callback_as_button") = "1" Then
+            pr.OffsetBy 4, .Height - pr.Height - 4
+
+        Else
+            pr.OffsetBy .Width - pr.Width, .Height - pr.Height
+
+        End If
+
+        cy = pr.Height
+        .FillRoundRect pr, 3, 3, MFX_SOLID_LOW
+        .DrawString szHUD, pr, MFX_ALIGN_H_CENTER Or MFX_ALIGN_V_CENTER
+
+        ' /* R2.4b4: app name overlay */
+        szHUD = mInfo.ClassObj.App.NameEx()
+        Set pr = new_BRect(0, 0, .StringWidth(szHUD) + 3, .StringHeight("A"))
+        If g_ConfigGet("callback_as_button") = "1" Then
+            pr.OffsetBy 4, .Height - pr.Height - cy - 4
+
+        Else
+            pr.OffsetBy .Width - pr.Width, .Height - cy - pr.Height
+
+        End If
+        .FillRoundRect pr, 3, 3, MFX_SOLID_LOW
+
+        ' /* R2.4.2 DR3: if insecure app (or insecure notification), draw app name in different colour */
+
+        If (mInfo.ClassObj.App.IsSecure) Or (mInfo.IntFlags And SN_NF_SECURE) Then
+            .SetHighColour rgba(255, 255, 255)
+
+        Else
+            .SetHighColour rgba(255, 190, 110)
+
+        End If
+
+        .DrawString szHUD, pr, MFX_ALIGN_H_CENTER Or MFX_ALIGN_V_CENTER
+
+    End With
+
+End Sub
+
+''Dim n As Long
+'
+'        ' /* can only ever have one low priority notification visible at any one time
+'        '    (obviously this excludes visible non-windowed styles) */
+'
+''        If mInfo.Priority < 0 Then _
+'            n = g_NotificationRoster.QueueCount
+'
+'        ' /* if we have queued notifications, draw the number in a badge */
+'
+''        If n > 0 Then
+''            .SetFont "Tahoma", 8, True
+''            .TextMode = MFX_TEXT_ANTIALIAS
+''            .EnableSmoothing True
+''
+''            ' /* figure out the badge size and position */
+''
+''            Set pr = new_BRect(0, 0, MAX(.StringWidth(CStr(n)), .StringHeight("A")), .StringHeight("A"))
+''            pr.ExpandBy 8, 8
+''            pr.OffsetBy .Width - pr.Width - 1, 1
+''
+''            If uWantsDropshadow() Then _
+''                pr.OffsetBy -Val(g_ConfigGet("dropshadow_size")), Val(g_ConfigGet("dropshadow_size"))
+''
+''            ' /* background */
+''
+''            .SetHighColour rgba(0, 0, 64, 190)
+''            .SetLowColour rgba(0, 0, 64, 100)
+''            .FillRoundRect pr, RX, RX, MFX_VERT_GRADIENT
+''
+''            ' /* label */
+''
+''            .SetHighColour rgba(255, 255, 255)
+''            .DrawString CStr(n), pr, MFX_ALIGN_H_CENTER Or MFX_ALIGN_V_CENTER
+''
+''            ' /* border */
+''
+''            .SetHighColour rgba(255, 255, 255)
+''            .StrokeRoundRect pr.InsetByCopy(1, 1), RX, RX, 2
+''
+''            ' /* edge and inset */
+''
+''            .SetHighColour rgba(0, 0, 0, 150)
+''            .StrokeRoundRect pr, RX, RX, 1
+''            .StrokeRoundRect pr.InsetByCopy(3, 3), RX, RX, 1
+''
+''        End If
+'
+''        Set pb = .ConvertToBitmap()
+
+Private Function uCanDoCallback() As Boolean
+
+    uCanDoCallback = (mInfo.DefaultAck <> "") ' Or ((mInfo.hWndReply <> 0) And (mInfo.uReplyMsg <> 0))
+
+End Function
+
+Private Sub theActionsPopup_Closed()
+
+    mMenuOpen = False
+    Set theActionsPopup = Nothing
+    uRedraw
+
+End Sub
+
+Private Sub theActionsPopup_Selected(ByVal Signature As String)
+
+    ' /* get selected command */
+
+    If g_SafeLeftStr(Signature, 1) = "@" Then
+        ' /* dynamic callback */
+        uNotify SNARL_NOTIFY_ACTION, Signature
+
+    Else
+        ' /* static callback - process but don't do a callback */
+        g_ProcessAck Signature
+
+    End If
+
+End Sub
+
+Private Sub uDoClose(ByRef PauseFlag As Boolean)
+
+    If g_IsPressed(VK_CONTROL) Then
+        ' /* CTRL held down... */
+        g_NotificationRoster.CloseMultiple mInfo.ClassObj.App.Token
+
+    ElseIf g_IsPressed(VK_SHIFT) Then
+        ' /* SHIFT held down: close all */
+        g_NotificationRoster.CloseMultiple 0
+
+    Else
+        PauseFlag = True                  ' // don't count down while we're doing this...
+        uNotify SNARL_CALLBACK_CLOSED
+        PauseFlag = False
+        Hide
+
+    End If
+
+End Sub
+
+Private Sub uDoInvoke(ByRef PauseFlag As Boolean)
+
+    PauseFlag = True
+
+    If g_SafeLeftStr(mInfo.DefaultAck, 1) = "@" Then
+        ' /* dynamic callback */
+        uNotify SNARL_NOTIFY_INVOKED, mInfo.DefaultAck
+
+    ElseIf mInfo.DefaultAck <> "" Then
+        ' /* static callback - process but don't do a callback */
+        g_ProcessAck mInfo.DefaultAck
+
+    Else
+        ' /* legacy */
+        uNotify SNARL_NOTIFY_INVOKED
+
+    End If
+
+'    If mInfo.DefaultAck <> "" Then
+'        g_ProcessAck mInfo.DefaultAck
+'
+'    Else
+'        uNotify SNARL_NOTIFY_INVOKED, mInfo.DefaultAck
+'
+'    End If
+
+    PauseFlag = False
+    Hide
+
+End Sub
+
+'                    g_Debug "CSnarlWindow.WndProc(): close button invoked - not sending ACK"
+'                    If (g_IsPressed(VK_LCONTROL)) Or (g_IsPressed(VK_RCONTROL)) Then
+'                        ' /* CTRL held down... */
+'                        If (g_IsPressed(VK_LSHIFT)) Or (g_IsPressed(VK_RSHIFT)) Then
+'                            ' /* SHIFT held down: close all */
+'                            g_NotificationRoster.CloseMultiple 0
+'
+'                        ElseIf mInfo.hWndReply <> 0 Then
+'                            ' /* just from the provided window */
+'                            g_NotificationRoster.CloseMultiple mInfo.hWndReply
+'
+'                        Else
+'                            ' /* no reply window so just close ourselves */
+'                            Hide
+'
+'                        End If
+'
+'                    Else
+'                        ' /* just close ourself */
+'                        bPaused = True                  ' // don't count down while we're doing this...
+'                        uNotify SNARL_CALLBACK_CLOSED
+'                        bPaused = False
+'                        Hide
+'
+'                    End If
 

@@ -23,6 +23,8 @@ End Type
 
 Dim mContent As T_INFO
 Dim mhWndOwner As Long
+Dim mhWndConfig As Long
+Dim mIcon As MImage
 
 Public Event StylePrefsWindowClosed()
 
@@ -43,8 +45,9 @@ Private Function BWndProcSink_WndProc(ByVal hWnd As Long, ByVal uMsg As Long, By
         ' /* config window has gone */
         window_subclass hWnd, Nothing
         If mhWndOwner <> 0 Then
-            EnableWindow mhWndOwner, -1
+'            EnableWindow mhWndOwner, -1
             g_WindowToFront mhWndOwner, True
+            mhWndConfig = 0
             mhWndOwner = 0
 
         End If
@@ -56,6 +59,7 @@ Private Function BWndProcSink_WndProc(ByVal hWnd As Long, ByVal uMsg As Long, By
 End Function
 
 Friend Sub bInit(ByRef Engine As IStyleEngine, ByRef Info As style_info)
+Dim sz As String
 
     With mContent
         Set .Engine = Engine
@@ -64,8 +68,29 @@ Friend Sub bInit(ByRef Engine As IStyleEngine, ByRef Info As style_info)
     End With
 
     ' /* get the schemes */
-
     uGetSchemes
+
+    ' /* cache the icon */
+    sz = Info.IconPath
+    If Not g_Exists(sz) Then _
+        sz = g_MakePath(Info.Path) & Info.Name & ".png"
+
+    If Not g_Exists(sz) Then _
+        sz = g_MakePath(Info.Path) & "icon.png"
+
+    ' /* use default icon */
+    If Not g_Exists(sz) Then
+        If Me.IsRedirect Then
+            sz = g_MakePath(App.Path) & "etc\icons\forward.png"
+
+        Else
+            sz = g_MakePath(App.Path) & "etc\icons\style.png"
+        
+        End If
+
+    End If
+
+    Set mIcon = load_image_obj(sz)
 
 End Sub
 
@@ -281,7 +306,7 @@ Dim i As Long
     With mContent
         If .SchemeCount Then
             For i = 1 To .SchemeCount
-                GetSchemeList = GetSchemeList & IIf(.Scheme(i) = "", "<default>", .Scheme(i)) & "#?" & LCase$(.Scheme(i)) & "|"
+                GetSchemeList = GetSchemeList & IIf(.Scheme(i) = "", "<default>", .Scheme(i)) & "#?" & LCase$(Me.SafeSchemeAt(i)) & "|"
 
             Next i
         End If
@@ -336,6 +361,14 @@ Public Function ShowPrefs(ByVal hWndOwner As Long) As Boolean
     If ISNULL(mContent.Engine) Then _
         Exit Function
 
+    If mhWndConfig <> 0 Then
+        g_WindowToFront mhWndConfig, True
+        ShowPrefs = True
+        Exit Function
+
+    End If
+
+
 Dim hWndConfig As Long
 
     hWndConfig = mContent.Engine.GetConfigWindow(mContent.Info.Name)
@@ -347,43 +380,145 @@ Dim hWndConfig As Long
 
     ' /* valid window */
 
-Dim dw As Long
-
-    ' /* remove minimize button */
-
-    dw = GetWindowLong(hWndConfig, GWL_STYLE)
-    dw = dw And (Not WS_MINIMIZEBOX)
-    SetWindowLong hWndConfig, GWL_STYLE, dw
     window_subclass hWndConfig, Me
+    mhWndConfig = hWndConfig
 
     If hWndOwner <> 0 Then
         ' /* centre it on its owner */
         mhWndOwner = g_GetTopLevel(hWndOwner)
         SetWindowLong hWndConfig, GWL_HWNDPARENT, mhWndOwner
         g_MoveWindow hWndConfig, , , , , True, mhWndOwner
-        EnableWindow mhWndOwner, 0
 
     Else
         g_MoveWindow hWndConfig, , , , True
 
     End If
 
-'Dim rcConfig As RECT
-'Dim rc As RECT
-'
-'
-'
-'    GetWindowRect mPage.Panel.hWnd, rc
-'    GetWindowRect hWndConfig, rcConfig
-'    g_RectNormalise rcConfig
-'
-'    g_MoveWindow hWndConfig, _
-'                 rc.Left + Fix(((rc.Right - rc.Left) - rcConfig.Right) / 2), _
-'                 rc.Top + Fix(((rc.Bottom - rc.Top) - rcConfig.Bottom) / 2)
-
     g_ShowWindow hWndConfig, True, True
     ShowPrefs = True
 
 End Function
 
+Public Function SafeIconPath() As String
 
+    SafeIconPath = Me.IconPath
+    If Not g_Exists(SafeIconPath) Then _
+        SafeIconPath = g_MakePath(App.Path) & "etc\icons\style.png"
+
+End Function
+
+Public Function NameEx() As String
+Dim sz As String
+
+'    sz = mContent.Info.Copyright
+'    If sz <> "" Then _
+'        sz = " (" & sz & ")"
+
+    NameEx = mContent.Info.Name & " " & CStr(mContent.Info.Major) & "." & CStr(mContent.Info.Minor) & sz
+
+End Function
+
+Public Function DoSchemePreview(ByVal Scheme As String, ByVal IsPriority As Boolean, Optional ByVal Percent As Integer = -1, Optional ByVal HidePrev As Boolean = True) As Boolean
+
+    ' /* this handles external requests to Snarl to display a notification in a particular
+    '    style and scheme - only the SNARL_PREVIEW_SCHEME message handler calls this */
+
+    If (g_NotificationRoster Is Nothing) Then _
+        Exit Function
+
+    If Scheme = "" Then
+        ' /* if no scheme, use "<Default>" */
+        Scheme = "<Default>"
+
+    Else
+        ' /* otherwise, supplied scheme must exist */
+        If Me.SchemeIndex(Scheme) = 0 Then _
+            Exit Function
+
+    End If
+
+Dim pInfo As T_NOTIFICATION_INFO
+
+    With pInfo
+        .Title = Me.Name & IIf(Scheme = "<Default>", "", "/" & Scheme) & IIf(IsPriority, " (Priority)", "")
+        .Text = "Lorem ipsum dolor sit amet, consectetur adipisicing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat."
+        .Timeout = -1
+        .IconPath = Me.SafeIconPath()
+        .StyleName = mContent.Info.Name
+        .SchemeName = LCase$(Scheme)
+        .Position = SN_SP_DEFAULT_POS
+        .Priority = IIf(IsPriority, 1, 0)
+        Set .ClassObj = New TAlert
+        .APIVersion = App.Major
+        .IntFlags = App.Major
+        
+        If HidePrev Then _
+        .CustomUID = "style-preview" & IIf(IsPriority, "-priority", "")
+        
+        With New BPackedData
+            If Percent > -1 Then _
+                .Add "value-percent", CStr(Percent)
+                
+            .Add "value-date-packed", Format$(Now(), "YYYYMMDDHHNNSS")
+
+            pInfo.OriginalContent = .AsString()
+
+        End With
+
+        If HidePrev Then _
+            g_NotificationRoster.Hide 0, .CustomUID, App.ProductName, ""
+
+    End With
+
+    DoSchemePreview = (g_NotificationRoster.Add(pInfo, Nothing, False) <> 0)
+
+End Function
+
+Public Function SchemeIconPath(ByVal Index As Long) As String
+Dim szf As String
+Dim sz As String
+
+    If (Index > 0) And (Index <= mContent.SchemeCount) Then
+        sz = g_MakePath(mContent.Info.Path)
+        szf = g_MakeFilename(mContent.Scheme(Index))
+        SchemeIconPath = sz & szf & ".icon"
+        If g_Exists(SchemeIconPath) Then _
+            Exit Function
+
+        SchemeIconPath = sz & szf & ".png"
+        If g_Exists(SchemeIconPath) Then _
+            Exit Function
+
+    End If
+
+    SchemeIconPath = mContent.Info.IconPath
+
+    If Not g_Exists(SchemeIconPath) Then
+        If Me.IsRedirect Then
+            SchemeIconPath = g_MakePath(App.Path) & "etc\icons\forward.png"
+
+        Else
+            SchemeIconPath = g_MakePath(App.Path) & "etc\icons\style.png"
+        
+        End If
+    End If
+
+End Function
+
+Public Function SchemeIconIcon(ByVal Index As Long) As MImage
+
+    Set SchemeIconIcon = load_image_obj(Me.SchemeIconPath(Index))
+
+End Function
+
+Public Function IsConfigurable() As Boolean
+
+    IsConfigurable = ((mContent.Info.Flags And S_STYLE_IS_CONFIGURABLE) <> 0)
+
+End Function
+
+Public Function Icon() As MImage
+
+    Set Icon = mIcon
+
+End Function

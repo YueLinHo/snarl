@@ -1,6 +1,150 @@
 
 	Snarl Change Log
 
+	- Class list in the Class Configuration panel wasn't updating when classes
+	  for the selected application were changed.  Now fixed.  (44.54)
+
+	- New panel icons.  (44.53)
+
+	- Reworked Prefs panel content.  (44.53)
+
+	- Reworked Class Configuration panel sub tab layout.  (44.53)
+
+	- Released as 2.6 Alpha 4.  (44.52)
+
+	- Reinstated sending a SNARL_NOTIFY_INVOKED even when no dynamic callback
+	  provided to ensure backward compatability is maintained.  (44.52)
+
+	- Can now provide "log=0" in arguments passed to <AddClass> to prevent any
+	  notifications generated using the class from being logged.  (44.51)
+
+	- "Use Same Settings For All Classes?" toggle button wasn't setting itself
+	  correctly when the classes panel opened.  Now fixed.  (44.51)
+
+	- GNTP handler now supports two custom headers: "X-Response-Redacted: <bool>"
+	  which, if True, excludes details about the machine and software versions in
+	  use from the response; "X-Notification-Duration: <secs>" which indicates the
+	  number of seconds the notification should be displayed for.  Credit to
+	  Viscount for suggesting these.  (44.51)
+
+	- SNP2 response handler now returns human readable status code in capitals.
+	  Credit to Viscount for identifying the bug.  (44.51)
+
+	- App-Cache folder moved under %APPDATA% (thanks to Dithersky for suggesting
+	  this).  (44.49)
+
+	- Fixed crash that would happen under certain circumstances when processing a
+	  remotely downloaded image file.  (44.49)
+
+	- Can now stop failed extensions using the UI.  (44.45)
+
+	- Addressed a number of serious memory leaks to do with passing icons to the
+	  Prefs Kit by filename rather than by an exising object.  Credit to Pako
+	  for taking the time to debug this.  (44.45)
+
+	- Full-screen detection wasn't excluding minimised application windows which
+	  could lead to a false-positive detection under certain circumstances - now
+	  fixed.  (44.43)
+
+	- Removing items from the Notification Centre wasn't actually removing them from
+	  the missed list - now fixed.  (44.43)
+
+	- Released as 2.6 Alpha 3.  (44.33)
+
+	- "Redirectors" are now known simply as "Redirects".  (44.33)
+
+	- Correctly update all lists and combos when the available styles change.  (44.33)
+
+	- Changed command-line arg "-r" (request) to "-p|--parse" (parse).  (44.33)
+
+	- Fixed bug which was preventing redirects from being permanently removed in some
+	  situations.  Credit to Pako for spotting this.  (44.33)
+
+	- Re-enabled support for legacy SNARL_LOAD_EXTENSION and SNARL_UNLOAD_EXTENSION
+	  commands as snarlm.exe still issues these.  (44.33)
+
+	- Improved support for legacy SNARL_LOAD_STYLE_ENGINE and SNARL_UNLOAD_STYLE_ENGINE
+	  commands as snarlm.exe still issues these.  (44.33)
+
+	- Now correctly installs zipped runnable styles (.RSZ files) if they're passed as
+	  part of a command line.  (44.33)
+
+	- Added "mark as read" indicator to NC items.  Clicking the indicator will remove
+	  the item from the NC without replaying it.  (44.31)
+
+	- Can now configure extensions even if they're in a FAILED state.  (44.31)
+
+	- Changed lots of system notifications to use the Welcome Message / Others class.
+	  (44.31)
+
+	- Growl UDP registrations now use the remote host IP address rather than the
+	  host name.  (44.31)
+
+	- Added extra debug output to Growl UDP packet parsing.  (44.31)
+
+	- Notification Centre: can now close it by clicking the "X" button in the top
+	  right corner.  (44.29)
+
+	- Notification Centre: double-clicking a header expands/collapses the items
+	  within it; double-clicking an item replays it and removes it from the NC.
+	  (44.29)
+
+	- Notification Centre: clicking the "X" button in a header removes all the items
+	  within the header.  (44.29)
+
+	- Notification Centre: automatically closes when the last item is removed.  (44.29)
+
+	- "Quit Snarl" menu item is now at the bottom of the menu.  (44.29)
+
+	- Class configuration panel can now be displayed on its own (that is, without
+	  the main panel being around).  This is used by the "Notification Settings..."
+	  option in the notification menu.  (44.29)
+
+	- Can now configure Notification Centre colours.  (44.29)
+
+	- Released as 2.6 Alpha 2.  (44.28)
+
+	- Added Notification Centre.  (44.27)
+
+	- Shift-clicking a notification closes all notifications; Ctrl+Shift-clicking
+	  closes only those notifications from the same app.  (44.26)
+
+	- The label of the default callback button can now be customised using "callback-
+	  label=foo" in the {notify} request.  (44.26)
+
+	- New notification model.  Actions gadget is larger and appears in the top left
+	  corner.  If the notification has a callback, this is now displayed as a button
+	  in the bottom right of the notification.  Clicking the notification body simply
+	  closes (SNARL_EVENT_CLOSED) the notification.  (44.26)
+
+	- Non-interactive notifications now fade to 25% opacity and fade faster.  (44.25)
+
+	- Added new global "Ignore mouse and other inputs" option.  (44.25)
+
+	- Style and Extension configuration panels are no longer displayed modal.  (44.25)
+
+	- Applications can no longer be automatically banned.  Instead, uCheckDOS()
+	  now counts up how many notifications the application currently has visible
+	  and drops further notifications while this number is ten or more.  (44.25)
+
+	- Fixed a number of bugs to do with subscriptions and forwarding via SNP.  (44.25)
+
+	- Released as 2.6 Alpha 1.  (44.24)
+
+	- New "Block further notifications" option in notificaton menu.  If selected,
+	  disables the class which generated the notification.  (44.24)
+
+	- Added per-class setting which prevents notifications from being programmatically
+	  hidden (closed).  (44.24)
+
+	- Added per-class notification text redaction.  (44.24)
+
+	- Styles can now provide customised Close and Actions gadgets.  These should be
+	  named "close.png" and "actions.png" respectively and should be located in a
+	  "gadgets" sub folder within the style's own folder.  (44.24)
+
+	- SNP Subscriptions implemented.  (44.23)
+
 	- When an extension is enabled (loaded), Snarl now checks to see if its release
 	  number has changed and displays a notification if it has.  (44.21)
 
@@ -101,7 +245,7 @@
 	- Released as 2.5.1 Beta 1.  (43.65)
 
 	- New "sensitivity" argument added to {notify} command.  Defined values are as
-	  follows: 0 - Normal; 16  - Personal; 32  - Private; 48  - Confidential.  Note
+	  follows: 0 - Normal; 16 - Personal; 32 - Private; 48 - Confidential.  Note
 	  that Snarl simply passes the value on.  (43.62)
 
 	- Removed the "include_host_name_when_forwarding" option.  Styles now need to
