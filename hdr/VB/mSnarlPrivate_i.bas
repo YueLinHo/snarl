@@ -371,7 +371,7 @@ Dim hWnd As Long
 Dim pcds As COPYDATASTRUCT
 Dim dw As Long
 
-    hWnd = hWnd = FindWindow("w>Snarl", "Snarl")
+    hWnd = FindWindow("w>Snarl", "Snarl")
     If IsWindow(hWnd) <> 0 Then
         pcds.dwData = 2                 '// SNARLSTRUCT
         pcds.cbData = LenB(pss)

@@ -448,9 +448,9 @@ End Function
 '       Wraps the "hide" command
 '
 ' */
-Public Function snarl_hide_notification(ByVal Signature As String, ByVal UID As String, Optional ByVal Password As String) As Long
+Public Function snarl_hide_notification(ByVal Signature As String, ByVal uID As String, Optional ByVal Password As String) As Long
 
-    snarl_hide_notification = snDoRequest("hide?app-sig=" & Signature & "&uid=" & UID & IIf(Password <> "", "&password=" & Password, ""))
+    snarl_hide_notification = snDoRequest("hide?app-sig=" & Signature & "&uid=" & uID & IIf(Password <> "", "&password=" & Password, ""))
 
 End Function
 
@@ -514,7 +514,7 @@ End Function
 '       Wraps the "notify" command
 '
 ' */
-Public Function snarl_notify(ByVal Signature As String, ByVal Class As String, ByVal UID As String, Optional ByVal Password As String, Optional ByVal Title As String, Optional ByVal Text As String, Optional ByVal Icon As String, Optional ByVal Priority As Long, Optional ByVal Duration As Long = -1, Optional ByVal Callback As String, Optional ByVal PercentValue As Long = -1, Optional ByVal CustomData As String) As Long
+Public Function snarl_notify(ByVal Signature As String, ByVal Class As String, ByVal uID As String, Optional ByVal Password As String, Optional ByVal Title As String, Optional ByVal Text As String, Optional ByVal Icon As String, Optional ByVal Priority As Long, Optional ByVal Duration As Long = -1, Optional ByVal Callback As String, Optional ByVal PercentValue As Long = -1, Optional ByVal CustomData As String) As Long
 Dim sz As String
 
     Title = Replace$(Title, "&", "&&")
@@ -530,7 +530,7 @@ Dim sz As String
          IIf(Duration > -1, "&timeout=" & CStr(Duration), "") & _
          IIf(Icon <> "", "&icon=" & Icon, "") & _
          IIf(Password <> "", "&password=" & Password, "") & _
-         IIf(UID <> "", "&uid=" & UID, "") & _
+         IIf(uID <> "", "&uid=" & uID, "") & _
          IIf(Callback <> "", "&callback=" & Callback, "")
 
     If (PercentValue >= 0) And (PercentValue <= 100) Then _
@@ -564,13 +564,14 @@ End Function
 '       Wraps the "register" command
 '
 ' */
-Public Function snarl_register(ByVal Signature As String, ByVal Name As String, ByVal Icon As String, Optional ByVal Password As String, Optional ByVal ReplyTo As Long, Optional ByVal ReplyWith As Long, Optional ByVal IsDaemon As Boolean = False) As Long
+Public Function snarl_register(ByVal Signature As String, ByVal Name As String, ByVal Icon As String, Optional ByVal Password As String, Optional ByVal ReplyTo As Long, Optional ByVal ReplyWith As Long, Optional ByVal IsDaemon As Boolean = False, Optional ByVal Hint As String) As Long
 
     snarl_register = snDoRequest("register?app-sig=" & Signature & "&title=" & Name & "&icon=" & Icon & _
                                  IIf(Password <> "", "&password=" & Password, "") & _
                                  IIf(ReplyTo <> 0, "&reply-to=" & CStr(ReplyTo), "") & _
                                  IIf(ReplyWith <> 0, "&reply-with=" & CStr(ReplyWith), "") & _
-                                 IIf(IsDaemon, "&app-daemon=1", ""))
+                                 IIf(IsDaemon, "&app-daemon=1", "") & _
+                                 IIf(Hint <> "", "&hint=" & Hint, ""))
 
 End Function
 
@@ -637,7 +638,7 @@ Dim sz As String
         sz = sz & "&password=" & Password
 
     snarl_unregister = snDoRequest(sz)
-    Debug.Print "snarl_unregister: " & snarl_unregister
+'    Debug.Print "snarl_unregister: " & snarl_unregister
 
 End Function
 
@@ -751,13 +752,13 @@ End Function
 
 
 
-Public Function snarl_is_notification_visible(ByVal Signature As String, ByVal UID As String, Optional ByVal Password As String) As Boolean
+Public Function snarl_is_notification_visible(ByVal Signature As String, ByVal uID As String, Optional ByVal Password As String) As Boolean
 
-    snarl_is_notification_visible = (snDoRequest("isvisible?app-sig=" & Signature & "&uid=" & UID & IIf(Password <> "", "&password=" & Password, "")) = 0)
+    snarl_is_notification_visible = (snDoRequest("isvisible?app-sig=" & Signature & "&uid=" & uID & IIf(Password <> "", "&password=" & Password, "")) = 0)
 
 End Function
 
-Public Function snarl_ez_notify(ByVal Signature As String, ByVal Class As String, Optional ByVal Title As String, Optional ByVal Text As String, Optional ByVal Icon As String, Optional ByVal Priority As Long, Optional ByVal Duration As Long = -1, Optional ByVal Password As String, Optional ByVal UID As String, Optional ByVal Callback As String, Optional ByVal Percent As Long = -1) As Long
+Public Function snarl_ez_notify(ByVal Signature As String, ByVal Class As String, Optional ByVal Title As String, Optional ByVal Text As String, Optional ByVal Icon As String, Optional ByVal Priority As Long, Optional ByVal Duration As Long = -1, Optional ByVal Password As String, Optional ByVal uID As String, Optional ByVal Callback As String, Optional ByVal Percent As Long = -1) As Long
 Dim sz As String
 
     sz = "notify?app-sig=" & Signature & _
@@ -767,7 +768,7 @@ Dim sz As String
          IIf(Duration > -1, "&timeout=" & CStr(Duration), "") & _
          IIf(Icon <> "", "&icon=" & Icon, "") & _
          IIf(Password <> "", "&password=" & Password, "") & _
-         IIf(UID <> "", "&uid=" & UID, "") & _
+         IIf(uID <> "", "&uid=" & uID, "") & _
          IIf(Callback <> "", "&callback=" & Callback, "")
 
     If (Percent >= 0) And (Percent <= 100) Then _
