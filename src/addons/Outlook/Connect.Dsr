@@ -8,7 +8,7 @@ Begin {AC0714F6-3D04-11D1-AE7D-00A0C90F26F4} Connect
    _ExtentY        =   12356
    _Version        =   393216
    Description     =   "Displays incoming emails as a Snarl notification."
-   DisplayName     =   "Snarl Notifier 1.2"
+   DisplayName     =   "Snarl Notifier 2.0 for Microsoft Outlook"
    AppName         =   "Microsoft Outlook"
    AppVer          =   "Microsoft Outlook 12.0"
    LoadName        =   "Startup"
@@ -92,18 +92,22 @@ Dim n As Long
         Case SNARL_NOTIFY_ACTION
 '            Form1.Add "** actioned " & CStr(lParam) & " **"
             If mMail.Find(CStr(lParam), pItem) Then _
-                pItem.DoAction HiWord(wParam), (mConfig.ValueOf("auto_mark_as_read") = "1")
+                pItem.DoAction HiWord(wParam), True         '// (mConfig.ValueOf("auto_mark_as_read") = "1")
 
         Case SNARL_NOTIFY_INVOKED, SNARL_CALLBACK_INVOKED
-'            Form1.Add "** clicked " & CStr(lParam) & " **"
-            If mMail.Find(CStr(lParam), pItem) Then
-                If mConfig.ValueOf("open_on_click") = "1" Then _
-                    pItem.DoClicked
+            If mMail.Find(CStr(lParam), pItem) Then _
+                pItem.DoClicked
 
-                If mConfig.ValueOf("auto_mark_as_read") = "1" Then _
-                    pItem.MarkAsRead
-
-            End If
+'        Case SNARL_NOTIFY_INVOKED, SNARL_CALLBACK_INVOKED
+''            Form1.Add "** clicked " & CStr(lParam) & " **"
+'            If mMail.Find(CStr(lParam), pItem) Then
+'                If mConfig.ValueOf("open_on_click") = "1" Then _
+'                    pItem.DoClicked
+'
+'                If mConfig.ValueOf("auto_mark_as_read") = "1" Then _
+'                    pItem.MarkAsRead
+'
+'            End If
 
         End Select
 
@@ -279,10 +283,11 @@ Dim hr As Long
                     "&title=" & szFrom & ": " & Mail.Subject & _
                     "&text=" & szBody & _
                     "&icon=" & szIcon & _
-                    "&action=Open,@9&action=Reply,@2&action=Reply All,@3&action=Forward,@4" & _
+                    "&action=Mark as Read,@1&action=Reply,@2&action=Reply All,@3&action=Forward,@4" & _
                     "&priority=" & CStr(Mail.Importance - 1) & _
                     "&sensitivity=" & CStr(Mail.Sensitivity * 16) & _
-                    "&password=" & mPassword)
+                    "&password=" & mPassword & _
+                    "&callback=@9&callback-label=Read")
 
 Dim pm As TItem
 
@@ -324,10 +329,9 @@ Dim szActions As String
 '        Form1.Add "uNotifyMeeting(): no associated appointment"
         g_Debug "uNotifyMeeting(): class is '" & Meeting.MessageClass & "'"
 
-        szTitle = Meeting.Subject
+'        szTitle = Meeting.Subject
         szText = uTidyup(Meeting.Body)
-        szActions = "Open,@9&action=Reply,@2&action=Reply All,@3&action=Forward,@4"
-
+'        szActions = "Reply,@2&action=Reply All,@3&action=Forward,@4&action=Mark as Read,@1"
 '        szTitle = szFrom & ": " & Meeting.Subject
 
     Else
@@ -354,38 +358,44 @@ Dim szFrom As String
 
     szTitle = szFrom
 
-    szActions = "Open,@9&action=Reply,@2&action=Reply All,@3&action=Forward,@4"
+    ' /* default actions */
+    szActions = "action=Mark as Read,@1&action=Reply,@2&action=Reply All,@3&action=Forward,@4"
+'    szActions = "Open,@9&action=Reply,@2&action=Reply All,@3&action=Forward,@4"
 
     ' /* set based on message class */
-
     Select Case Meeting.MessageClass
     Case "IPM.Schedule.Meeting.Resp.Neg"
+        ' /* meeting response: declined */
         szTitle = szTitle & " declined"
         If szIcon = "" Then _
             szIcon = "!message-appt-decline"
 
     Case "IPM.Schedule.Meeting.Resp.Pos"
+        ' /* meeting response: accepted */
         szTitle = szTitle & " accepted"
         If szIcon = "" Then _
             szIcon = "!message-appt-accept"
 
     Case "IPM.Schedule.Meeting.Resp.Tent"
+        ' /* meeting response: tentative */
         szTitle = szTitle & " is undecided"
         If szIcon = "" Then _
             szIcon = "!message-appt-tentative"
 
     Case "IPM.Schedule.Meeting.Canceled"
+        ' /* meeting cancellation */
         If szIcon = "" Then _
             szIcon = "!message-appt-cancelled"
 
     Case "IPM.Schedule.Meeting.Request"
-        szActions = "Open,@9&action=Accept,@12&action=Tentative,@13&action=Decline,@14"
+        ' /* meeting request */
+        szActions = "action=Accept,@12&action=Tentative,@13&action=Decline,@14"
         If szIcon = "" Then _
             szIcon = "!message-appt-new"
 
     Case Else
         g_Debug "uNotifyMeeting(): class is '" & Meeting.MessageClass & "'"
-        szActions = "Open,@9"
+        szActions = ""
         If szIcon = "" Then _
             szIcon = "!message-appt-new"
 
@@ -399,10 +409,11 @@ Dim hr As Long
                      "&title=" & szTitle & _
                      "&text=" & szText & _
                      "&icon=" & szIcon & _
-                     "&action=" & szActions & _
+                     IIf(szActions <> "", "&" & szActions, "") & _
                      "&priority=" & CStr(Meeting.Importance - 1) & _
                      "&sensitivity=" & CStr(Meeting.Sensitivity * 16) & _
-                     "&password=" & mPassword)
+                     "&password=" & mPassword & _
+                     "&callback=@9&callback-label=View")
 
 Dim pm As TItem
 
