@@ -2,7 +2,7 @@ VERSION 5.00
 Begin VB.Form Form1 
    BorderStyle     =   1  'Fixed Single
    Caption         =   "@"
-   ClientHeight    =   4050
+   ClientHeight    =   1035
    ClientLeft      =   45
    ClientTop       =   435
    ClientWidth     =   4530
@@ -18,85 +18,24 @@ Begin VB.Form Form1
    Icon            =   "Form1.frx":0000
    LinkTopic       =   "Form1"
    MaxButton       =   0   'False
-   MinButton       =   0   'False
-   ScaleHeight     =   4050
+   ScaleHeight     =   1035
    ScaleWidth      =   4530
    StartUpPosition =   3  'Windows Default
-   Begin VB.ComboBox Combo1 
-      Height          =   315
-      ItemData        =   "Form1.frx":000C
-      Left            =   60
-      List            =   "Form1.frx":0019
-      Style           =   2  'Dropdown List
-      TabIndex        =   7
-      Top             =   2520
-      Width           =   2415
-   End
-   Begin VB.CheckBox Check1 
-      Caption         =   "Include icon"
-      Height          =   255
-      Left            =   60
-      TabIndex        =   6
-      Top             =   2160
-      Value           =   1  'Checked
-      Width           =   2355
-   End
-   Begin VB.CommandButton Command1 
-      Caption         =   "Update"
-      Height          =   495
-      Left            =   1740
-      TabIndex        =   5
-      Top             =   3000
-      Width           =   1455
-   End
-   Begin VB.TextBox Text2 
-      Height          =   975
-      Left            =   60
-      MultiLine       =   -1  'True
-      TabIndex        =   3
-      Text            =   "Form1.frx":004B
-      Top             =   1080
-      Width           =   4395
-   End
-   Begin VB.TextBox Text1 
-      Height          =   315
-      Left            =   60
-      TabIndex        =   1
-      Text            =   "Lorem ipsum dolor sit amet"
-      Top             =   360
-      Width           =   4395
-   End
    Begin VB.CommandButton Command4 
-      Caption         =   "Show"
+      Caption         =   "Test!"
       Default         =   -1  'True
       Height          =   495
-      Left            =   60
+      Left            =   1440
       TabIndex        =   0
-      Top             =   3000
+      Top             =   120
       Width           =   1455
    End
    Begin VB.Label Label3 
       Height          =   255
       Left            =   60
-      TabIndex        =   8
-      Top             =   3660
+      TabIndex        =   1
+      Top             =   720
       Width           =   4395
-   End
-   Begin VB.Label Label2 
-      Caption         =   "Text"
-      Height          =   195
-      Left            =   60
-      TabIndex        =   4
-      Top             =   780
-      Width           =   1155
-   End
-   Begin VB.Label Label1 
-      Caption         =   "Title"
-      Height          =   195
-      Left            =   60
-      TabIndex        =   2
-      Top             =   60
-      Width           =   1155
    End
 End
 Attribute VB_Name = "Form1"
@@ -106,75 +45,37 @@ Attribute VB_PredeclaredId = True
 Attribute VB_Exposed = False
 Option Explicit
 
-Dim mToken As Long
-Dim mMsg As Long
-
-Private Sub Command1_Click()
-
-'    If mMsg Then _
-        sn41EZUpdate mMsg, , Text2.Text
-
-End Sub
-
 Private Sub Command4_Click()
-Dim pri As Long
+Dim hr As Long
 
-    Select Case Combo1.ListIndex
-    Case 0
-        pri = -1
+    hr = snarl_register(App.ProductName, App.Title, App.Path & "\icon.png")
+    If hr < 0 Then
+        Label3.Caption = "Error registering with Snarl (" & Abs(hr) & ")"
 
-    Case 1
-        pri = 0
+    Else
+        Label3.Caption = "Registered with Snarl V" & CStr(snDoRequest("version")) & " (" & Hex$(hr) & ")"
+        snarl_add_class App.ProductName, "1", "Enabled", True
+        snarl_add_class App.ProductName, "2", "Disabled", False
+        snarl_add_class App.ProductName, "3", "Sticky", True, , , , , 0
+        snarl_add_class App.ProductName, "4", "Google", True, , , , , , , "http://www.google.com/"
 
-    Case 2
-        pri = 1
+        snarl_ez_notify App.ProductName, "1", "Hello, world!", "You should see this notification"
+        snarl_ez_notify App.ProductName, "2", "Hello, world!", "You should see not this notification by default"
+        snarl_ez_notify App.ProductName, "3", "Hello, world!", "This notification is sticky by default"
+        snarl_ez_notify App.ProductName, "4", "Hello, world!", "Click me to go to Google!"
 
-    End Select
-
-    If mToken Then _
-        mMsg = snDoRequest("notify?token=" & CStr(mToken) & "&title=" & Text1.Text & "&text=" & Text2.Text & _
-                            IIf(Check1.Value = vbChecked, "&icon=" & App.Path & "\icon.png", "") & _
-                            "&priority=" & CStr(pri) & "&reply-to=" & CStr(Me.hWnd) & "&reply=" & CStr(&H401) & _
-                            "&action=Action 1234,@1234&action=Action 9876,@9876")
-
-    Label3.Caption = "result: " & CStr(mMsg)
+    End If
 
 End Sub
 
 Private Sub Form_Load()
-Dim hr As Long
 
-    If Not snIsSnarlRunning() Then
-        MsgBox "Snarl isn't running - launch Snarl, then run this demo.", vbExclamation Or vbOKOnly, App.Title
-        Unload Me
-
-    Else
-        hr = snDoRequest("register?app-sig=" & App.ProductName & "&title=" & App.Title & "&icon=" & App.Path & "\icon.png")
-        If hr < 0 Then
-            Me.Caption = "Error registering with Snarl: " & Abs(hr)
-
-        Else
-            Me.Caption = "Registered with Snarl V" & CStr(snDoRequest("version")) & " (" & Hex$(hr) & ")"
-            mToken = hr
-
-        End If
-
-        Combo1.ListIndex = 1
-
-    End If
+    Me.Caption = App.Title
 
 End Sub
 
 Private Sub Form_Unload(Cancel As Integer)
-Dim hr As Long
 
-    hr = snDoRequest("unregister?token=" & CStr(mToken))
-    If hr < 0 Then
-        Debug.Print "FAILED: " & Abs(hr)
-
-    Else
-        Debug.Print "OK"
-
-    End If
+    snarl_unregister App.ProductName
 
 End Sub
