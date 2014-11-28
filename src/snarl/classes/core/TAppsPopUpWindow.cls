@@ -77,9 +77,10 @@ Dim dw As Long
 
     Set mView = New mfxView
     With mView
-        .SetFont "Tahoma", 9 ', True
-        .SetFont "Arial", 8 ', True
+        .SetFont "Tahoma", 8
+'        .SetFont "Arial", 8 ', True
         .TextMode = MFX_TEXT_ANTIALIAS
+        .TextMode = MFX_TEXT_CLEARTYPE
 
     End With
 
@@ -97,7 +98,7 @@ Dim n As Long
             If NOTNULL(pp.Icon) Then _
                 n = n + mIconSize + 4
 
-            cx = MAX(cx, n)
+            cx = Max(cx, n)
 
         Loop
 
@@ -296,7 +297,7 @@ Const RX = 6            ' // 14
             If NOTNULL(pp.Icon) Then _
                 ox = ox + mItemHeight - 2
 
-            mView.SetHighColour rgba(0, 0, 0, 250)
+            mView.SetHighColour rgba(0, 0, 0)
             mView.DrawString pp.Label, pp.Frame.OffsetByCopy(ox, 0), MFX_ALIGN_LEFT Or MFX_ALIGN_V_CENTER
 
             If NOTNULL(pp.Icon) Then _

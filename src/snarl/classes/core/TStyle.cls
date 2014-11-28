@@ -72,13 +72,16 @@ Dim sz As String
 
     ' /* cache the icon */
     sz = Info.IconPath
+
+    ' /* if the specified icon doesn't exist, see if there's a <style_name>.png instead (this is legacy support) */
     If Not g_Exists(sz) Then _
         sz = g_MakePath(Info.Path) & Info.Name & ".png"
 
+    ' /* if these's still no icon then look for <style_path>\icon.png (this is legacy support as well) */
     If Not g_Exists(sz) Then _
         sz = g_MakePath(Info.Path) & "icon.png"
 
-    ' /* use default icon */
+    ' /* if there's still no icon found, use the stock forward or display icons */
     If Not g_Exists(sz) Then
         If Me.IsRedirect Then
             sz = g_MakePath(App.Path) & "etc\icons\forward.png"
@@ -451,7 +454,9 @@ Dim pInfo As T_NOTIFICATION_INFO
         Set .ClassObj = New TAlert
         .APIVersion = App.Major
         .IntFlags = App.Major
-        
+
+        .DefaultAck = "http://getsnarl.info"
+
         If HidePrev Then _
         .CustomUID = "style-preview" & IIf(IsPriority, "-priority", "")
         

@@ -93,20 +93,25 @@ Dim f As Boolean
 
     ' /* store registration time/date */
 
+    g_Debug "timestamp"
     Info.Timestamp = Now()
 
+    g_Debug "info"
     LSet mInfo = Info
     mIsUnknown = False
 
-    Set mCachedIcon = load_image_obj(mInfo.Icon)
-
     ' /* R2.5.1 Beta 3: if it's an extension, snag it now */
 
-    If NOTNULL(gCurrentExtension) Then _
+    g_Debug "checking extension"
+    If NOTNULL(gCurrentExtension) Then
         mExtension = gCurrentExtension.Class
+        mInfo.IncludeInMenu = True                  ' // R3.1: always include extensions
+
+    End If
 
     ' /* do we have a config file for this app? */
 
+    g_Debug "config file"
     Set mSettings = New ConfigFile
     With mSettings
         ' /* R2.31: we know that SnarlConfigPath is valid */
@@ -117,11 +122,13 @@ Dim f As Boolean
 
         i = .FindSection("_cfg")
         If i = 0 Then
+            g_Debug "no config"
             Set mAppConfig = .AddSectionObj("_cfg")
             mAppConfig.Add "banned", "0"
             uWriteSettings
 
         Else
+            g_Debug "has config"
             Set mAppConfig = .SectionAt(i)
             mIsBanned = (mAppConfig.GetValueWithDefault("banned", "0"))
 
@@ -130,6 +137,8 @@ Dim f As Boolean
         ' /* must have an "_all" section */
 
         mIsUnknown = Not (.SectionExists("_all"))
+        g_Debug "_all >> " & CStr(mIsUnknown)
+
         If mIsUnknown Then _
             .AddSection "_all"
 
@@ -143,16 +152,28 @@ Dim f As Boolean
 
         End If
 
+        g_Debug "writing settings"
         uWriteSettings
 
     End With
 
+    g_Debug "icon path [" & mInfo.Icon & "]"
     mRealIconPath = g_TranslateIconPath(mInfo.Icon, "")
-    If Not g_Exists(mRealIconPath) Then _
+    g_Debug "real icon path [" & mRealIconPath & "]"
+
+    If Not g_Exists(mRealIconPath) Then
+        g_Debug "icon not found or invalid path, using placeholder...", LEMON_LEVEL_WARNING
         mRealIconPath = g_MakePath(App.Path) & "etc\icons\no_icon.png"
+
+    End If
+
+    g_Debug "caching icon..."
+    mInfo.Icon = mRealIconPath
+    Set mCachedIcon = load_image_obj(mInfo.Icon)
 
     ' /* all apps get this class */
 
+    g_Debug "adding _all"
     AddAlert "_all", ""
     bInit = True
 
@@ -980,9 +1001,17 @@ Dim pe As TExtension
 End Sub
 
 Public Sub Activated()
+Dim pe As TExtension
 
-    If mInfo.Tool <> "" Then
-        g_Debug "TApp.Activated(): running static tool '" & mInfo.Tool & "'..."
+    g_Debug "TApp.Activated()", LEMON_LEVEL_PROC_ENTER
+
+    If g_ExtnRoster.Find(mExtension, pe) Then
+        ' /* R3.1 */
+        g_Debug "is extension..."
+        pe.DoPrefs 0
+
+    ElseIf mInfo.Tool <> "" Then
+        g_Debug "running static tool '" & mInfo.Tool & "'..."
         If g_SafeLeftStr(mInfo.Tool, 1) = "!" Then
             g_ProcessAck mInfo.Tool
 
@@ -992,22 +1021,24 @@ Public Sub Activated()
         End If
 
     ElseIf Not (mInfo.Socket Is Nothing) Then
-        g_Debug "TApp.DoSettings(): local SNP3 (assumed) app..."
+        g_Debug "local SNP3 (assumed) app..."
         g_SNP3SendCallback mInfo.Socket, SNARL_NOTIFY_APP_ACTIVATED, "Activated", "", ""
 
     ElseIf (mInfo.Flags And SNARLAPP_IS_DAEMON) <> 0 Then
         ' /* V43 */
-        g_Debug "TApp.DoSettings(): posting SNARLAPP_ACTIVATED to reply-to window..."
+        g_Debug "posting SNARLAPP_ACTIVATED to reply-to window..."
         PostMessage mInfo.hWnd, WM_NULL, 0, ByVal 0&
         PostMessage mInfo.hWnd, snAppMsg(), SNARLAPP_ACTIVATED, ByVal 0&
 
     Else
         ' /* pre-V43 */
-        g_Debug "TApp.DoSettings(): posting SNARLAPP_DO_PREFS to reply-to window..."
+        g_Debug "posting SNARLAPP_DO_PREFS to reply-to window..."
         PostMessage mInfo.hWnd, WM_NULL, 0, ByVal 0&
         PostMessage mInfo.hWnd, snAppMsg(), SNARLAPP_DO_PREFS, ByVal 0&
 
     End If
+    
+    g_Debug "", LEMON_LEVEL_PROC_EXIT
 
 End Sub
 

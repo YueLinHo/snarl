@@ -158,10 +158,10 @@ Friend Function Add(ByRef Info As T_NOTIFICATION_INFO, ByRef Args As BPackedData
     If g_IsQuitting Then _
         Exit Function               ' // shutting down - can't do anything
 
-    ' /* log only? */
+    g_WriteToLog Info
 
+    ' /* log only? */
     If g_ConfigGet("log_only") = "1" Then
-        g_WriteToLog Info.Title, Info.Text
         Add = -1                    ' // V40.7 - changed from M_OK to -1 (indicates success but no token available)
         g_SetLastError SNARL_SUCCESS
         Exit Function               ' // TO-DO: determine if we should return 0 and set last_error instead
@@ -324,8 +324,11 @@ Dim pInfo As T_NOTIFICATION_INFO
         pInfo.Text = pInfo.ClassObj.GetValue("redact-with")
 
     ' /* R2.6: redirect content */
-    If Info.ClassObj.GetValue("send_to_redirects") = "1" Then _
+'    If Info.ClassObj.GetValue("send_to_redirects") = "1" Then _
         uDoGlobalRedirect pInfo
+
+    ' /* R3.0 B3: redirect */
+    Info.ClassObj.DoRedirection pInfo
 
     ' /* R2.6: forward it */
     Info.ClassObj.DoForwarding pInfo
@@ -1007,6 +1010,13 @@ Dim i As Long
         g_Debug "TNotificationRoster.CloseMultiple(): closing all..."
 
         If mActive.CountItems Then
+            
+            ' /* tell them they've been closed */
+            For i = 1 To mActive.CountItems
+                uAsNotification(mActive.TagAt(i)).Window.bNotifyWasClosed
+
+            Next i
+
             ' /* fade all notifications out together */
             For n = 255 To 0 Step -(Val(g_ConfigGet("step_size")) * 8)
                 For i = 1 To mActive.CountItems
@@ -1040,6 +1050,16 @@ Dim i As Long
         g_Debug "CloseMultiple(): closing all Snarls from " & g_HexStr(AppToken) & "..."
 
         If mActive.CountItems Then
+
+            ' /* tell them they're being closed */
+            For i = 1 To mActive.CountItems
+                With uAsNotification(mActive.TagAt(i))
+                    If .Info.ClassObj.App.Token = AppToken Then _
+                        .Window.bNotifyWasClosed
+
+                End With
+            Next i
+
             ' /* fade all related notifications out together */
             For n = 255 To 0 Step -(Val(g_ConfigGet("step_size")) * 8)
                 For i = 1 To mActive.CountItems
@@ -1048,7 +1068,6 @@ Dim i As Long
                             .Window.bSetAlpha n
 
                     End With
-
                 Next i
             Next n
 
@@ -1484,8 +1503,8 @@ Public Function AddAction(ByVal Token As Long, ByRef Data As BPackedData) As Lon
 
     End If
 
-    If (Data.ValueOf("label") = "") Or (Data.ValueOf("cmd") = "") Then
-        g_Debug "TNotificationRoster.AddAction(): missing label and/or command", LEMON_LEVEL_CRITICAL Or LEMON_LEVEL_PROC_EXIT
+    If (Data.ValueOf("label") = "") And (Data.ValueOf("cmd") = "") Then
+        g_Debug "TNotificationRoster.AddAction(): missing label and command", LEMON_LEVEL_CRITICAL Or LEMON_LEVEL_PROC_EXIT
         g_SetLastError SNARL_ERROR_ARG_MISSING
         Exit Function
 

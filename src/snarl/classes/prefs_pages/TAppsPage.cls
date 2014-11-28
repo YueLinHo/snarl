@@ -49,7 +49,7 @@ Dim pm As CTempMsg
         pc.SizeTo 0, (9 * 34) + 2
         .Add pc
 
-        .Add new_BPrefsControl("fancytoolbar", "ftb>app", "Configure Classes...|Details|Unregister|Allow||Quit")
+        .Add new_BPrefsControl("fancytoolbar", "ftb>app", "Configure Events...|Details|Unregister|Allow||Quit")
         .Add new_BPrefsControl("fancybutton2", "the_configure_app_button", "Configure...")
 
 '        Set pm = New CTempMsg
@@ -248,15 +248,19 @@ Dim i As Long
         If .CountApps() Then
             For i = 1 To .CountApps()
                 If .AppAt(i).IsBanned Then
-                    sz = g_MakePath(App.Path) & "etc\icons\ext-error.png"
+                prefskit_SetItem pc, i, "image-object", g_AppRoster.BannedAppIcon
+
+'                    sz = g_MakePath(App.Path) & "etc\icons\ext-error.png"
 
                 Else
-                    sz = .AppAt(i).RealIconPath
+                    prefskit_SetItem pc, i, "image-object", .AppAt(i).CachedIcon
+
+'                    sz = .AppAt(i).RealIconPath
 '                    sz = g_TranslateIconPath(.AppAt(i).Icon, "")
 '                    Debug.Print .AppAt(i).Icon & " >> " & sz
 
                 End If
-                prefskit_SetItem pc, i, "image-file", sz
+'                prefskit_SetItem pc, i, "image-file", sz
 
             Next i
         End If

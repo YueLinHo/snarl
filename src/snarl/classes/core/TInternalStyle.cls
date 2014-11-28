@@ -182,10 +182,10 @@ Private Sub IStyleEngine_StyleAt(ByVal Index As Long, Style As libSnarlStyles.st
             .Copyright = DEF_STYLE_COPY
             .Date = DEF_STYLE_DATE
             .Description = "Built-in style."
-            .Flags = S_STYLE_MULTI_INSTANCE Or S_STYLE_IS_CONFIGURABLE
+            .Flags = S_STYLE_MULTI_INSTANCE Or S_STYLE_V42_CONTENT Or S_STYLE_IS_CONFIGURABLE
             .IconPath = g_MakePath(App.Path) & "etc\icons\default_style.png"
-            .Major = 1
-            .Minor = 1
+            .Major = 2
+            .Minor = 0
             .Name = DEF_STYLE_NAME
 
         Case 2
@@ -370,7 +370,7 @@ Dim u As String
 
 End Sub
 
-Private Sub uDefStyleUpdate(ByRef NotificationInfo As notification_info)
+Private Sub uDefStyleUpdate2(ByRef NotificationInfo As notification_info)
 Dim cx As Long
 Dim cy As Long
 Dim pr As BRect
@@ -378,36 +378,45 @@ Dim bm As mfxBitmap
 
     On Error Resume Next
 
-Const RX = 20
+Const BORDER_SIZE = 8
+Const ICON_SIZE = 48
+Const RX = 6
+
+Const TITLE_FONT_SIZE = 10
+Const TEXT_FONT_SIZE = 9
 
 Dim pbm As MImage
-
-Dim cyTitle As Long
+Dim cyTitleSize As Long
 Dim cyText As Long
 Dim prFrame As BRect
-
-Dim ppdFont As BPackedData
 Dim lCol As Long
-Dim lWidth As Long
 
-    Set ppdFont = New BPackedData
     cx = BORDER_SIZE
 
+    With New BPackedData
+        .SetTo NotificationInfo.Text
+        NotificationInfo.Title = .ValueOf("title")
+        NotificationInfo.Text = .ValueOf("text")
+        lCol = g_SafeLong(.ValueOf("colour-tint"))
+        If lCol <> 0 Then _
+            lCol = g_SetRGB32Alpha(lCol, 120)
+
+    End With
+
     With theView
-
         ' /* get icon */
-
         load_image NotificationInfo.Icon, pbm
         If melonIsValidImage(pbm) Then _
             cx = cx + ICON_SIZE + BORDER_SIZE
 
         ' /* calculate height */
 
-        lWidth = g_SafeLong(gStyleDefaults.ValueOf("width"))
-        If lWidth < 80 Then _
-            lWidth = 80
+'        lWidth = g_SafeLong(gStyleDefaults.ValueOf("width"))
+'        lWidth = 500
+'        If lWidth < 80 Then _
+'            lWidth = 80
 
-        .SizeTo lWidth, 110
+        .SizeTo 353, ICON_SIZE + BORDER_SIZE + BORDER_SIZE
         .TextMode = MFX_TEXT_ANTIALIAS
 
         Set prFrame = .Bounds.Duplicate
@@ -419,110 +428,110 @@ Dim lWidth As Long
         End With
 
         If NotificationInfo.Title <> "" Then
-            ppdFont.SetTo gStyleDefaults.ValueOf("title-font")
-            .SetFont ppdFont.ValueOf("name"), CLng(ppdFont.ValueOf("size")), (ppdFont.ValueOf("bold") = "1")
+            .SetFont "Arial", TITLE_FONT_SIZE, True
             .MeasureString NotificationInfo.Title, prFrame, pr
-            cyTitle = pr.Height
+            cyTitleSize = pr.Height
 
         End If
 
         If NotificationInfo.Text <> "" Then
-            ppdFont.SetTo gStyleDefaults.ValueOf("text-font")
-            .SetFont ppdFont.ValueOf("name"), CLng(ppdFont.ValueOf("size")), (ppdFont.ValueOf("bold") = "1")
+            .SetFont "Arial", TEXT_FONT_SIZE, False
             .MeasureString NotificationInfo.Text, prFrame, pr
             cyText = pr.Height
 
         End If
 
-        cy = (BORDER_SIZE * 2) + cyTitle + cyText
+        cy = (BORDER_SIZE * 2) + cyTitleSize + cyText
         If (NotificationInfo.Title <> "") And (NotificationInfo.Text <> "") Then _
-            cy = cy + 4
+            cy = cy + 1
 
-        cy = Max((BORDER_SIZE * 2) + ICON_SIZE, cy)         ' // must be at least (ICON_SIZE + (2 x BORDER_SIZE)) high...
-        .SizeTo lWidth, cy
+        cy = Max(.Height, cy)          ' // must be at least (ICON_SIZE + (2 x BORDER_SIZE)) high...
+        .SizeTo .Width, cy
         .EnableSmoothing True
 
         ' /* draw background */
-
-        If (NotificationInfo.Flags And S_NOTIFICATION_IS_PRIORITY) Then
-            .SetHighColour gStyleDefaults.ValueOf("background-colour-priority")
-
-        Else
-
-            .SetHighColour gStyleDefaults.ValueOf("background-colour")
-
-        End If
-
+        .SetHighColour rgba(250, 250, 250)
         .FillRoundRect .Bounds, RX, RX
+
+        .SetHighColour lCol
+        .FillRoundRect .Bounds, RX, RX
+        
 
          .SetHighColour rgba(0, 0, 0, 0)
          .SetLowColour rgba(0, 0, 0, 63)
-'            .SetLowColour rgba(206, 52, 0)
         .FillRoundRect .Bounds, RX, RX, MFX_VERT_GRADIENT
 
-        .SetHighColour rgba(0, 0, 0, 146)
-        .StrokeRoundRect .Bounds, RX, RX
+        If (NotificationInfo.Flags And S_NOTIFICATION_IS_PRIORITY) Then
+            .SetHighColour rgba(255, 32, 0)
+            .StrokeRoundRect .Bounds, RX, RX
+    
+        Else
+            .SetHighColour rgba(255, 255, 255, 80)
+            .StrokeRoundRect .Bounds, RX, RX
 
-'        .SetHighColour rgba(255, 255, 255)
-'        .FillRoundRect .Bounds, RX, RX, MFX_DIAG_GRADIENT
+        End If
+
+'        .SetHighColour rgba(0, 0, 0, 31)
+'        .StrokeRoundRect .Bounds, RX, RX
 
         ' /* icon */
+        If Not (pbm Is Nothing) Then
+            .EnableSmoothing False
+            Set pr = new_BRect(0, 0, ICON_SIZE - 1, ICON_SIZE - 1)
+            pr.OffsetBy BORDER_SIZE, Fix((.Height - pr.Height) / 2)
+            .SetHighColour rgba(0, 0, 0, 20)
+            .FillRect pr
 
-        If Not (pbm Is Nothing) Then _
-            .DrawScaledImage pbm, new_BPoint(BORDER_SIZE, BORDER_SIZE), new_BPoint(ICON_SIZE, ICON_SIZE)
+            .DrawScaledImage pbm, pr.TopLeft, new_BPoint(ICON_SIZE, ICON_SIZE)
+
+            .SetHighColour rgba(0, 0, 0, 60)
+            .SetLowColour rgba(255, 255, 255, 60)
+            .StrokeFancyRect pr
+            .SetHighColour rgba(0, 0, 0, 20)
+            .StrokeRect pr.InsetByCopy(1, 1)
+
+             .SetHighColour rgba(255, 255, 255, 40)
+             .SetLowColour rgba(255, 255, 255, 80)
+             pr.Bottom = pr.Top + Fix(pr.Height / 2)
+            .FillRect pr, MFX_VERT_GRADIENT
+
+            .EnableSmoothing True
+
+        End If
 
         Set pr = .Bounds.Duplicate
         pr.InsetBy BORDER_SIZE, BORDER_SIZE
         pr.Left = cx
 
-'        .SetHighColour rgba(255, 0, 0)
-'        .StrokeRect pr
 
         ' /* title */
+        If NotificationInfo.Title <> "" Then
+            .SetHighColour rgba(18, 18, 18)
+            .SetLowColour rgba(255, 255, 255, 140)
+            .SetFont "Arial", TITLE_FONT_SIZE, True
 
-        If (NotificationInfo.Flags And S_NOTIFICATION_IS_PRIORITY) Then
-            lCol = CLng(gStyleDefaults.ValueOf("title-colour-priority"))
+            If NotificationInfo.Text = "" Then _
+                pr.OffsetTo pr.Left, Fix((.Height - cyTitleSize) / 2)
 
-        Else
-            lCol = CLng(gStyleDefaults.ValueOf("title-colour"))
+            .DrawString NotificationInfo.Title, pr, MFX_SIMPLE_DROPSHADOW
+            pr.OffsetBy 0, cyTitleSize
 
-        End If
-
-        .SetHighColour g_SetRGB32Alpha(lCol, g_OpacityFromPercent(gStyleDefaults.ValueOf("title-opacity")))
-
-        ppdFont.SetTo gStyleDefaults.ValueOf("title-font")
-        .SetFont ppdFont.ValueOf("name"), CLng(ppdFont.ValueOf("size")), (ppdFont.ValueOf("bold") = "1")
-        .DrawString NotificationInfo.Title, pr
-
-        pr.OffsetBy 0, cyTitle
-
-        ' /* etched line */
-
-        If (NotificationInfo.Title <> "") And (NotificationInfo.Text <> "") Then
-            .SetHighColour rgba(127, 127, 127, 80)
-            .StrokeLine new_BRect(pr.Left, pr.Top + 1, pr.Right, pr.Top + 1)
-            .SetHighColour rgba(255, 255, 255, 80)
-            .StrokeLine new_BRect(pr.Left, pr.Top + 2, pr.Right, pr.Top + 2)
-            pr.OffsetBy 0, 4
+            If NotificationInfo.Text <> "" Then _
+                pr.OffsetBy 0, 1
 
         End If
 
+        If NotificationInfo.Text <> "" Then
+            ' /* text */
+            .SetHighColour rgba(82, 82, 82)
+            .SetLowColour rgba(255, 255, 255, 140)
+            .SetFont "Arial", TEXT_FONT_SIZE, False
+            If NotificationInfo.Title = "" Then _
+                pr.OffsetTo pr.Left, Fix((.Height - cyText) / 2)
 
-        ' /* text */
-
-        If (NotificationInfo.Flags And S_NOTIFICATION_IS_PRIORITY) Then
-            lCol = CLng(gStyleDefaults.ValueOf("text-colour-priority"))
-
-        Else
-            lCol = CLng(gStyleDefaults.ValueOf("text-colour"))
+            .DrawString NotificationInfo.Text, pr, MFX_SIMPLE_DROPSHADOW
 
         End If
-
-        .SetHighColour g_SetRGB32Alpha(lCol, g_OpacityFromPercent(gStyleDefaults.ValueOf("text-opacity")))
-
-        ppdFont.SetTo gStyleDefaults.ValueOf("text-font")
-        .SetFont ppdFont.ValueOf("name"), CLng(ppdFont.ValueOf("size")), (ppdFont.ValueOf("bold") = "1")
-        .DrawString NotificationInfo.Text, pr
 
     End With
 
@@ -634,5 +643,184 @@ End Function
 'End Function
 
 
+Private Sub uDefStyleUpdate(ByRef NotificationInfo As notification_info)
+
+    On Error Resume Next
+
+Dim crTint As Long
+
+    With New BPackedData
+        .SetTo NotificationInfo.Text
+        NotificationInfo.Title = .ValueOf("title")
+        NotificationInfo.Text = .ValueOf("text")
+        crTint = g_SafeLong(.ValueOf("colour-tint"))
+        If crTint <> 0 Then _
+            crTint = g_SetRGB32Alpha(crTint, 120)
+
+    End With
+
+Const RX = 9
+
+Dim cx As Long
+Dim cy As Long
+Dim pr As BRect
+Dim bm As mfxBitmap
+Dim pbm As MImage
+
+Dim CYTITLE As Long
+Dim cyText As Long
+Dim prFrame As BRect
+
+Dim ppdFont As BPackedData
+Dim lWidth As Long
+
+    Set ppdFont = New BPackedData
+    cx = BORDER_SIZE
+
+    With theView
+
+        ' /* get icon */
+
+        load_image NotificationInfo.Icon, pbm
+        If melonIsValidImage(pbm) Then _
+            cx = cx + ICON_SIZE + BORDER_SIZE
+
+        ' /* calculate height */
+
+        lWidth = g_SafeLong(gStyleDefaults.ValueOf("width"))
+
+        lWidth = 360
+
+        If lWidth < 80 Then _
+            lWidth = 80
+
+        .SizeTo lWidth, 110
+        .TextMode = MFX_TEXT_ANTIALIAS
+
+        Set prFrame = .Bounds.Duplicate
+        With prFrame
+            .InsetBy BORDER_SIZE, BORDER_SIZE
+            .Left = cx
+            .Bottom = 4096
+
+        End With
+
+        If NotificationInfo.Title <> "" Then
+            ppdFont.SetTo gStyleDefaults.ValueOf("title-font")
+            .SetFont ppdFont.ValueOf("name"), CLng(ppdFont.ValueOf("size")), (ppdFont.ValueOf("bold") = "1")
+            .MeasureString NotificationInfo.Title, prFrame, pr
+            CYTITLE = pr.Height
+
+        End If
+
+        If NotificationInfo.Text <> "" Then
+            ppdFont.SetTo gStyleDefaults.ValueOf("text-font")
+            .SetFont ppdFont.ValueOf("name"), CLng(ppdFont.ValueOf("size")), (ppdFont.ValueOf("bold") = "1")
+            .MeasureString NotificationInfo.Text, prFrame, pr
+            cyText = pr.Height
+
+        End If
+
+        cy = (BORDER_SIZE * 2) + CYTITLE + cyText
+        If (NotificationInfo.Title <> "") And (NotificationInfo.Text <> "") Then _
+            cy = cy + 4
+
+        cy = Max((BORDER_SIZE * 2) + ICON_SIZE, cy)         ' // must be at least (ICON_SIZE + (2 x BORDER_SIZE)) high...
+        .SizeTo lWidth, cy
+        .EnableSmoothing True
+
+        ' /* draw background */
+
+        If (NotificationInfo.Flags And S_NOTIFICATION_IS_PRIORITY) Then
+            ' /* tint doesn't apply *
+            .SetHighColour gStyleDefaults.ValueOf("background-colour-priority")
+
+        Else
+            .SetHighColour gStyleDefaults.ValueOf("background-colour")
+
+        End If
+        .FillRoundRect .Bounds, RX, RX
+
+         .SetHighColour rgba(0, 0, 0, 0)
+         .SetLowColour rgba(0, 0, 0, 63)
+        .FillRoundRect .Bounds, RX, RX, MFX_VERT_GRADIENT
+
+        ' /* tint *
+        If (crTint <> 0) And ((NotificationInfo.Flags And S_NOTIFICATION_IS_PRIORITY) = 0) Then
+            .SetHighColour crTint
+            .FillRoundRect .Bounds, RX, RX
+
+        End If
+
+        ' /* outer edge */
+        .SetHighColour rgba(0, 0, 0, 96)
+        .StrokeRoundRect .Bounds, RX, RX
+
+'        .SetHighColour rgba(255, 255, 255)
+'        .FillRoundRect .Bounds, RX, RX, MFX_DIAG_GRADIENT
+
+        ' /* icon */
+
+        If Not (pbm Is Nothing) Then _
+            .DrawScaledImage pbm, new_BPoint(BORDER_SIZE, BORDER_SIZE), new_BPoint(ICON_SIZE, ICON_SIZE)
+
+        Set pr = .Bounds.Duplicate
+        pr.InsetBy BORDER_SIZE, BORDER_SIZE
+        pr.Left = cx
+
+'        .SetHighColour rgba(255, 0, 0)
+'        .StrokeRect pr
+
+Dim cr As Long
+
+        ' /* title */
+
+        If (NotificationInfo.Flags And S_NOTIFICATION_IS_PRIORITY) Then
+            cr = CLng(gStyleDefaults.ValueOf("title-colour-priority"))
+
+        Else
+            cr = CLng(gStyleDefaults.ValueOf("title-colour"))
+
+        End If
+
+        .SetHighColour g_SetRGB32Alpha(cr, g_OpacityFromPercent(gStyleDefaults.ValueOf("title-opacity")))
+
+        ppdFont.SetTo gStyleDefaults.ValueOf("title-font")
+        .SetFont ppdFont.ValueOf("name"), CLng(ppdFont.ValueOf("size")), (ppdFont.ValueOf("bold") = "1")
+        .DrawString NotificationInfo.Title, pr
+
+        pr.OffsetBy 0, CYTITLE
+
+        ' /* etched line */
+
+        If (NotificationInfo.Title <> "") And (NotificationInfo.Text <> "") Then
+            .SetHighColour rgba(127, 127, 127, 80)
+            .StrokeLine new_BRect(pr.Left, pr.Top + 1, pr.Right, pr.Top + 1)
+            .SetHighColour rgba(255, 255, 255, 80)
+            .StrokeLine new_BRect(pr.Left, pr.Top + 2, pr.Right, pr.Top + 2)
+            pr.OffsetBy 0, 4
+
+        End If
+
+
+        ' /* text */
+
+        If (NotificationInfo.Flags And S_NOTIFICATION_IS_PRIORITY) Then
+            cr = CLng(gStyleDefaults.ValueOf("text-colour-priority"))
+
+        Else
+            cr = CLng(gStyleDefaults.ValueOf("text-colour"))
+
+        End If
+
+        .SetHighColour g_SetRGB32Alpha(cr, g_OpacityFromPercent(gStyleDefaults.ValueOf("text-opacity")))
+
+        ppdFont.SetTo gStyleDefaults.ValueOf("text-font")
+        .SetFont ppdFont.ValueOf("name"), CLng(ppdFont.ValueOf("size")), (ppdFont.ValueOf("bold") = "1")
+        .DrawString NotificationInfo.Text, pr
+
+    End With
+
+End Sub
 
 

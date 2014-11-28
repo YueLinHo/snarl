@@ -235,8 +235,7 @@ Attribute theIdleTimer.VB_VarHelpID = -1
 Dim mKeyCloseAll As Long
 Dim mKeyClose As Long
 
-Dim WithEvents theAppList As TAppsPopUpWindow
-Attribute theAppList.VB_VarHelpID = -1
+'Dim WithEvents theAppList As TAppsPopUpWindow
 
 'Dim mMarkMissedOnClose As Boolean
 
@@ -667,13 +666,8 @@ Dim dw As Long
             End If
 
         Case WM_LBUTTONDBLCLK
-'            If g_NotificationRoster.HaveMissedNotifications Then
-'                Me.bShowMissedPanel
-'
-'            Else
-                Me.NewDoPrefs
-'
-'            End If
+            Debug.Print ">tray_icon<"
+            Me.NewDoPrefs
 
         End Select
 
@@ -727,176 +721,228 @@ Private Sub uDoMainMenu()
 
     SetForegroundWindow Me.hWnd
 
-Dim pi As OMMenuItem
+'    With New OMMenu
+'        If gDebugMode Then
+'            .AddItem .CreateItem("sos", "SOS...")
+'            .AddSeparator
+'
+'        End If
+'
+'        .AddItem .CreateItem("about", "About Snarl...", new_ImageFromFile(g_MakePath(App.Path) & "\etc\icons\about.png"))
+'        .AddSeparator
+'
+'        .AddItem .CreateItem("nc", "Notification Centre")
+'        .AddSeparator
+'
+'        .AddItem .CreateItem("hide_all", "Hide All Notifications")
+'        .AddItem .CreateItem("sticky", "Sticky Notifications", , , (g_ConfigGet("sticky_snarls") = "1"))
+'        .AddSeparator
+'
+'        .AddItem .CreateItem("dnd", "Do Not Disturb", , , g_IsPresence(SN_PF_DND_USER))
+'        .AddSeparator
+'        .AddItem .CreateItem("restart", "Restart Snarl", , g_IsRunning)
+'
+'        If g_IsRunning Then
+'            .AddItem .CreateItem("stop", "Stop Snarl")
+'
+'        Else
+'            .AddItem .CreateItem("start", "Start Snarl")
+'
+'        End If
+'
+'        .AddSeparator
+'        .AddItem .CreateItem("prefs", "Settings...", , Not gSysAdmin.InhibitPrefs)
+'        .AddItem .CreateItem("missed", "Missed Notifications", , (g_NotificationRoster.RealMissedCount > 0), , , , uMissedNotificationsSubmenu())
+'        .AddItem .CreateItem("app_list", "Snarl Apps...", , (g_AppRoster.CountSnarlApps > 0))
+''        .AddItem .CreateItem("", "Snarl Apps", , , , , , g_AppRoster.SnarlAppsMenu())
+'        .AddSeparator
+'        .AddItem .CreateItem("quit", "Quit Snarl", , Not gSysAdmin.InhibitQuit)
+'
+'        Set pi = .Track(Me.hWnd)
+'
+'    End With
 
-    With New OMMenu
+
+
+    With new_BMenu()
+
         If gDebugMode Then
-            .AddItem .CreateItem("sos", "SOS...")
+            .AddItem new_BMenuItem("sos", "SOS...")
             .AddSeparator
 
         End If
 
-        .AddItem .CreateItem("about", "About Snarl...")
+        .AddItem new_BMenuItem("about", "About Snarl...")
         .AddSeparator
 
-        .AddItem .CreateItem("nc", "Notification Centre")
+        .AddItem new_BMenuItem("nc", "Notification Centre")
         .AddSeparator
 
-        .AddItem .CreateItem("hide_all", "Hide All Notifications")
-        .AddItem .CreateItem("sticky", "Sticky Notifications", , , (g_ConfigGet("sticky_snarls") = "1"))
+        .AddItem new_BMenuItem("hide_all", "Hide All Notifications")
+        .AddItem new_BMenuItem("sticky", "Sticky Notifications", , , (g_ConfigGet("sticky_snarls") = "1"))
         .AddSeparator
 
-        .AddItem .CreateItem("dnd", "Do Not Disturb", , , g_IsPresence(SN_PF_DND_USER))
+        .AddItem new_BMenuItem("dnd", "Do Not Disturb", , , g_IsPresence(SN_PF_DND_USER))
         .AddSeparator
-        .AddItem .CreateItem("restart", "Restart Snarl", , g_IsRunning)
+        .AddItem new_BMenuItem("restart", "Restart Snarl", , g_IsRunning)
 
         If g_IsRunning Then
-            .AddItem .CreateItem("stop", "Stop Snarl")
+            .AddItem new_BMenuItem("stop", "Stop Snarl")
 
         Else
-            .AddItem .CreateItem("start", "Start Snarl")
+            .AddItem new_BMenuItem("start", "Start Snarl")
 
         End If
 
         .AddSeparator
-        .AddItem .CreateItem("prefs", "Settings...", , Not gSysAdmin.InhibitPrefs)
-        .AddItem .CreateItem("missed", "Missed Notifications", , (g_NotificationRoster.RealMissedCount > 0), , , , uMissedNotificationsSubmenu())
-        .AddItem .CreateItem("app_list", "Snarl Apps...", , (g_AppRoster.CountSnarlApps > 0))
-'        .AddItem .CreateItem("", "Snarl Apps", , , , , , g_AppRoster.SnarlAppsMenu())
+        .AddItem new_BMenuItem("prefs", "Settings...", , Not gSysAdmin.InhibitPrefs)
+        .AddItem new_BMenuItem("missed", "Missed Notifications", , (g_NotificationRoster.RealMissedCount > 0), , , , uMissedNotificationsSubmenu())
+        .AddItem new_BMenuItem("app_list", "Snarl Apps", , (g_AppRoster.CountSnarlApps > 0), , , , g_AppRoster.SnarlAppsMenu())
+'        .AddItem new_bmenuitem(("", "Snarl Apps", , , , , , g_AppRoster.SnarlAppsMenu())
         .AddSeparator
-        .AddItem .CreateItem("quit", "Quit Snarl", , Not gSysAdmin.InhibitQuit)
 
-        Set pi = .Track(Me.hWnd)
+        .AddItem new_BMenuItem("quit", "Quit Snarl", , Not gSysAdmin.InhibitQuit)
 
+Dim pn As TNotification
+Dim pa As TApp
+
+        If .Track(Me.hWnd) Then
+        
+            Select Case .SelectedItem.Name
+            Case "quit"
+                PostQuitMessage 0
+                Exit Sub
+        
+            Case "about"
+                frmAbout.Show
+    
+            Case "restart"
+                g_SetRunning False
+                DoEvents
+                Sleep 1500
+                DoEvents
+                g_SetRunning True
+    
+            Case "start"
+                g_SetRunning True
+    
+            Case "stop"
+                g_SetRunning False
+    
+            Case "prefs"
+                Me.NewDoPrefs
+    
+            Case "nc"
+                With g_NotificationRoster.NC
+                    If .IsVisible Then
+                        .Hide
+                    
+                    Else
+                        .Show
+                    
+                    End If
+                End With
+    
+    
+    '        Case "app_mgr"
+    '            ShellExecute 0, "open", g_MakePath(App.Path) & "SNARLAPP_Manager.exe", vbNullString, vbNullString, SW_SHOW
+    
+            Case "sticky"
+                g_ConfigSet "sticky_snarls", IIf(g_ConfigGet("sticky_snarls") = "1", "0", "1")
+    
+            Case "dnd"
+                If g_IsPresence(SN_PF_DND_USER) Then
+                    ' /* clear it */
+                    g_ClearPresence SN_PF_DND_USER
+    
+                Else
+                    ' /* set it */
+                    g_SetPresence SN_PF_DND_USER
+    '                g_NotificationRoster.ResetMissedCount
+    
+                End If
+    
+            Case "missed"
+                Me.bShowMissedPanel
+    
+            Case "hide_all"
+                ' /* R2.4.2 */
+                If Not (g_NotificationRoster Is Nothing) Then _
+                    g_NotificationRoster.CloseMultiple 0
+    
+            Case "sos"
+                ' /* R2.4.2 DR3 */
+                SOS_invoke New TSOSHandler
+            
+            Case Else
+                If g_BeginsWith(.SelectedItem.Name, "!app-") Then
+                    ' /* snarl app? */
+                    If g_AppRoster.PrivateFindBySignature(g_SafeRightStr(.SelectedItem.Name, Len(.SelectedItem.Name) - 5), pa) Then _
+                        pa.Activated
+
+                ElseIf g_BeginsWith(.SelectedItem.Name, "!missed") Then
+                    ' /* missed list */
+                    Set pn = g_NotificationRoster.MissedList.TagAt(Val(g_SafeRightStr(.SelectedItem.Name, Len(.SelectedItem.Name) - 7)))
+                    If NOTNULL(pn) Then _
+                        g_NotificationRoster.Add pn.Info, Nothing, False, True
+
+                End If
+            End Select
+        End If
     End With
 
     PostMessage Me.hWnd, WM_NULL, 0, ByVal 0&
 
-Dim pa As TApp
-
-    If Not (pi Is Nothing) Then
-        Select Case pi.Name
-        Case "quit"
-            PostQuitMessage 0
-            Exit Sub
-
-        Case "about"
-            frmAbout.Show
-
-        Case "restart"
-            g_SetRunning False
-            DoEvents
-            Sleep 1500
-            DoEvents
-            g_SetRunning True
-
-        Case "start"
-            g_SetRunning True
-
-        Case "stop"
-            g_SetRunning False
-
-        Case "prefs"
-            Me.NewDoPrefs
-
-        Case "nc"
-            With g_NotificationRoster.NC
-                If .IsVisible Then
-                    .Hide
-                
-                Else
-                    .Show
-                
-                End If
-            End With
-
-
-'        Case "app_mgr"
-'            ShellExecute 0, "open", g_MakePath(App.Path) & "SNARLAPP_Manager.exe", vbNullString, vbNullString, SW_SHOW
-
-        Case "sticky"
-            g_ConfigSet "sticky_snarls", IIf(g_ConfigGet("sticky_snarls") = "1", "0", "1")
-
-        Case "dnd"
-            If g_IsPresence(SN_PF_DND_USER) Then
-                ' /* clear it */
-                g_ClearPresence SN_PF_DND_USER
-
-            Else
-                ' /* set it */
-                g_SetPresence SN_PF_DND_USER
-'                g_NotificationRoster.ResetMissedCount
-
-            End If
-
-        Case "missed"
-            Me.bShowMissedPanel
-
-        Case "hide_all"
-            ' /* R2.4.2 */
-            If Not (g_NotificationRoster Is Nothing) Then _
-                g_NotificationRoster.CloseMultiple 0
-
-        Case "sos"
-            ' /* R2.4.2 DR3 */
-            SOS_invoke New TSOSHandler
-
-Dim i As Long
-
-        Case "app_list"
-            If (theAppList Is Nothing) Then
-                Set theAppList = New TAppsPopUpWindow
-                theAppList.Create 26
-                
-                With g_AppRoster
-                    If .CountApps Then
-                        For i = 1 To .CountApps
-                            If .AppAt(i).IncludeInMenu Then _
-                                theAppList.AddItem .AppAt(i).Name, .AppAt(i).Signature, .AppAt(i).CachedIcon
-
-                        Next i
-                    End If
-                End With
-
-                theAppList.Show
-
-            End If
-
-        Case Else
-
-            ' /* missed list */
-
-Dim pn As TNotification
-
-            If g_BeginsWith(pi.Name, "!missed") Then
-                Set pn = g_NotificationRoster.MissedList.TagAt(Val(g_SafeRightStr(pi.Name, Len(pi.Name) - 7)))
-                If NOTNULL(pn) Then _
-                    g_NotificationRoster.Add pn.Info, Nothing, False, True
-
-            End If
-
-'            If g_SafeLeftStr(pi.Name, 1) = "!" Then
-'                Set pa = g_AppRoster.AppAt(Val(g_SafeRightStr(pi.Name, Len(pi.Name) - 1)))
-'                pa.Activated
+'    If Not (pi Is Nothing) Then
+'        Select Case pi.Name
 '
-'            End If
-
-'            sz = g_SafeLeftStr(pi.Name, 3)
-'            szData = g_SafeRightStr(pi.Name, Len(pi.Name) - 3)
 '
-'            Select Case sz
-'            Case "cfg"
-'                ' /* Snarl App -> Settings... szData is App Roster index */
-'                g_AppRoster.SnarlAppDo Val(szData), SNARLAPP_SHOW_PREFS
+''Dim i As Long
+''
+''        Case "app_list"
+''            If (theAppList Is Nothing) Then
+''                Set theAppList = New TAppsPopUpWindow
+''                theAppList.Create 26
+''
+''                With g_AppRoster
+''                    If .CountApps Then
+''                        For i = 1 To .CountApps
+''                            If .AppAt(i).IncludeInMenu Then _
+''                                theAppList.AddItem .AppAt(i).Name, .AppAt(i).Signature, .AppAt(i).CachedIcon
+''
+''                        Next i
+''                    End If
+''                End With
+''
+''                theAppList.Show
+''
+''            End If
 '
-'            Case "abt"
-'                ' /* Snarl App -> About... szData is App Roster index */
-'                g_AppRoster.SnarlAppDo Val(szData), SNARLAPP_SHOW_ABOUT
+'        Case Else
 '
-'            End Select
-
-        End Select
-    End If
+'
+''            If g_SafeLeftStr(pi.Name, 1) = "!" Then
+''                Set pa = g_AppRoster.AppAt(Val(g_SafeRightStr(pi.Name, Len(pi.Name) - 1)))
+''                pa.Activated
+''
+''            End If
+'
+''            sz = g_SafeLeftStr(pi.Name, 3)
+''            szData = g_SafeRightStr(pi.Name, Len(pi.Name) - 3)
+''
+''            Select Case sz
+''            Case "cfg"
+''                ' /* Snarl App -> Settings... szData is App Roster index */
+''                g_AppRoster.SnarlAppDo Val(szData), SNARLAPP_SHOW_PREFS
+''
+''            Case "abt"
+''                ' /* Snarl App -> About... szData is App Roster index */
+''                g_AppRoster.SnarlAppDo Val(szData), SNARLAPP_SHOW_ABOUT
+''
+''            End Select
+'
+'        End Select
+'    End If
 
 '    If update_config Then _
         g_WriteConfig
@@ -936,7 +982,7 @@ Dim pm As CTempMsg
             .AddPage new_BPrefsPage("Applications", load_image_obj(g_MakePath(App.Path) & "etc\icons\apps.png"), mAppsPage)
 
             ' /* notifications page */
-            Set pp = new_BPrefsPage("Display", load_image_obj(g_MakePath(App.Path) & "etc\icons\notifications.png"), Me)
+            Set pp = new_BPrefsPage("Notifications", load_image_obj(g_MakePath(App.Path) & "etc\icons\notifications.png"), Me)
             With pp
                 .SetMargin 0
                 Set pm = New CTempMsg
@@ -964,7 +1010,7 @@ Dim pm As CTempMsg
                 pm.Add "height", 412
                 Set pc = new_BPrefsControl("tabstrip", "", , , , pm)
 '                BTabStrip_AddPage pc, "General", new_BPrefsPage("net-general", , New TNetSubPage)
-                BTabStrip_AddPage pc, "Redirection", new_BPrefsPage("redirection", , New TDisplaySubPage)
+'                BTabStrip_AddPage pc, "Redirection", new_BPrefsPage("redirection", , New TDisplaySubPage)
                 BTabStrip_AddPage pc, "Forwarding", new_BPrefsPage("net-clients", , New TNetSubPage)
                 BTabStrip_AddPage pc, "Subscriptions", new_BPrefsPage("net-subs", , New TNetSubPage)
 '                BTabStrip_AddPage pc, "Subscribers", new_BPrefsPage("net-subscribers", , New TNetSubPage)
@@ -1492,19 +1538,19 @@ Dim szScr As String
 
 End Sub
 
-Private Sub theAppList_Closed()
-
-    Set theAppList = Nothing
-
-End Sub
-
-Private Sub theAppList_Selected(ByVal Signature As String)
-Dim pa As TApp
-
-    If g_AppRoster.PrivateFindBySignature(Signature, pa) Then _
-        pa.Activated
-
-End Sub
+'Private Sub theAppList_Closed()
+'
+'    Set theAppList = Nothing
+'
+'End Sub
+'
+'Private Sub theAppList_Selected(ByVal Signature As String)
+'Dim pa As TApp
+'
+'    If g_AppRoster.PrivateFindBySignature(Signature, pa) Then _
+'        pa.Activated
+'
+'End Sub
 
 Private Sub theGarbageTimer_Pulse()
 
@@ -2343,19 +2389,21 @@ Dim i As Long
 
 End Sub
 
-Private Function uMissedNotificationsSubmenu() As OMMenu
+Private Function uMissedNotificationsSubmenu() As BMenu
 Dim pt As TNotification
-Dim pm As OMMenu
 Dim j As Integer
 
-    Set pm = New OMMenu
+    Set uMissedNotificationsSubmenu = New BMenu
 
     With g_NotificationRoster.MissedList
         .Rewind
         Do While .GetNextTag(pt) = B_OK
             If Not pt.WasReplayed Then
                 j = j + 1
-                pm.AddItem pm.CreateItem("!missed" & CStr(pt.Info.Token), g_Quote(g_FormattedMidStr(Replace$(pt.Info.Text, vbCrLf, " "), 48)) & " (" & pt.Info.ClassObj.App.NameEx & ")")
+                uMissedNotificationsSubmenu.AddItem new_BMenuItem("!missed" & CStr(pt.Info.Token), _
+                                                                  g_Quote(g_FormattedMidStr(Replace$(pt.Info.Text, vbCrLf, " "), 48)) & " (" & pt.Info.ClassObj.App.NameEx & ")", _
+                                                                  pt.Icon)
+
                 If j = 10 Then _
                     Exit Do
 
@@ -2365,12 +2413,10 @@ Dim j As Integer
     End With
 
     If j > 0 Then
-        pm.AddSeparator
-        pm.AddItem pm.CreateItem("missed", "All Missed Notifications...")
+        uMissedNotificationsSubmenu.AddSeparator
+        uMissedNotificationsSubmenu.AddItem new_BMenuItem("missed", "All Missed Notifications...")
 
     End If
-
-    Set uMissedNotificationsSubmenu = pm
 
 End Function
 

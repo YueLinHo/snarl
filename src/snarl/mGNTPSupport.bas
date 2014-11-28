@@ -238,8 +238,10 @@ Dim px As T_REG
         .Count = dwCount
         ReDim .NotificationType(.Count)
 
+        ' /* 44.55: translate GNTP icon resources into path to saved image */
+
         If pp.Exists("Application-Icon") Then _
-            .IconPath = trim(pp.ValueOf("Application-Icon"))
+            .IconPath = uTranslateIconPath(trim(pp.ValueOf("Application-Icon")))
 
     End With
 
@@ -524,10 +526,10 @@ Dim i As Integer
     On Error Resume Next
 
     Identifier = "gntp-res-" & Identifier
-    uOutput "uSaveBinary(): writing binary content to " & g_GetTempPath() & Identifier & ".png"
+    uOutput "uSaveBinary(): writing binary content to " & g_GetTempPath() & Identifier '& ".png"
 
     i = FreeFile()
-    Open g_GetTempPath() & Identifier & ".png" For Binary Access Write As #i
+    Open g_GetTempPath() & Identifier For Binary Access Write As #i
     Put #i, , mSection(SectionIndex)
     Close #i
 
@@ -1137,3 +1139,16 @@ Private Function uIsResponseHeader(ByVal Header As String) As Boolean
 
 End Function
 
+Private Function uTranslateIconPath(ByVal Path As String) As String
+Dim sz() As String
+
+    If g_SafeLeftStr(Path, 19) = "x-growl-resource://" Then
+        sz = Split(Path, "://")
+        uTranslateIconPath = g_GetTempPath() & "gntp-res-" & sz(1) '& ".png"
+
+    Else
+        uTranslateIconPath = Path
+
+    End If
+
+End Function

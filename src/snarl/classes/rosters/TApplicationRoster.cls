@@ -35,6 +35,8 @@ Dim mSnarlAppMsg As Long
 Dim mRegLock As Long        ' // R2.4.2: was global
 
 Dim mRemoteAppList As BTagList
+Dim mDefaultAppIcon As mfxBitmap
+Dim mBannedAppIcon As mfxBitmap
 
 Implements MLibrary
 Implements MRoster
@@ -51,6 +53,8 @@ Private Function MLibrary_Close() As melon.M_RESULT
 
         ReDim mApp(0)
         mCount = 0
+        Set mDefaultAppIcon = Nothing
+        Set mBannedAppIcon = Nothing
 
     End If
 
@@ -80,6 +84,9 @@ Dim pSnarlApp As TApp
         mSnarlAppMsg = RegisterWindowMessage("SnarlAppMessage")     ' // V40.25
         mAppToken = (&H1E0 + (Rnd * 80)) And &HFFFFFFFC
         Set mRemoteAppList = new_BTagList()
+
+        Set mDefaultAppIcon = load_image_obj(g_MakePath(App.Path) & "etc\icons\no_icon.png")
+        Set mBannedAppIcon = load_image_obj(g_MakePath(App.Path) & "etc\icons\ext-error.png")
 
         ' /* register ourselves with, er, ourself! */
 
@@ -302,6 +309,7 @@ Dim i As Long
     End If
 
 Dim pInfo As T_SNARL_APP
+Dim szIcon As String
 
     ' /* configure the item */
 
@@ -339,13 +347,20 @@ Dim pInfo As T_SNARL_APP
             ' /* R2.4.2 DR3: support for "file://" protocol */
             .Icon = g_PathFromURI(.Icon)
 
+
+        ElseIf (.Icon <> "") And (g_GetExtension(.Icon) = "") Then
+            ' /* filename with no extension - could be any format... */
+'            MsgBox .Icon
+            If uGetBestIcon(.Icon, szIcon) Then _
+                .Icon = szIcon
+
         End If
 
 '        .LargeIcon = .Icon                       ' // no need for two icons: V41 spec recommends 128x128px icon
 
         ' / R2.4.1 Beta 3 - if (still) no icon, try to use the sender exe's one */
 
-Dim pi As BIcon
+
 
         If (.Icon = "") And (.RemoteHostName <> "") Then
             ' /* truly remote apps get this icon, all others get the normal one */
@@ -354,17 +369,9 @@ Dim pi As BIcon
         ElseIf (.Icon = "") And (SenderPID <> 0) Then
             sz = g_GetExeFullPath(SenderPID)
             If sz <> "" Then
-                With new_BIconContent(sz)
-                    If .GetIcon(B_GET_ICON_BIGGEST Or B_GET_ICON_MOST_COLOURS, pi) Then
-                        With New mfxView
-                            .SizeTo pi.Width, pi.Height
-                            .DrawScaledImage pi.Render, , new_BPoint(pi.Width, pi.Height)
-                            pInfo.Icon = g_GetSafeTempIconPath()
-                            .WriteToFile pInfo.Icon, "image/png"
+                If uGetBestIcon(sz, szIcon) Then _
+                    pInfo.Icon = szIcon
 
-                        End With
-                    End If
-                End With
             End If
         End If
 
@@ -528,6 +535,14 @@ Dim i As Long
                             IIf(pa.IsRemote, "Remote a", "A") & "pplication registered", _
                             pa.NameEx & " registered successfully with Snarl" & IIf(pa.IsBanned, vbCrLf & vbCrLf & "NOTE: Application has been blocked by Snarl", ""), _
                             -1, _
+                            pa.Icon, _
+                            , , , _
+                            lFlags)
+
+'        i = g_PrivateNotify(SNARL_CLASS_APP_REG, _
+                            IIf(pa.IsRemote, "Remote a", "A") & "pplication registered", _
+                            pa.NameEx & " registered successfully with Snarl" & IIf(pa.IsBanned, vbCrLf & vbCrLf & "NOTE: Application has been blocked by Snarl", ""), _
+                            -1, _
                             IIf(pa.Icon = "", g_MakePath(App.Path) & "etc\icons\no_icon.png", pa.Icon), _
                             , , , _
                             lFlags)
@@ -535,9 +550,11 @@ Dim i As Long
         If i Then
             ' /* add the action(s) */
             g_QuickAddAction i, "Manage Notifications...", "!notifications " & pa.Signature
-            If pa.HasConfig Then _
+            If pa.HasConfig Then
+                g_QuickAddAction i, "x", "!sep"
                 g_QuickAddAction i, pa.Name & " Preferences...", "!app_settings " & pa.Signature
 
+            End If
         End If
     End If
 
@@ -953,7 +970,8 @@ Dim sz As String
 Dim i As Long
 
     sz = mApp(Index).Name
-    szIcon = IIf(mApp(Index).Icon = "", g_MakePath(App.Path) & "etc\icons\no_icon.png", mApp(Index).Icon)
+'    szIcon = IIf(mApp(Index).Icon = "", g_MakePath(App.Path) & "etc\icons\no_icon.png", mApp(Index).Icon)
+    szIcon = mApp(Index).Icon
 
     If Index < mCount Then
         For i = Index To (mCount - 1)
@@ -973,7 +991,6 @@ Dim i As Long
                      szIcon
 
     frmAbout.bUpdateAppList
-
     Remove = M_OK
 
 End Function
@@ -1185,27 +1202,24 @@ End Function
 '
 'End Function
 
-'Public Function SnarlAppsMenu() As OMMenu
-'Dim pm As OMMenu
-'Dim i As Long
-'
-'    Set SnarlAppsMenu = New OMMenu
-'
-'    With SnarlAppsMenu
-'        If mCount Then
-'            For i = 1 To mCount
-'                If mApp(i).IncludeInMenu Then _
-'                    .AddItem .CreateItem("!" & CStr(i), mApp(i).Name)
-'
-'            Next i
-'        End If
-'
+Public Function SnarlAppsMenu() As BMenu
+Dim i As Long
+
+    Set SnarlAppsMenu = New BMenu
+
+    If mCount Then
+        For i = 1 To mCount
+            If mApp(i).IncludeInMenu Then _
+                SnarlAppsMenu.AddItem new_BMenuItem("!app-" & mApp(i).Signature, mApp(i).Name, mApp(i).CachedIcon)
+
+        Next i
+    End If
+
+
 '        If .CountItems = 0 Then _
-'            .AddItem .CreateItem("", "None", , False)
-'
-'    End With
-'
-'End Function
+            .AddItem .CreateItem("", "None", , False)
+
+End Function
 
 Private Function uGenerateSnarlPassword() As String
 Dim i As Integer
@@ -1395,3 +1409,32 @@ Dim i As Long
 
 End Function
 
+Private Function uGetBestIcon(ByVal Path As String, ByRef Destination As String) As Boolean
+Dim pi As BIcon
+
+    With new_BIconContent(Path)
+        If .GetIcon(B_GET_ICON_BIGGEST Or B_GET_ICON_MOST_COLOURS, pi) Then
+            With New mfxView
+                .SizeTo pi.Width, pi.Height
+                .DrawScaledImage pi.Render, , new_BPoint(pi.Width, pi.Height)
+                Destination = g_GetSafeTempIconPath()
+                .WriteToFile Destination, "image/png"
+                uGetBestIcon = True
+
+            End With
+        End If
+    End With
+
+End Function
+
+Public Function DefaultAppIcon() As MImage
+
+    Set DefaultAppIcon = mDefaultAppIcon
+
+End Function
+
+Public Function BannedAppIcon() As MImage
+
+    Set BannedAppIcon = mBannedAppIcon
+
+End Function

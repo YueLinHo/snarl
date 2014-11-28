@@ -1056,28 +1056,7 @@ Private Sub KPrefsPage_ControlInvoked(Control As prefs_kit_d2.BControl)
 
 
     Case "test_forward"
-        
-Dim pInfo As T_NOTIFICATION_INFO
-Dim ps As ConfigSection
-
-        If g_SubsRoster.Find(mSelectedForward, ps) Then
-            ' /* mock-up a basic notification */
-            With pInfo
-                .Title = "Network Forwarding Test"
-                .Text = "Hello from Snarl on " & g_GetComputerName() & "!"
-                Set .ClassObj = g_AppRoster.AppAt(g_AppRoster.IndexOfSig(App.ProductName)).AlertAt(1)
-                .IconPath = g_MakePath(App.Path) & "etc\icons\good.png"
-                .Timeout = -1
-
-            End With
-            g_KludgeNotificationInfo pInfo
-
-            If Not g_SubsRoster.ForwardNotification(ps, pInfo) Then _
-                MsgBox "Notification forwarding failed.  Check the protocol and host names are valid.", vbExclamation Or vbOKOnly, "Network Forwarder"
-
-        Else
-
-        End If
+        uTestForward
 
 '    Case "engine_style_list"
 '        If NOTNULL(mCurrentEngine) Then
@@ -2091,6 +2070,38 @@ Dim ps As ConfigSection
 
         uRefreshSubscriptions
     
+    End If
+
+End Sub
+
+Private Sub uTestForward()
+Dim pInfo As T_NOTIFICATION_INFO
+Dim ps As ConfigSection
+
+    If g_SubsRoster.Find(mSelectedForward, ps) Then
+        ' /* mock-up a basic notification */
+        With pInfo
+            .Title = "Network Forwarding Test"
+            .Text = "Hello from Snarl on " & g_GetComputerName() & "..."
+            Set .ClassObj = g_AppRoster.AppAt(g_AppRoster.IndexOfSig(App.ProductName)).AlertAt(1)
+            .IconPath = g_MakePath(App.Path) & "etc\icons\good.png"
+            .Timeout = -1
+
+        End With
+        g_KludgeNotificationInfo pInfo
+
+        If Not g_SubsRoster.ForwardNotification(ps, pInfo) Then
+            g_PrivateNotify "", "Forwarding Test", "Snarl couldn't send a test notification to the remote computer(s).  Check the protocol and destination address is correct.", , "!system-no"
+'                MsgBox "Notification forwarding failed.  Check the protocol and host names are valid.", vbExclamation Or vbOKOnly, "Network Forwarder"
+
+        Else
+            g_PrivateNotify "", "Forwarding Test", "Snarl has sent a test notification to the remote computer(s).  Check each computer to see if the notification was received successfully.", , "!system-info"
+
+        End If
+
+    Else
+        g_Debug "(test_forward): couldn't find " & mSelectedForward & " in roster", LEMON_LEVEL_CRITICAL
+
     End If
 
 End Sub

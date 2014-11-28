@@ -272,6 +272,12 @@ Dim pa As TApp
 
     On Error GoTo er
 
+'snp.Request ("type=SNP#?version=1.1#?action=register#?app=Ruby-Snarl\r\n")
+'snp.Request ("type=SNP#?version=1.1#?action=add_class#?app=Ruby-Snarl#?class=type1\r\n")
+'snp.Request ("type=SNP#?version=1.1#?action=add_class#?app=Ruby-Snarl#?class=type2\r\n")
+'snp.Request ("type=SNP#?version=1.1#?action=notification#?app=Ruby-Snarl#?class=type1#?title=title#?text=type1 text!#?timeout=10\r\n")
+'snp.Request ("type=SNP#?version=1.1#?action=notification#?app=Ruby-Snarl#?class=type2#?title=title#?text=type2 text!#?timeout=10\r\n")
+
     With New CConfFile
         If .SetFromText(Request, "#?") Then
             sz = .GetValueWithDefault("type")
@@ -733,6 +739,10 @@ Dim sz As String
 
     theSocket.PeekData sz
 
+'    Debug.Print sz
+'    Debug.Print g_AsHexBytes(sz)
+
+
     If g_SafeRightStr(sz, 1) = Chr$(0) Then
         g_Debug "Chr(0) received"
         ' /* is it a flash permission request? */
@@ -759,7 +769,10 @@ Dim sz As String
 
     End If
 
-    g_Debug "EOL received"
+    g_Debug "EOL received.  Packet data is " & g_Quote(sz)
+'    g_Debug g_AsHexBytes(sz)
+
+'    sz = Replace$(sz, vbCrLf, vbCr)
 
     If mDoingSNP3 Then
         ' /* we're processing an incoming SNP3 packet so wait for the end marker */
@@ -859,6 +872,10 @@ Dim po As BJSONObject
 
     End If
 
+    Debug.Print "TRemoteConnection.uParseJSON(): raw HTTP follows:"
+    Debug.Print HTTP
+    Debug.Print "--"
+
 Dim pv As BJSONValue
 
     If Not po.Find("action", pv) Then
@@ -867,26 +884,30 @@ Dim pv As BJSONValue
 
     End If
 
-    If pv.AsLong <> 1 Then
-        g_Debug "TRemoteConnection.uParseJSON(): incorrect 'action' value", LEMON_LEVEL_CRITICAL
-        Exit Function
-
-    End If
-
 Dim tt As String
 Dim tx As String
 
-    If po.Find("description", pv) Then _
-        tx = pv.AsString()
+    Select Case pv.AsLong
+    Case 1
+        g_Debug "TRemoteConnection.uParseJSON(): legacy action"
+        If po.Find("description", pv) Then _
+            tx = pv.AsString()
 
-    If po.Find("title", pv) Then _
-        tt = pv.AsString()
+        If po.Find("title", pv) Then _
+            tt = pv.AsString()
 
-    g_Debug "TRemoteConnection.uParseJSON(): request #" & g_HexStr(mId) & " title=" & tt & " text=" & tx
+        g_Debug "TRemoteConnection.uParseJSON(): request #" & g_HexStr(mId) & " title=" & tt & " text=" & tx
+        uParseJSON = (g_PrivateNotify(SNARL_CLASS_JSON, tt, tx) <> 0)
 
-    uParseJSON = (g_PrivateNotify(SNARL_CLASS_JSON, tt, tx) <> 0)
+    Case 2
+        g_Debug "TRemoteConnection.uParseJSON(): full request:"
+        If po.Find("payload", pv) Then _
+            uParseJSON = (g_DoV42Request(pv.AsString, 0) >= 0)
 
-'    uDo = (sn41EZNotify(gSnarlToken, SNARL_CLASS_JSON, tt, tx) <> 0)
+    Case Else
+        g_Debug "TRemoteConnection.uParseJSON(): incorrect 'action' value", LEMON_LEVEL_CRITICAL
+
+    End Select
 
 End Function
 

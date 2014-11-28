@@ -130,7 +130,7 @@ Dim bEnabled As Boolean
             .Add "colour-tint", CStr(rgba(0, 0, 0))
             .Add "send_to_subscribers", "0"
             .Add "redact-when", "0"
-            .Add "send_to_redirects", "1"
+'            .Add "send_to_redirects", "1"
             .Add "redact-always", "0"
 
         End With
@@ -593,11 +593,20 @@ Dim dw As Long
 
     End If
 
-    ' /* send it to the notification roster */
+    ' /* V44.56 - last check: must have one of title, text or icon */
 
-    ShowNotification = g_NotificationRoster.Add(Info, Args, bLog)
-    mLastToken = Info.Token
+    If (Info.Title = "") And (Info.Text = "") And (Info.IconPath = "") Then
+        g_Debug "TAlert.ShowNotification(): not displaying: must have at least one of title, text or icon", LEMON_LEVEL_CRITICAL
+        g_SetLastError SNARL_ERROR_ARG_MISSING
+        ShowNotification = 0
+
+    Else
+        ' /* send it to the notification roster */
+        ShowNotification = g_NotificationRoster.Add(Info, Args, bLog)
+        mLastToken = Info.Token
 '    Debug.Print "TAlert.ShowNotification(): token=" & CStr(mLastToken) & " sender=" & CStr(mContent.App.Token) & " (" & mContent.App.Signature & ") title='" & Info.Title & "' text='" & Info.Text & "'"
+
+    End If
 
 End Function
 
@@ -705,61 +714,61 @@ Dim szCmd As String
 
     ' /* must have a label and command */
 
-    If (szLbl = "") Or (szCmd = "") Then _
+    If (szLbl = "") And (szCmd = "") Then _
         Exit Sub
 
     ListToAddTo.Add new_BTagItem(szLbl, szCmd)
 
 End Sub
 
-'Friend Sub DoRedirection(ByRef Info As T_NOTIFICATION_INFO)
-'
-'    If ISNULL(mContent.Redirectors) Then _
-'        Exit Sub
-'
-''Dim pCopyInfo As T_NOTIFICATION_INFO
-'Dim fConditions As SN_REDIRECTION_FLAGS
-'Dim pt As BTagItem
-'
-'    With mContent.Redirectors
-'        .Rewind
-'        Do While .GetNextTag(pt) = B_OK
-'            fConditions = Val(pt.Value)
-'
-'            Debug.Print "TAlert.DoRedirection(): busy:" & g_IsDND() & " away:" & g_IsAway() & " cond:" & g_HexStr(fConditions)
-'
-'            If (g_IsDND()) And ((fConditions And SN_RF_WHEN_BUSY) <> 0) Then
-'                ' /* redirect when busy */
-'                fConditions = -1
-'
-'            ElseIf (g_IsAway()) And ((fConditions And SN_RF_WHEN_AWAY) <> 0) Then
-'                ' /* redirect when away */
-'                fConditions = -1
-'
-'            ElseIf (fConditions And SN_RF_WHEN_ACTIVE) <> 0 Then
-'                ' /* redirect when active */
-'                fConditions = -1
-'
-'            Else
-'                ' /* no shadowing */
-'                fConditions = 0
-'
-'            End If
-'
-'            If fConditions <> 0 Then
-'                g_Debug "TAlert.DoRedirection(): redirecting to '" & pt.Name & "'..."
-'                g_StyleRoster.RedirectTo pt.Name, Info
-''                LSet pCopyInfo = Info
-''                pCopyInfo.StyleName = LCase$(style_GetStyleName(pt.Name))
-''                pCopyInfo.SchemeName = LCase$(style_GetSchemeName(pt.Name))
-''                g_NotificationRoster.Redirect pCopyInfo
-'
-'            End If
-'        Loop
-'
-'    End With
-'
-'End Sub
+Friend Sub DoRedirection(ByRef Info As T_NOTIFICATION_INFO)
+
+    If ISNULL(mContent.Redirectors) Then _
+        Exit Sub
+
+'Dim pCopyInfo As T_NOTIFICATION_INFO
+Dim fConditions As SN_REDIRECTION_FLAGS
+Dim pt As BTagItem
+
+    With mContent.Redirectors
+        .Rewind
+        Do While .GetNextTag(pt) = B_OK
+            fConditions = Val(pt.Value)
+
+            Debug.Print "TAlert.DoRedirection(): busy:" & g_IsDND() & " away:" & g_IsAway() & " cond:" & g_HexStr(fConditions)
+
+            If (g_IsDND()) And ((fConditions And SN_RF_WHEN_BUSY) <> 0) Then
+                ' /* redirect when busy */
+                fConditions = -1
+
+            ElseIf (g_IsAway()) And ((fConditions And SN_RF_WHEN_AWAY) <> 0) Then
+                ' /* redirect when away */
+                fConditions = -1
+
+            ElseIf (fConditions And SN_RF_WHEN_ACTIVE) <> 0 Then
+                ' /* redirect when active */
+                fConditions = -1
+
+            Else
+                ' /* no shadowing */
+                fConditions = 0
+
+            End If
+
+            If fConditions <> 0 Then
+                g_Debug "TAlert.DoRedirection(): redirecting to '" & pt.Name & "'..."
+                g_StyleRoster.RedirectTo pt.Name, Info
+'                LSet pCopyInfo = Info
+'                pCopyInfo.StyleName = LCase$(style_GetStyleName(pt.Name))
+'                pCopyInfo.SchemeName = LCase$(style_GetSchemeName(pt.Name))
+'                g_NotificationRoster.Redirect pCopyInfo
+
+            End If
+        Loop
+
+    End With
+
+End Sub
 
 Friend Sub DoForwarding(ByRef Info As T_NOTIFICATION_INFO)
 
@@ -779,7 +788,7 @@ Dim i As Long
                 g_SubsRoster.ForwardNotification g_SubsRoster.Config.SectionAt(i), Info
 
             Else
-                MsgBox pt.Name & " not found"
+                g_Debug "TAlert.DoForwarding(): can't find detail for forward '" & pt.Name & "/" & pt.Value & "'", LEMON_LEVEL_CRITICAL
 
             End If
 

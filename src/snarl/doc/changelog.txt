@@ -1,5 +1,108 @@
 
 	Snarl Change Log
+	----------------
+
+	- Released as 3.1 Beta 3.  (45.25)
+
+	- Minor restructuring of the Event prefs sub pages.  (45.23)
+
+	- Fixed copyright.  (45.22)
+
+	- Added "FORWARD" identifier to SNP 3.0 header and incoming FORWARD packets are now
+	  given the SN_NF_FORWARD flag.  (45.21)
+
+	- Fixed two bugs which were causing issues with notification forwarding when using
+	  SNP 3.0.  (45.19)
+
+	- Released as 3.1 Beta 2.  (45.18)
+
+	- Registered extensions are now included in the Snarl Apps menu.  Selecting an entry
+	  from the menu will cause the extension's settings panel (if it has one) to be
+	  displayed.  (45.17)
+
+	- Notify command now accepts "event" arument in place of "class".  (45.17)
+
+	- Added "events-add", "events-del" and "events-clear" commands.  (45.17)
+
+	- Snarl now always writes to snarl_log.txt; the setting simply indicates whether that's
+	  all it does.  (45.17)
+
+	- Display preview image is now created in %TEMP%\snarl.style.<name>.<scheme>.prvw.  (45.16)
+
+	- Application Roster now provides a global DefaultAppIcon() and BannedAppIcon() rather than
+	  loading them each time.  (45.15)
+
+	- Several icons are now passed as objects to Prefs Kit rather than by filename.  (45.14)
+
+	- Notification actions button moved to bottom right corner.  (45.12)
+
+	- Notification callback button text changed.  (45.11)
+
+	- Action menu icons are now cached at startup.  (45.11)
+
+	- Notification HUD layout cosmetic improvements.  (45.9)
+
+	- Cosmetic tweaks to some HUD content.  (45.3)
+
+	- Now using menu.library 2.0 to create the tray menu.  This means we can have icons
+	  in menus again and, finally, have proper Missed Notifications and Snarl Apps sub-
+	  menus.  (45.2)
+
+	- Bumped to V45.  (45.1)
+
+	- Now Release 3.1.  (44.93)
+
+	- Added non-UI "feedback_on_mouseover" setting.  If set to "1" will slightly
+	  darken non-click-through notifications while the mouse pointer is over
+	  them.  (44.92)
+
+	- Updated copyright information.  (44.89)
+
+	- Notifications->Layout->Drop Shadow slider now correctly configures itself
+	  when the panel is opened.  (44.89)
+
+	- Fixed bug which would crash Snarl if a drop shadow size of zero was selected.
+	  (44.89)
+
+	- Released as 3.0.1.  (44.88)
+
+	- Manually revised version to show included missing libmmenu2.0 in installer.  (44.88)
+
+	- Released as 3.0.  (44.87)
+
+	- Moved Presence Overrides, Content Customisation and Redaction settings into
+	  sub-panel which can be accessed from the Event->[Advanced] page.  (44.82)
+
+	- Now sends a SNARL_CALLBACK_CLOSED signal when notifications are closed
+	  using either the "Close All" or "Close All from <App>" menu options.  (44.79)
+
+	- Revised default style.  (44.78)
+
+
+	- Bug identified in uLoadICO() which possibly (but not definitively) causes
+	  a crash when loading a 128x128x32 icon.  Code has been put in place to
+	  abort the load if either the width or height of the retrieved icon is
+	  greater than 127 pixels.  'no_icon.png' is used instead.  (44.67)
+
+	- Revised per-event redirection back to being on a per-event basis.  (44.58)
+
+	- Redirects no longer appear in [Gateway] page.  (44.58)
+
+	- Released as 3.0 Beta 2.  (44.56)
+
+	- Fixed bug which was causing the wrong NOTIFY signal to be sent back via
+	  the Win32 transport.  (44.56)
+
+	- Added full API request functionality to the JSON handler and updated
+	  Snarl.js accordingly.  To access the new functionality, use the following
+	  syntax: {"action":2,"payload":<<REQ>>}, where <<REQ>> is the unabridged
+	  Snarl API request.  To use the new functionality from the .js file, use
+	  Snarl.dorequest(<<REQ>>).  (44.55)
+
+	- Fixed icon parsing issue with GNTP applications which use a resource
+	  identifier for their application icon.  (44.55)
+
+	- Renamed and released as R3.0 Beta 1.  (44.54)
 
 	- Class list in the Class Configuration panel wasn't updating when classes
 	  for the selected application were changed.  Now fixed.  (44.54)

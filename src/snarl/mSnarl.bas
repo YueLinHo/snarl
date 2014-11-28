@@ -14,8 +14,8 @@ Option Explicit
     '*********************************************************************************************/
 
     ' /* these are used by the deprecated SNARL_GET_VERSION and for GNTP responses */
-Public Const APP_VER = 2
-Public Const APP_SUB_VER = 6
+Public Const APP_VER = 3
+Public Const APP_SUB_VER = 1
 Public Const APP_SUB_SUB_VER = 0
 
 Public Const SNP_VERSION = "3.0"
@@ -41,7 +41,6 @@ Public Enum SOS_ERRORS
     SOS_PATH_NOT_FOUND                      '// critical path error
 
 End Enum
-
 
 Public Declare Sub CoFreeUnusedLibrariesEx Lib "ole32" (ByVal dwUnloadDelay As Long, ByVal dwReserved As Long)
 Private Declare Function GetTempPath Lib "kernel32" Alias "GetTempPathA" (ByVal nBufferLength As Long, ByVal lpBuffer As String) As Long
@@ -260,6 +259,13 @@ Public bm_Forward As MImage
 
 Public bm_Button As mfxBitmap
 Public bm_CallbackButton As mfxBitmap
+
+
+Public bm_MenuURL As mfxBitmap
+Public bm_MenuInfo As mfxBitmap
+Public bm_MenuAction As mfxBitmap
+Public bm_MenuFolder As mfxBitmap
+
 
 Public Enum SN_START_POSITIONS
     ' /* IMPORTANT!! These have now changed under V41 */
@@ -682,6 +688,7 @@ Dim i As Long
     ' /* V43.71 - if "D" pressed, not CTRL */
 
     gDebugMode = gDebugMode Or (g_IsPressed(vbKeyD)) Or (uIsDebugBuild())
+'    lemonRegister25 App.Title, 0
 
     ' /* reset debug mode if admin setting blocks it */
 
@@ -1117,6 +1124,8 @@ nonitro:
 
 nographics:
 noexec:
+
+'    lemonUnregister25
 
 End Sub
 
@@ -1726,9 +1735,9 @@ Dim pc As TAlert
 
 End Function
 
-Public Sub g_WriteToLog(ByVal Title As String, ByVal Text As String)
-Dim sz As String
-Dim n As Integer
+Public Sub g_WriteToLog(ByRef Info As T_NOTIFICATION_INFO)
+Static sz As String
+Static n As Integer
 
     On Error Resume Next
 
@@ -1740,7 +1749,14 @@ Dim n As Integer
     If err.Number <> 0 Then _
         Exit Sub
 
-    Print #n, CStr(Now()) & vbTab & Replace$(Title, vbCrLf, "/n") & vbTab & Replace$(Text, vbCrLf, "/n")
+    sz = "<no app>"
+    If NOTNULL(Info.ClassObj) Then
+        If NOTNULL(Info.ClassObj.App) Then _
+            sz = Info.ClassObj.App.NameEx
+
+    End If
+
+    Print #n, CStr(Now()) & vbTab & Replace$(Info.Title, vbCrLf, "/n") & vbTab & Replace$(Info.Text, vbCrLf, "/n") & vbTab & sz
     Close #n
 
 End Sub
@@ -1928,7 +1944,7 @@ End Function
 
 Public Function g_GetSafeTempIconPath() As String
 Dim sz As String
-Dim c As Long
+'Dim c As Long
 
     sz = String$(MAX_PATH + 1, 0)
     GetTempPath MAX_PATH, sz
@@ -1938,13 +1954,15 @@ Dim c As Long
 
     sz = g_MakePath(sz)
 
-    c = 1
-    Do While g_Exists(sz & "snarl-icon" & CStr(c))
-        c = c + 1
+    g_GetSafeTempIconPath = sz & "snarl-icon-" & g_CreateGUID(True)
 
-    Loop
-
-    g_GetSafeTempIconPath = sz & "snarl-icon" & CStr(c)
+'    c = 1
+'    Do While g_Exists(sz & "snarl-icon" & CStr(c))
+'        c = c + 1
+'
+'    Loop
+'
+'    g_GetSafeTempIconPath = sz & "snarl-icon" & CStr(c)
 
 End Function
 
@@ -2052,25 +2070,49 @@ Dim i As Long
     Select Case LCase$(Arg(0))
 
     Case "missed"
+        ' /* !missed - show missed notifications panel */
         frmAbout.bShowMissedPanel
 
-    Case "notifications"
-        ' /* show our prefs panel targeted on the app */
-        If pti.CountItems = 1 Then _
+    Case "notifications", "events"
+        ' /* !notifications|events <signature> - show our prefs panel targeted on app <signature> */
+        If pti.CountItems > 0 Then
             frmAbout.DoAppConfigBySignature pti.TagAt(1).Name
 
-    Case "app_settings"
-        ' /* ask the app to show its GUI */
-        If pti.CountItems = 1 Then
-            If g_AppRoster.PrivateFindBySignature(pti.TagAt(1).Name, pa) Then _
+        Else
+            g_Debug "!events: missing arg"
+
+        End If
+
+    Case "app_settings", "app-settings"
+        ' /* !app_settings|app-settings <signature>: ask app <signature> to show its GUI */
+        If pti.CountItems > 0 Then
+            If g_AppRoster.PrivateFindBySignature(pti.TagAt(1).Name, pa) Then
                 pa.DoSettings 0
+
+            Else
+                g_Debug "!app-settings: '" & pti.TagAt(i).Name & "'not found"
+
+            End If
+        Else
+            g_Debug "!app-settings: missing arg"
 
         End If
 
     Case "system"
         uProcessSystem pti
 
+    Case "ext-settings"
+        ' /* ext-settings <signature>: show settings panel for extension <signature> */
+        If pti.CountItems > 0 Then
+            uManageExtension "configure", g_RemoveExtension(pti.TagAt(i).Name)
+
+        Else
+            g_Debug "!ext-settings: missing arg"
+
+        End If
+
     Case "configure"
+        ' /* !configure|ext-settings <signature>: show settings panel for extension <signature> */
         If pti.CountItems > 0 Then
             sz = pti.TagAt(1).Name
             Select Case g_GetExtension(sz, True)
@@ -2078,6 +2120,8 @@ Dim i As Long
                 uManageExtension Arg(0), g_RemoveExtension(sz)
 
             End Select
+        Else
+
         End If
 
     Case Else
@@ -2495,15 +2539,18 @@ Dim i As Long
 
         If g_GetExtension(sz) = "ico" Then
             ' /* icon */
+            g_Debug "g_TranslateIconPath(): ico"
             g_TranslateIconPath = uLoadICO(Icon)
 
         ElseIf InStr(sz, ".ico,") > 0 Then
             ' /* icon (sometimes a ",0" can appear) */
+            g_Debug "g_TranslateIconPath(): ico with index"
             i = InStr(Icon, ",")
             g_TranslateIconPath = uLoadICO(g_SafeLeftStr(Icon, i - 1))
 
         ElseIf (InStr(sz, ".dll,") > 0) Or (InStr(sz, ".exe,") > 0) Then
             ' /* icon within a resource file */
+            g_Debug "g_TranslateIconPath(): resource file"
             i = InStr(Icon, ",")
             g_TranslateIconPath = uGetBestIcon(g_SafeLeftStr(Icon, i - 1), g_SafeLong(g_SafeRightStr(Icon, Len(Icon) - i)))
 
@@ -2518,22 +2565,48 @@ End Function
 
 Private Function uLoadICO(ByVal IconPath As String) As String
 Dim pbm As mfxBitmap
+Dim pm As MImage
 Dim pIcon As BIcon
+
+    g_Debug "uLoadIcon()", LEMON_LEVEL_PROC_ENTER
 
     On Error Resume Next
 
+    g_Debug "creating BIconContent..."
     With New BIconContent
+        g_Debug "LoadFromICO('" & IconPath & "')"
         If Not .LoadFromICO(IconPath) Then _
+            g_Debug "failed", LEMON_LEVEL_PROC_EXIT: _
             Exit Function
 
+        g_Debug ".GetIcon(B_GET_ICON_BIGGEST Or B_GET_ICON_MOST_COLOURS)"
         If .GetIcon(B_GET_ICON_BIGGEST Or B_GET_ICON_MOST_COLOURS, pIcon) Then
-            Set pbm = create_bitmap_from_image(pIcon.Render)
-            uLoadICO = g_GetSafeTempIconPath()
-            pbm.Save uLoadICO, "image/png"
+            g_Debug "success - icon is " & pIcon.Width & "x" & pIcon.Height & "x" & pIcon.ColourDepth
+
+            ' /* seems to be an issue rendering 128x128 icons */
+
+            If (pIcon.Width > 128) Or (pIcon.Height > 128) Then
+                g_Debug "aborting due to bug"
+            
+            Else
+                g_Debug "rendering..."
+                Set pm = pIcon.Render()
+                g_Debug "creating bitmap..."
+                Set pbm = create_bitmap_from_image(pm)
+                uLoadICO = g_GetSafeTempIconPath()
+                g_Debug "saving as '" & uLoadICO & "'..."
+                pbm.Save uLoadICO, "image/png"
+
+            End If
+
+        Else
+            g_Debug "failed"
 
         End If
 
     End With
+
+    g_Debug "", LEMON_LEVEL_PROC_EXIT
 
 End Function
 
@@ -2541,20 +2614,31 @@ Private Function uGetBestIcon(ByVal IconPath As String, ByVal Index As Long) As 
 Dim pbm As mfxBitmap
 Dim pIcon As BIcon
 
+    g_Debug "uGetBestIcon()", LEMON_LEVEL_PROC_ENTER
+
     On Error Resume Next
 
     With New BIconContent
         If Not .LoadFromResource(IconPath, Index) Then _
+            g_Debug "failed to load icon index '" & CStr(Index) & "' from '" & IconPath & "'", LEMON_LEVEL_PROC_EXIT: _
             Exit Function
 
         If .GetIcon(B_GET_ICON_BIGGEST Or B_GET_ICON_MOST_COLOURS, pIcon) Then
+            g_Debug "got " & CStr(pIcon.Width) & "x" & CStr(pIcon.Height) & "x" & CStr(pIcon.ColourDepth) & " image"
+
             Set pbm = create_bitmap_from_image(pIcon.Render)
             uGetBestIcon = g_GetSafeTempIconPath()
+            g_Debug "writing to '" & uGetBestIcon & "'..."
             pbm.Save uGetBestIcon, "image/png"
+
+        Else
+            g_Debug "no suitable image found", LEMON_LEVEL_CRITICAL
 
         End If
 
     End With
+
+    g_Debug "", LEMON_LEVEL_PROC_EXIT
 
 End Function
 
@@ -2654,8 +2738,9 @@ Public Function g_CreatePacked(ByVal ClassId As String, ByVal Title As String, B
 
         If AddTestAction Then
             .Add "action", "Dummy Action,@1"
-            .Add "action", "Dummy Action,@2"
-            .Add "action", "Dummy Action,@3"
+            .Add "action", "Dummy Info,!info"
+            .Add "action", "x,!sep"
+            .Add "action", "Dummy Link,http://getsnarl.info"
 
         End If
 
@@ -2880,8 +2965,12 @@ Dim pApp As TApp
             End If
 
         ElseIf g_AppRoster.FindByToken(AppToken, pApp, pData.ValueOf("password")) Then
-            ' /* R2.4.1 - support for "class" keyword */
-            If pData.Exists("class") Then
+            If pData.Exists("event") Then
+                ' /* R3.1 - support for "event" keyword */
+                szClass = pData.ValueOf("event")
+
+            ElseIf pData.Exists("class") Then
+                ' /* R2.4.1 - support for "class" keyword */
                 szClass = pData.ValueOf("class")
 
             Else
@@ -3012,10 +3101,10 @@ Dim pApp As TApp
     Case "addaction"
         g_DoAction = g_NotificationRoster.AddAction(Token, Args)
 
-    Case "addclass"
+    Case "addclass", "events-add"
         g_DoAction = uAddClass(Token, Args)
 
-    Case "clearclasses", "killclasses"
+    Case "clearclasses", "killclasses", "events-clear"
         g_DoAction = uRemClass(Token, Args, True)
 
     Case "clearactions"
@@ -3039,7 +3128,7 @@ Dim pApp As TApp
     Case "reg", "register"
         g_DoAction = g_AppRoster.Add41(Args, ReplySocket, SenderPID, szSource)
 
-    Case "remclass"
+    Case "remclass", "events-del"
         g_DoAction = uRemClass(Token, Args)
 
     Case "test"
@@ -3579,9 +3668,14 @@ Dim sz As String
 
     On Error Resume Next
 
+    err.Clear
+
+    g_Debug "uGetEncodedIcon()", LEMON_LEVEL_PROC_ENTER
+
+    g_Debug "Decoding Base64..."
     sz = Decode64(Base64, bErr)
     If (sz = "") Or (bErr) Then
-        g_Debug "uGetEncodedIcon(): failed to decode Base64", LEMON_LEVEL_CRITICAL
+        g_Debug "...failed", LEMON_LEVEL_CRITICAL Or LEMON_LEVEL_PROC_EXIT
         Exit Function
 
     End If
@@ -3589,6 +3683,7 @@ Dim sz As String
     ' /* get a suitably unique path */
 
     uGetEncodedIcon = g_GetSafeTempIconPath()
+    g_Debug "Saving to: " & uGetEncodedIcon
 
 Dim i As Integer
 
@@ -3604,7 +3699,10 @@ Dim i As Integer
 
     End If
 
-    g_Debug "uGetEncodedIcon(): writing icon to '" & uGetEncodedIcon & "'"
+    If err.Number <> 0 Then _
+        g_Debug CStr(err.Number) & " " & err.Description
+
+    g_Debug "", LEMON_LEVEL_PROC_EXIT
 
 End Function
 
@@ -3734,6 +3832,12 @@ Dim sz As String
     uSafeLoadImage sz, "emblem-sticky.png", bm_IsSticky
     uSafeLoadImage sz, "emblem-priority.png", bm_Priority
     uSafeLoadImage sz, "emblem-forward.png", bm_Forward
+
+    ' /* action menu icons */
+    uSafeLoadImage sz, "emblem-action.png", bm_MenuAction
+    uSafeLoadImage sz, "emblem-url.png", bm_MenuURL
+    uSafeLoadImage sz, "emblem-info.png", bm_MenuInfo
+    uSafeLoadImage sz, "emblem-folder.png", bm_MenuFolder
 
     Set bm_CallbackButton = g_CreateButton(new_BPoint(66, 24))
     Set bm_Button = g_CreateButton(new_BPoint(24, 24))
@@ -4663,7 +4767,8 @@ Dim i As Long
                     End If
 
                 Else
-                    prefskit_SetItemObject ListControl, i, "image-object", load_image_obj(g_MakePath(App.Path) & "etc\icons\no_icon.png")
+                    prefskit_SetItemObject ListControl, i, "image-object", g_AppRoster.DefaultAppIcon()
+'                    prefskit_SetItemObject ListControl, i, "image-object", load_image_obj(g_MakePath(App.Path) & "etc\icons\no_icon.png")
 
                 End If
             Loop

@@ -139,8 +139,8 @@ Dim b As Boolean
             .Add new_BPrefsControl("fancycycle", "notification_scaling", "50%|100%|150%|  200%  ", "Scaling:", uScalingToIndex())
             ' /* dropshadow */
             .Add new_BPrefsControl("banner", "", "Drop Shadow")
-            .Add prefskit_NewSlider("dropshadow_strength", "Strength:", 0, 100, 10, , Val(g_ConfigGet("dropshadow_strength")), "%")
-            .Add prefskit_NewSlider("dropshadow_size", "Size:", 0, 20, 2)
+            .Add prefskit_NewSlider("dropshadow_strength", "Strength:", 0, 100, 10, , g_SafeLong(g_ConfigGet("dropshadow_strength")), "%")
+            .Add prefskit_NewSlider("dropshadow_size", "Size:", 0, 20, 2, , g_SafeLong(g_ConfigGet("dropshadow_size")))
 
         Case "behaviour"
 '            .Add new_BPrefsControl("banner", "", "General")
@@ -790,15 +790,17 @@ Dim j As Long
         Do While .GetNextStyle(px)
             If Not px.IsRedirect() Then
                 j = j + 1
-                sz = px.IconPath
-                If Not g_Exists(sz) Then _
-                    sz = g_MakePath(px.Path) & px.Name & ".png"
+'                sz = px.IconPath
+'                If Not g_Exists(sz) Then _
+'                    sz = g_MakePath(px.Path) & px.Name & ".png"
+'
+'                ' /* use default icon if custom one not found */
+'                If Not g_Exists(sz) Then _
+'                    sz = g_MakePath(App.Path) & "etc\icons\style.png"
+'
+'                prefskit_SetItem pc, j, "image-file", sz
 
-                ' /* use default icon if custom one not found */
-                If Not g_Exists(sz) Then _
-                    sz = g_MakePath(App.Path) & "etc\icons\style.png"
-
-                prefskit_SetItem pc, j, "image-file", sz
+                prefskit_SetItem pc, j, "image-object", px.Icon()
 
             End If
         Loop
@@ -982,9 +984,12 @@ End Function
 
 Private Function uMakePreviewName() As String
 
-    If NOTNULL(mDisplayStyle) Then _
+'    If NOTNULL(mDisplayStyle) Then _
         uMakePreviewName = g_MakeValidPath(g_MakePath(mDisplayStyle.Path) & mDisplayStyle.Name & "-" & mDisplayScheme & ".prvw")
  
+    If NOTNULL(mDisplayStyle) Then _
+        uMakePreviewName = g_GetTempPath(True) & "snarl.style." & mDisplayStyle.Name & "." & mDisplayScheme & ".prvw"
+
 End Function
 
 'Private Function uDoConfigureStyleWindow(ByRef pStyle As TStyle) As Boolean

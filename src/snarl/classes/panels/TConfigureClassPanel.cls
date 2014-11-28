@@ -39,6 +39,9 @@ Attribute thePicker.VB_VarHelpID = -1
 Dim mSelectedRedirect As String
 Dim mSelectedForward As String
 
+Dim WithEvents theAdvPanel As TAdvEventPanel
+Attribute theAdvPanel.VB_VarHelpID = -1
+
 Public Event Done()
 
 Implements KPrefsPanel
@@ -63,6 +66,11 @@ Dim sz As String
     Select Case Control.GetName
 
     Case "", "redirection_list"
+        Exit Sub
+
+    Case "content_toolbar"
+        Set theAdvPanel = New TAdvEventPanel
+        theAdvPanel.Go mPanel.hWnd, mSelectedClass
         Exit Sub
 
     Case "use_same_toggle"
@@ -159,9 +167,7 @@ Dim sz As String
 '        mCurrentForwardName = LCase$(Replace$(prefskit_GetItem(Control), ": ", "/"))
 '        uSetConditions
 
-    Case "redact-when"
-        mSelectedClass.SetValue Control.GetName, uRedactionFromIndex(Val(Value))
-        Exit Sub
+
 
 
 
@@ -299,7 +305,7 @@ Dim pc As BControl
         .SetHandler Me
         .SetWindow 1                                            ' // so it doesn't appear during Go()
         .SetWidth 482
-        .SetTitle SelectedApp.Name & " Notifications"
+        .SetTitle SelectedApp.Name & " Events"
 
         Set pp = new_BPrefsPage("", , Me)
         With pp
@@ -312,10 +318,10 @@ Dim pc As BControl
             pc.SizeTo 0, (24 * 4) + 2
             .Add pc
 
-            .Add new_BPrefsControl("fancytoggle2", "use_same_toggle", "Use the same settings for all notification classes?", , IIf(SelectedApp.UseSameSettingsForAllClasses, "1", "0"))
+            .Add new_BPrefsControl("fancytoggle2", "use_same_toggle", "Use the same settings for all events?", , IIf(SelectedApp.UseSameSettingsForAllClasses, "1", "0"))
 
             Set pm = New CTempMsg
-            pm.Add "height", 290&
+            pm.Add "height", 260&
             Set pcTabs = new_BPrefsControl("tabstrip", "", , , , pm)
 
             ' /* Appearance */
@@ -328,8 +334,6 @@ Dim pc As BControl
                 .Add new_BPrefsControl("fancytoggle2", "use_style", "Use a specific style?", "Style:")
                 .Add new_BPrefsCombo("style_name", "", "", , 22)
                 .Add new_BPrefsCombo("scheme_name", "", "", , 22)
-                ' /* priority */
-                .Add new_BPrefsControl("fancycycle", "priority", "Application Decides|Low|Normal|High", "Priority:")
                 ' /* position */
                 .Add new_BPrefsControl("fancycycle", "position", "Default|Top Left|Top Right|Bottom Left|Bottom Right", "Position:")
                 ' /* R2.6: background tint */
@@ -342,11 +346,18 @@ Dim pc As BControl
             Set ppSub = new_BPrefsPage("", , Me)
             With ppSub
                 .SetMargin 102
+                ' /* priority */
+                .Add new_BPrefsControl("fancycycle", "priority", "Application Decides|Low|Normal|High", "Priority:")
                 ' /* duration */
                 .Add new_BPrefsControl("fancycycle", "duration", "Default|Application Decides|Custom", "Duration:")
                 .Add prefskit_NewSlider("custom_timeout", "", 0, 60, 10, 64)
                 ' /* logging */
                 .Add new_BPrefsControl("fancycycle", "log_in_history", "Always|Never|Application Decides", "Logging:")
+
+                ' /* interaction */
+                .Add new_BPrefsControl("fancytoggle2", "ignore_input", "Ignore mouse and other input events?", "Interaction:")
+                .Add new_BPrefsControl("label", "", "Enabling this setting makes notifications created using this class invisible to the mouse pointer, allowing access to content beneath them but at the same time preventing any interaction with the notifications themselves.")
+
 
 '                Set pm = New CTempMsg
 '                pm.Add "min", 0&
@@ -355,11 +366,11 @@ Dim pc As BControl
 '                pm.Add "label_size", 64&
 '                .Add new_BPrefsControl("fancyslider", "custom_timeout", , , , pm)
 
-                ' /* presence overrides */
-                .Add new_BPrefsControl("banner", "", "Presence Overrides")
-                .Add new_BPrefsControl("fancycycle", "override-normal", "Do Default|Log as Missed|Display Sticky|Discard|Display Normally|Display High Priority", "While Active:")
-                .Add new_BPrefsControl("fancycycle", "override-away", "Do Default|Log as Missed|Display Sticky|Discard|Display Normally|Display High Priority", "While Away:")
-                .Add new_BPrefsControl("fancycycle", "override-busy", "Do Default|Log as Missed|Display Sticky|Discard|Display Normally|Display High Priority", "While Busy:")
+'                ' /* presence overrides */
+'                .Add new_BPrefsControl("banner", "", "Presence Overrides")
+'                .Add new_BPrefsControl("fancycycle", "override-normal", "Do Default|Log as Missed|Display Sticky|Discard|Display Normally|Display High Priority", "While Active:")
+'                .Add new_BPrefsControl("fancycycle", "override-away", "Do Default|Log as Missed|Display Sticky|Discard|Display Normally|Display High Priority", "While Away:")
+'                .Add new_BPrefsControl("fancycycle", "override-busy", "Do Default|Log as Missed|Display Sticky|Discard|Display Normally|Display High Priority", "While Busy:")
 
             End With
             BTabStrip_AddPage pcTabs, "Behaviour", ppSub
@@ -401,31 +412,31 @@ Dim pc As BControl
                 pm.Add "item-height", 26&
                 pm.Add "checkboxes", 1&
                 Set pc = new_BPrefsControl("listbox", "net_forward_list", , "", , pm)
-                pc.SizeTo 0, (4 * 26) + 2
+                pc.SizeTo 0, (6 * 26) + 2
                 .Add pc
 '                .Add new_BPrefsControl("label", "", "Forwards are assigned in [Network]->[Forwarding].")
-                .Add new_BPrefsControl("fancytoggle2", "send_to_subscribers", "Send to subscribed computers?", "")
-                .Add new_BPrefsControl("fancytoggle2", "send_to_redirects", "Send content to assigned Redirects?", "")
-                .Add new_BPrefsControl("label", "", "Forwards and Redirects can be created and managed in the [Gateway] page.")
+
+'                .Add new_BPrefsControl("fancytoggle2", "send_to_redirects", "Send content to assigned Redirects?", "")
+                .Add new_BPrefsControl("label", "", "Notification forwarding destinations are managed in the [Gateway] page.")
 
             End With
             BTabStrip_AddPage pcTabs, "Forwarding", ppSub
 
-'            ' /* Redirection */
-'            Set ppSub = new_BPrefsPage("", , Me)
-'            With ppSub
-'                .SetMargin 0
-'                .Add new_BPrefsControl("label", "", "Redirect using the following:")
-'                Set pm = New CTempMsg
-'                pm.Add "plus_minus", 1&
-'                pm.Add "item-height", 26&
-'                Set pc = new_BPrefsControl("listbox", "redirection_list", "", "", "1", pm)
-'                pc.SizeTo 0, (7 * 26) + 2
-'                .Add pc
-'                .Add new_BPrefsControl("fancyplusminus", "add_remove_redirect")
-'
-'            End With
-'            BTabStrip_AddPage pcTabs, "Redirection", ppSub
+            ' /* Redirection */
+            Set ppSub = new_BPrefsPage("", , Me)
+            With ppSub
+                .SetMargin 0
+                .Add new_BPrefsControl("label", "", "Redirect using the following:")
+                Set pm = New CTempMsg
+                pm.Add "plus_minus", 1&
+                pm.Add "item-height", 26&
+                Set pc = new_BPrefsControl("listbox", "redirection_list", "", "", "1", pm)
+                pc.SizeTo 0, (6 * 26) + 2
+                .Add pc
+                .Add new_BPrefsControl("fancyplusminus", "add_remove_redirect")
+
+            End With
+            BTabStrip_AddPage pcTabs, "Redirection", ppSub
 
 
 
@@ -434,45 +445,24 @@ Dim pc As BControl
 
 '                .Add new_BPrefsControl("label", "", "Redirectors can be configured in the AddOns page.")
 
-            ' /* Content */
-            Set ppSub = new_BPrefsPage("", , Me)
-            With ppSub
-                .SetMargin 102
-                .Add new_BPrefsControl("banner", "", "Content Customisation")
-                .Add new_BPrefsControl("fancyfilepicker", "custom_icon", , "Icon:", "")
-                .Add new_BPrefsControl("fancyfilepicker", "custom_sound", , "Sound:")
-                .Add new_BPrefsControl("fancyedit", "custom_ack", , "Callback:")
-                .Add new_BPrefsControl("fancyedit", "custom_actions", , "Actions:")
-                .Add new_BPrefsControl("label", "", "Separate multiple actions with semicolons, for example " & g_Quote("open=!open;close=!close"))
-            End With
-            BTabStrip_AddPage pcTabs, "Content", ppSub
-
-            ' /* Security */
-            Set ppSub = new_BPrefsPage("", , Me)
-            With ppSub
-                .SetMargin 102
-                ' /* redaction */
-                .Add new_BPrefsControl("banner", "", "Redaction")
-                .Add new_BPrefsControl("fancycycle", "redact-when", "Never|Personal or higher|Private or higher|Confidential or higher", "When:")
-                .Add new_BPrefsControl("fancyedit", "redact-with", , "With:")
-                .Add new_BPrefsControl("label", "", "If a notification's sensitivity rating is the same or higher than the value selected, its body text will be replaced with the text above.")
-                .Add new_BPrefsControl("fancytoggle2", "redact-always", "Redact on-screen content as well?", "")
-
-            End With
-            BTabStrip_AddPage pcTabs, "Security", ppSub
 
             ' /* Advanced */
             Set ppSub = new_BPrefsPage("", , Me)
             With ppSub
-                .SetMargin 24
-                .Add new_BPrefsControl("banner", "", "Miscellaneous")
+                .SetMargin 0
+'                .Add new_BPrefsControl("banner", "", "Miscellaneous")
                 ' /* misc toggles */
                 .Add new_BPrefsControl("fancytoggle2", "block_if_foreground", "Suppress notifications if application is foreground?")
-                .Add new_BPrefsControl("fancytoggle2", "ignore_input", "Ignore mouse and other input events?", "")
-                .Add new_BPrefsControl("label", "", "Enabling this setting makes notifications created using this class invisible to the mouse pointer, allowing access to content beneath them but at the same time preventing any interaction with the notifications themselves.")
 '                .Add new_BPrefsControl("fancytoggle2", "block_spam", "Prevent notification flooding?", "")
                 .Add new_BPrefsControl("fancytoggle2", "prevent_close", "Prevent the sending application from closing notifications?", "")
                 .Add new_BPrefsControl("label", "", "If enabled, the sending application will not be able to programmatically remove notifications.  Note that this may adversely affect the way some applications interact with Snarl.")
+
+                ' /* Subscribers */
+                .Add new_BPrefsControl("fancytoggle2", "send_to_subscribers", "Send to subscribed computers?", "")
+                .Add new_BPrefsControl("label", "", "NOTE: Computers may subscribe to events from this computer at any time.  Before enabling this setting, ensure you trust all computers which may subscribe to notifications generated by this event.")
+
+                ' /* content */
+                .Add new_BPrefsControl("fancytoolbar", "content_toolbar", "Advanced Settings...|", "")
 
 '                ' /* presence */
 '                .Add new_BPrefsControl("banner", "", "Presence")
@@ -728,14 +718,14 @@ Dim dw As Long
         dw = Val(.GetValue("position"))
         prefskit_SetValue mPanel, "position", CStr(dw + 1)
         prefskit_SetValue mPanel, "log_in_history", .GetValue("log_in_history")
-        prefskit_SetValue mPanel, "override-normal", .GetValue("override-normal")
-        prefskit_SetValue mPanel, "override-away", .GetValue("override-away")
-        prefskit_SetValue mPanel, "override-busy", .GetValue("override-busy")
+'        prefskit_SetValue mPanel, "override-normal", .GetValue("override-normal")
+'        prefskit_SetValue mPanel, "override-away", .GetValue("override-away")
+'        prefskit_SetValue mPanel, "override-busy", .GetValue("override-busy")
 
         ' /* Content */
-        prefskit_SetValue mPanel, "redact-when", uRedactionIndex(.GetValue("redact-when"))
-        prefskit_SafeSetText mPanel, "redact-with", .GetValue("redact-with")
-        prefskit_SetValue mPanel, "redact-always", .GetValue("redact-always")
+'        prefskit_SetValue mPanel, "redact-when", uRedactionIndex(.GetValue("redact-when"))
+'        prefskit_SafeSetText mPanel, "redact-with", .GetValue("redact-with")
+'        prefskit_SetValue mPanel, "redact-always", .GetValue("redact-always")
 
         If .GetValue("custom_priority") = "0" Then
             ' /* app decides */
@@ -796,16 +786,16 @@ Dim j As Long
 
 
         ' /* Content */
-'        prefskit_SetValue mPanel, "use_custom_icon", .GetValue("use_custom_icon")
-        prefskit_SafeSetText mPanel, "custom_icon", .GetValue("custom_icon")
-'        prefskit_SetValue mPanel, "use_custom_sound", .GetValue("use_custom_sound")
-        prefskit_SafeSetText mPanel, "custom_sound", .GetValue("custom_sound")
-        ' /* R2.31d3 */
-'        prefskit_SetValue mPanel, "use_custom_ack", .GetValue("use_custom_ack")
-        prefskit_SafeSetText mPanel, "custom_ack", .GetValue("custom_ack")
-        ' /* R2.4.2 DR3 */
-'        prefskit_SetValue mPanel, "use_custom_actions", .GetValue("use_custom_actions")
-        prefskit_SafeSetText mPanel, "custom_actions", .GetValue("custom_actions")
+''        prefskit_SetValue mPanel, "use_custom_icon", .GetValue("use_custom_icon")
+'        prefskit_SafeSetText mPanel, "custom_icon", .GetValue("custom_icon")
+''        prefskit_SetValue mPanel, "use_custom_sound", .GetValue("use_custom_sound")
+'        prefskit_SafeSetText mPanel, "custom_sound", .GetValue("custom_sound")
+'        ' /* R2.31d3 */
+''        prefskit_SetValue mPanel, "use_custom_ack", .GetValue("use_custom_ack")
+'        prefskit_SafeSetText mPanel, "custom_ack", .GetValue("custom_ack")
+'        ' /* R2.4.2 DR3 */
+''        prefskit_SetValue mPanel, "use_custom_actions", .GetValue("use_custom_actions")
+'        prefskit_SafeSetText mPanel, "custom_actions", .GetValue("custom_actions")
 
         ' /* Advanced */
         prefskit_SetValue mPanel, "block_if_foreground", .GetValue("block_if_foreground")
@@ -825,7 +815,7 @@ Dim pc As BControl
         End If
 
         prefskit_SetValue mPanel, "send_to_subscribers", .GetValue("send_to_subscribers")
-        prefskit_SetValue mPanel, "send_to_redirects", .GetValue("send_to_redirects")
+'        prefskit_SetValue mPanel, "send_to_redirects", .GetValue("send_to_redirects")
 
         ' /* redirection */
 
@@ -851,7 +841,7 @@ Dim b As Boolean
         uSafeEnable "priority", b
         uSafeEnable "use_style", b
 
-        uSafeEnable "ignore_input", (g_ConfigGet("ignore_input") = "0")
+'        uSafeEnable "ignore_input", (g_ConfigGet("ignore_input") = "0")
 
         ' /* only enable the combos if "show_on_screen" and "use custom style" are enabled */
 
@@ -890,6 +880,12 @@ Dim pc As BControl
 
 End Function
 
+Private Sub theAdvPanel_Closed()
+
+    Set theAdvPanel = Nothing
+
+End Sub
+
 Private Sub thePicker_Closed()
 
     Set thePicker = Nothing
@@ -918,18 +914,18 @@ Dim pc As BControl
 
 End Sub
 
-Public Function uRedactionIndex(ByVal Redaction As Long) As String
-
-    uRedactionIndex = CStr((Redaction \ 16) + 1)
-
-End Function
-
-Public Function uRedactionFromIndex(ByVal Index As Long) As String
-
-    Index = Index - 1
-    uRedactionFromIndex = CStr(Index * 16)
-
-End Function
+'Public Function uRedactionIndex(ByVal Redaction As Long) As String
+'
+'    uRedactionIndex = CStr((Redaction \ 16) + 1)
+'
+'End Function
+'
+'Public Function uRedactionFromIndex(ByVal Index As Long) As String
+'
+'    Index = Index - 1
+'    uRedactionFromIndex = CStr(Index * 16)
+'
+'End Function
 
 Private Sub uUpdateClassList()
 Dim pc As BControl
